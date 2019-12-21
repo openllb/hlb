@@ -1,0 +1,61 @@
+state foo {
+	scratch
+}
+
+state foo {
+	image "alpine"
+}
+
+state foo {
+	image 'alpine'
+}
+
+state foo {
+	image `alpine foo
+bar`
+}
+
+state foo {
+	image "alpine" with blah
+}
+
+state foo {
+	image "alpine" with option {
+		mount
+	}
+}
+
+state foo {
+	image "alpine"
+	env "key" "value"
+}
+
+state foo {
+	image "alpine"
+	env "key" "value"
+	env "key" "value"
+}
+
+state foo {
+	image "alpine"
+	copy foo "src" "dst"
+	copy state { image "alpine"; env "key" "value" } "src" "dst"
+	copy state {
+		image "alpine"
+		env "key" "value"
+	} "src" "dst"
+}
+
+state foo {
+	image "alpine"
+	mkdir "path" 0600
+	mkfile "path" 0600 "content"
+	rm "path"
+}
+
+state foo {
+	image "alpine"
+	env "key" "value"
+	dir "path"
+	user "name"
+}
