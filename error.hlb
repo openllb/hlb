@@ -1,2 +1,4 @@
 state foo {
-	s
+	image "alpine"
+	env "key" "value"
+}

@@ -111,7 +111,11 @@ func (b *StateBody) End() lexer.Position {
 }
 
 func (b *StateBody) Fields() []Field {
-	fields := []Field{&b.Source}
+	var fields []Field
+
+	if b.Source.String() != "" {
+		fields = append(fields, &b.Source)
+	}
 	for _, op := range b.Ops {
 		fields = append(fields, op)
 	}
@@ -120,14 +124,16 @@ func (b *StateBody) Fields() []Field {
 
 func (s *Source) String() string {
 	switch {
-	case s.Scratch != nil:
-		return fmt.Sprintf("scratch")
 	case s.Image != nil:
 		return s.Image.String()
 	case s.HTTP != nil:
 		return fmt.Sprintf("http %q", s.HTTP.URL)
 	case s.Git != nil:
 		return fmt.Sprintf("git %q %q", s.Git.Remote, s.Git.Ref)
+	case s.Scratch != nil:
+		return "scratch"
+	case s.From != nil:
+		return fmt.Sprintf("from %s", s.From)
 	}
 	panic("unknown source")
 }
@@ -192,9 +198,9 @@ func (o *Op) String() string {
 	case o.User != nil:
 		return fmt.Sprintf("user %q", o.User.Name)
 	case o.Mkdir != nil:
-		return fmt.Sprintf("mkdir %q %04o", o.Mkdir.Path, o.Mkdir.Mode)
+		return fmt.Sprintf("mkdir %q %04o", o.Mkdir.Path, o.Mkdir.Mode.Value)
 	case o.Mkfile != nil:
-		return fmt.Sprintf("mkfile %q %04o %q", o.Mkfile.Path, o.Mkfile.Mode, o.Mkfile.Content)
+		return fmt.Sprintf("mkfile %q %04o %q", o.Mkfile.Path, o.Mkfile.Mode.Value, o.Mkfile.Content)
 	case o.Rm != nil:
 		return fmt.Sprintf("rm %q", o.Rm.Path)
 	case o.Copy != nil:
@@ -205,4 +211,8 @@ func (o *Op) String() string {
 
 func (o *Op) Position() lexer.Position {
 	return o.Pos
+}
+
+func (l Literal) String() string {
+	return l.Value
 }

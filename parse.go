@@ -9,7 +9,12 @@ import (
 )
 
 var (
-	parser = participle.MustBuild(&AST{})
+	textLexer = lexer.TextScannerLexer
+
+	parser = participle.MustBuild(
+		&AST{},
+		participle.Lexer(textLexer),
+	)
 )
 
 func Parse(r io.Reader) (*AST, error) {
@@ -23,14 +28,19 @@ func Parse(r io.Reader) (*AST, error) {
 	ib := &indexedBuffer{buf: new(bytes.Buffer)}
 	r = io.TeeReader(r, ib)
 
-	lex, err := lexer.TextScannerLexer.Lex(&namedReader{r, name})
+	lex, err := textLexer.Lex(&namedReader{r, name})
 	if err != nil {
 		return nil, err
 	}
 
 	peeker, err := lexer.Upgrade(lex)
 	if err != nil {
-		return nil, err
+		nerr, err := NewLexerError(ib, peeker, err)
+		if err != nil {
+			return ast, err
+		}
+
+		return ast, nerr
 	}
 
 	err = parser.ParseFromLexer(peeker, ast)
@@ -40,25 +50,12 @@ func Parse(r io.Reader) (*AST, error) {
 			return ast, err
 		}
 
-		nerr, err := NewError(ib, peeker, perr)
+		nerr, err := NewParserError(ib, peeker, perr)
 		if err != nil {
 			return ast, err
 		}
 
 		return ast, nerr
-
-		// fmt.Println(perr.Position().Filename)
-
-		// pos := perr.Position()
-
-		// terr, ok := perr.(participle.UnexpectedTokenError)
-		// if !ok {
-		// 	return ast, perr
-		// }
-
-		// fmt.Printf("%d | %s [%d]", pos.Line, line, pos.Offset)
-		// fmt.Printf("     %s%s\n", strings.Repeat(" ", pos.Column), strings.Repeat("^", len(terr.Token.Value)))
-		// return ast, perr
 	}
 
 	return ast, nil
@@ -85,7 +82,7 @@ type NamedState struct {
 
 type State struct {
 	Pos  lexer.Position
-	Body *StateBody `( ( "state" )? @@`
+	Body *StateBody `( ("state")? @@`
 	Name *string    `| @Ident )`
 }
 
@@ -98,10 +95,11 @@ type StateBody struct {
 
 type Source struct {
 	Pos     lexer.Position
-	Image   *Image  `( "image" @@`
+	From    *State  ` ( "from" @@`
+	Scratch *string `| @"scratch"`
+	Image   *Image  `| "image" @@`
 	HTTP    *HTTP   `| "http" @@`
-	Git     *Git    `| "git" @@`
-	Scratch *string `| @("scratch")? )`
+	Git     *Git    `| "git" @@ )`
 }
 
 type Image struct {
@@ -119,7 +117,7 @@ type ImageOption struct {
 
 type ImageField struct {
 	Pos     lexer.Position
-	Resolve *bool `@("resolve")`
+	Resolve *bool `@"resolve"`
 }
 
 type HTTP struct {
@@ -135,7 +133,7 @@ type Git struct {
 
 type Op struct {
 	Pos    lexer.Position
-	Exec   *Exec   `( "exec" @@`
+	Exec   *Exec   `( @@`
 	Env    *Env    `| "env" @@`
 	Dir    *Dir    `| "dir" @@`
 	User   *User   `| "user" @@`
@@ -147,22 +145,13 @@ type Op struct {
 
 type Exec struct {
 	Pos   lexer.Position
-	Shlex Literal `@@`
+	Shlex string `@String`
 }
 
 type Env struct {
 	Pos   lexer.Position
 	Key   Literal `@@`
 	Value Literal `@@`
-}
-
-type Literal struct {
-	Pos lexer.Position
-	Str *string `@(String|Char|RawString)`
-}
-
-func (l Literal) String() string {
-	return *l.Str
 }
 
 type Dir struct {
@@ -215,5 +204,10 @@ type NamedOption struct {
 
 type BlockEnd struct {
 	Pos   lexer.Position
-	Brace string `@("}")`
+	Brace string `@"}"`
+}
+
+type Literal struct {
+	Pos lexer.Position
+	Value string `@(String|Char|RawString)`
 }
