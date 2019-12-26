@@ -1,6 +1,2 @@
 state foo {
-	image "alpine" with option {
-	exe
-
-state foo {
-}
+	gi

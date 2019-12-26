@@ -12,6 +12,14 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
+var (
+	Entries = []string{"state", "option", "result", "frontend", "build"}
+	Sources = []string{"from", "scratch", "image", "http", "git"}
+	Ops     = []string{"exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
+
+	Keywords = append(append(Entries, Sources...), Ops...)
+)
+
 func NewLexerError(ib *indexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
 	// TODO: literal not terminated
 	return nil, err
@@ -313,6 +321,8 @@ func errEntry(ib *indexedBuffer, lex *lexer.PeekingLexer) (group AnnotationGroup
 		return group, err
 	}
 
+	suggestion := getSuggestion(Keywords, token.String())
+
 	return AnnotationGroup{
 		Pos: token.Pos,
 		Annotations: []Annotation{
@@ -320,7 +330,7 @@ func errEntry(ib *indexedBuffer, lex *lexer.PeekingLexer) (group AnnotationGroup
 				Pos:     token.Pos,
 				Token:   token,
 				Segment: segment,
-				Message: fmt.Sprintf("expected new entry, found %q", token),
+				Message: fmt.Sprintf("expected new entry, found %q%s", token, suggestion),
 			},
 		},
 		Help: "must be one of `state`, `option`, `result`, `frontend`, or `build`.",
@@ -339,7 +349,7 @@ func errArg(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) 
 		return group, err
 	}
 
-	for !isFunction(startToken.Value) && lex.Cursor() > 0 {
+	for !isKeyword(startToken.Value) && lex.Cursor() > 0 {
 		m--
 		startToken, err = lex.Peek(m)
 		if err != nil {
@@ -465,6 +475,8 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 		return group, err
 	}
 
+	suggestion := getSuggestion(Keywords, endToken.String())
+
 	return AnnotationGroup{
 		Pos: endToken.Pos,
 		Annotations: []Annotation{
@@ -478,7 +490,7 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 				Pos:     endToken.Pos,
 				Token:   endToken,
 				Segment: endSegment,
-				Message: fmt.Sprintf(`expected block end "}", found %q`, endToken),
+				Message: fmt.Sprintf(`expected block end "}", found %q%s`, endToken, suggestion),
 			},
 		},
 	}, nil
@@ -500,6 +512,8 @@ func errSourceOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 		return group, err
 	}
 
+	suggestion := getSuggestion(Sources, endToken.String())
+
 	return AnnotationGroup{
 		Pos: endToken.Pos,
 		Annotations: []Annotation{
@@ -513,7 +527,7 @@ func errSourceOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 				Pos:     endToken.Pos,
 				Token:   endToken,
 				Segment: endSegment,
-				Message: fmt.Sprintf("expected source, found %q", endToken),
+				Message: fmt.Sprintf("expected source, found %q%s", endToken, suggestion),
 			},
 		},
 		Help: "source must be one of `from`, `scratch`, `image`, `http`, or `git`.",
@@ -647,15 +661,31 @@ func getSignature(value string, pos int) (string, string) {
 	return fmt.Sprintf("must follow signature %s", signature), args[pos]
 }
 
-func isFunction(value string) bool {
-	switch value {
-	case "state", "option", "result", "frontend", "build",
-		"from", "image", "http", "git",
-		"exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy":
-		return true
-	default:
-		return false
+func getSuggestion(keywords []string, value string) string {
+	min := -1
+	index := -1
+
+	for i, keyword := range keywords  {
+		dist := Levenshtein([]rune(value), []rune(keyword))
+		if min == -1 || dist < min {
+			min = dist
+			index = i
+		}
 	}
+
+	if min > 1 {
+		return ""
+	}
+	return fmt.Sprintf(", did you mean %q?", keywords[index])
+}
+
+func isKeyword(value string) bool {
+	for _, keyword := range Keywords {
+		if value == keyword {
+			return true
+		}
+	}
+	return false
 }
 
 func isLiteral(token lexer.Token) bool {
