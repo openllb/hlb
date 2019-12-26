@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -13,32 +14,129 @@ import (
 )
 
 var (
-	Entries = []string{"state", "option", "result", "frontend", "build"}
+	Entries = []string{"state"}
 	Sources = []string{"from", "scratch", "image", "http", "git"}
 	Ops     = []string{"exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
 
-	Keywords = append(append(Entries, Sources...), Ops...)
+	ImageOptions  = []string{"resolve"}
+	HTTPOptions   = []string{"checksum", "chmod", "filename"}
+	GitOptions    = []string{"keepGitDir"}
+	ExecOptions   = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
+	SSHOptions    = []string{"target", "id", "uid", "gid", "mode", "optional"}
+	SecretOptions = []string{"id", "uid", "gid", "mode", "optional"}
+	MountOptions  = []string{"readonly", "tmpfs", "source", "cache"}
+	MkdirOptions  = []string{"createParents", "chown", "createdTime"}
+	MkfileOptions = []string{"chown", "createdTime"}
+	RmOptions     = []string{"allowNotFound", "allowWildcard"}
+	CopyOptions   = []string{"followSymlinks", "contentsOnly", "unpack", "createDestPath", "allowWildcard", "allowEmptyWildcard", "chown", "createdTime"}
+
+	NetworkModes      = []string{"unset", "host", "none"}
+	SecurityModes     = []string{"sandbox", "insecure"}
+	CacheSharingModes = []string{"shared", "private", "locked"}
+
+	Options  = flatMap(ImageOptions, HTTPOptions, GitOptions, ExecOptions, SSHOptions, SecretOptions, MountOptions, MkdirOptions, MkfileOptions, RmOptions, CopyOptions)
+	Enums    = flatMap(NetworkModes, SecurityModes, CacheSharingModes)
+	Keywords = flatMap(Entries, Sources, Ops, Options, Enums)
+
+	KeywordsWithOptions    = []string{"image", "http", "git", "exec", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
+	KeywordsWithBlocks     = flatMap(Entries, KeywordsWithOptions)
+	KeywordsWithSignatures = keys(Signatures)
+
+	KeywordsByName = map[string][]string{
+		"state":    Ops,
+		"image":    ImageOptions,
+		"http":     HTTPOptions,
+		"git":      GitOptions,
+		"exec":     ExecOptions,
+		"ssh":      SSHOptions,
+		"secret":   SecretOptions,
+		"mount":    MountOptions,
+		"mkdir":    MkdirOptions,
+		"mkfile":   MkfileOptions,
+		"rm":       RmOptions,
+		"copy":     CopyOptions,
+		"network":  NetworkModes,
+		"security": SecurityModes,
+		"cache":    CacheSharingModes,
+	}
+
+	Signatures = map[string][]string{
+		// Source ops
+		"from":  {"state input"},
+		"image": {"string ref"},
+		"http":  {"string url"},
+		"git":   {"string remote", "string ref"},
+		// Ops
+		"exec":   {"string shlex"},
+		"env":    {"string key", "string value"},
+		"dir":    {"string path"},
+		"user":   {"string name"},
+		"mkdir":  {"string path", "filemode mode"},
+		"mkfile": {"string path", "filemode mode", "string content"},
+		"rm":     {"string path"},
+		"copy":   {"state input", "string src", "string dst"},
+		// Image options
+		"resolve": nil,
+		// HTTP options
+		"checksum": {"digest dgst"},
+		"chmod":    {"filemode mode"},
+		"filename": {"string name"},
+		// Git options
+		"keepGitDir": nil,
+		// Exec options
+		"readonlyRootfs": nil,
+		"network":        {"networkmode mode"},
+		"security":       {"securitymode mode"},
+		"host":           {"string name", "ip address"},
+		"ssh":            nil,
+		"secret":         {"string target"},
+		"mount":          {"state input", "string target"},
+		// SSH & Secret options
+		"target":   {"string path"},
+		"id":       {"string cacheid"},
+		"uid":      {"int value"},
+		"gid":      {"int value"},
+		"mode":     {"filemode mode"},
+		"optional": nil,
+		// Mount options
+		"readonly": nil,
+		"tmpfs":    nil,
+		"source":   {"string path"},
+		"cache":    {"string cacheid", "cachemode mode"},
+		// Mkdir options
+		"createParents":     nil,
+		"chown":       {"string usergroup"},
+		"createdTime": {"string time"},
+		// Rm options
+		"allowNotFound":  nil,
+		"allowWildcards": nil,
+		// Copy options
+		"followSymlinks": nil,
+		"contentsOnly":   nil,
+		"unpack":         nil,
+		"createDestPath": nil,
+	}
 )
 
-func NewLexerError(ib *indexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
+func flatMap(arrays ...[]string) []string {
+	var newArray []string
+	for _, array := range arrays {
+		newArray = append(newArray, array...)
+	}
+	return newArray
+}
+
+func newLexerError(ib *indexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
 	// TODO: literal not terminated
 	return nil, err
 }
 
-func NewParserError(ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.Error) (error, error) {
+func newParserError(ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.Error) (error, error) {
 	var groups []AnnotationGroup
 
 	uerr, ok := perr.(participle.UnexpectedTokenError)
 	if ok {
 		switch uerr.Unexpected.Value {
-		case "exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy":
-			signature, expected := getSignature(uerr.Unexpected.Value, 0)
-
-			group, err := errOp(ib, lex, uerr.Unexpected, signature, expected)
-			if err != nil {
-				return nil, err
-			}
-			groups = append(groups, group)
 		case "with":
 			group, err := errWith(ib, lex)
 			if err != nil {
@@ -46,45 +144,54 @@ func NewParserError(ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.
 			}
 			groups = append(groups, group)
 		default:
-			switch uerr.Expected {
-			case "":
-				group, err := errEntry(ib, lex)
+			signature, expected := getSignature(uerr.Unexpected.Value, 0)
+			if signature != "" {
+				group, err := errSignature(ib, lex, uerr.Unexpected, signature, expected)
 				if err != nil {
 					return nil, err
 				}
 				groups = append(groups, group)
-			case "<ident>", "<string> | <char> | <rawstring>", "<int>":
-				group, err := errArg(ib, lex, uerr.Unexpected)
-				if err != nil {
-					return nil, err
-				}
-				groups = append(groups, group)
-			case `"{"`:
-				group, err := errBlockStart(ib, lex, uerr.Unexpected)
-				if err != nil {
-					return nil, err
-				}
+			} else {
+				switch uerr.Expected {
+				case "":
+					group, err := errEntry(ib, lex)
+					if err != nil {
+						return nil, err
+					}
+					groups = append(groups, group)
+				case "<ident>", "<string> | <char> | <rawstring>", "<int>":
+					group, err := errArg(ib, lex, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
+					groups = append(groups, group)
+				case `"{"`:
+					group, err := errBlockStart(ib, lex, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
 
-				groups = append(groups, group)
-			case `"}"`:
-				group, err := errBlockEnd(ib, lex, uerr.Unexpected)
-				if err != nil {
-					return nil, err
-				}
+					groups = append(groups, group)
+				case `"}"`:
+					group, err := errBlockEnd(ib, lex, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
 
-				groups = append(groups, group)
-			case `"from" | "scratch" | "image" | "http" | "git"`:
-				group, err := errSourceOp(ib, lex, uerr.Unexpected)
-				if err != nil {
-					return nil, err
+					groups = append(groups, group)
+				case `"from" | "scratch" | "image" | "http" | "git"`:
+					group, err := errSourceOp(ib, lex, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
+					groups = append(groups, group)
+				default:
+					group, err := errDefault(ib, lex, perr, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
+					groups = append(groups, group)
 				}
-				groups = append(groups, group)
-			default:
-				group, err := errDefault(ib, lex, perr, uerr.Unexpected)
-				if err != nil {
-					return nil, err
-				}
-				groups = append(groups, group)
 			}
 		}
 	} else {
@@ -122,17 +229,35 @@ type AnnotationGroup struct {
 }
 
 func (ag AnnotationGroup) String() string {
-	var lines []string
+	maxLn := 0
 	for _, an := range ag.Annotations {
-		lines = append(lines, an.String())
+		ln := fmt.Sprintf("%d", an.Pos.Line)
+		if len(ln) > maxLn {
+			maxLn = len(ln)
+		}
 	}
 
-	header := fmt.Sprintf(" --> %s:%d:%d: syntax error", ag.Pos.Filename, ag.Pos.Line, ag.Pos.Column)
-	body := strings.Join(lines, "\n  ⫶\n")
+	var annotations []string
+	for _, an := range ag.Annotations {
+		var lines []string
+		for i, line := range an.Lines() {
+			var ln string
+			if i == 1 {
+				ln = fmt.Sprintf("%d", an.Pos.Line)
+			}
+			prefix := fmt.Sprintf("%s%s | ", ln, strings.Repeat(" ", maxLn-len(ln)))
+			lines = append(lines, fmt.Sprintf("%s%s", prefix, line))
+		}
+		annotations = append(annotations, strings.Join(lines, "\n"))
+	}
+
+	gutter := strings.Repeat(" ", maxLn)
+	header := fmt.Sprintf("%s--> %s:%d:%d: syntax error", gutter, ag.Pos.Filename, ag.Pos.Line, ag.Pos.Column)
+	body := strings.Join(annotations, fmt.Sprintf("\n%s ⫶\n", gutter))
 
 	var footer string
 	if ag.Help != "" {
-		footer = fmt.Sprintf("\n  |\n [?] help: %s", ag.Help)
+		footer = fmt.Sprintf("\n%s |\n%s[?] help: %s", gutter, gutter, ag.Help)
 	}
 
 	return fmt.Sprintf("%s\n%s%s\n", header, body, footer)
@@ -145,7 +270,7 @@ type Annotation struct {
 	Message string
 }
 
-func (a Annotation) String() string {
+func (a Annotation) Lines() []string {
 	var lines []string
 
 	padding := bytes.Map(func(r rune) rune {
@@ -155,12 +280,12 @@ func (a Annotation) String() string {
 		return ' '
 	}, a.Segment[:a.Pos.Column-1])
 
-	lines = append(lines, "  |")
-	lines = append(lines, fmt.Sprintf("%d | %s", a.Pos.Line, a.Segment))
-	lines = append(lines, fmt.Sprintf("  | %s%s", padding, strings.Repeat("^", len(a.Token.String()))))
-	lines = append(lines, fmt.Sprintf("  | %s%s", padding, a.Message))
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf("%s", a.Segment))
+	lines = append(lines, fmt.Sprintf("%s%s", padding, strings.Repeat("^", len(a.Token.String()))))
+	lines = append(lines, fmt.Sprintf("%s%s", padding, a.Message))
 
-	return strings.Join(lines, "\n")
+	return lines
 }
 
 type indexedBuffer struct {
@@ -245,7 +370,7 @@ func (nr *namedReader) Name() string {
 	return nr.name
 }
 
-func errOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token, signature, expected string) (group AnnotationGroup, err error) {
+func errSignature(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token, signature, expected string) (group AnnotationGroup, err error) {
 	startToken, n, err := findRelativeToken(lex, unexpected)
 	if err != nil {
 		return group, err
@@ -259,6 +384,10 @@ func errOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token, s
 	endToken, err := lex.Peek(n + 1)
 	if err != nil {
 		return group, err
+	}
+
+	if isLiteral(endToken) {
+		endToken.Value = fmt.Sprintf("%q", endToken)
 	}
 
 	endSegment, err := getSegment(ib, endToken)
@@ -321,7 +450,7 @@ func errEntry(ib *indexedBuffer, lex *lexer.PeekingLexer) (group AnnotationGroup
 		return group, err
 	}
 
-	suggestion := getSuggestion(Keywords, token.String())
+	suggestion := getSuggestion(Entries, token.String())
 
 	return AnnotationGroup{
 		Pos: token.Pos,
@@ -343,18 +472,9 @@ func errArg(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) 
 		return group, err
 	}
 
-	m := n - 1
-	startToken, err := lex.Peek(m)
+	startToken, m, err := getKeyword(lex, n, KeywordsWithSignatures)
 	if err != nil {
 		return group, err
-	}
-
-	for !isKeyword(startToken.Value) && lex.Cursor() > 0 {
-		m--
-		startToken, err = lex.Peek(m)
-		if err != nil {
-			return group, err
-		}
 	}
 
 	startSegment, err := getSegment(ib, startToken)
@@ -453,9 +573,10 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 
 	var startToken lexer.Token
 	numBlockEnds := 1
-	n--
 
 	for startToken.Value != "{" || numBlockEnds != 0 {
+		n--
+
 		startToken, err = lex.Peek(n)
 		if err != nil {
 			return group, err
@@ -466,8 +587,6 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 		} else if startToken.Value == "{" {
 			numBlockEnds--
 		}
-
-		n--
 	}
 
 	startSegment, err := getSegment(ib, startToken)
@@ -475,7 +594,45 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 		return group, err
 	}
 
-	suggestion := getSuggestion(Keywords, endToken.String())
+	keywordToken, _, err := getKeyword(lex, n, KeywordsWithBlocks)
+	if err != nil {
+		return group, err
+	}
+
+	fmt.Printf("found keyword %s\n", keywordToken)
+
+	var (
+		suggestion string
+		help       string
+	)
+
+	if !contains(Entries, unexpected.Value) && !unexpected.EOF() && unexpected.Value != "{" {
+		keywords, ok := KeywordsByName[keywordToken.Value]
+		if ok {
+			suggestion = getSuggestion(keywords, endToken.String())
+
+			helpSubject := keywordToken.String()
+			if helpSubject == "state" {
+				helpSubject = "op"
+			}
+
+			var option string
+			if contains(KeywordsWithOptions, keywordToken.Value) {
+				option = " option"
+			}
+
+			var keywordOptions []string
+			for _, keyword := range keywords {
+				keywordOptions = append(keywordOptions, strconv.Quote(keyword))
+			}
+
+			if len(keywordOptions) == 1 {
+				help = fmt.Sprintf("%s%s can only be %s", helpSubject, option, keywordOptions[0])
+			} else {
+				help = fmt.Sprintf("%s%s must be one of %s", helpSubject, option, strings.Join(keywordOptions, ", "))
+			}
+		}
+	}
 
 	return AnnotationGroup{
 		Pos: endToken.Pos,
@@ -493,6 +650,7 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 				Message: fmt.Sprintf(`expected block end "}", found %q%s`, endToken, suggestion),
 			},
 		},
+		Help: help,
 	}, nil
 }
 
@@ -615,57 +773,23 @@ func getSegment(ib *indexedBuffer, token lexer.Token) ([]byte, error) {
 }
 
 func getSignature(value string, pos int) (string, string) {
-	var signature string
-
-	switch value {
-	case "from":
-		signature = "from(state input)"
-	case "image":
-		signature = "image(string ref)"
-	case "http":
-		signature = "http(string url)"
-	case "git":
-		signature = "git(string remote, string ref)"
-	case "exec":
-		signature = "exec(string shlex)"
-	case "env":
-		signature = "env(string key, string value)"
-	case "dir":
-		signature = "dir(string path)"
-	case "user":
-		signature = "user(string name)"
-	case "mkdir":
-		signature = "mkdir(string path, filemode mode)"
-	case "mkfile":
-		signature = "mkfile(string path, filemode mode, string content)"
-	case "rm":
-		signature = "rm(string path)"
-	case "copy":
-		signature = "copy(state input, string src, string dst)"
-	default:
+	args, ok := Signatures[value]
+	if !ok {
 		return "", ""
 	}
 
-	start := strings.Index(signature, "(")
-	end := signature[len(signature)-1]
-
-	if start == -1 || end != byte(')') {
-		panic(fmt.Sprintf("invalid signature %q", signature))
-	}
-
-	args := strings.Split(signature[start+1:len(signature)-1], ", ")
 	if pos >= len(args) {
-		panic(fmt.Sprintf("invalid signature %q", signature))
+		return "", ""
 	}
 
-	return fmt.Sprintf("must follow signature %s", signature), args[pos]
+	return fmt.Sprintf("must follow signature %s(%s)", value, strings.Join(args, ", ")), args[pos]
 }
 
 func getSuggestion(keywords []string, value string) string {
 	min := -1
 	index := -1
 
-	for i, keyword := range keywords  {
+	for i, keyword := range keywords {
 		dist := Levenshtein([]rune(value), []rune(keyword))
 		if min == -1 || dist < min {
 			min = dist
@@ -673,19 +797,33 @@ func getSuggestion(keywords []string, value string) string {
 		}
 	}
 
-	if min > 1 {
+	failLimit := 1
+	if len(value) > 3 {
+		failLimit = 2
+	}
+
+	if min > failLimit {
 		return ""
 	}
 	return fmt.Sprintf(", did you mean %q?", keywords[index])
 }
 
-func isKeyword(value string) bool {
-	for _, keyword := range Keywords {
-		if value == keyword {
-			return true
+func getKeyword(lex *lexer.PeekingLexer, n int, keywords []string) (lexer.Token, int, error) {
+	m := n - 1
+	token, err := lex.Peek(m)
+	if err != nil {
+		return token, m, err
+	}
+
+	for !contains(keywords, token.Value) && lex.Cursor() > 0 {
+		m--
+		token, err = lex.Peek(m)
+		if err != nil {
+			return token, m, err
 		}
 	}
-	return false
+
+	return token, m, nil
 }
 
 func isLiteral(token lexer.Token) bool {
@@ -696,4 +834,21 @@ func isLiteral(token lexer.Token) bool {
 	default:
 		return false
 	}
+}
+
+func keys(m map[string][]string) []string {
+	var keys []string
+	for key := range m {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func contains(keywords []string, value string) bool {
+	for _, keyword := range keywords {
+		if value == keyword {
+			return true
+		}
+	}
+	return false
 }

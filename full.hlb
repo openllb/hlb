@@ -29,7 +29,7 @@ state foo {
 
 state foo {
 	image "alpine" with option {
-		resolver
+		resolve
 	}
 }
 
