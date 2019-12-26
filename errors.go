@@ -31,10 +31,16 @@ func NewParserError(ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.
 				return nil, err
 			}
 			groups = append(groups, group)
+		case "with":
+			group, err := errWith(ib, lex)
+			if err != nil {
+				return nil, err
+			}
+			groups = append(groups, group)
 		default:
 			switch uerr.Expected {
 			case "":
-				group, err := errEntry(ib, lex, perr)
+				group, err := errEntry(ib, lex)
 				if err != nil {
 					return nil, err
 				}
@@ -205,17 +211,6 @@ func (ib *indexedBuffer) Segment(offset int) ([]byte, error) {
 	return line[:n], nil
 }
 
-func (ib *indexedBuffer) hasNewline() bool {
-	return len(ib.offsets) > 0
-}
-
-func (ib *indexedBuffer) endsWithNewline() bool {
-	if !ib.hasNewline() {
-		return false
-	}
-	return ib.offsets[len(ib.offsets)-1] == ib.buf.Len()-1
-}
-
 func (ib *indexedBuffer) findNearestLineIndex(offset int) int {
 	index := sort.Search(len(ib.offsets), func(i int) bool {
 		return ib.offsets[i] >= offset
@@ -248,24 +243,19 @@ func errOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token, s
 		return group, err
 	}
 
-	startSegment, err := ib.Segment(startToken.Pos.Offset)
+	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
 		return group, err
 	}
 
-	endToken, err := lex.Peek(n+1)
+	endToken, err := lex.Peek(n + 1)
 	if err != nil {
 		return group, err
 	}
 
-	var endSegment []byte
-	if endToken.EOF() {
-		endSegment = []byte(endToken.String())
-	} else {
-		endSegment, err = ib.Segment(endToken.Pos.Offset)
-		if err != nil {
-			return group, err
-		}
+	endSegment, err := getSegment(ib, endToken)
+	if err != nil {
+		return group, err
 	}
 
 	return AnnotationGroup{
@@ -288,24 +278,46 @@ func errOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token, s
 	}, nil
 }
 
-func errEntry(ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.Error) (group AnnotationGroup, err error) {
-	pos := perr.Position()
-
-	segment, err := ib.Segment(pos.Offset)
-	if err != nil {
-		return group, err
-	}
-
+func errWith(ib *indexedBuffer, lex *lexer.PeekingLexer) (group AnnotationGroup, err error) {
 	token, err := lex.Peek(0)
 	if err != nil {
 		return group, err
 	}
 
+	segment, err := getSegment(ib, token)
+	if err != nil {
+		return group, err
+	}
+
 	return AnnotationGroup{
-		Pos: pos,
+		Pos: token.Pos,
 		Annotations: []Annotation{
 			{
-				Pos:     pos,
+				Pos:     token.Pos,
+				Token:   token,
+				Segment: segment,
+				Message: "must be followed by option block or identifier",
+			},
+		},
+	}, nil
+}
+
+func errEntry(ib *indexedBuffer, lex *lexer.PeekingLexer) (group AnnotationGroup, err error) {
+	token, err := lex.Peek(0)
+	if err != nil {
+		return group, err
+	}
+
+	segment, err := getSegment(ib, token)
+	if err != nil {
+		return group, err
+	}
+
+	return AnnotationGroup{
+		Pos: token.Pos,
+		Annotations: []Annotation{
+			{
+				Pos:     token.Pos,
 				Token:   token,
 				Segment: segment,
 				Message: fmt.Sprintf("expected new entry, found %q", token),
@@ -335,18 +347,16 @@ func errArg(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) 
 		}
 	}
 
-	startSegment, err := ib.Segment(startToken.Pos.Offset)
+	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
 		return group, err
 	}
 
-	found := fmt.Sprintf("%q", endToken.String())
 	if isLiteral(endToken) {
-		endToken.Value = found
-		found = "literal"
+		endToken.Value = fmt.Sprintf("%q", endToken)
 	}
 
-	signature, expected := getSignature(startToken.Value, n - m - 1)
+	signature, expected := getSignature(startToken.Value, n-m-1)
 
 	// If argument is for an entry definition.
 	if signature == "" {
@@ -363,7 +373,7 @@ func errArg(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) 
 					Pos:     endToken.Pos,
 					Token:   endToken,
 					Segment: endSegment,
-					Message: fmt.Sprintf("expected identifier, found %s", found),
+					Message: fmt.Sprintf("expected identifier, found %s", endToken),
 				},
 			},
 			Help: signature,
@@ -383,7 +393,7 @@ func errArg(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) 
 				Pos:     endToken.Pos,
 				Token:   endToken,
 				Segment: endSegment,
-				Message: fmt.Sprintf("expected %s, found %s", expected, found),
+				Message: fmt.Sprintf("expected %s, found %s", expected, endToken),
 			},
 		},
 		Help: signature,
@@ -396,12 +406,12 @@ func errBlockStart(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.
 		return group, err
 	}
 
-	startToken, err := lex.Peek(n-1)
+	startToken, err := lex.Peek(n - 1)
 	if err != nil {
 		return group, err
 	}
 
-	startSegment, err := ib.Segment(startToken.Pos.Offset)
+	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -450,7 +460,7 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 		n--
 	}
 
-	startSegment, err := ib.Segment(startToken.Pos.Offset)
+	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -474,22 +484,18 @@ func errBlockEnd(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.To
 	}, nil
 }
 
-func errField(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected string) (group AnnotationGroup, err error) {
-	return group, err
-}
-
 func errSourceOp(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	endSegment, endToken, n, err := endLex(ib, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
 
-	startToken, err := lex.Peek(n-1)
+	startToken, err := lex.Peek(n - 1)
 	if err != nil {
 		return group, err
 	}
 
-	startSegment, err := ib.Segment(startToken.Pos.Offset)
+	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -538,7 +544,7 @@ func findRelativeToken(lex *lexer.PeekingLexer, token lexer.Token) (lexer.Token,
 
 	var (
 		candidate lexer.Token
-		err error
+		err       error
 	)
 	for candidate != token {
 		n--
@@ -546,18 +552,17 @@ func findRelativeToken(lex *lexer.PeekingLexer, token lexer.Token) (lexer.Token,
 		if err != nil {
 			return token, n, err
 		}
-		fmt.Printf("candidate %q, token %q\n", candidate, token)
 	}
 
 	if token.EOF() {
-		prev, err := lex.Peek(n-1)
+		prev, err := lex.Peek(n - 1)
 		if err != nil {
 			return token, n, err
 		}
 
 		for prev.EOF() {
 			n--
-			prev, err = lex.Peek(n-1)
+			prev, err = lex.Peek(n - 1)
 			if err != nil {
 				return token, n, err
 			}
@@ -579,12 +584,20 @@ func endLex(ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) 
 		return
 	}
 
-	segment, err = ib.Segment(token.Pos.Offset)
+	segment, err = getSegment(ib, token)
 	if err != nil {
 		return
 	}
 
 	return
+}
+
+func getSegment(ib *indexedBuffer, token lexer.Token) ([]byte, error) {
+	if token.EOF() {
+		return []byte(token.String()), nil
+	}
+
+	return ib.Segment(token.Pos.Offset)
 }
 
 func getSignature(value string, pos int) (string, string) {
@@ -648,9 +661,9 @@ func isFunction(value string) bool {
 func isLiteral(token lexer.Token) bool {
 	symbols := textLexer.Symbols()
 	switch token.Type {
-		case symbols["String"], symbols["Char"], symbols["RawString"]:
-			return true
-		default:
-			return false
+	case symbols["String"], symbols["Char"], symbols["RawString"]:
+		return true
+	default:
+		return false
 	}
 }

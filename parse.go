@@ -133,7 +133,7 @@ type Git struct {
 
 type Op struct {
 	Pos    lexer.Position
-	Exec   *Exec   `( @@`
+	Exec   *Exec   `( "exec" @@`
 	Env    *Env    `| "env" @@`
 	Dir    *Dir    `| "dir" @@`
 	User   *User   `| "user" @@`
@@ -145,7 +145,7 @@ type Op struct {
 
 type Exec struct {
 	Pos   lexer.Position
-	Shlex string `@String`
+	Shlex Literal `@@`
 }
 
 type Env struct {

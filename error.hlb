@@ -1,4 +1,6 @@
 state foo {
-	image "alpine"
-	env "key" "value"
+	image "alpine" with option {
+	exe
+
+state foo {
 }
