@@ -64,7 +64,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*AST, error) {
 			return ast, err
 		}
 
-		nerr, err := newParserError(info.Color, ib, peeker, perr)
+		nerr, err := newSyntaxError(info.Color, ib, peeker, perr)
 		if err != nil {
 			return ast, err
 		}
@@ -111,22 +111,22 @@ type AST struct {
 
 type Entry struct {
 	Pos   lexer.Position
-	State *NamedState `"state"  @@`
-	// Option *NamedOption `| "option" @@`
-	// Result *NamedResult `| "result" @@`
+	State *StateEntry `"state"  @@`
+	// Option *OptionEntry `| "option" @@`
+	// Result *ResultEntry `| "result" @@`
 	// Frontend *NamedFrontend `| "frontend" @@`
 }
 
-type NamedState struct {
-	Pos  lexer.Position
-	Name string     `@Ident`
-	Body *StateBody `@@`
+type StateEntry struct {
+	Pos   lexer.Position
+	Name  string `@Ident`
+	State *State `@@`
 }
 
 type State struct {
-	Pos  lexer.Position
-	Body *StateBody `( ("state")? @@`
-	Name *string    `| @Ident )`
+	Pos      lexer.Position
+	Explicit *string `@( "state" )?`
+	Body *StateBody `@@`
 }
 
 type StateBody struct {
@@ -137,17 +137,23 @@ type StateBody struct {
 }
 
 type Source struct {
-	Pos     lexer.Position
-	From    *From   ` ( "from" @@`
-	Scratch *string `| @"scratch"`
-	Image   *Image  `| "image" @@`
-	HTTP    *HTTP   `| "http" @@`
-	Git     *Git    `| "git" @@ )`
+	Pos       lexer.Position
+	FromState *FromState ` ( "from" @@`
+	From      *From      ` | "from" @@`
+	Scratch   *string    `| @"scratch"`
+	Image     *Image     `| "image" @@`
+	HTTP      *HTTP      `| "http" @@`
+	Git       *Git       `| "git" @@ )`
+}
+
+type FromState struct {
+	Pos   lexer.Position
+	Input *State `@@`
 }
 
 type From struct {
-	Pos  lexer.Position
-	Name string `@Ident`
+	Pos   lexer.Position
+	Input string `@Ident`
 }
 
 type Image struct {
@@ -225,15 +231,16 @@ type GitField struct {
 }
 
 type Op struct {
-	Pos    lexer.Position
-	Exec   *Exec   `( "exec" @@`
-	Env    *Env    `| "env" @@`
-	Dir    *Dir    `| "dir" @@`
-	User   *User   `| "user" @@`
-	Mkdir  *Mkdir  `| "mkdir" @@`
-	Mkfile *Mkfile `| "mkfile" @@`
-	Rm     *Rm     `| "rm" @@`
-	Copy   *Copy   `| "copy" @@ )`
+	Pos       lexer.Position
+	Exec      *Exec      `( "exec" @@`
+	Env       *Env       `| "env" @@`
+	Dir       *Dir       `| "dir" @@`
+	User      *User      `| "user" @@`
+	Mkdir     *Mkdir     `| "mkdir" @@`
+	Mkfile    *Mkfile    `| "mkfile" @@`
+	Rm        *Rm        `| "rm" @@`
+	CopyState *CopyState `| "copy" @@`
+	Copy      *Copy      `| "copy" @@ )`
 }
 
 type Exec struct {
@@ -251,16 +258,17 @@ type ExecOption struct {
 
 type ExecField struct {
 	Pos            lexer.Position
-	ReadonlyRootfs *bool     `( @"readonlyRootfs"`
-	Env            *Env      `| "env" @@`
-	Dir            *Dir      `| "dir" @@`
-	User           *User     `| "user" @@`
-	Network        *Network  `| "network" @@`
-	Security       *Security `| "security" @@`
-	Host           *Host     `| "host" @@`
-	SSH            *SSH      `| "ssh" @@`
-	Secret         *Secret   `| "secret" @@`
-	Mount          *Mount    `| "mount" @@ )`
+	ReadonlyRootfs *bool       `( @"readonlyRootfs"`
+	Env            *Env        `| "env" @@`
+	Dir            *Dir        `| "dir" @@`
+	User           *User       `| "user" @@`
+	Network        *Network    `| "network" @@`
+	Security       *Security   `| "security" @@`
+	Host           *Host       `| "host" @@`
+	SSH            *SSH        `| "ssh" @@`
+	Secret         *Secret     `| "secret" @@`
+	MountState     *MountState `| "mount" @@`
+	Mount          *Mount      `| "mount" @@ )`
 }
 
 type Network struct {
@@ -340,9 +348,19 @@ type SecretField struct {
 	Optional *bool     `| @"optional" )`
 }
 
+type MountState struct {
+	Pos   lexer.Position
+	Input *State `@@`
+	MountBase
+}
+
 type Mount struct {
-	Pos        lexer.Position
-	Input      *State       `@@`
+	Pos   lexer.Position
+	Input string `@Ident`
+	MountBase
+}
+
+type MountBase struct {
 	Mountpoint Literal      `@@`
 	Option     *MountOption `( "with" @@ )?`
 }
@@ -469,9 +487,19 @@ type RmField struct {
 	AllowWildcard *bool `| @"allowWildcard" )`
 }
 
+type CopyState struct {
+	Pos   lexer.Position
+	Input *State `@@`
+	CopyBase
+}
+
 type Copy struct {
-	Pos    lexer.Position
-	Input  *State      `@@`
+	Pos   lexer.Position
+	Input string `@Ident`
+	CopyBase
+}
+
+type CopyBase struct {
 	Src    Literal     `@@`
 	Dst    Literal     `@@`
 	Option *CopyOption `( "with" @@ )?`
@@ -496,11 +524,11 @@ type CopyField struct {
 	CreatedTime        *Time  `| "createdTime" @@ )`
 }
 
-type NamedResult struct {
+type ResultEntry struct {
 	Pos lexer.Position
 }
 
-type NamedOption struct {
+type OptionEntry struct {
 	Pos lexer.Position
 }
 

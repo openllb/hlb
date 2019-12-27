@@ -60,35 +60,33 @@ func (e *Entry) String() string {
 	panic("unknown entry")
 }
 
-func (s *NamedState) String() string {
-	return fmt.Sprintf("state %s %s", s.Name, s.Body)
+func (s *StateEntry) String() string {
+	return fmt.Sprintf("state %s %s", s.Name, s.State)
 }
 
 func (s *State) String() string {
-	switch {
-	case s.Body != nil:
-		return s.Body.String()
-	case s.Name != nil:
-		return *s.Name
+	var explicit string
+	if s.Explicit != nil {
+		explicit = "state "
 	}
-	panic("unknown state")
+	return fmt.Sprintf("%s%s", explicit, s.Body)
 }
 
-func (b *StateBody) String() string {
-	return stringifyBlock(b)
+func (s *StateBody) String() string {
+	return stringifyBlock(s)
 }
 
-func (b *StateBody) Start() lexer.Position {
-	return b.Pos
+func (s *StateBody) Start() lexer.Position {
+	return s.Pos
 }
 
-func (b *StateBody) End() lexer.Position {
-	return b.BlockEnd.Pos
+func (s *StateBody) End() lexer.Position {
+	return s.BlockEnd.Pos
 }
 
-func (b *StateBody) Fields() []Field {
-	fields := []Field{b.Source}
-	for _, op := range b.Ops {
+func (s *StateBody) Fields() []Field {
+	fields := []Field{s.Source}
+	for _, op := range s.Ops {
 		fields = append(fields, op)
 	}
 	return fields
@@ -100,8 +98,10 @@ func (s *Source) Position() lexer.Position {
 
 func (s *Source) String() string {
 	switch {
+	case s.FromState != nil:
+		return fmt.Sprintf("from %s", s.FromState.Input)
 	case s.From != nil:
-		return fmt.Sprintf("from %s", s.From.Name)
+		return fmt.Sprintf("from %s", s.From.Input)
 	case s.Scratch != nil:
 		return "scratch"
 	case s.Image != nil:
@@ -258,6 +258,8 @@ func (o *Op) String() string {
 		return o.Mkfile.String()
 	case o.Rm != nil:
 		return o.Rm.String()
+	case o.CopyState != nil:
+		return o.CopyState.String()
 	case o.Copy != nil:
 		return o.Copy.String()
 	}
@@ -316,6 +318,8 @@ func (e *ExecField) String() string {
 		return e.SSH.String()
 	case e.Secret != nil:
 		return e.Secret.String()
+	case e.MountState != nil:
+		return e.MountState.String()
 	case e.Mount != nil:
 		return e.Mount.String()
 	}
@@ -438,6 +442,14 @@ func (s *SecretField) String() string {
 		return "optional"
 	}
 	panic("unknown secret field")
+}
+
+func (m *MountState) String() string {
+	var block OptionBlock
+	if m.Option != nil {
+		block = m.Option
+	}
+	return withOption(fmt.Sprintf("mount %s %q", m.Input, m.Mountpoint), block)
 }
 
 func (m *Mount) String() string {
@@ -620,6 +632,14 @@ func (r *RmField) String() string {
 		return "allowWildcard"
 	}
 	panic("unknown rm field")
+}
+
+func (c *CopyState) String() string {
+	var block OptionBlock
+	if c.Option != nil {
+		block = c.Option
+	}
+	return withOption(fmt.Sprintf("copy %s %q %q", c.Input, c.Src, c.Dst), block)
 }
 
 func (c *Copy) String() string {

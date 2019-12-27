@@ -63,7 +63,7 @@ var (
 
 	Signatures = map[string][]string{
 		// Source ops
-		"from":  {"identifier input"},
+		"from":  {"state input"},
 		"image": {"string ref"},
 		"http":  {"string url"},
 		"git":   {"string remote", "string ref"},
@@ -132,7 +132,7 @@ func newLexerError(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLex
 	return nil, err
 }
 
-func newParserError(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.Error) (error, error) {
+func newSyntaxError(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer, perr participle.Error) (error, error) {
 	var groups []AnnotationGroup
 
 	uerr, ok := perr.(participle.UnexpectedTokenError)
@@ -166,33 +166,32 @@ func newParserError(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLe
 
 				groups = append(groups, group)
 			case `"}"`:
-				group, err := errBlockEnd(color, ib, lex, uerr.Unexpected)
-				if err != nil {
-					return nil, err
-				}
+				if uerr.Unexpected.Value == "with" {
+					group, err := errWith(color, ib, lex, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
+					groups = append(groups, group)
+				} else {
+					group, err := errBlockEnd(color, ib, lex, uerr.Unexpected)
+					if err != nil {
+						return nil, err
+					}
 
-				groups = append(groups, group)
-			case `"from" | "scratch" | "image" | "http" | "git"`:
+					groups = append(groups, group)
+				}
+			case `"from" | "from" | "scratch" | "image" | "http" | "git"`:
 				group, err := errSourceOp(color, ib, lex, uerr.Unexpected)
 				if err != nil {
 					return nil, err
 				}
 				groups = append(groups, group)
 			default:
-				switch uerr.Unexpected.Value {
-				case "with":
-					group, err := errWith(color, ib, lex)
-					if err != nil {
-						return nil, err
-					}
-					groups = append(groups, group)
-				default:
-					group, err := errDefault(color, ib, lex, perr, uerr.Unexpected)
-					if err != nil {
-						return nil, err
-					}
-					groups = append(groups, group)
+				group, err := errDefault(color, ib, lex, perr, uerr.Unexpected)
+				if err != nil {
+					return nil, err
 				}
+				groups = append(groups, group)
 			}
 		}
 	} else {
@@ -224,6 +223,7 @@ func (e Error) Error() string {
 	for _, group := range e.Groups {
 		lines = append(lines, group.String())
 	}
+
 	return fmt.Sprintf("%s", strings.Join(lines, "\n"))
 }
 
@@ -252,7 +252,7 @@ func (ag AnnotationGroup) String() string {
 				ln = fmt.Sprintf("%d", an.Pos.Line)
 			}
 
-			prefix := ag.Color.Sprintf(aurora.Blue("%s%s | "), ln, strings.Repeat(" ", maxLn-len(ln)))
+			prefix := ag.Color.Sprintf(ag.Color.Blue("%s%s | "), ln, strings.Repeat(" ", maxLn-len(ln)))
 			lines = append(lines, fmt.Sprintf("%s%s", prefix, line))
 		}
 		annotations = append(annotations, strings.Join(lines, "\n"))
@@ -261,16 +261,16 @@ func (ag AnnotationGroup) String() string {
 	gutter := strings.Repeat(" ", maxLn)
 	header := fmt.Sprintf(
 		"%s %s",
-		ag.Color.Sprintf(aurora.Blue("%s-->"), gutter),
-		ag.Color.Sprintf(aurora.Bold("%s:%d:%d: syntax error"), ag.Pos.Filename, ag.Pos.Line, ag.Pos.Column))
-	body := strings.Join(annotations, ag.Color.Sprintf(aurora.Blue("\n%s ⫶\n"), gutter))
+		ag.Color.Sprintf(ag.Color.Blue("%s-->"), gutter),
+		ag.Color.Sprintf(ag.Color.Bold("%s:%d:%d: syntax error"), ag.Pos.Filename, ag.Pos.Line, ag.Pos.Column))
+	body := strings.Join(annotations, ag.Color.Sprintf(ag.Color.Blue("\n%s ⫶\n"), gutter))
 
 	var footer string
 	if ag.Help != "" {
 		footer = fmt.Sprintf(
 			"%s%s%s",
-			ag.Color.Sprintf(aurora.Blue("\n%s |\n"), gutter),
-			ag.Color.Sprintf(aurora.Green("%s[?] help: "), gutter),
+			ag.Color.Sprintf(ag.Color.Blue("\n%s | \n"), gutter),
+			ag.Color.Sprintf(ag.Color.Green("%s[?] help: "), gutter),
 			ag.Help)
 	}
 
@@ -286,13 +286,16 @@ type Annotation struct {
 
 func (a Annotation) Lines(color aurora.Aurora) []string {
 	var lines []string
+	var padding []byte
 
-	padding := bytes.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
-			return r
-		}
-		return ' '
-	}, a.Segment[:a.Pos.Column-1])
+	if len(a.Segment) > a.Pos.Column-1 {
+		padding = bytes.Map(func(r rune) rune {
+			if unicode.IsSpace(r) {
+				return r
+			}
+			return ' '
+		}, a.Segment[:a.Pos.Column-1])
+	}
 
 	// before := a.Segment[:a.Pos.Column-1]
 	// after := a.Segment[a.Pos.Column + len(a.Token.String()) - 1:]
@@ -329,6 +332,10 @@ func (ib *indexedBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (ib *indexedBuffer) Segment(offset int) ([]byte, error) {
+	if len(ib.offsets) == 0 {
+		return ib.buf.Bytes(), nil
+	}
+
 	index := ib.findNearestLineIndex(offset)
 
 	start := 0
@@ -405,14 +412,13 @@ func errSignature(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexe
 		return group, err
 	}
 
-	if isLiteral(endToken) {
-		endToken.Value = strconv.Quote(endToken.Value)
-	}
-
 	endSegment, err := getSegment(ib, endToken)
 	if err != nil {
 		return group, err
 	}
+
+	startToken = quoteLiteral(startToken)
+	endToken = quoteLiteral(endToken)
 
 	return AnnotationGroup{
 		Pos: endToken.Pos,
@@ -438,27 +444,45 @@ func errSignature(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexe
 	}, nil
 }
 
-func errWith(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer) (group AnnotationGroup, err error) {
-	token, err := lex.Peek(0)
+func errWith(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	startSegment, startToken, n, err := endLex(ib, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
 
-	segment, err := getSegment(ib, token)
+	endToken, err := lex.Peek(n + 1)
 	if err != nil {
 		return group, err
 	}
+
+	endSegment, err := getSegment(ib, endToken)
+	if err != nil {
+		return group, err
+	}
+
+	startToken = quoteLiteral(startToken)
+	endToken = quoteLiteral(endToken)
 
 	return AnnotationGroup{
-		Pos: token.Pos,
+		Pos: endToken.Pos,
 		Annotations: []Annotation{
 			{
-				Pos:     token.Pos,
-				Token:   token,
-				Segment: segment,
+				Pos:     startToken.Pos,
+				Token:   startToken,
+				Segment: startSegment,
 				Message: fmt.Sprintf("%soption block%sidentifier",
 					color.Red("must be followed by "),
 					color.Red(" or ")),
+			},
+			{
+				Pos:     endToken.Pos,
+				Token:   endToken,
+				Segment: endSegment,
+				Message: fmt.Sprintf("%soption block%sidentifier%s%s",
+					color.Red("expected "),
+					color.Red(" or "),
+					color.Red(", found "),
+					endToken),
 			},
 		},
 	}, nil
@@ -478,6 +502,8 @@ func errEntry(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer) (
 	suggestion := getSuggestion(color, Entries, token.String())
 	help := helpValidKeywords(color, Entries, "entry")
 
+	token = quoteLiteral(token)
+
 	return AnnotationGroup{
 		Pos: token.Pos,
 		Annotations: []Annotation{
@@ -486,7 +512,7 @@ func errEntry(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer) (
 				Token:   token,
 				Segment: segment,
 				Message: fmt.Sprintf("%s%s%s",
-					color.Red(`expected new entry, found `),
+					color.Red("expected new entry, found "),
 					token,
 					suggestion),
 			},
@@ -511,9 +537,8 @@ func errArg(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer, une
 		return group, err
 	}
 
-	if isLiteral(endToken) {
-		endToken.Value = strconv.Quote(endToken.Value)
-	}
+	startToken = quoteLiteral(startToken)
+	endToken = quoteLiteral(endToken)
 
 	signature, expected := getSignature(color, startToken.Value, numTokens)
 
@@ -581,6 +606,9 @@ func errBlockStart(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLex
 		return group, err
 	}
 
+	startToken = quoteLiteral(startToken)
+	endToken = quoteLiteral(endToken)
+
 	return AnnotationGroup{
 		Pos: endToken.Pos,
 		Annotations: []Annotation{
@@ -610,9 +638,9 @@ func errBlockEnd(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer
 	}
 
 	var startToken lexer.Token
-	numBlockEnds := 1
+	numBlockEnds := 0
 
-	for startToken.Value != "{" || numBlockEnds != 0 {
+	for startToken.Value != "{" || numBlockEnds >= 0 {
 		n--
 
 		startToken, err = lex.Peek(n)
@@ -637,30 +665,47 @@ func errBlockEnd(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer
 		return group, err
 	}
 
+	keyword := keywordToken.Value
+
+	blockPrefix, err := lex.Peek(n-1)
+	if err != nil {
+		return group, err
+	}
+
+	// If this is an option block, we should use the found keyword.
+	// If this is not an option block, then its either an explicit or implicit
+	// state block used as an argument.
+	if blockPrefix.Value != "option" {
+		keyword = "state"
+	}
+
 	var (
 		suggestion string
 		help       string
 		orField    string
 	)
 
-	if !contains(Entries, unexpected.Value) && !unexpected.EOF() && unexpected.Value != "{" {
-		keywords, ok := KeywordsByName[keywordToken.Value]
+	if !contains(Entries, unexpected.Value) && unexpected.Value != "{" {
+		keywords, ok := KeywordsByName[keyword]
 		if ok {
 			suggestion = getSuggestion(color, keywords, endToken.String())
-			help = helpValidKeywords(color, keywords, keywordToken.Value)
+			help = helpValidKeywords(color, keywords, keyword)
 		}
 	}
 
 	if help != "" {
-		if contains(KeywordsWithOptions, keywordToken.Value) {
-			orField = fmt.Sprintf(" or %s option", keywordToken)
+		if contains(KeywordsWithOptions, keyword) {
+			orField = fmt.Sprintf(" or %s option", keyword)
 		} else {
-			switch keywordToken.Value {
+			switch keyword {
 			case "state":
 				orField = " or state operation"
 			}
 		}
 	}
+
+	startToken = quoteLiteral(startToken)
+	endToken = quoteLiteral(endToken)
 
 	return AnnotationGroup{
 		Pos: endToken.Pos,
@@ -671,7 +716,7 @@ func errBlockEnd(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer
 				Segment: startSegment,
 				Message: fmt.Sprintf("%s%s",
 					color.Red("unmatched block start "),
-					endToken),
+					startToken),
 			},
 			{
 				Pos:     endToken.Pos,
@@ -704,6 +749,9 @@ func errSourceOp(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer
 		return group, err
 	}
 
+	startToken = quoteLiteral(startToken)
+	endToken = quoteLiteral(endToken)
+
 	suggestion := getSuggestion(color, Sources, endToken.String())
 	help := helpValidKeywords(color, Sources, "source")
 
@@ -735,6 +783,8 @@ func errDefault(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLexer,
 	if err != nil {
 		return group, err
 	}
+
+	token = quoteLiteral(token)
 
 	return AnnotationGroup{
 		Pos: token.Pos,
@@ -875,7 +925,7 @@ func getKeyword(lex *lexer.PeekingLexer, n int, keywords []string) (lexer.Token,
 			numBlockEnds--
 		}
 
-		if numBlockEnds == 0 {
+		if numBlockEnds == 0 && token.Value != "state" {
 			numTokens++
 		}
 	}
@@ -918,6 +968,14 @@ func isLiteral(token lexer.Token) bool {
 		return false
 	}
 }
+
+func quoteLiteral(token lexer.Token) lexer.Token {
+	if isLiteral(token) {
+		token.Value = strconv.Quote(token.Value)
+	}
+	return token
+}
+
 
 func keys(m map[string][]string) []string {
 	var keys []string

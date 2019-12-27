@@ -36,7 +36,7 @@ func run(args []string) error {
 	}
 
 	var opts []hlb.ParseOption
-	if isatty.IsTerminal(os.Stdout.Fd()) {
+	if isatty.IsTerminal(os.Stderr.Fd()) {
 		opts = append(opts, hlb.WithColor(true))
 	}
 
