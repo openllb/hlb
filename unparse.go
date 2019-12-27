@@ -100,16 +100,16 @@ func (s *Source) Position() lexer.Position {
 
 func (s *Source) String() string {
 	switch {
+	case s.From != nil:
+		return fmt.Sprintf("from %s", s.From.Name)
+	case s.Scratch != nil:
+		return "scratch"
 	case s.Image != nil:
 		return s.Image.String()
 	case s.HTTP != nil:
 		return s.HTTP.String()
 	case s.Git != nil:
 		return s.Git.String()
-	case s.Scratch != nil:
-		return "scratch"
-	case s.From != nil:
-		return fmt.Sprintf("from %s", s.From)
 	}
 	panic("unknown source")
 }
@@ -368,8 +368,8 @@ func (s *SSHField) Position() lexer.Position {
 
 func (s *SSHField) String() string {
 	switch {
-	case s.Target != nil:
-		return fmt.Sprintf("target %q", s.Target.Path)
+	case s.Mountpoint != nil:
+		return fmt.Sprintf("mountpoint %q", s.Mountpoint.Path)
 	case s.ID != nil:
 		return s.ID.String()
 	case s.UID != nil:
@@ -397,7 +397,7 @@ func (s *Secret) String() string {
 	if s.Option != nil {
 		block = s.Option
 	}
-	return withOption(fmt.Sprintf("secret %q", s.Target), block)
+	return withOption(fmt.Sprintf("secret %q", s.Mountpoint), block)
 }
 
 func (s *SecretOption) Ident() *string {
@@ -445,7 +445,7 @@ func (m *Mount) String() string {
 	if m.Option != nil {
 		block = m.Option
 	}
-	return withOption(fmt.Sprintf("mount %s %q", m.From, m.Target), block)
+	return withOption(fmt.Sprintf("mount %s %q", m.Input, m.Mountpoint), block)
 }
 
 func (m *MountOption) Ident() *string {
@@ -627,7 +627,7 @@ func (c *Copy) String() string {
 	if c.Option != nil {
 		block = c.Option
 	}
-	return withOption(fmt.Sprintf("copy %s %q %q", c.From, c.Src, c.Dst), block)
+	return withOption(fmt.Sprintf("copy %s %q %q", c.Input, c.Src, c.Dst), block)
 }
 
 func (c *CopyOption) Ident() *string {

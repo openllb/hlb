@@ -3,9 +3,11 @@ package hlb
 import (
 	"bytes"
 	"io"
+	"os"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
+	"github.com/logrusorgru/aurora"
 )
 
 var (
@@ -17,8 +19,19 @@ var (
 	)
 )
 
-func Parse(r io.Reader) (*AST, error) {
-	ast := &AST{}
+func Parse(r io.Reader, opts ...ParseOption) (*AST, error) {
+	info := ParseInfo{
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Color:  aurora.NewAurora(false),
+	}
+
+	for _, opt := range opts {
+		err := opt(&info)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	name := lexer.NameOfReader(r)
 	if name == "" {
@@ -35,14 +48,15 @@ func Parse(r io.Reader) (*AST, error) {
 
 	peeker, err := lexer.Upgrade(lex)
 	if err != nil {
-		nerr, err := newLexerError(ib, peeker, err)
+		nerr, err := newLexerError(info.Color, ib, peeker, err)
 		if err != nil {
-			return ast, err
+			return nil, err
 		}
 
-		return ast, nerr
+		return nil, nerr
 	}
 
+	ast := &AST{}
 	err = parser.ParseFromLexer(peeker, ast)
 	if err != nil {
 		perr, ok := err.(participle.Error)
@@ -50,7 +64,7 @@ func Parse(r io.Reader) (*AST, error) {
 			return ast, err
 		}
 
-		nerr, err := newParserError(ib, peeker, perr)
+		nerr, err := newParserError(info.Color, ib, peeker, perr)
 		if err != nil {
 			return ast, err
 		}
@@ -59,6 +73,35 @@ func Parse(r io.Reader) (*AST, error) {
 	}
 
 	return ast, nil
+}
+
+type ParseOption func(*ParseInfo) error
+
+type ParseInfo struct {
+	Stdout io.Writer
+	Stderr io.Writer
+	Color  aurora.Aurora
+}
+
+func WithStdout(stdout io.Writer) ParseOption {
+	return func(i *ParseInfo) error {
+		i.Stdout = stdout
+		return nil
+	}
+}
+
+func WithStderr(stderr io.Writer) ParseOption {
+	return func(i *ParseInfo) error {
+		i.Stderr = stderr
+		return nil
+	}
+}
+
+func WithColor(color bool) ParseOption {
+	return func(i *ParseInfo) error {
+		i.Color = aurora.NewAurora(color)
+		return nil
+	}
 }
 
 type AST struct {
@@ -88,18 +131,23 @@ type State struct {
 
 type StateBody struct {
 	Pos      lexer.Position
-	Source   *Source   `"{" @@ ( ";" )?`
+	Source   *Source  `"{" @@ ( ";" )?`
 	Ops      []*Op    `( @@ ( ";" )? )*`
 	BlockEnd BlockEnd `@@`
 }
 
 type Source struct {
 	Pos     lexer.Position
-	From    *State  ` ( "from" @@`
+	From    *From   ` ( "from" @@`
 	Scratch *string `| @"scratch"`
 	Image   *Image  `| "image" @@`
 	HTTP    *HTTP   `| "http" @@`
 	Git     *Git    `| "git" @@ )`
+}
+
+type From struct {
+	Pos  lexer.Position
+	Name string `@Ident`
 }
 
 type Image struct {
@@ -246,13 +294,13 @@ type SSHOption struct {
 }
 
 type SSHField struct {
-	Pos      lexer.Position
-	Target   *Target   `( "target" @@`
-	ID       *CacheID  `| @@`
-	UID      *SystemID `| "uid" @@`
-	GID      *SystemID `| "gid" @@`
-	Mode     *FileMode `| "mode" @@`
-	Optional *bool     `| @"optional" )`
+	Pos        lexer.Position
+	Mountpoint *Mountpoint `( "mountpoint" @@`
+	ID         *CacheID    `| @@`
+	UID        *SystemID   `| "uid" @@`
+	GID        *SystemID   `| "gid" @@`
+	Mode       *FileMode   `| "mode" @@`
+	Optional   *bool       `| @"optional" )`
 }
 
 type CacheID struct {
@@ -265,15 +313,15 @@ type SystemID struct {
 	ID  int `@Int`
 }
 
-type Target struct {
+type Mountpoint struct {
 	Pos  lexer.Position
 	Path Literal `@@`
 }
 
 type Secret struct {
-	Pos    lexer.Position
-	Target Literal       `@@`
-	Option *SecretOption `( "with" @@ )?`
+	Pos        lexer.Position
+	Mountpoint Literal       `@@`
+	Option     *SecretOption `( "with" @@ )?`
 }
 
 type SecretOption struct {
@@ -293,10 +341,10 @@ type SecretField struct {
 }
 
 type Mount struct {
-	Pos    lexer.Position
-	From   *State        `@@`
-	Target Literal      `@@`
-	Option *MountOption `( "with" @@ )?`
+	Pos        lexer.Position
+	Input      *State       `@@`
+	Mountpoint Literal      `@@`
+	Option     *MountOption `( "with" @@ )?`
 }
 
 type MountOption struct {
@@ -308,10 +356,10 @@ type MountOption struct {
 
 type MountField struct {
 	Pos      lexer.Position
-	Readonly *bool   `( @"readonly"`
-	Tmpfs    *bool   `| @"tmpfs"`
-	Source   *Target `| "source" @@`
-	Cache    *Cache  `| "cache" @@ )`
+	Readonly *bool       `( @"readonly"`
+	Tmpfs    *bool       `| @"tmpfs"`
+	Source   *Mountpoint `| "source" @@`
+	Cache    *Cache      `| "cache" @@ )`
 }
 
 type SourcePath struct {
@@ -370,10 +418,10 @@ type MkdirOption struct {
 }
 
 type MkdirField struct {
-	Pos         lexer.Position
-	CreateParents     *bool  `( @"createParents"`
-	Chown       *Chown `| "chown" @@`
-	CreatedTime *Time  `| "createdTime" @@ )`
+	Pos           lexer.Position
+	CreateParents *bool  `( @"createParents"`
+	Chown         *Chown `| "chown" @@`
+	CreatedTime   *Time  `| "createdTime" @@ )`
 }
 
 type Mkfile struct {
@@ -423,7 +471,7 @@ type RmField struct {
 
 type Copy struct {
 	Pos    lexer.Position
-	From   *State       `@@`
+	Input  *State      `@@`
 	Src    Literal     `@@`
 	Dst    Literal     `@@`
 	Option *CopyOption `( "with" @@ )?`

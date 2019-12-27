@@ -1,5 +1,7 @@
 package hlb
 
+// Levenshtein returns the levenshtein distance between two rune arrays.
+//
 // This implementation translated from the optimized C code at
 // https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#C
 func Levenshtein(s1, s2 []rune) int {
