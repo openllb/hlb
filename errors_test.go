@@ -14,12 +14,14 @@ type testCase struct {
 	expected string
 }
 
-func (tc testCase) Expected() string {
-	expected := strings.TrimSpace(tc.expected)
-	expected = fmt.Sprintf(" %s\n", expected)
-	expected = strings.ReplaceAll(expected, "|\n", "| \n")
-	expected = strings.ReplaceAll(expected, "\t\t\t", "")
-	return expected
+func cleanup(value string, newline bool) string {
+	result := strings.TrimSpace(value)
+	if newline {
+		result = fmt.Sprintf(" %s\n", result)
+	}
+	result = strings.ReplaceAll(result, "|\n", "| \n")
+	result = strings.ReplaceAll(result, "\t\t\t", "")
+	return result
 }
 
 func TestSyntaxError(t *testing.T) {
@@ -672,7 +674,7 @@ func TestSyntaxError(t *testing.T) {
 			if tc.expected == "" {
 				require.NoError(t, err)
 			} else {
-				require.Equal(t, tc.Expected(), err.Error())
+				require.Equal(t, cleanup(tc.expected, true), err.Error())
 			}
 		})
 	}

@@ -35,17 +35,17 @@ func (a *AST) String() string {
 		str := entry.String()
 		offset := entry.Pos.Line - line
 
-		if offset == 0 {
-			padding := " "
-			if i == len(a.Entries)-1 {
-				padding = ""
+		if offset == 0 && !strings.Contains(str, "\n") {
+			if i > 0 {
+				str = fmt.Sprintf(" %s", str)
 			}
-			str = fmt.Sprintf("%s%s", str, padding)
 		} else {
 			offset = 2
 		}
 
-		str = fmt.Sprintf("%s%s", strings.Repeat("\n", offset), str)
+		if i > 0 {
+			str = fmt.Sprintf("%s%s", strings.Repeat("\n", offset), str)
+		}
 		entries = append(entries, str)
 		line = entry.Pos.Line
 	}
