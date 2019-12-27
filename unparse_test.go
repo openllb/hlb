@@ -523,9 +523,9 @@ func TestUnparse(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ast, err := Parse(strings.NewReader(cleanup(tc.input, false)))
+			ast, err := Parse(strings.NewReader(cleanup(tc.input, false, 3)))
 			require.NoError(t, err)
-			require.Equal(t, cleanup(tc.expected, false), ast.String())
+			require.Equal(t, cleanup(tc.expected, false, 3), ast.String())
 		})
 	}
 }

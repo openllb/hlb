@@ -8,3 +8,5 @@ require (
 	github.com/mattn/go-isatty v0.0.11
 	github.com/stretchr/testify v1.4.0
 )
+
+replace github.com/alecthomas/participle => ./../../alecthomas/participle

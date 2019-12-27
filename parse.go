@@ -7,15 +7,26 @@ import (
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/lexer/regex"
 	"github.com/logrusorgru/aurora"
 )
 
 var (
-	textLexer = lexer.TextScannerLexer
+	hlbLexer = lexer.Must(regex.New(`
+		Keyword  = state
+		Ident    = [a-zA-Z_][a-zA-Z0-9_]*
+		Int      = [0-9][0-9]*
+		String   = '(?:\\.|[^'])*'|"(?:\\.|[^"])*"
+		Operator = {|}|;|\(|\)|,
+
+	        whitespace = \s+
+	        comment    = //[^\n]*
+	`))
 
 	parser = participle.MustBuild(
 		&AST{},
-		participle.Lexer(textLexer),
+		participle.Lexer(hlbLexer),
+		participle.Unquote("String"),
 	)
 )
 
@@ -41,7 +52,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*AST, error) {
 	ib := &indexedBuffer{buf: new(bytes.Buffer)}
 	r = io.TeeReader(r, ib)
 
-	lex, err := textLexer.Lex(&namedReader{r, name})
+	lex, err := parser.Lexer().Lex(&namedReader{r, name})
 	if err != nil {
 		return nil, err
 	}
@@ -118,15 +129,25 @@ type Entry struct {
 }
 
 type StateEntry struct {
-	Pos   lexer.Position
-	Name  string `@Ident`
-	State *State `@@`
+	Pos       lexer.Position
+	Name      string     `@Ident`
+	Signature *Signature `( @@ )?`
+	Body      *StateBody `@@`
+}
+
+type Signature struct {
+	Args []Arg `"(" ( @@ )* ")"`
+}
+
+type Arg struct {
+	Type string `@Ident`
+	Name string `@Ident`
 }
 
 type State struct {
 	Pos      lexer.Position
-	Explicit *string `@( "state" )?`
-	Body *StateBody `@@`
+	Explicit *string    `@( "state" )?`
+	Body     *StateBody `@@`
 }
 
 type StateBody struct {
@@ -158,7 +179,7 @@ type From struct {
 
 type Image struct {
 	Pos    lexer.Position
-	Ref    Literal      `@@`
+	Ref    string       `@String`
 	Option *ImageOption `( "with" @@ )?`
 }
 
@@ -176,7 +197,7 @@ type ImageField struct {
 
 type HTTP struct {
 	Pos    lexer.Position
-	URL    Literal     `@@`
+	URL    string      `@String`
 	Option *HTTPOption `( "with" @@ )?`
 }
 
@@ -198,7 +219,7 @@ type Checksum struct {
 	Pos lexer.Position
 
 	// TODO: Use regex lexer to define custom types like digest.Digest?
-	Digest Literal `@@`
+	Digest string `@String`
 }
 
 type Chmod struct {
@@ -208,13 +229,13 @@ type Chmod struct {
 
 type Filename struct {
 	Pos  lexer.Position
-	Name Literal `@@`
+	Name string `@String`
 }
 
 type Git struct {
 	Pos    lexer.Position
-	Remote Literal    `@@`
-	Ref    Literal    `@@`
+	Remote string     `@String`
+	Ref    string     `@String`
 	Option *GitOption `( "with" @@ )?`
 }
 
@@ -245,7 +266,7 @@ type Op struct {
 
 type Exec struct {
 	Pos    lexer.Position
-	Shlex  Literal     `@@`
+	Shlex  string      `@String`
 	Option *ExecOption `( "with" @@ )?`
 }
 
@@ -283,10 +304,10 @@ type Security struct {
 
 type Host struct {
 	Pos  lexer.Position
-	Name Literal `@@`
+	Name string `@String`
 
 	// TODO: Use regex lexer to define custom types like IP?
-	Address Literal `@@`
+	Address string `@String`
 }
 
 type SSH struct {
@@ -313,7 +334,7 @@ type SSHField struct {
 
 type CacheID struct {
 	Pos lexer.Position
-	ID  Literal `"id" @@`
+	ID  string `"id" @String`
 }
 
 type SystemID struct {
@@ -323,12 +344,12 @@ type SystemID struct {
 
 type Mountpoint struct {
 	Pos  lexer.Position
-	Path Literal `@@`
+	Path string `@String`
 }
 
 type Secret struct {
 	Pos        lexer.Position
-	Mountpoint Literal       `@@`
+	Mountpoint string        `@String`
 	Option     *SecretOption `( "with" @@ )?`
 }
 
@@ -361,7 +382,7 @@ type Mount struct {
 }
 
 type MountBase struct {
-	Mountpoint Literal      `@@`
+	Mountpoint string       `@String`
 	Option     *MountOption `( "with" @@ )?`
 }
 
@@ -382,48 +403,48 @@ type MountField struct {
 
 type SourcePath struct {
 	Pos  lexer.Position
-	Path Literal `@@`
+	Path string `@String`
 }
 
 type Cache struct {
 	Pos     lexer.Position
-	ID      Literal `@@`
-	Sharing string  `@("shared" | "private" | "locked")`
+	ID      string `@String`
+	Sharing string `@("shared" | "private" | "locked")`
 }
 
 type Env struct {
 	Pos   lexer.Position
-	Key   Literal `@@`
-	Value Literal `@@`
+	Key   string `@String`
+	Value string `@String`
 }
 
 type Dir struct {
 	Pos  lexer.Position
-	Path Literal `@@`
+	Path string `@String`
 }
 
 type User struct {
 	Pos  lexer.Position
-	Name Literal `@@`
+	Name string `@String`
 }
 
 type Chown struct {
 	Pos lexer.Position
 
 	// TODO: Use regex lexer to define custom types like user:group?
-	Owner Literal `@@`
+	Owner string `@String`
 }
 
 type Time struct {
 	Pos lexer.Position
 
 	// TODO: Use regex lexer to define custom types like time.Time?
-	Value Literal `@@`
+	Value string `@String`
 }
 
 type Mkdir struct {
 	Pos    lexer.Position
-	Path   Literal      `@@`
+	Path   string       `@String`
 	Mode   *FileMode    `@@`
 	Option *MkdirOption `( "with" @@ )?`
 }
@@ -444,9 +465,9 @@ type MkdirField struct {
 
 type Mkfile struct {
 	Pos     lexer.Position
-	Path    Literal       `@@`
+	Path    string        `@String`
 	Mode    *FileMode     `@@`
-	Content Literal       `( @@ )?`
+	Content string        `@String`
 	Option  *MkfileOption `( "with" @@ )?`
 }
 
@@ -470,7 +491,7 @@ type FileMode struct {
 
 type Rm struct {
 	Pos    lexer.Position
-	Path   Literal   `@@`
+	Path   string    `@String`
 	Option *RmOption `( "with" @@ )?`
 }
 
@@ -500,8 +521,8 @@ type Copy struct {
 }
 
 type CopyBase struct {
-	Src    Literal     `@@`
-	Dst    Literal     `@@`
+	Src    string      `@String`
+	Dst    string      `@String`
 	Option *CopyOption `( "with" @@ )?`
 }
 
@@ -535,9 +556,4 @@ type OptionEntry struct {
 type BlockEnd struct {
 	Pos   lexer.Position
 	Brace string `@"}"`
-}
-
-type Literal struct {
-	Pos   lexer.Position
-	Value string `@(String|Char|RawString)`
 }

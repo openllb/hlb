@@ -11,20 +11,20 @@ state foo {
 		security sandbox
 		host "name" "ip"
 		ssh with option {
-			target "path"
+			mountpoint "path"
 			id "cacheid"
 			uid 1000
 			gid 1000
 			mode 0700
 			optional
 		}
-		secret "target" with option {
+		secret "mountpoint" with option {
 			id "cacheid"
 			uid 1000
 			mode 0700
 			optional
 		}
-		mount { from bar } "target" with option {
+		mount { from bar } "mountpoint" with option {
 			readonly
 			tmpfs
 			source "target"

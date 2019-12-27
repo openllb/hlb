@@ -14,13 +14,13 @@ type testCase struct {
 	expected string
 }
 
-func cleanup(value string, newline bool) string {
+func cleanup(value string, newline bool, tabs int) string {
 	result := strings.TrimSpace(value)
 	if newline {
 		result = fmt.Sprintf(" %s\n", result)
 	}
+	result = strings.ReplaceAll(result, strings.Repeat("\t", tabs), "")
 	result = strings.ReplaceAll(result, "|\n", "| \n")
-	result = strings.ReplaceAll(result, "\t\t\t", "")
 	return result
 }
 
@@ -74,7 +74,7 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"state with ",
+			"state with",
 			`state "foo"`,
 			`
 			 --> <stdin>:1:7: syntax error
@@ -390,11 +390,11 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"exec with arg",
-			`state foo { scratch exec "echo foo"`,
+			`state foo { scratch exec "sh -c \"echo ❯ > foo\""`,
 			`
-			 --> <stdin>:1:36: syntax error
+			 --> <stdin>:1:50: syntax error
 			  |
-			1 | state foo { scratch exec "echo foo"
+			1 | state foo { scratch exec "sh -c \"echo ❯ > foo\""
 			  |           ^
 			  |           unmatched block start {
 			  ⫶
@@ -670,11 +670,11 @@ func TestSyntaxError(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := Parse(strings.NewReader(tc.input))
+			_, err := Parse(strings.NewReader(cleanup(tc.input, false, 3)))
 			if tc.expected == "" {
 				require.NoError(t, err)
 			} else {
-				require.Equal(t, cleanup(tc.expected, true), err.Error())
+				require.Equal(t, cleanup(tc.expected, true, 3), err.Error())
 			}
 		})
 	}

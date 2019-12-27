@@ -152,7 +152,7 @@ func newSyntaxError(color aurora.Aurora, ib *indexedBuffer, lex *lexer.PeekingLe
 					return nil, err
 				}
 				groups = append(groups, group)
-			case "<ident>", "<string> | <char> | <rawstring>", "<int>":
+			case "<ident>", "<string>", "<int>":
 				group, err := errArg(color, ib, lex, uerr.Unexpected)
 				if err != nil {
 					return nil, err
@@ -960,9 +960,9 @@ func helpValidKeywords(color aurora.Aurora, keywords []string, subject string) s
 }
 
 func isLiteral(token lexer.Token) bool {
-	symbols := textLexer.Symbols()
+	symbols := hlbLexer.Symbols()
 	switch token.Type {
-	case symbols["String"], symbols["Char"], symbols["RawString"]:
+	case symbols["String"]:
 		return true
 	default:
 		return false

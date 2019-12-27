@@ -61,7 +61,7 @@ func (e *Entry) String() string {
 }
 
 func (s *StateEntry) String() string {
-	return fmt.Sprintf("state %s %s", s.Name, s.State)
+	return fmt.Sprintf("state %s %s", s.Name, s.Body)
 }
 
 func (s *State) String() string {
@@ -694,10 +694,6 @@ func (c *CopyField) String() string {
 		return c.CreatedTime.String()
 	}
 	panic("unknown copy field")
-}
-
-func (l Literal) String() string {
-	return l.Value
 }
 
 func withOption(op string, block OptionBlock) string {

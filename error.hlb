@@ -1,3 +1,4 @@
+// Test
 state foo {
-	from { from { from state { from { from foo } } } }
+	image "alpine"
 }
