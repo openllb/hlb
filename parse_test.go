@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	fullHLB = `
-		state foo {
+	def = `
+		state foo() {
 			image "alpine" with option {
 				resolve
 		        }
@@ -22,20 +22,20 @@ var (
 				security sandbox
 				host "name" "ip"
 				ssh with option {
-					mountpoint "path"
+					target "path"
 					id "cacheid"
 					uid 1000
 					gid 1000
 					mode 0700
 					optional
 				}
-				secret "mountpoint" with option {
+				secret "target" with option {
 					id "cacheid"
 					uid 1000
 					mode 0700
 					optional
 				}
-				mount bar "mountpoint" with option {
+				mount bar "target" with option {
 					readonly
 					tmpfs
 					source "target"
@@ -58,7 +58,7 @@ var (
 				allowNotFound
 				allowWildcard
 			}
-			copy { from bar } "src" "dst" with option {
+			copy { from bar; } "src" "dst" with option {
 				followSymlinks
 				contentsOnly
 				unpack
@@ -70,7 +70,7 @@ var (
 			}
 		}
 
-		state bar {
+		state bar() {
 			scratch
 			copy {
 				http "url" with option {
@@ -89,38 +89,8 @@ var (
 )
 
 func TestParse(t *testing.T) {
-	ast, err := Parse(strings.NewReader(fullHLB))
+	t.Parallel()
+	ast, err := Parse(strings.NewReader(def))
 	require.NoError(t, err)
-
-	require.Equal(t, 2, len(ast.Entries))
-	require.NotNil(t, ast.Entries[0].State)
-	require.NotNil(t, ast.Entries[1].State)
-
-	// state foo
-	foo := ast.Entries[0].State
-	require.Equal(t, "foo", foo.Name)
-	require.NotNil(t, foo.Body)
-	require.Equal(t, 8, len(foo.Body.Ops))
-	require.NotNil(t, foo.Body.Source)
-
-	// state foo image
-	image := foo.Body.Source.Image
-	require.NotNil(t, image)
-	require.NotNil(t, "alpine", image.Ref)
-	require.NotNil(t, image.Option)
-	require.Equal(t, 1, len(image.Option.ImageFields))
-	require.NotNil(t, image.Option.ImageFields[0].Resolve)
-
-	// state foo exec
-	exec := foo.Body.Ops[0].Exec
-	require.NotNil(t, exec)
-	require.Equal(t, "echo foo", exec.Shlex)
-	require.NotNil(t, exec.Option)
-	require.Equal(t, 10, len(exec.Option.ExecFields))
-
-	// state bar
-	bar := ast.Entries[1].State
-	require.Equal(t, "bar", bar.Name)
-	require.NotNil(t, bar.Body)
-	require.Equal(t, 2, len(bar.Body.Ops))
+	require.NotNil(t, ast)
 }

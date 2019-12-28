@@ -17,37 +17,28 @@ func TestUnparse(t *testing.T) {
 		{
 			"regular",
 			`
-			state foo { scratch }
+			state foo() { scratch; }
 			`,
 			`
-			state foo { scratch }
+			state foo() { scratch; }
 			`,
 		},
 		{
 			"no space",
 			`
-			state foo{scratch}
+			state foo(){scratch;}
 			`,
 			`
-			state foo { scratch }
-			`,
-		},
-		{
-			"optional semicolon",
-			`
-			state foo { scratch; }
-			`,
-			`
-			state foo { scratch }
+			state foo() { scratch; }
 			`,
 		},
 		{
 			"extra tabs and spaces",
 			`
-			state foo 	{    scratch }
+			state foo   () 	{    scratch; }
 			`,
 			`
-			state foo { scratch }
+			state foo() { scratch; }
 			`,
 		},
 		{
@@ -55,7 +46,7 @@ func TestUnparse(t *testing.T) {
 			`
 
 
-			state foo {
+			state foo() {
 
 
 
@@ -65,52 +56,34 @@ func TestUnparse(t *testing.T) {
 
 			`,
 			`
-			state foo {
+			state foo() {
+
 				scratch
+
 			}
 			`,
 		},
 		{
 			"extra tabs",
 			`
-			state foo {
+			state foo() {
 							scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 			`,
 		},
 		{
-			"identifier newlined",
-			`
-			state
-			foo { scratch }
-			`,
-			`
-			state foo { scratch }
-			`,
-		},
-		{
-			"block start newlined",
-			`
-			state foo
-			{ scratch }
-			`,
-			`
-			state foo { scratch }
-			`,
-		},
-		{
 			"source newlined",
 			`
-			state foo {
-			scratch }
+			state foo() {
+			scratch; }
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 			`,
@@ -118,11 +91,11 @@ func TestUnparse(t *testing.T) {
 		{
 			"block end newlined",
 			`
-			state foo { scratch
+			state foo() { scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 			`,
@@ -130,12 +103,12 @@ func TestUnparse(t *testing.T) {
 		{
 			"regular newlined",
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 			`,
@@ -143,20 +116,20 @@ func TestUnparse(t *testing.T) {
 		{
 			"regular entries",
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
@@ -166,22 +139,22 @@ func TestUnparse(t *testing.T) {
 			`
 
 
-			state foo {
+			state foo() {
 				scratch
 			}
 
 
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
@@ -189,24 +162,24 @@ func TestUnparse(t *testing.T) {
 		{
 			"mixed inline newline entries",
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar { scratch }
+			state bar() { scratch; }
 
-			state baz {
+			state baz() {
 				scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar { scratch }
+			state bar() { scratch; }
 
-			state baz {
+			state baz() {
 				scratch
 			}
 			`,
@@ -214,19 +187,19 @@ func TestUnparse(t *testing.T) {
 		{
 			"entries too close",
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
@@ -234,18 +207,18 @@ func TestUnparse(t *testing.T) {
 		{
 			"entries over",
 			`
-			state foo {
+			state foo() {
 				scratch
-			} state bar {
+			} state bar() {
 				scratch
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
@@ -253,73 +226,59 @@ func TestUnparse(t *testing.T) {
 		{
 			"entries over inlined",
 			`
-			state foo {
+			state foo() {
 				scratch
-			} state bar { scratch }
+			} state bar() { scratch; }
 			`,
 			`
-			state foo {
+			state foo() {
 				scratch
 			}
 
-			state bar { scratch }
+			state bar() { scratch; }
 			`,
-		},  
+		},
 		{
 			"inlined entries",
 			`
-			state foo { scratch } state bar { scratch }
+			state foo() { scratch; } state bar() { scratch; }
 			`,
 			`
-			state foo { scratch } state bar { scratch }
+			state foo() { scratch; } state bar() { scratch; }
 			`,
-		},  
+		},
 		{
 			"inlined over newlined entry",
 			`
-			state foo { scratch } state bar {
+			state foo() { scratch; } state bar() {
 				scratch
 			}
 			`,
 			`
-			state foo { scratch }
+			state foo() { scratch; }
 
-			state bar {
+			state bar() {
 				scratch
 			}
 			`,
-		},  
+		},
 		{
 			"entry with op",
 			`
-			state foo {
+			state foo() {
 				image "alpine"
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine"
 			}
 			`,
-		},  
-		{
-			"entry with newlined op",
-			`
-			state foo {
-				image
-			"alpine"
-			}
-			`,
-			`
-			state foo {
-				image "alpine"
-			}
-			`,
-		},  
+		},
 		{
 			"entry with multiple ops",
 			`
-			state foo {
+			state foo() {
 				image "alpine"
 				env "key" "value"
 				env "key" "value"
@@ -327,198 +286,184 @@ func TestUnparse(t *testing.T) {
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine"
 				env "key" "value"
 				env "key" "value"
 				env "key" "value"
 			}
 			`,
-		},  
+		},
 		{
 			"entry with mixed inline ops",
 			`
-			state foo {
+			state foo() {
 				image "alpine"
-				env "key" "value" env "key" "value"
+				env "key" "value"; env "key" "value"
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine"
 				env "key" "value"
 				env "key" "value"
 			}
 			`,
-		},  
+		},
 		{
 			"inlined entry with ops",
 			`
-			state foo { image "alpine" env "key" "value" env "key" "value" }
+			state foo() { image "alpine"; env "key" "value"; env "key" "value"; }
 			`,
 			`
-			state foo { image "alpine"; env "key" "value"; env "key" "value" }
+			state foo() { image "alpine"; env "key" "value"; env "key" "value"; }
 			`,
-		},  
-		{
-			"inlined entry with ops and semicolons",
-			`
-			state foo { image "alpine"; env "key" "value"; env "key" "value" }
-			`,
-			`
-			state foo { image "alpine"; env "key" "value"; env "key" "value" }
-			`,
-		},  
+		},
 		{
 			"option identifier",
 			`
-			state foo {
+			state foo() {
 				image "alpine" with foo
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine" with foo
 			}
 			`,
-		},  
+		},
 		{
 			"empty option block",
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option {}
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine"
 			}
 			`,
-		},  
+		},
 		{
 			"option block",
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option {
 					resolve
 				}
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option {
 					resolve
 				}
 			}
 			`,
-		},  
+		},
 		{
 			"inlined option block",
 			`
-			state foo {
-				image "alpine" with option { resolve }
+			state foo() {
+				image "alpine" with option { resolve; }
 			}
 			`,
 			`
-			state foo {
-				image "alpine" with option { resolve }
+			state foo() {
+				image "alpine" with option { resolve; }
 			}
 			`,
-		},  
+		},
 		{
 			"inlined option block with inlined op",
 			`
-			state foo {
-				image "alpine" with option { resolve } env "key" "value"
+			state foo() {
+				image "alpine" with option { resolve; }; env "key" "value"
 			}
 			`,
 			`
-			state foo {
-				image "alpine" with option { resolve }
+			state foo() {
+				image "alpine" with option { resolve; }
 				env "key" "value"
 			}
 			`,
-		},  
-		{
-			"option block with newlined",
-			`
-			state foo {
-				image "alpine"
-				with option { resolve } env "key" "value"
-			}
-			`,
-			`
-			state foo {
-				image "alpine" with option { resolve }
-				env "key" "value"
-			}
-			`,
-		},  
-		{
-			"option block option newlined",
-			`
-			state foo {
-				image "alpine" with option { resolve } env "key" "value"
-			}
-			`,
-			`
-			state foo {
-				image "alpine" with option { resolve }
-				env "key" "value"
-			}
-			`,
-		},  
-		{
-			"option block start newlined",
-			`
-			state foo {
-				image "alpine" with option
-				{ resolve } env "key" "value"
-			}
-			`,
-			`
-			state foo {
-				image "alpine" with option {
-					resolve
-				}
-				env "key" "value"
-			}
-			`,
-		},  
+		},
 		{
 			"option block field newlined",
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option {
-				resolve } env "key" "value"
+				resolve; }; env "key" "value"
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option {
 					resolve
 				}
 				env "key" "value"
 			}
 			`,
-		},  
+		},
 		{
 			"option block end newlined",
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option { resolve
-				} env "key" "value"
+				}; env "key" "value"
 			}
 			`,
 			`
-			state foo {
+			state foo() {
 				image "alpine" with option {
 					resolve
 				}
 				env "key" "value"
 			}
 			`,
-		},  
+		},
+		{
+			"comments preserved",
+			`
+
+			// comment
+
+
+			// comment
+			state foo() { // comment
+
+
+				// comment
+
+
+				image "alpine" with option { // comment
+					resolve // comment
+				} // comment
+				env "key" "value" // comment
+			} // comment
+			// comment
+
+			state bar() { scratch; }
+			`,
+			`
+			// comment
+
+			// comment
+			state foo() { // comment
+
+				// comment
+
+				image "alpine" with option { // comment
+					resolve // comment
+				} // comment
+				env "key" "value" // comment
+			} // comment
+			// comment
+
+			state bar() { scratch; }
+			`,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

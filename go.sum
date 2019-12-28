@@ -2,6 +2,8 @@ github.com/alecthomas/go-thrift v0.0.0-20170109061633-7914173639b2/go.mod h1:CxC
 github.com/alecthomas/kong v0.2.1/go.mod h1:+inYUSluD+p4L8KdviBSgzcqEjUQOfC5fQDRFuc36lI=
 github.com/alecthomas/participle v0.4.2-0.20191224055036-5ca7b4c04b5c h1:qT705DruKQyLJxyrEn/Qg8+TxmuRCVcBu40A6wcWgqA=
 github.com/alecthomas/participle v0.4.2-0.20191224055036-5ca7b4c04b5c/go.mod h1:T8u4bQOSMwrkTWOSyt8/jSFPEnRtd0FKFMjVfYBlqPs=
+github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489 h1:q1jfoZg9Fl1qHRNyDxwdJL4M3ZmHkNSkMJgR+Wqubfc=
+github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489/go.mod h1:T8u4bQOSMwrkTWOSyt8/jSFPEnRtd0FKFMjVfYBlqPs=
 github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1/go.mod h1:xTS7Pm1pD1mvyM075QCDSRqH6qRLXylzS24ZTpRiSzQ=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d/go.mod h1:rBZYJk541a8SKzHPHnH3zbiI+7dagKZ0cgpgrD7Fyho=

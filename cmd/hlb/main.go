@@ -45,6 +45,6 @@ func run(args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ast)
+	fmt.Printf("%s", ast)
 	return nil
 }
