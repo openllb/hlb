@@ -1,4 +1,4 @@
-state foo {
+state foo() {
 	image "alpine" with option {
 		resolve
         }
@@ -7,24 +7,24 @@ state foo {
 		env "key" "value"
 		dir "path"
 		user "name"
-		network unset
-		security sandbox
+		network "unset"
+		security "sandbox"
 		host "name" "ip"
 		ssh with option {
-			mountpoint "path"
+			target "path"
 			id "cacheid"
 			uid 1000
 			gid 1000
 			mode 0700
 			optional
 		}
-		secret "mountpoint" with option {
+		secret "target" with option {
 			id "cacheid"
 			uid 1000
 			mode 0700
 			optional
 		}
-		mount { from bar } "mountpoint" with option {
+		mount { from bar; } "target" with option {
 			readonly
 			tmpfs
 			source "target"
@@ -47,7 +47,7 @@ state foo {
 		allowNotFound
 		allowWildcard
 	}
-	copy { from bar } "src" "dst" with option {
+	copy { from bar; } "src" "dst" with option {
 		followSymlinks
 		contentsOnly
 		unpack
@@ -59,7 +59,7 @@ state foo {
 	}
 }
 
-state bar {
+state bar() {
 	scratch
 	copy {
 		http "url" with option {
