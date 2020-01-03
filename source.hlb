@@ -1,16 +1,12 @@
-state goBase() {
-	image "golang:alpine"
-	env "GO111MODULE" "on"
-}
-
 state hlbGit() {
-	git "https://github.com/openllb/hlb.git" ""
+	git "https://github.com/openllb/hlb.git" "2da51bebf45ae7c136f46c8ab9936c281a9ed99a"
 }
 
 state goBuild() {
-	from goBase
+	image "golang:alpine"
+	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	exec "go build -o /out/hlb ./cmd/frontend" with option {
+	exec "/usr/local/go/bin/go build -o /out/hlb ./cmd/frontend" with option {
 		mount hlbGit "/go/src/hlb"
         	mount { scratch; } "/root/.cache/go-build" with option {
 			cache "hlb/go-build" private

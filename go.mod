@@ -13,6 +13,6 @@ require (
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 )
 
-replace github.com/alecthomas/participle => ../../alecthomas/participle
+replace github.com/alecthomas/participle => github.com/hinshun/participle v0.4.2-0.20200102003105-2da58af4b8ee
 
 replace github.com/moby/buildkit => github.com/hinshun/buildkit v0.0.0-20191220011919-e571a1d83df9
