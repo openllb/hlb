@@ -3,6 +3,7 @@ package command
 import (
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb"
@@ -20,7 +21,7 @@ var signatureCommand = &cli.Command{
 		}
 
 		ref := c.Args().First()
-		frontendFile := fmt.Sprintf("%s.hlb", ref)
+		frontendFile := fmt.Sprintf("%s.hlb", path.Base(ref))
 
 		entryName := "signature"
 		scratch := "scratch"

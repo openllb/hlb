@@ -772,7 +772,11 @@ func (c *CopyField) String() string {
 }
 
 func (f *FrontendEntry) String() string {
-	return fmt.Sprintf("frontend %s(%s) %s", f.Name, f.Signature, f.State)
+	signature := "()"
+	if f.Signature != nil {
+		signature = fmt.Sprintf("(%s)", f.Signature)
+	}
+	return fmt.Sprintf("frontend %s%s %s", f.Name, signature, f.State)
 }
 
 func (s *Signature) String() string {
@@ -832,6 +836,10 @@ func (v *StateVar) String() string {
 }
 
 func withEnd(str string, end *string) string {
+	if end == nil {
+		return fmt.Sprintf("%s\n", str)
+	}
+
 	if len(*end) > 1 {
 		return fmt.Sprintf("%s %s", str, *end)
 	} else if *end == ";" {

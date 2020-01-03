@@ -1,9 +1,7 @@
 package naive
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 
@@ -22,49 +20,26 @@ const (
 func Build(ctx context.Context, c client.Client) (*client.Result, error) {
 	target, ok := c.BuildOpts().Opts[OptTarget]
 	if !ok {
-		return nil, fmt.Errorf("missing build opt `target`")
+		target = "default"
 	}
 
-	inputs, err := c.Inputs(ctx)
+	_, err := os.Stat(SourceHLB)
 	if err != nil {
 		return nil, err
 	}
 
-	source, ok := inputs[InputSource]
-	if !ok {
-		return nil, fmt.Errorf("missing input `source`")
+	f, err := os.Open(SourceHLB)
+	if err != nil {
+		return nil, err
 	}
+	defer f.Close()
 
-	def, err := source.Marshal()
+	st, err := Compile(target, []io.Reader{f})
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := c.Solve(ctx, client.SolveRequest{
-		Definition: def.ToPB(),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	ref, err := res.SingleRef()
-	if err != nil {
-		return nil, err
-	}
-
-	dt, err := ref.ReadFile(ctx, client.ReadRequest{
-		Filename: SourceHLB,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	st, err := Compile(target, []io.Reader{bytes.NewReader(dt)})
-	if err != nil {
-		return nil, err
-	}
-
-	def, err = st.Marshal()
+	def, err := st.Marshal()
 	if err != nil {
 		return nil, err
 	}
