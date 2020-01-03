@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/regex"
 	"github.com/logrusorgru/aurora"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -27,13 +28,38 @@ var (
 	`, parseRule(Types))))
 
 	parser = participle.MustBuild(
-		&AST{},
+		&File{},
 		participle.Lexer(hlbLexer),
 		participle.Unquote(),
 	)
 )
 
-func Parse(r io.Reader, opts ...ParseOption) (*AST, error) {
+func ParseMultiple(rs []io.Reader, opts ...ParseOption) ([]*File, error) {
+	files := make([]*File, len(rs))
+
+	var g errgroup.Group
+	for i, r := range rs {
+		i, r := i, r
+		g.Go(func() error {
+			f, err := Parse(r, opts...)
+			if err != nil {
+				return err
+			}
+
+			files[i] = f
+			return nil
+		})
+	}
+
+	err := g.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+func Parse(r io.Reader, opts ...ParseOption) (*File, error) {
 	info := ParseInfo{
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -75,23 +101,23 @@ func Parse(r io.Reader, opts ...ParseOption) (*AST, error) {
 		return nil, nerr
 	}
 
-	ast := &AST{}
-	err = parser.ParseFromLexer(peeker, ast)
+	file := &File{}
+	err = parser.ParseFromLexer(peeker, file)
 	if err != nil {
 		perr, ok := err.(participle.Error)
 		if !ok {
-			return ast, err
+			return file, err
 		}
 
 		nerr, err := newSyntaxError(info.Color, ib, peeker, perr)
 		if err != nil {
-			return ast, err
+			return file, err
 		}
 
-		return ast, nerr
+		return file, nerr
 	}
 
-	return ast, nil
+	return file, nil
 }
 
 type ParseOption func(*ParseInfo) error
@@ -123,7 +149,7 @@ func WithColor(color bool) ParseOption {
 	}
 }
 
-type AST struct {
+type File struct {
 	Pos     lexer.Position
 	Entries []*Entry `( @@ )*`
 }
@@ -370,7 +396,7 @@ type SSHField struct {
 
 type CacheID struct {
 	Pos lexer.Position
-	ID  *StringVar `"id" @@`
+	Var  *StringVar `"id" @@`
 }
 
 type SystemID struct {
@@ -426,7 +452,7 @@ type MountField struct {
 	Newline  *Newline `( @@`
 	Readonly *bool    `| ( @"readonly"`
 	Tmpfs    *bool    `| @"tmpfs"`
-	Source   *Target  `| "source" @@`
+	SourcePath   *Target  `| "sourcePath" @@`
 	Cache    *Cache   `| "cache" @@ )`
 	End      *string  `@( End | Newline | Comment ) )`
 }
@@ -516,7 +542,7 @@ type MkfileField struct {
 
 type FileMode struct {
 	Pos  lexer.Position
-	Mode *IntVar `@@`
+	Var *IntVar `@@`
 }
 
 type Rm struct {
@@ -559,8 +585,8 @@ type CopyField struct {
 	Pos                lexer.Position
 	Newline            *Newline `( @@`
 	FollowSymlinks     *bool    `| ( @"followSymlinks"`
-	ContentsOnly       *bool    `| @"contentsOnly"`
-	Unpack             *bool    `| @"unpack"`
+	CopyDirContentsOnly       *bool    `| @"contentsOnly"`
+	AttemptUnpack             *bool    `| @"unpack"`
 	CreateDestPath     *bool    `| @"createDestPath"`
 	AllowWildcard      *bool    `| @"allowWildcard"`
 	AllowEmptyWildcard *bool    `| @"allowEmptyWildcard"`
@@ -584,12 +610,6 @@ type OptionEntry struct {
 	Pos lexer.Position
 }
 
-type StateVar struct {
-	Pos   lexer.Position
-	State *State  `( @@`
-	Ident *string `| @Ident )`
-}
-
 type StringVar struct {
 	Pos   lexer.Position
 	Value *string `( @String`
@@ -598,7 +618,13 @@ type StringVar struct {
 
 type IntVar struct {
 	Pos   lexer.Position
-	Int   *int    `( @Int`
+	Value *int    `( @Int`
+	Ident *string `| @Ident )`
+}
+
+type StateVar struct {
+	Pos   lexer.Position
+	Value *State  `( @@`
 	Ident *string `| @Ident )`
 }
 

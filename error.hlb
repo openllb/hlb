@@ -1,7 +1,0 @@
-state foo(string name) {
-	scratch
-}
-
-frontend bar(string bar) {
-	image "alpine"
-}

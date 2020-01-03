@@ -1,0 +1,8 @@
+state hlb(string target, state source) {
+	frontend {
+        	image "openllb/hlb"
+	} with option {
+		buildopt "target" target
+		input "source" source
+	}
+}

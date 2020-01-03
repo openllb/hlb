@@ -90,7 +90,7 @@ var (
 
 func TestParse(t *testing.T) {
 	t.Parallel()
-	ast, err := Parse(strings.NewReader(def))
+	file, err := Parse(strings.NewReader(def))
 	require.NoError(t, err)
-	require.NotNil(t, ast)
+	require.NotNil(t, file)
 }

@@ -27,10 +27,10 @@ type Field interface {
 	Position() lexer.Position
 }
 
-func (a *AST) String() string {
+func (f *File) String() string {
 	hasNewlines := false
 
-	for _, entry := range a.Entries {
+	for _, entry := range f.Entries {
 		str := entry.String()
 		if strings.Contains(str, "\n") {
 			hasNewlines = true
@@ -43,7 +43,7 @@ func (a *AST) String() string {
 	var entries []string
 	var prevEntry string
 
-	for _, entry := range a.Entries {
+	for _, entry := range f.Entries {
 		str := entry.String()
 
 		// Skip consecutive new lines.
@@ -107,7 +107,11 @@ func (n *Newline) String() string {
 }
 
 func (s *StateEntry) String() string {
-	return fmt.Sprintf("state %s(%s) %s", s.Name, s.Signature, s.State)
+	signature := "()"
+	if s.Signature != nil {
+		signature = fmt.Sprintf("(%s)", s.Signature)
+	}
+	return fmt.Sprintf("state %s%s %s", s.Name, signature, s.State)
 }
 
 func (s *State) String() string {
@@ -308,7 +312,6 @@ func (f *FromArg) String() string {
 	return f.Token.String()
 }
 
-
 func (o *Op) Position() lexer.Position {
 	return o.Pos
 }
@@ -462,14 +465,14 @@ func (s *SSHField) String() string {
 }
 
 func (c *CacheID) String() string {
-	return fmt.Sprintf("id %s", c.ID)
+	return fmt.Sprintf("id %s", c.Var)
 }
 
 func (f *FileMode) String() string {
-	if f.Mode.Ident != nil {
-		return *f.Mode.Ident
+	if f.Var.Ident != nil {
+		return *f.Var.Ident
 	}
-	return fmt.Sprintf("%04o", f.Mode.Int)
+	return fmt.Sprintf("%04o", f.Var.Value)
 }
 
 func (s *Secret) String() string {
@@ -562,8 +565,8 @@ func (m *MountField) String() string {
 		return withEnd("readonly", m.End)
 	case m.Tmpfs != nil:
 		return withEnd("tmpfs", m.End)
-	case m.Source != nil:
-		return withEnd(fmt.Sprintf("source %s", m.Source.Path), m.End)
+	case m.SourcePath != nil:
+		return withEnd(fmt.Sprintf("sourcePath %s", m.SourcePath.Path), m.End)
 	case m.Cache != nil:
 		return withEnd(fmt.Sprintf("cache %s %s", m.Cache.ID, m.Cache.Sharing), m.End)
 	}
@@ -750,9 +753,9 @@ func (c *CopyField) String() string {
 		return c.Newline.String()
 	case c.FollowSymlinks != nil:
 		return withEnd("followSymlinks", c.End)
-	case c.ContentsOnly != nil:
+	case c.CopyDirContentsOnly != nil:
 		return withEnd("contentsOnly", c.End)
-	case c.Unpack != nil:
+	case c.AttemptUnpack != nil:
 		return withEnd("unpack", c.End)
 	case c.CreateDestPath != nil:
 		return withEnd("createDestPath", c.End)
@@ -780,34 +783,52 @@ func (s *Signature) String() string {
 	return strings.Join(args, ", ")
 }
 
-func (s *StateVar) String() string {
-	switch {
-	case s.State != nil:
-		return s.State.String()
-	case s.Ident != nil:
-		return *s.Ident
+func NewString(v string) *StringVar {
+	return &StringVar{
+		Value: &v,
 	}
-	panic("unknown state var")
 }
 
-func (s *StringVar) String() string {
+func (v *StringVar) String() string {
 	switch {
-	case s.Value != nil:
-		return fmt.Sprintf("%q", *s.Value)
-	case s.Ident != nil:
-		return *s.Ident
+	case v.Value != nil:
+		return fmt.Sprintf("%q", *v.Value)
+	case v.Ident != nil:
+		return *v.Ident
 	}
 	panic("unknown string var")
 }
 
-func (i *IntVar) String() string {
+func NewInt(v int) *IntVar {
+	return &IntVar{
+		Value: &v,
+	}
+}
+
+func (v *IntVar) String() string {
 	switch {
-	case i.Int != nil:
-		return fmt.Sprintf("%d", *i.Int)
-	case i.Ident != nil:
-		return *i.Ident
+	case v.Value != nil:
+		return fmt.Sprintf("%d", *v.Value)
+	case v.Ident != nil:
+		return *v.Ident
 	}
 	panic("unknown int var")
+}
+
+func NewState(s *State) *StateVar {
+	return &StateVar{
+		Value: s,
+	}
+}
+
+func (v *StateVar) String() string {
+	switch {
+	case v.Value != nil:
+		return v.Value.String()
+	case v.Ident != nil:
+		return *v.Ident
+	}
+	panic("unknown state var")
 }
 
 func withEnd(str string, end *string) string {

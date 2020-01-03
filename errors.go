@@ -26,7 +26,7 @@ var (
 	ExecOptions   = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
 	SSHOptions    = []string{"target", "id", "uid", "gid", "mode", "optional"}
 	SecretOptions = []string{"id", "uid", "gid", "mode", "optional"}
-	MountOptions  = []string{"readonly", "tmpfs", "source", "cache"}
+	MountOptions  = []string{"readonly", "tmpfs", "sourcePath", "cache"}
 	MkdirOptions  = []string{"createParents", "chown", "createdTime"}
 	MkfileOptions = []string{"chown", "createdTime"}
 	RmOptions     = []string{"allowNotFound", "allowWildcard"}
@@ -106,7 +106,7 @@ var (
 		// Mount options
 		"readonly": nil,
 		"tmpfs":    nil,
-		"source":   {"string path"},
+		"sourcePath":   {"string path"},
 		"cache":    {"string cacheid", "string mode"},
 		// Mkdir options
 		"createParents": nil,
