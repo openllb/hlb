@@ -28,649 +28,743 @@ func TestSyntaxError(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			"empty",
-			``,
+			"",
 			``,
 		},
 		{
 			"character",
-			`a`,
+			"s",
 			`
 			 --> <stdin>:1:1: syntax error
 			  |
-			1 | a
+			1 | s
 			  | ^
-			  | expected new entry, found a
+			  | expected entry, found s
 			  |
-			 [?] help: entry can only be state
+			 [?] help: entry must be one of state, frontend, option
 			`,
 		},
 		{
 			"state suggestion",
-			`stat`,
+			"stat",
 			`
 			 --> <stdin>:1:1: syntax error
 			  |
 			1 | stat
 			  | ^^^^
-			  | expected new entry, found stat, did you mean state?
+			  | expected entry, found stat, did you mean state?
 			  |
-			 [?] help: entry can only be state
+			 [?] help: entry must be one of state, frontend, option
 			`,
 		},
 		{
 			"state without identifer",
-			`state`,
+			"state",
 			`
 			 --> <stdin>:1:6: syntax error
 			  |
 			1 | state
 			  | ^^^^^
-			  | must be followed by identifier
+			  | must be followed by entry name
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected identifier, found <EOF>
+			  | expected entry name, found end of file
 			`,
 		},
 		{
-			"state with",
+			"state with invalid identifier",
 			`state "foo"`,
 			`
 			 --> <stdin>:1:7: syntax error
 			  |
 			1 | state "foo"
 			  | ^^^^^
-			  | must be followed by identifier
+			  | must be followed by entry name
 			  ⫶
 			  |
 			1 | state "foo"
 			  |       ^^^^^
-			  |       expected identifier, found "foo"
+			  |       expected entry name, found "foo"
 			`,
 		},
 		{
-			"state without block start",
-			`state foo`,
+			"state without signature start",
+			"state foo",
 			`
 			 --> <stdin>:1:10: syntax error
 			  |
 			1 | state foo
 			  |       ^^^
-			  |       must be followed by block start {
+			  |       must be followed by (
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected block start {, found <EOF>
+			  | expected (, found end of file
+			`,
+		},
+		{
+			"state without signature end",
+			"state foo(",
+			`
+			 --> <stdin>:1:11: syntax error
+			  |
+			1 | state foo(
+			  |          ^
+			  |          unmatched entry signature (
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected ) or arguments, found end of file
+			  |
+			 [?] help: signature can be empty or contain arguments (<type> <name>, ...)
+			`,
+		},
+		{
+			"signature with invalid arg type",
+			"state foo(bar",
+			`
+			 --> <stdin>:1:11: syntax error
+			  |
+			1 | state foo(bar
+			  |          ^
+			  |          must be followed by argument
+			  ⫶
+			  |
+			1 | state foo(bar
+			  |           ^^^
+			  |           not a valid argument type
+			  |
+			 [?] help: argument type must be one of string, int, state, option
+			`,
+		},
+		{
+			"signature with invalid arg name",
+			"state foo(string",
+			`
+			 --> <stdin>:1:17: syntax error
+			  |
+			1 | state foo(string
+			  |           ^^^^^^
+			  |           must be followed by argument name
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected argument name, found end of file
+			  |
+			 [?] help: each argument must specify type and name
+			`,
+		},
+		{
+			"signature with arg but no end",
+			"state foo(string name",
+			`
+			 --> <stdin>:1:18: syntax error
+			  |
+			1 | state foo(string name
+			  |                  ^^^^
+			  |                  must be followed by ) or more arguments delimited by ,
+			`,
+		},
+		{
+			"signature with arg delim",
+			"state foo(string name,",
+			`
+			 --> <stdin>:1:23: syntax error
+			  |
+			1 | state foo(string name,
+			  |                      ^
+			  |                      must be followed by argument
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | not a valid argument type
+			  |
+			 [?] help: argument type must be one of string, int, state, option
+			`,
+		},
+		{
+			"signature with second invalid arg",
+			"state foo(string name, int",
+			`
+			 --> <stdin>:1:27: syntax error
+			  |
+			1 | state foo(string name, int
+			  |                        ^^^
+			  |                        must be followed by argument name
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected argument name, found end of file
+			  |
+			 [?] help: each argument must specify type and name
+			`,
+		},
+		{
+			"signature with second arg but no end",
+			"state foo(string name, int number",
+			`
+			 --> <stdin>:1:28: syntax error
+			  |
+			1 | state foo(string name, int number
+			  |                            ^^^^^^
+			  |                            must be followed by ) or more arguments delimited by ,
+			`,
+		},
+		{
+			"signature with multiple args",
+			"state foo(string name, int number)",
+			`
+			 --> <stdin>:1:35: syntax error
+			  |
+			1 | state foo(string name, int number)
+			  |                                  ^
+			  |                                  must be followed by {
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected {, found end of file
+			`,
+		},
+		{
+			"signature with no args",
+			"state foo",
+			`
+			 --> <stdin>:1:10: syntax error
+			  |
+			1 | state foo
+			  |       ^^^
+			  |       must be followed by (
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected (, found end of file
 			`,
 		},
 		{
 			"state without source",
-			`state foo {`,
+			"state foo() {",
 			`
-			 --> <stdin>:1:12: syntax error
+			 --> <stdin>:1:14: syntax error
 			  |
-			1 | state foo {
-			  |           ^
-			  |           must be followed by source
+			1 | state foo() {
+			  |             ^
+			  |             must be followed by source
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected source, found <EOF>
+			  | expected source, found end of file
 			  |
-			 [?] help: source must be one of from, scratch, image, http, git
+			 [?] help: source must be one of scratch, image, http, git, from
 			`,
 		},
 		{
-			"state with invalid source",
-			`state foo { bar`,
+			"inline state without ;",
+			"state foo() { scratch",
 			`
-			 --> <stdin>:1:13: syntax error
+			 --> <stdin>:1:22: syntax error
 			  |
-			1 | state foo { bar
-			  |           ^
-			  |           must be followed by source
+			1 | state foo() { scratch
+			  |               ^^^^^^^
+			  |               inline statements must end with ;
 			  ⫶
 			  |
-			1 | state foo { bar
-			  |             ^^^
-			  |             expected source, found bar
-			  |
-			 [?] help: source must be one of from, scratch, image, http, git
+			1 | <EOF>
+			  | ^^^^^
+			  | expected ;, found end of file
 			`,
+		},
+		{
+			"inline state without block end",
+			"state foo() { scratch;",
+			`
+			 --> <stdin>:1:23: syntax error
+			  |
+			1 | state foo() { scratch;
+			  |             ^
+			  |             unmatched {
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected } or state operation, found end of file
+			  |
+			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			`,
+		},
+		{
+			"inline state with scratch",
+			"state foo() { scratch; }",
+			``,
 		},
 		{
 			"state without block end",
-			`state foo { scratch`,
+			"state foo() {\n\tscratch\n",
 			`
-			 --> <stdin>:1:20: syntax error
+			 --> <stdin>:3:1: syntax error
 			  |
-			1 | state foo { scratch
-			  |           ^
-			  |           unmatched block start {
+			1 | state foo() {
+			  |             ^
+			  |             unmatched {
 			  ⫶
 			  |
-			1 | <EOF>
+			3 | <EOF>
 			  | ^^^^^
-			  | expected block end } or state operation, found <EOF>
+			  | expected } or state operation, found end of file
 			  |
 			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
 			"state with scratch",
-			`state foo { scratch }`,
+			"state foo() {\n\tscratch\n}\n",
 			``,
 		},
 		{
 			"image without arg",
-			`state foo { image`,
+			"state foo() { image",
 			`
-			 --> <stdin>:1:18: syntax error
+			 --> <stdin>:1:20: syntax error
 			  |
-			1 | state foo { image
-			  |             ^^^^^
-			  |             has invalid arguments
+			1 | state foo() { image
+			  |               ^^^^^
+			  |               has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected string ref found <EOF>
+			  | expected <string ref> found end of file
 			  |
-			 [?] help: must match signature: image(string ref)
-			`,
-		},
-		{
-			"image with invalid arg",
-			`state foo { image 123`,
-			`
-			 --> <stdin>:1:19: syntax error
-			  |
-			1 | state foo { image 123
-			  |             ^^^^^
-			  |             has invalid arguments
-			  ⫶
-			  |
-			1 | state foo { image 123
-			  |                   ^^^
-			  |                   expected string ref found 123
-			  |
-			 [?] help: must match signature: image(string ref)
+			 [?] help: must match arguments for image <string ref>
 			`,
 		},
 		{
 			"state with image",
-			`state foo { image "alpine" }`,
+			`state foo() { image "alpine"; }`,
 			``,
 		},
 		{
-			"option trailing with",
-			`state foo { image "alpine" with`,
+			"image trailing with",
+			`state foo() { image "alpine" with`,
 			`
-			 --> <stdin>:1:32: syntax error
+			 --> <stdin>:1:34: syntax error
 			  |
-			1 | state foo { image "alpine" with
-			  |                            ^^^^
-			  |                            must be followed by option block or identifier
+			1 | state foo() { image "alpine" with
+			  |                              ^^^^
+			  |                              must be followed by option
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected option block or identifier, found <EOF>
+			  | expected option, found end of file
+			  |
+			 [?] help: option must be a variable with <name> or defined with option { <options> }
 			`,
 		},
 		{
-			"option without block end",
-			`state foo { image "alpine" with option {`,
+			"scratch trailing with",
+			"state foo() { scratch with",
+			`
+			 --> <stdin>:1:15: syntax error
+			  |
+			1 | state foo() { scratch with
+			  |               ^^^^^^^
+			  |               does not support options
+			  ⫶
+			  |
+			1 | state foo() { scratch with
+			  |                       ^^^^
+			  |                       expected newline or ;, found with
+			`,
+		},
+		{
+			"option with variable",
+			`state foo() { image "alpine" with foo`,
+			`
+			 --> <stdin>:1:38: syntax error
+			  |
+			1 | state foo() { image "alpine" with foo
+			  |                                   ^^^
+			  |                                   inline statements must end with ;
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected ;, found end of file
+			`,
+		},
+		{
+			"option with keyword",
+			`state foo() { image "alpine" with state`,
+			`
+			 --> <stdin>:1:35: syntax error
+			  |
+			1 | state foo() { image "alpine" with state
+			  |                              ^^^^
+			  |                              must be followed by option
+			  ⫶
+			  |
+			1 | state foo() { image "alpine" with state
+			  |                                   ^^^^^
+			  |                                   expected option, found reserved keyword
+			  |
+			 [?] help: option must be a variable with <name> or defined with option { <options> }
+			`,
+		},
+		{
+			"option without block start",
+			`state foo() { image "alpine" with option`,
 			`
 			 --> <stdin>:1:41: syntax error
 			  |
-			1 | state foo { image "alpine" with option {
-			  |                                        ^
-			  |                                        unmatched block start {
+			1 | state foo() { image "alpine" with option
+			  |                                   ^^^^^^
+			  |                                   must be followed by {
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected block end } or image option, found <EOF>
-			  |
-			 [?] help: image option can only be resolve
+			  | expected {, found end of file
 			`,
 		},
 		{
-			"image option with invalid field",
-			`state foo { image "alpine" with option { bar`,
+			"image option without block end",
+			`state foo() { image "alpine" with option {`,
 			`
-			 --> <stdin>:1:42: syntax error
+			 --> <stdin>:1:43: syntax error
 			  |
-			1 | state foo { image "alpine" with option { bar
-			  |                                        ^
-			  |                                        unmatched block start {
+			1 | state foo() { image "alpine" with option {
+			  |                                          ^
+			  |                                          unmatched {
 			  ⫶
 			  |
-			1 | state foo { image "alpine" with option { bar
-			  |                                          ^^^
-			  |                                          expected block end } or image option, found bar
+			1 | <EOF>
+			  | ^^^^^
+			  | expected } or image option, found end of file
 			  |
 			 [?] help: image option can only be resolve
 			`,
 		},
 		{
 			"image option with single field suggestion",
-			`state foo { image "alpine" with option { resol`,
+			`state foo() { image "alpine" with option { resol`,
 			`
-			 --> <stdin>:1:42: syntax error
+			 --> <stdin>:1:44: syntax error
 			  |
-			1 | state foo { image "alpine" with option { resol
-			  |                                        ^
-			  |                                        unmatched block start {
+			1 | state foo() { image "alpine" with option { resol
+			  |                                          ^
+			  |                                          unmatched {
 			  ⫶
 			  |
-			1 | state foo { image "alpine" with option { resol
-			  |                                          ^^^^^
-			  |                                          expected block end } or image option, found resol, did you mean resolve?
+			1 | state foo() { image "alpine" with option { resol
+			  |                                            ^^^^^
+			  |                                            expected } or image option, found resol, did you mean resolve?
 			  |
 			 [?] help: image option can only be resolve
 			`,
 		},
 		{
 			"option with field and without block end",
-			`state foo { image "alpine" with option { resolve`,
+			`state foo() { image "alpine" with option { resolve`,
 			`
-			 --> <stdin>:1:49: syntax error
+			 --> <stdin>:1:51: syntax error
 			  |
-			1 | state foo { image "alpine" with option { resolve
-			  |                                        ^
-			  |                                        unmatched block start {
+			1 | state foo() { image "alpine" with option { resolve
+			  |                                            ^^^^^^^
+			  |                                            inline statements must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected block end } or image option, found <EOF>
+			  | expected ;, found end of file
+			`,
+		},
+		{
+			"option with field end and without block end",
+			`state foo() { image "alpine" with option { resolve;`,
+			`
+			 --> <stdin>:1:52: syntax error
+			  |
+			1 | state foo() { image "alpine" with option { resolve;
+			  |                                          ^
+			  |                                          unmatched {
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected } or image option, found end of file
 			  |
 			 [?] help: image option can only be resolve
 			`,
 		},
 		{
-			"state without block end and nested blocks",
-			`state foo { image "alpine" with option { resolve }`,
+			"option with block without field end",
+			`state foo() { image "alpine" with option { resolve; }`,
 			`
-			 --> <stdin>:1:51: syntax error
+			 --> <stdin>:1:54: syntax error
 			  |
-			1 | state foo { image "alpine" with option { resolve }
-			  |           ^
-			  |           unmatched block start {
+			1 | state foo() { image "alpine" with option { resolve; }
+			  |                                                     ^
+			  |                                                     inline statements must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected block end } or state operation, found <EOF>
+			  | expected ;, found end of file
+			`,
+		},
+		{
+			"option with field end without state block end",
+			`state foo() { image "alpine" with option { resolve; };`,
+			`
+			 --> <stdin>:1:55: syntax error
+			  |
+			1 | state foo() { image "alpine" with option { resolve; };
+			  |             ^
+			  |             unmatched {
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected } or state operation, found end of file
 			  |
 			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
 			"state with image and option block",
-			`state foo { image "alpine" with option { resolve } }`,
+			`state foo() { image "alpine" with option { resolve; }; }`,
 			``,
 		},
 		{
-			"state with invalid op",
-			`state foo { scratch bar`,
-			`
-			 --> <stdin>:1:21: syntax error
-			  |
-			1 | state foo { scratch bar
-			  |           ^
-			  |           unmatched block start {
-			  ⫶
-			  |
-			1 | state foo { scratch bar
-			  |                     ^^^
-			  |                     expected block end } or state operation, found bar
-			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
-			`,
-		},
-		{
 			"state with op suggestion",
-			`state foo { scratch exe`,
+			`state foo() { scratch; exe`,
 			`
-			 --> <stdin>:1:21: syntax error
+			 --> <stdin>:1:24: syntax error
 			  |
-			1 | state foo { scratch exe
-			  |           ^
-			  |           unmatched block start {
+			1 | state foo() { scratch; exe
+			  |             ^
+			  |             unmatched {
 			  ⫶
 			  |
-			1 | state foo { scratch exe
-			  |                     ^^^
-			  |                     expected block end } or state operation, found exe, did you mean exec?
+			1 | state foo() { scratch; exe
+			  |                        ^^^
+			  |                        expected } or state operation, found exe, did you mean exec?
 			  |
 			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
 			"exec without arg",
-			`state foo { scratch exec`,
+			"state foo() { scratch; exec",
 			`
-			 --> <stdin>:1:25: syntax error
+			 --> <stdin>:1:28: syntax error
 			  |
-			1 | state foo { scratch exec
-			  |                     ^^^^
-			  |                     has invalid arguments
+			1 | state foo() { scratch; exec
+			  |                        ^^^^
+			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected string shlex found <EOF>
+			  | expected <string command> found end of file
 			  |
-			 [?] help: must match signature: exec(string shlex)
-			`,
-		},
-		{
-			"exec with invalid arg",
-			`state foo { scratch exec 123`,
-			`
-			 --> <stdin>:1:26: syntax error
-			  |
-			1 | state foo { scratch exec 123
-			  |                     ^^^^
-			  |                     has invalid arguments
-			  ⫶
-			  |
-			1 | state foo { scratch exec 123
-			  |                          ^^^
-			  |                          expected string shlex found 123
-			  |
-			 [?] help: must match signature: exec(string shlex)
+			 [?] help: must match arguments for exec <string command>
 			`,
 		},
 		{
 			"exec with arg",
-			`state foo { scratch exec "sh -c \"echo ❯ > foo\""`,
+			`state foo() { scratch; exec "sh -c \"echo ❯ > foo\""`,
 			`
-			 --> <stdin>:1:50: syntax error
+			 --> <stdin>:1:53: syntax error
 			  |
-			1 | state foo { scratch exec "sh -c \"echo ❯ > foo\""
-			  |           ^
-			  |           unmatched block start {
+			1 | state foo() { scratch; exec "sh -c \"echo ❯ > foo\""
+			  |                             ^^^^^^^^^^^^^^^^^^^^^^^^
+			  |                             inline statements must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected block end } or state operation, found <EOF>
-			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			  | expected ;, found end of file
 			`,
 		},
 		{
 			"copy with no args",
-			`state foo { scratch copy`,
+			"state foo() { scratch; copy",
 			`
-			 --> <stdin>:1:25: syntax error
+			 --> <stdin>:1:28: syntax error
 			  |
-			1 | state foo { scratch copy
-			  |                     ^^^^
-			  |                     has invalid arguments
+			1 | state foo() { scratch; copy
+			  |                        ^^^^
+			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected state input found <EOF>
+			  | expected <state input> found end of file
 			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
+			 [?] help: must match arguments for copy <state input> <string src> <string dest>
 			`,
 		},
 		{
 			"copy with identifier but no src or dst",
-			`state foo { scratch copy foo`,
+			"state foo() { scratch; copy foo",
 			`
-			 --> <stdin>:1:29: syntax error
+			 --> <stdin>:1:32: syntax error
 			  |
-			1 | state foo { scratch copy foo
-			  |                     ^^^^
-			  |                     has invalid arguments
+			1 | state foo() { scratch; copy foo
+			  |                        ^^^^
+			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected string src found <EOF>
+			  | expected <string src> found end of file
 			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
+			 [?] help: must match arguments for copy <state input> <string src> <string dest>
 			`,
 		},
 		{
 			"copy with identifier and src but no dst",
-			`state foo { scratch copy foo "src"`,
+			`state foo() { scratch; copy foo "src"`,
 			`
-			 --> <stdin>:1:35: syntax error
+			 --> <stdin>:1:38: syntax error
 			  |
-			1 | state foo { scratch copy foo "src"
-			  |                     ^^^^
-			  |                     has invalid arguments
+			1 | state foo() { scratch; copy foo "src"
+			  |                        ^^^^
+			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected string dst found <EOF>
+			  | expected <string dest> found end of file
 			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
+			 [?] help: must match arguments for copy <state input> <string src> <string dest>
 			`,
 		},
 		{
 			"copy with identifier, src and dst",
-			`state foo { scratch copy foo "src" "dst"`,
+			`state foo() { scratch; copy foo "src" "dst"`,
+			`
+			 --> <stdin>:1:44: syntax error
+			  |
+			1 | state foo() { scratch; copy foo "src" "dst"
+			  |                                       ^^^^^
+			  |                                       inline statements must end with ;
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected ;, found end of file
+			`,
+		},
+		{
+			"copy with state block start",
+			"state foo() { scratch; copy {",
+			`
+			 --> <stdin>:1:30: syntax error
+			  |
+			1 | state foo() { scratch; copy {
+			  |                             ^
+			  |                             must be followed by source
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected source, found end of file
+			  |
+			 [?] help: source must be one of scratch, image, http, git, from
+			`,
+		},
+		{
+			"copy with state block start and source",
+			"state foo() { scratch; copy { scratch",
+			`
+			 --> <stdin>:1:38: syntax error
+			  |
+			1 | state foo() { scratch; copy { scratch
+			  |                               ^^^^^^^
+			  |                               inline statements must end with ;
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected ;, found end of file
+			`,
+		},
+		{
+			"copy with state block start, source, and field end",
+			"state foo() { scratch; copy { scratch;",
+			`
+			 --> <stdin>:1:39: syntax error
+			  |
+			1 | state foo() { scratch; copy { scratch;
+			  |                             ^
+			  |                             unmatched {
+			  ⫶
+			  |
+			1 | <EOF>
+			  | ^^^^^
+			  | expected } or state operation, found end of file
+			  |
+			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			`,
+		},
+		{
+			"copy with state block only",
+			"state foo() { scratch; copy { scratch; }",
 			`
 			 --> <stdin>:1:41: syntax error
 			  |
-			1 | state foo { scratch copy foo "src" "dst"
-			  |           ^
-			  |           unmatched block start {
+			1 | state foo() { scratch; copy { scratch; }
+			  |                        ^^^^
+			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected block end } or state operation, found <EOF>
+			  | expected <string src> found end of file
 			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			 [?] help: must match arguments for copy <state input> <string src> <string dest>
 			`,
 		},
 		{
-			"copy with implicit state block start",
-			`state foo { scratch copy {`,
+			"copy with state block and src",
+			`state foo() { scratch; copy { scratch; } "src"`,
 			`
-			 --> <stdin>:1:27: syntax error
+			 --> <stdin>:1:47: syntax error
 			  |
-			1 | state foo { scratch copy {
-			  |                          ^
-			  |                          must be followed by source
+			1 | state foo() { scratch; copy { scratch; } "src"
+			  |                        ^^^^
+			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected source, found <EOF>
+			  | expected <string dest> found end of file
 			  |
-			 [?] help: source must be one of from, scratch, image, http, git
+			 [?] help: must match arguments for copy <state input> <string src> <string dest>
 			`,
 		},
 		{
-			"copy with implicit state block start and invalid source",
-			`state foo { scratch copy { bar`,
-			`
-			 --> <stdin>:1:28: syntax error
-			  |
-			1 | state foo { scratch copy { bar
-			  |                          ^
-			  |                          must be followed by source
-			  ⫶
-			  |
-			1 | state foo { scratch copy { bar
-			  |                            ^^^
-			  |                            expected source, found bar
-			  |
-			 [?] help: source must be one of from, scratch, image, http, git
-			`,
-		},
-		{
-			"copy with implicit state block start and source",
-			`state foo { scratch copy { scratch`,
-			`
-			 --> <stdin>:1:35: syntax error
-			  |
-			1 | state foo { scratch copy { scratch
-			  |                          ^
-			  |                          unmatched block start {
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected block end } or state operation, found <EOF>
-			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
-			`,
-		},
-		{
-			"copy with implicit state block only",
-			`state foo { scratch copy { scratch }`,
-			`
-			 --> <stdin>:1:37: syntax error
-			  |
-			1 | state foo { scratch copy { scratch }
-			  |                     ^^^^
-			  |                     has invalid arguments
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected string src found <EOF>
-			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
-			`,
-		},
-		{
-			"copy with implicit state block and src",
-			`state foo { scratch copy { scratch } "src"`,
-			`
-			 --> <stdin>:1:43: syntax error
-			  |
-			1 | state foo { scratch copy { scratch } "src"
-			  |                     ^^^^
-			  |                     has invalid arguments
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected string dst found <EOF>
-			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
-			`,
-		},
-		{
-			"copy with implicit state block, src, and dst",
-			`state foo { scratch copy { scratch } "src" "dst" }`,
-			``,
-		},
-		{
-			"copy with explicit state",
-			`state foo { scratch copy state`,
-			`
-			 --> <stdin>:1:31: syntax error
-			  |
-			1 | state foo { scratch copy state
-			  |                          ^^^^^
-			  |                          must be followed by block start {
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected block start {, found <EOF>
-			`,
-		},
-		{
-			"copy with explicit state block start",
-			`state foo { scratch copy state {`,
-			`
-			 --> <stdin>:1:33: syntax error
-			  |
-			1 | state foo { scratch copy state {
-			  |                                ^
-			  |                                must be followed by source
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected source, found <EOF>
-			  |
-			 [?] help: source must be one of from, scratch, image, http, git
-			`,
-		},
-		{
-			"copy with explicit state block start and source",
-			`state foo { scratch copy state { scratch`,
-			`
-			 --> <stdin>:1:41: syntax error
-			  |
-			1 | state foo { scratch copy state { scratch
-			  |                                ^
-			  |                                unmatched block start {
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected block end } or state operation, found <EOF>
-			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
-			`,
-		},
-		{
-			"copy with explicit state block only",
-			`state foo { scratch copy state { scratch }`,
-			`
-			 --> <stdin>:1:43: syntax error
-			  |
-			1 | state foo { scratch copy state { scratch }
-			  |                     ^^^^
-			  |                     has invalid arguments
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected string src found <EOF>
-			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
-			`,
-		},
-		{
-			"copy with explicit state block and src",
-			`state foo { scratch copy state { scratch } "src"`,
-			`
-			 --> <stdin>:1:49: syntax error
-			  |
-			1 | state foo { scratch copy state { scratch } "src"
-			  |                     ^^^^
-			  |                     has invalid arguments
-			  ⫶
-			  |
-			1 | <EOF>
-			  | ^^^^^
-			  | expected string dst found <EOF>
-			  |
-			 [?] help: must match signature: copy(state input, string src, string dst)
-			`,
-		},
-		{
-			"copy with explicit state block, src, and dst",
-			`state foo { scratch copy { scratch } "src" "dst" }`,
+			"copy with state block, src, and dst",
+			`state foo() { scratch; copy { scratch; } "src" "dst"; }`,
 			``,
 		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := Parse(strings.NewReader(cleanup(tc.input, false, 3)))
+			_, err := Parse(strings.NewReader(tc.input))
 			if tc.expected == "" {
 				require.NoError(t, err)
 			} else {

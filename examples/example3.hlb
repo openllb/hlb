@@ -1,0 +1,72 @@
+
+state a() { scratch; } state b(){scratch;}
+state c() {
+scratch; }
+state d() { scratch
+}
+state e()
+{
+	scratch
+}
+
+state f() {
+		scratch
+}
+
+
+state g() {
+	scratch
+}
+
+state h() { image "alpine"; env "key" "value"; }
+
+state i() { image "alpine";
+	env "key" "value"; }
+
+state j() {
+	image "alpine"
+	env "key" "value"; env "key" "value"
+	exec "sh -c \"echo foo > foo\""
+}
+
+state k() {
+	image "alpine" with foo
+	env "key" "value"
+}
+
+state l() {
+	image "alpine" with option { }
+	env "key" "value"
+}
+
+state m() {
+	image "alpine" with option { resolve; }; env "key" "value"
+}
+
+state n() {
+	image "alpine" with option { resolve; }
+	env "key" "value"
+}
+
+state o() {
+	image "alpine" with option { resolve
+	}; env "key" "value"
+}
+
+state p() {
+	image "alpine" with option {
+	resolve; }; env "key" "value"
+}
+
+state q() {
+	image "alpine" with option
+	{
+	resolve
+	}; env "key" "value"
+}
+
+state r() {
+	image "alpine" with option {
+resolve
+	}; env "key" "value"
+}

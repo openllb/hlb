@@ -1,78 +1,73 @@
-state foo {
+state foo() {
 	scratch
 }
 
-state foo {
+state foo() {
 	git "remote" "url"
 }
 
-state foo {
+state foo() {
 	http "url"
 }
 
-state foo {
+state foo() {
 	image "alpine"
 }
 
-state foo {
+state foo() {
 	image 'alpine'
 }
 
-state foo {
-	image `alpine foo
-bar`
-}
-
-state foo {
+state foo() {
 	image "alpine" with blah
 }
 
-state foo {
+state foo() {
 	image "alpine" with option {
 		resolve
 	}
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	env "key" "value"
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	env "key" "value"
 	env "key" "value"
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	exec "sleep 5"
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	exec "sh -c \"echo foo > foo\""
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	copy foo "src" "dst"
-	copy { image "alpine"; env "key" "value" } "src" "dst"
-	copy state { image "alpine"; env "key" "value" } "src" "dst"
-	copy state {
+	copy { image "alpine"; env "key" "value"; } "src" "dst"
+	copy { image "alpine"; env "key" "value"; } "src" "dst"
+	copy {
 		image "alpine"
 		env "key" "value"
 	} "src" "dst"
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	mkdir "path" 0600
 	mkfile "path" 0600 "content"
 	rm "path"
 }
 
-state foo {
+state foo() {
 	image "alpine"
 	env "key" "value"
 	dir "path"
