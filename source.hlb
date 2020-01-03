@@ -1,9 +1,10 @@
 state hlbGit() {
-	git "https://github.com/openllb/hlb.git" "2da51bebf45ae7c136f46c8ab9936c281a9ed99a"
+	git "https://github.com/openllb/hlb.git" "0eba4090f934fc07ec1f6d7faeb03ba7065add01"
 }
 
 state goBuild() {
-	image "golang:alpine"
+	image "golang:1.12-alpine"
+	exec "apk add -U git"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
 	exec "/usr/local/go/bin/go build -o /out/hlb ./cmd/frontend" with option {
