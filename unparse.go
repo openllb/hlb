@@ -472,7 +472,9 @@ func (f *FileMode) String() string {
 	if f.Var.Ident != nil {
 		return *f.Var.Ident
 	}
-	return fmt.Sprintf("%04o", f.Var.Value)
+
+	i := *f.Var.Value
+	return fmt.Sprintf("%04o", i)
 }
 
 func (s *Secret) String() string {
