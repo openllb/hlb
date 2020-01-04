@@ -1,13 +1,13 @@
 state hlbGit() {
-	git "https://github.com/openllb/hlb.git" "d7c3d9dd6226d6a450d662f6adad7d79e6b56d15"
+	git "https://github.com/openllb/hlb.git" "0eca62b780d8108c94fd9afb75b997e88e072c35"
 }
 
 state goBuild() {
 	image "golang:1.12-alpine"
-	exec "apk add -U git"
+	exec "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	exec "/usr/local/go/bin/go build -o /out/hlb ./cmd/frontend" with option {
+	exec "/usr/local/go/bin/go build -o /out/hlb -ldflags '-linkmode external -extldflags -static' -a ./cmd/frontend" with option {
 		mount hlbGit "/go/src/hlb"
         	mount { scratch; } "/root/.cache/go-build" with option {
 			cache "hlb/go-build" private

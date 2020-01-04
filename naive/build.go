@@ -17,6 +17,16 @@ const (
 	HLBFileMode   os.FileMode = 0644
 )
 
+// func build(ctx context.Context, c client.Client) (*client.Result, error) {
+// 	res, err := Build(ctx, c)
+// 	if err != nil {
+// 		ioutil.WriteFile("/error", []byte(err.Error()), 0644)
+// 		return client.NewResult(), nil
+// 	}
+
+// 	return res, nil
+// }
+
 func Build(ctx context.Context, c client.Client) (*client.Result, error) {
 	target, ok := c.BuildOpts().Opts[OptTarget]
 	if !ok {
