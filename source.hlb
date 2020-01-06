@@ -1,5 +1,5 @@
 state hlbGit() {
-	git "https://github.com/openllb/hlb.git" "0eca62b780d8108c94fd9afb75b997e88e072c35"
+	git "https://github.com/openllb/hlb.git" "08f6db29f41e80b0ce15b3886527331ec509195a"
 }
 
 state goBuild() {
@@ -10,15 +10,15 @@ state goBuild() {
 	exec "/usr/local/go/bin/go build -o /out/hlb -ldflags '-linkmode external -extldflags -static' -a ./cmd/frontend" with option {
 		mount hlbGit "/go/src/hlb"
         	mount { scratch; } "/root/.cache/go-build" with option {
-			cache "hlb/go-build" private
+			cache "hlb/go-build" "private"
         	}
         	mount { scratch; } "/go/pkg/mod" with option {
-			cache "hlb/go-mod" private
+			cache "hlb/go-mod" "private"
 		}
 	}
 }
 
-state hlbFrontend() {
+state hlb() {
 	scratch
 	copy goBuild "/out/hlb" "/run"
 	copy hlbGit "/source.hlb" "/"

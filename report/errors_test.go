@@ -1,4 +1,4 @@
-package hlb
+package report
 
 import (
 	"fmt"
@@ -14,12 +14,10 @@ type testCase struct {
 	expected string
 }
 
-func cleanup(value string, newline bool, tabs int) string {
+func cleanup(value string) string {
 	result := strings.TrimSpace(value)
-	if newline {
-		result = fmt.Sprintf(" %s\n", result)
-	}
-	result = strings.ReplaceAll(result, strings.Repeat("\t", tabs), "")
+	result = fmt.Sprintf(" %s\n", result)
+	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
 	result = strings.ReplaceAll(result, "|\n", "| \n")
 	return result
 }
@@ -768,7 +766,7 @@ func TestSyntaxError(t *testing.T) {
 			if tc.expected == "" {
 				require.NoError(t, err)
 			} else {
-				require.Equal(t, cleanup(tc.expected, true, 3), err.Error())
+				require.Equal(t, cleanup(tc.expected), err.Error())
 			}
 		})
 	}

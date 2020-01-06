@@ -7,6 +7,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testCase struct {
+	name     string
+	input    string
+	expected string
+}
+
+func cleanup(value string) string {
+	result := strings.TrimSpace(value)
+	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
+	result = strings.ReplaceAll(result, "|\n", "| \n")
+	return result
+}
+
 func TestUnparse(t *testing.T) {
 	for _, tc := range []testCase{
 		{
@@ -427,39 +440,39 @@ func TestUnparse(t *testing.T) {
 			"comments preserved",
 			`
 
-			// comment
+			# comment
 
 
-			// comment
-			state foo() { // comment
+			# comment
+			state foo() { # comment
 
 
-				// comment
+				# comment
 
 
-				image "alpine" with option { // comment
-					resolve // comment
-				} // comment
-				env "key" "value" // comment
-			} // comment
-			// comment
+				image "alpine" with option { # comment
+					resolve # comment
+				} # comment
+				env "key" "value" # comment
+			} # comment
+			# comment
 
 			state bar() { scratch; }
 			`,
 			`
-			// comment
+			# comment
 
-			// comment
-			state foo() { // comment
+			# comment
+			state foo() { # comment
 
-				// comment
+				# comment
 
-				image "alpine" with option { // comment
-					resolve // comment
-				} // comment
-				env "key" "value" // comment
-			} // comment
-			// comment
+				image "alpine" with option { # comment
+					resolve # comment
+				} # comment
+				env "key" "value" # comment
+			} # comment
+			# comment
 
 			state bar() { scratch; }
 			`,
@@ -468,9 +481,9 @@ func TestUnparse(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			file , err := Parse(strings.NewReader(cleanup(tc.input, false, 3)))
+			file , err := Parse(strings.NewReader(cleanup(tc.input)))
 			require.NoError(t, err)
-			require.Equal(t, cleanup(tc.expected, false, 3), file.String())
+			require.Equal(t, cleanup(tc.expected), file.String())
 		})
 	}
 }

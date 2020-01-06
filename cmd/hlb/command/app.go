@@ -1,14 +1,18 @@
 package command
 
 import (
+	"bufio"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 
 	isatty "github.com/mattn/go-isatty"
-	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/naive"
+	"github.com/openllb/hlb/ast"
+	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/report"
+	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -19,15 +23,29 @@ func App() *cli.App {
 	app.Description = "high-level build language compiler"
 	app.Commands = []*cli.Command{
 		formatCommand,
-		packageCommand,
-		signatureCommand,
+		getCommand,
+		publishCommand,
 	}
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
-			Name: "target",
+			Name:    "target",
 			Aliases: []string{"t"},
-			Usage: "specify target state to compile",
-			Value: "default",
+			Usage:   "specify target state to compile",
+			Value:   "default",
+		},
+		&cli.BoolFlag{
+			Name:  "debug",
+			Usage: "compile using a debugger",
+		},
+		&cli.StringFlag{
+			Name:    "download",
+			Aliases: []string{"d"},
+			Usage:   "download the solved hlb state to a directory",
+		},
+		&cli.StringFlag{
+			Name:    "push",
+			Aliases: []string{"p"},
+			Usage:   "push the solved hlb state to a docker registry",
 		},
 	}
 	app.Action = compileAction
@@ -49,22 +67,52 @@ func compileAction(c *cli.Context) error {
 	}
 	defer cleanup()
 
-	files, err := hlb.ParseMultiple(rs, defaultOpts()...)
+	files, ibs, err := hlb.ParseMultiple(rs, defaultOpts()...)
 	if err != nil {
 		return err
 	}
 
-	st, err := naive.CodeGen(c.String("target"), files...)
+	root, err := report.SemanticCheck(files...)
 	if err != nil {
 		return err
 	}
 
-	def, err := st.Marshal()
+	call := &ast.CallStmt{
+		Func: &ast.Ident{Name: c.String("target")},
+	}
+
+	ctx := context.Background()
+	cln, err := solver.BuildkitClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return llb.WriteTo(def, os.Stdout)
+	var opts []codegen.CodeGenOption
+	if c.Bool("debug") {
+		r := bufio.NewReader(os.Stdin)
+
+		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(ctx, cln, os.Stderr, r, ibs)))
+	}
+
+	st, err := codegen.Generate(call, root, opts...)
+	if err != nil {
+		return err
+	}
+
+	// Ignore early exits from the debugger.
+	if err == codegen.ErrDebugExit {
+		return nil
+	}
+
+	var solveOpts []solver.SolveOption
+	if c.IsSet("download") {
+		solveOpts = append(solveOpts, solver.WithDownloadLocal(c.String("download")))
+	}
+	if c.IsSet("push") {
+		solveOpts = append(solveOpts, solver.WithPushImage(c.String("push")))
+	}
+
+	return solver.Solve(ctx, cln, st, solveOpts...)
 }
 
 func collectReaders(c *cli.Context) (rs []io.Reader, cleanup func() error, err error) {

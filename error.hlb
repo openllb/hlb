@@ -1,0 +1,15 @@
+state default() {
+	foo "alpine"
+	env "key" "value"
+	exec "echo hello"
+	copy { baz "hello from block lit"; } "/" "/"
+}
+
+state foo(string foo) {
+	image foo
+}
+
+state baz(string content) {
+	scratch
+	mkfile "/out" 0664 content
+}
