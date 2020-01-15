@@ -1,5 +1,5 @@
 state hlbGit() {
-	git "https://github.com/openllb/hlb.git" "08f6db29f41e80b0ce15b3886527331ec509195a"
+	git "https://github.com/openllb/hlb.git" "926d7354ae8caa31455d5304d36a7151b0c4bd32"
 }
 
 state goBuild() {
