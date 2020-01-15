@@ -138,7 +138,7 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		return nil, err
 	}
 
-	def, err := st.Marshal()
+	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
 		return nil, err
 	}

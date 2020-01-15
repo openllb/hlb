@@ -55,7 +55,7 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 		}
 	}
 
-	def, err := st.Marshal()
+	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
 		return err
 	}

@@ -493,7 +493,7 @@ func dockerRun(ctx context.Context, st llb.State, tty bool, ref, entrypoint stri
 }
 
 func printGraph(ctx context.Context, st llb.State, sh string) error {
-	def, err := st.Marshal()
+	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
 		return err
 	}
