@@ -28,7 +28,7 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 		// panic(fmt.Sprintf("expected %q unexpected %q", expected, unexpected))
 		switch expected {
 		case "":
-			// Function type `s` and `state` both become expected "" so we need to
+			// Function type `s` and `fs` both become expected "" so we need to
 			// differentiate if the function type is present.
 			if !Contains(ast.Types, unexpected.Value) {
 				// Invalid function type.
@@ -552,11 +552,11 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 // 		return group, err
 // 	}
 
-// 	// If this is not an option block, then its a state block.
+// 	// If this is not an option block, then its a fs block.
 // 	// If this is an option block, we should find the keyword before "option"
 // 	var keyword string
 // 	if blockPrefix.Value != "option" {
-// 		keyword = "state"
+// 		keyword = "fs"
 // 	} else {
 // 		keywordToken, _, err := getKeyword(lex, m-1, KeywordsWithBlocks)
 // 		if err != nil {
@@ -576,7 +576,7 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 // 		keywords, ok := KeywordsByName[keyword]
 // 		if ok {
 // 			suggestion, _ = getSuggestion(color, keywords, endToken.Value)
-// 			if keyword == "state" {
+// 			if keyword == "fs" {
 // 				help = helpValidKeywords(color, keywords, fmt.Sprintf("%s operation", keyword))
 // 			} else {
 // 				help = helpValidKeywords(color, keywords, fmt.Sprintf("%s option", keyword))
@@ -585,8 +585,8 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 // 	}
 
 // 	if help != "" {
-// 		if keyword == "state" {
-// 			orField = fmt.Sprintf("%sstate operation",
+// 		if keyword == "fs" {
+// 			orField = fmt.Sprintf("%sfs operation",
 // 				color.Red(" or "))
 // 		} else {
 // 			orField = fmt.Sprintf("%s%s option",
@@ -638,9 +638,9 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 // 	}
 
 // 	// Workaround for participle not showing error if the source op of a embedded
-// 	// state is invalid.
+// 	// fs is invalid.
 // 	firstArg := Builtins[startToken.Value][0]
-// 	if strings.HasPrefix(firstArg, "state") && endToken.Value == "{" {
+// 	if strings.HasPrefix(firstArg, "fs") && endToken.Value == "{" {
 // 		sourceToken, err := lex.Peek(n + 2)
 // 		if err != nil {
 // 			return group, err

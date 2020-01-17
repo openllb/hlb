@@ -9,7 +9,7 @@ import (
 
 var (
 	def = `
-		state foo() {
+		fs foo() {
 			image "alpine" with option {
 				resolve
 		        }
@@ -70,7 +70,7 @@ var (
 			}
 		}
 
-		state bar() {
+		fs bar() {
 			scratch
 			copy {
 				http "url" with option {

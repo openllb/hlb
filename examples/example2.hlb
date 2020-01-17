@@ -1,55 +1,55 @@
-state foo() {
+fs foo() {
 	scratch
 }
 
-state foo() {
+fs foo() {
 	git "remote" "url"
 }
 
-state foo() {
+fs foo() {
 	http "url"
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 }
 
-state foo() {
+fs foo() {
 	image 'alpine'
 }
 
-state foo() {
+fs foo() {
 	image "alpine" with blah
 }
 
-state foo() {
+fs foo() {
 	image "alpine" with option {
 		resolve
 	}
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	env "key" "value"
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	env "key" "value"
 	env "key" "value"
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	exec "sleep 5"
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	exec "sh -c \"echo foo > foo\""
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	copy foo "src" "dst"
 	copy { image "alpine"; env "key" "value"; } "src" "dst"
@@ -60,14 +60,14 @@ state foo() {
 	} "src" "dst"
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	mkdir "path" 0600
 	mkfile "path" 0600 "content"
 	rm "path"
 }
 
-state foo() {
+fs foo() {
 	image "alpine"
 	env "key" "value"
 	dir "path"

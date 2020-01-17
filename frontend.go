@@ -111,7 +111,7 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 			}
 
 			call.Args = append(call.Args, ast.NewBoolExpr(b))
-		case ast.State:
+		case ast.Filesystem:
 			if inputs == nil {
 				inputs, err = c.Inputs(ctx)
 				if err != nil {

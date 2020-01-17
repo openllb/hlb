@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	Types = []string{"string", "int", "bool", "state", "option", "frontend"}
+	Types = []string{"string", "int", "bool", "fs", "option"}
 
 	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
 		Int      = [0-9][0-9]*

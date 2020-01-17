@@ -39,29 +39,29 @@ func TestSyntaxError(t *testing.T) {
 			  | ^
 			  | expected entry, found s
 			  |
-			 [?] help: entry must be one of state, frontend, option
+			 [?] help: entry must be one of fs, frontend, option
 			`,
 		},
 		{
-			"state suggestion",
+			"fs suggestion",
 			"stat",
 			`
 			 --> <stdin>:1:1: syntax error
 			  |
 			1 | stat
 			  | ^^^^
-			  | expected entry, found stat, did you mean state?
+			  | expected entry, found stat, did you mean fs?
 			  |
-			 [?] help: entry must be one of state, frontend, option
+			 [?] help: entry must be one of fs, frontend, option
 			`,
 		},
 		{
-			"state without identifer",
-			"state",
+			"fs without identifer",
+			"fs",
 			`
 			 --> <stdin>:1:6: syntax error
 			  |
-			1 | state
+			1 | fs
 			  | ^^^^^
 			  | must be followed by entry name
 			  ⫶
@@ -72,28 +72,28 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"state with invalid identifier",
-			`state "foo"`,
+			"fs with invalid identifier",
+			`fs "foo"`,
 			`
 			 --> <stdin>:1:7: syntax error
 			  |
-			1 | state "foo"
+			1 | fs "foo"
 			  | ^^^^^
 			  | must be followed by entry name
 			  ⫶
 			  |
-			1 | state "foo"
+			1 | fs "foo"
 			  |       ^^^^^
 			  |       expected entry name, found "foo"
 			`,
 		},
 		{
-			"state without signature start",
-			"state foo",
+			"fs without signature start",
+			"fs foo",
 			`
 			 --> <stdin>:1:10: syntax error
 			  |
-			1 | state foo
+			1 | fs foo
 			  |       ^^^
 			  |       must be followed by (
 			  ⫶
@@ -104,12 +104,12 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"state without signature end",
-			"state foo(",
+			"fs without signature end",
+			"fs foo(",
 			`
 			 --> <stdin>:1:11: syntax error
 			  |
-			1 | state foo(
+			1 | fs foo(
 			  |          ^
 			  |          unmatched entry signature (
 			  ⫶
@@ -123,29 +123,29 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"signature with invalid arg type",
-			"state foo(bar",
+			"fs foo(bar",
 			`
 			 --> <stdin>:1:11: syntax error
 			  |
-			1 | state foo(bar
+			1 | fs foo(bar
 			  |          ^
 			  |          must be followed by argument
 			  ⫶
 			  |
-			1 | state foo(bar
+			1 | fs foo(bar
 			  |           ^^^
 			  |           not a valid argument type
 			  |
-			 [?] help: argument type must be one of string, int, state, option
+			 [?] help: argument type must be one of string, int, fs, option
 			`,
 		},
 		{
 			"signature with invalid arg name",
-			"state foo(string",
+			"fs foo(string",
 			`
 			 --> <stdin>:1:17: syntax error
 			  |
-			1 | state foo(string
+			1 | fs foo(string
 			  |           ^^^^^^
 			  |           must be followed by argument name
 			  ⫶
@@ -159,22 +159,22 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"signature with arg but no end",
-			"state foo(string name",
+			"fs foo(string name",
 			`
 			 --> <stdin>:1:18: syntax error
 			  |
-			1 | state foo(string name
+			1 | fs foo(string name
 			  |                  ^^^^
 			  |                  must be followed by ) or more arguments delimited by ,
 			`,
 		},
 		{
 			"signature with arg delim",
-			"state foo(string name,",
+			"fs foo(string name,",
 			`
 			 --> <stdin>:1:23: syntax error
 			  |
-			1 | state foo(string name,
+			1 | fs foo(string name,
 			  |                      ^
 			  |                      must be followed by argument
 			  ⫶
@@ -183,16 +183,16 @@ func TestSyntaxError(t *testing.T) {
 			  | ^^^^^
 			  | not a valid argument type
 			  |
-			 [?] help: argument type must be one of string, int, state, option
+			 [?] help: argument type must be one of string, int, fs, option
 			`,
 		},
 		{
 			"signature with second invalid arg",
-			"state foo(string name, int",
+			"fs foo(string name, int",
 			`
 			 --> <stdin>:1:27: syntax error
 			  |
-			1 | state foo(string name, int
+			1 | fs foo(string name, int
 			  |                        ^^^
 			  |                        must be followed by argument name
 			  ⫶
@@ -206,22 +206,22 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"signature with second arg but no end",
-			"state foo(string name, int number",
+			"fs foo(string name, int number",
 			`
 			 --> <stdin>:1:28: syntax error
 			  |
-			1 | state foo(string name, int number
+			1 | fs foo(string name, int number
 			  |                            ^^^^^^
 			  |                            must be followed by ) or more arguments delimited by ,
 			`,
 		},
 		{
 			"signature with multiple args",
-			"state foo(string name, int number)",
+			"fs foo(string name, int number)",
 			`
 			 --> <stdin>:1:35: syntax error
 			  |
-			1 | state foo(string name, int number)
+			1 | fs foo(string name, int number)
 			  |                                  ^
 			  |                                  must be followed by {
 			  ⫶
@@ -233,11 +233,11 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"signature with no args",
-			"state foo",
+			"fs foo",
 			`
 			 --> <stdin>:1:10: syntax error
 			  |
-			1 | state foo
+			1 | fs foo
 			  |       ^^^
 			  |       must be followed by (
 			  ⫶
@@ -248,12 +248,12 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"state without source",
-			"state foo() {",
+			"fs without source",
+			"fs foo() {",
 			`
 			 --> <stdin>:1:14: syntax error
 			  |
-			1 | state foo() {
+			1 | fs foo() {
 			  |             ^
 			  |             must be followed by source
 			  ⫶
@@ -266,14 +266,14 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"inline state without ;",
-			"state foo() { scratch",
+			"inline fs without ;",
+			"fs foo() { scratch",
 			`
 			 --> <stdin>:1:22: syntax error
 			  |
-			1 | state foo() { scratch
+			1 | fs foo() { scratch
 			  |               ^^^^^^^
-			  |               inline statements must end with ;
+			  |               inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -282,58 +282,58 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"inline state without block end",
-			"state foo() { scratch;",
+			"inline fs without block end",
+			"fs foo() { scratch;",
 			`
 			 --> <stdin>:1:23: syntax error
 			  |
-			1 | state foo() { scratch;
+			1 | fs foo() { scratch;
 			  |             ^
 			  |             unmatched {
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected } or state operation, found end of file
+			  | expected } or fs operation, found end of file
 			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			 [?] help: fs operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
-			"inline state with scratch",
-			"state foo() { scratch; }",
+			"inline fs with scratch",
+			"fs foo() { scratch; }",
 			``,
 		},
 		{
-			"state without block end",
-			"state foo() {\n\tscratch\n",
+			"fs without block end",
+			"fs foo() {\n\tscratch\n",
 			`
 			 --> <stdin>:3:1: syntax error
 			  |
-			1 | state foo() {
+			1 | fs foo() {
 			  |             ^
 			  |             unmatched {
 			  ⫶
 			  |
 			3 | <EOF>
 			  | ^^^^^
-			  | expected } or state operation, found end of file
+			  | expected } or fs operation, found end of file
 			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			 [?] help: fs operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
-			"state with scratch",
-			"state foo() {\n\tscratch\n}\n",
+			"fs with scratch",
+			"fs foo() {\n\tscratch\n}\n",
 			``,
 		},
 		{
 			"image without arg",
-			"state foo() { image",
+			"fs foo() { image",
 			`
 			 --> <stdin>:1:20: syntax error
 			  |
-			1 | state foo() { image
+			1 | fs foo() { image
 			  |               ^^^^^
 			  |               has invalid arguments
 			  ⫶
@@ -346,17 +346,17 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"state with image",
-			`state foo() { image "alpine"; }`,
+			"fs with image",
+			`fs foo() { image "alpine"; }`,
 			``,
 		},
 		{
 			"image trailing with",
-			`state foo() { image "alpine" with`,
+			`fs foo() { image "alpine" with`,
 			`
 			 --> <stdin>:1:34: syntax error
 			  |
-			1 | state foo() { image "alpine" with
+			1 | fs foo() { image "alpine" with
 			  |                              ^^^^
 			  |                              must be followed by option
 			  ⫶
@@ -370,29 +370,29 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"scratch trailing with",
-			"state foo() { scratch with",
+			"fs foo() { scratch with",
 			`
 			 --> <stdin>:1:15: syntax error
 			  |
-			1 | state foo() { scratch with
+			1 | fs foo() { scratch with
 			  |               ^^^^^^^
 			  |               does not support options
 			  ⫶
 			  |
-			1 | state foo() { scratch with
+			1 | fs foo() { scratch with
 			  |                       ^^^^
 			  |                       expected newline or ;, found with
 			`,
 		},
 		{
 			"option with variable",
-			`state foo() { image "alpine" with foo`,
+			`fs foo() { image "alpine" with foo`,
 			`
 			 --> <stdin>:1:38: syntax error
 			  |
-			1 | state foo() { image "alpine" with foo
+			1 | fs foo() { image "alpine" with foo
 			  |                                   ^^^
-			  |                                   inline statements must end with ;
+			  |                                   inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -402,16 +402,16 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"option with keyword",
-			`state foo() { image "alpine" with state`,
+			`fs foo() { image "alpine" with fs`,
 			`
 			 --> <stdin>:1:35: syntax error
 			  |
-			1 | state foo() { image "alpine" with state
+			1 | fs foo() { image "alpine" with fs
 			  |                              ^^^^
 			  |                              must be followed by option
 			  ⫶
 			  |
-			1 | state foo() { image "alpine" with state
+			1 | fs foo() { image "alpine" with fs
 			  |                                   ^^^^^
 			  |                                   expected option, found reserved keyword
 			  |
@@ -420,11 +420,11 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"option without block start",
-			`state foo() { image "alpine" with option`,
+			`fs foo() { image "alpine" with option`,
 			`
 			 --> <stdin>:1:41: syntax error
 			  |
-			1 | state foo() { image "alpine" with option
+			1 | fs foo() { image "alpine" with option
 			  |                                   ^^^^^^
 			  |                                   must be followed by {
 			  ⫶
@@ -436,11 +436,11 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"image option without block end",
-			`state foo() { image "alpine" with option {`,
+			`fs foo() { image "alpine" with option {`,
 			`
 			 --> <stdin>:1:43: syntax error
 			  |
-			1 | state foo() { image "alpine" with option {
+			1 | fs foo() { image "alpine" with option {
 			  |                                          ^
 			  |                                          unmatched {
 			  ⫶
@@ -454,16 +454,16 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"image option with single field suggestion",
-			`state foo() { image "alpine" with option { resol`,
+			`fs foo() { image "alpine" with option { resol`,
 			`
 			 --> <stdin>:1:44: syntax error
 			  |
-			1 | state foo() { image "alpine" with option { resol
+			1 | fs foo() { image "alpine" with option { resol
 			  |                                          ^
 			  |                                          unmatched {
 			  ⫶
 			  |
-			1 | state foo() { image "alpine" with option { resol
+			1 | fs foo() { image "alpine" with option { resol
 			  |                                            ^^^^^
 			  |                                            expected } or image option, found resol, did you mean resolve?
 			  |
@@ -472,13 +472,13 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"option with field and without block end",
-			`state foo() { image "alpine" with option { resolve`,
+			`fs foo() { image "alpine" with option { resolve`,
 			`
 			 --> <stdin>:1:51: syntax error
 			  |
-			1 | state foo() { image "alpine" with option { resolve
+			1 | fs foo() { image "alpine" with option { resolve
 			  |                                            ^^^^^^^
-			  |                                            inline statements must end with ;
+			  |                                            inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -488,11 +488,11 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"option with field end and without block end",
-			`state foo() { image "alpine" with option { resolve;`,
+			`fs foo() { image "alpine" with option { resolve;`,
 			`
 			 --> <stdin>:1:52: syntax error
 			  |
-			1 | state foo() { image "alpine" with option { resolve;
+			1 | fs foo() { image "alpine" with option { resolve;
 			  |                                          ^
 			  |                                          unmatched {
 			  ⫶
@@ -506,13 +506,13 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"option with block without field end",
-			`state foo() { image "alpine" with option { resolve; }`,
+			`fs foo() { image "alpine" with option { resolve; }`,
 			`
 			 --> <stdin>:1:54: syntax error
 			  |
-			1 | state foo() { image "alpine" with option { resolve; }
+			1 | fs foo() { image "alpine" with option { resolve; }
 			  |                                                     ^
-			  |                                                     inline statements must end with ;
+			  |                                                     inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -521,53 +521,53 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"option with field end without state block end",
-			`state foo() { image "alpine" with option { resolve; };`,
+			"option with field end without fs block end",
+			`fs foo() { image "alpine" with option { resolve; };`,
 			`
 			 --> <stdin>:1:55: syntax error
 			  |
-			1 | state foo() { image "alpine" with option { resolve; };
+			1 | fs foo() { image "alpine" with option { resolve; };
 			  |             ^
 			  |             unmatched {
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected } or state operation, found end of file
+			  | expected } or fs operation, found end of file
 			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			 [?] help: fs operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
-			"state with image and option block",
-			`state foo() { image "alpine" with option { resolve; }; }`,
+			"fs with image and option block",
+			`fs foo() { image "alpine" with option { resolve; }; }`,
 			``,
 		},
 		{
-			"state with op suggestion",
-			`state foo() { scratch; exe`,
+			"fs with op suggestion",
+			`fs foo() { scratch; exe`,
 			`
 			 --> <stdin>:1:24: syntax error
 			  |
-			1 | state foo() { scratch; exe
+			1 | fs foo() { scratch; exe
 			  |             ^
 			  |             unmatched {
 			  ⫶
 			  |
-			1 | state foo() { scratch; exe
+			1 | fs foo() { scratch; exe
 			  |                        ^^^
-			  |                        expected } or state operation, found exe, did you mean exec?
+			  |                        expected } or fs operation, found exe, did you mean exec?
 			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			 [?] help: fs operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
 			"exec without arg",
-			"state foo() { scratch; exec",
+			"fs foo() { scratch; exec",
 			`
 			 --> <stdin>:1:28: syntax error
 			  |
-			1 | state foo() { scratch; exec
+			1 | fs foo() { scratch; exec
 			  |                        ^^^^
 			  |                        has invalid arguments
 			  ⫶
@@ -581,13 +581,13 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"exec with arg",
-			`state foo() { scratch; exec "sh -c \"echo ❯ > foo\""`,
+			`fs foo() { scratch; exec "sh -c \"echo ❯ > foo\""`,
 			`
 			 --> <stdin>:1:53: syntax error
 			  |
-			1 | state foo() { scratch; exec "sh -c \"echo ❯ > foo\""
+			1 | fs foo() { scratch; exec "sh -c \"echo ❯ > foo\""
 			  |                             ^^^^^^^^^^^^^^^^^^^^^^^^
-			  |                             inline statements must end with ;
+			  |                             inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -597,29 +597,29 @@ func TestSyntaxError(t *testing.T) {
 		},
 		{
 			"copy with no args",
-			"state foo() { scratch; copy",
+			"fs foo() { scratch; copy",
 			`
 			 --> <stdin>:1:28: syntax error
 			  |
-			1 | state foo() { scratch; copy
+			1 | fs foo() { scratch; copy
 			  |                        ^^^^
 			  |                        has invalid arguments
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected <state input> found end of file
+			  | expected <fs input> found end of file
 			  |
-			 [?] help: must match arguments for copy <state input> <string src> <string dest>
+			 [?] help: must match arguments for copy <fs input> <string src> <string dest>
 			`,
 		},
 		{
 			"copy with identifier but no src or dst",
-			"state foo() { scratch; copy foo",
+			"fs foo() { scratch; copy foo",
 			`
 			 --> <stdin>:1:32: syntax error
 			  |
-			1 | state foo() { scratch; copy foo
+			1 | fs foo() { scratch; copy foo
 			  |                        ^^^^
 			  |                        has invalid arguments
 			  ⫶
@@ -628,16 +628,16 @@ func TestSyntaxError(t *testing.T) {
 			  | ^^^^^
 			  | expected <string src> found end of file
 			  |
-			 [?] help: must match arguments for copy <state input> <string src> <string dest>
+			 [?] help: must match arguments for copy <fs input> <string src> <string dest>
 			`,
 		},
 		{
 			"copy with identifier and src but no dst",
-			`state foo() { scratch; copy foo "src"`,
+			`fs foo() { scratch; copy foo "src"`,
 			`
 			 --> <stdin>:1:38: syntax error
 			  |
-			1 | state foo() { scratch; copy foo "src"
+			1 | fs foo() { scratch; copy foo "src"
 			  |                        ^^^^
 			  |                        has invalid arguments
 			  ⫶
@@ -646,18 +646,18 @@ func TestSyntaxError(t *testing.T) {
 			  | ^^^^^
 			  | expected <string dest> found end of file
 			  |
-			 [?] help: must match arguments for copy <state input> <string src> <string dest>
+			 [?] help: must match arguments for copy <fs input> <string src> <string dest>
 			`,
 		},
 		{
 			"copy with identifier, src and dst",
-			`state foo() { scratch; copy foo "src" "dst"`,
+			`fs foo() { scratch; copy foo "src" "dst"`,
 			`
 			 --> <stdin>:1:44: syntax error
 			  |
-			1 | state foo() { scratch; copy foo "src" "dst"
+			1 | fs foo() { scratch; copy foo "src" "dst"
 			  |                                       ^^^^^
-			  |                                       inline statements must end with ;
+			  |                                       inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -666,12 +666,12 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"copy with state block start",
-			"state foo() { scratch; copy {",
+			"copy with fs block start",
+			"fs foo() { scratch; copy {",
 			`
 			 --> <stdin>:1:30: syntax error
 			  |
-			1 | state foo() { scratch; copy {
+			1 | fs foo() { scratch; copy {
 			  |                             ^
 			  |                             must be followed by source
 			  ⫶
@@ -684,14 +684,14 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"copy with state block start and source",
-			"state foo() { scratch; copy { scratch",
+			"copy with fs block start and source",
+			"fs foo() { scratch; copy { scratch",
 			`
 			 --> <stdin>:1:38: syntax error
 			  |
-			1 | state foo() { scratch; copy { scratch
+			1 | fs foo() { scratch; copy { scratch
 			  |                               ^^^^^^^
-			  |                               inline statements must end with ;
+			  |                               inline fsments must end with ;
 			  ⫶
 			  |
 			1 | <EOF>
@@ -700,30 +700,30 @@ func TestSyntaxError(t *testing.T) {
 			`,
 		},
 		{
-			"copy with state block start, source, and field end",
-			"state foo() { scratch; copy { scratch;",
+			"copy with fs block start, source, and field end",
+			"fs foo() { scratch; copy { scratch;",
 			`
 			 --> <stdin>:1:39: syntax error
 			  |
-			1 | state foo() { scratch; copy { scratch;
+			1 | fs foo() { scratch; copy { scratch;
 			  |                             ^
 			  |                             unmatched {
 			  ⫶
 			  |
 			1 | <EOF>
 			  | ^^^^^
-			  | expected } or state operation, found end of file
+			  | expected } or fs operation, found end of file
 			  |
-			 [?] help: state operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
+			 [?] help: fs operation must be one of exec, env, dir, user, mkdir, mkfile, rm, copy
 			`,
 		},
 		{
-			"copy with state block only",
-			"state foo() { scratch; copy { scratch; }",
+			"copy with fs block only",
+			"fs foo() { scratch; copy { scratch; }",
 			`
 			 --> <stdin>:1:41: syntax error
 			  |
-			1 | state foo() { scratch; copy { scratch; }
+			1 | fs foo() { scratch; copy { scratch; }
 			  |                        ^^^^
 			  |                        has invalid arguments
 			  ⫶
@@ -732,16 +732,16 @@ func TestSyntaxError(t *testing.T) {
 			  | ^^^^^
 			  | expected <string src> found end of file
 			  |
-			 [?] help: must match arguments for copy <state input> <string src> <string dest>
+			 [?] help: must match arguments for copy <fs input> <string src> <string dest>
 			`,
 		},
 		{
-			"copy with state block and src",
-			`state foo() { scratch; copy { scratch; } "src"`,
+			"copy with fs block and src",
+			`fs foo() { scratch; copy { scratch; } "src"`,
 			`
 			 --> <stdin>:1:47: syntax error
 			  |
-			1 | state foo() { scratch; copy { scratch; } "src"
+			1 | fs foo() { scratch; copy { scratch; } "src"
 			  |                        ^^^^
 			  |                        has invalid arguments
 			  ⫶
@@ -750,12 +750,12 @@ func TestSyntaxError(t *testing.T) {
 			  | ^^^^^
 			  | expected <string dest> found end of file
 			  |
-			 [?] help: must match arguments for copy <state input> <string src> <string dest>
+			 [?] help: must match arguments for copy <fs input> <string src> <string dest>
 			`,
 		},
 		{
-			"copy with state block, src, and dst",
-			`state foo() { scratch; copy { scratch; } "src" "dst"; }`,
+			"copy with fs block, src, and dst",
+			`fs foo() { scratch; copy { scratch; } "src" "dst"; }`,
 			``,
 		},
 	} {

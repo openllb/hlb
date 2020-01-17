@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"time"
 
+	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
 	"github.com/moby/buildkit/solver/pb"
@@ -95,10 +95,8 @@ func emitFuncDecl(info *CodeGenInfo, scope *ast.Scope, fun *ast.FuncDecl, call *
 	}
 
 	switch fun.Type.Type() {
-	case ast.State:
-		st, err = emitState(info, fun.Scope, fun.Body.NonEmptyStmts(), ac)
-	case ast.Frontend:
-		st, err = emitFrontend(info, fun, args, ac)
+	case ast.Filesystem:
+		st, err = emitFilesystem(info, fun.Scope, fun.Body.NonEmptyStmts(), ac)
 	default:
 		return st, report.ErrInvalidTarget{fun.Name}
 	}
@@ -118,7 +116,7 @@ func emitAliasDecl(info *CodeGenInfo, scope *ast.Scope, alias *ast.AliasDecl, ca
 	return st, nil
 }
 
-func emitState(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (llb.State, error) {
+func emitFilesystem(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (llb.State, error) {
 	st := llb.Scratch()
 
 	index := 0
@@ -143,7 +141,7 @@ func emitState(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasC
 		return st, err
 	}
 
-	st, err = emitSourceStmt(info, scope, sourceStmt)
+	st, err = emitSourceStmt(info, scope, sourceStmt, ac)
 	if err != nil {
 		return st, err
 	}
@@ -169,7 +167,7 @@ func emitState(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasC
 			return st, err
 		}
 
-		so, err := emitStateOption(info, scope, ast.State, call, ac)
+		so, err := emitStateOption(info, scope, ast.Filesystem, call, ac)
 		if err != nil {
 			return st, err
 		}
@@ -185,53 +183,12 @@ func emitState(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasC
 	return st, nil
 }
 
-func emitFrontend(info *CodeGenInfo, frontend *ast.FuncDecl, args []*ast.Expr, ac aliasCallback) (llb.State, error) {
-	scope := frontend.Scope
-	st, err := emitState(info, scope, frontend.Body.NonEmptyStmts(), ac)
-	if err != nil {
-		return st, err
-	}
-
-	opts := []llb.FrontendOption{llb.WithFrontendOpt("hlb-target", frontend.Name.Name)}
-	for i, arg := range args {
-		param := frontend.Params.List[i]
-		switch param.Type.Type() {
-		case ast.Str:
-			v, err := emitStringExpr(info, scope, arg)
-			if err != nil {
-				return st, err
-			}
-			opts = append(opts, llb.WithFrontendOpt(param.Name.Name, v))
-		case ast.Int:
-			v, err := emitIntExpr(info, scope, arg)
-			if err != nil {
-				return st, err
-			}
-			opts = append(opts, llb.WithFrontendOpt(param.Name.Name, strconv.Itoa(v)))
-		case ast.Bool:
-			v, err := emitBoolExpr(info, scope, arg)
-			if err != nil {
-				return st, err
-			}
-			opts = append(opts, llb.WithFrontendOpt(param.Name.Name, strconv.FormatBool(v)))
-		case ast.State:
-			v, err := emitStateExpr(info, scope, nil, arg, ac)
-			if err != nil {
-				return st, err
-			}
-			opts = append(opts, llb.WithFrontendInput(param.Name.Name, v))
-		}
-	}
-
-	return llb.Frontend(st, opts...), nil
-}
-
 func emitBlockLit(info *CodeGenInfo, scope *ast.Scope, lit *ast.BlockLit, parent *ast.CallStmt, ac aliasCallback) (interface{}, error) {
 	switch lit.Type.Type() {
 	case ast.Str, ast.Int, ast.Bool:
 		panic("unimplemented")
-	case ast.State:
-		return emitState(info, scope, lit.Body.NonEmptyStmts(), ac)
+	case ast.Filesystem:
+		return emitFilesystem(info, scope, lit.Body.NonEmptyStmts(), ac)
 	case ast.Option:
 		return emitOptions(info, scope, parent, lit.Body.NonEmptyStmts(), ac)
 	}
@@ -313,7 +270,7 @@ func maybeEmitBoolExpr(info *CodeGenInfo, scope *ast.Scope, args []*ast.Expr) (b
 	return v, nil
 }
 
-func emitStateExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr *ast.Expr, ac aliasCallback) (llb.State, error) {
+func emitFilesystemExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr *ast.Expr, ac aliasCallback) (llb.State, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -333,7 +290,7 @@ func emitStateExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr
 			panic("unknown obj type")
 		}
 	case expr.BasicLit != nil:
-		panic("state expr cannot be basic lit")
+		panic("fs expr cannot be basic lit")
 	case expr.BlockLit != nil:
 		v, err := emitBlockLit(info, scope, expr.BlockLit, nil, ac)
 		if err != nil {
@@ -341,7 +298,7 @@ func emitStateExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr
 		}
 		return v.(llb.State), nil
 	default:
-		panic("unknown state expr")
+		panic("unknown fs expr")
 	}
 }
 
@@ -370,8 +327,13 @@ func emitOptionExpr(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, e
 	}
 }
 
-func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt) (llb.State, error) {
+func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, ac aliasCallback) (llb.State, error) {
 	var st llb.State
+
+	iopts, err := emitWithOption(info, scope, call, call.WithOpt, ac)
+	if err != nil {
+		return st, err
+	}
 
 	_, ok := report.Builtins[call.Func.Name]
 	if ok {
@@ -384,13 +346,27 @@ func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt) (ll
 			if err != nil {
 				return st, err
 			}
-			st = llb.Image(ref)
+
+			var opts []llb.ImageOption
+			for _, iopt := range iopts {
+				opt := iopt.(llb.ImageOption)
+				opts = append(opts, opt)
+			}
+
+			st = llb.Image(ref, opts...)
 		case "http":
 			url, err := emitStringExpr(info, scope, args[0])
 			if err != nil {
 				return st, err
 			}
-			st = llb.HTTP(url)
+
+			var opts []llb.HTTPOption
+			for _, iopt := range iopts {
+				opt := iopt.(llb.HTTPOption)
+				opts = append(opts, opt)
+			}
+
+			st = llb.HTTP(url, opts...)
 		case "git":
 			remote, err := emitStringExpr(info, scope, args[0])
 			if err != nil {
@@ -400,7 +376,27 @@ func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt) (ll
 			if err != nil {
 				return st, err
 			}
-			st = llb.Git(remote, ref)
+
+			var opts []llb.GitOption
+			for _, iopt := range iopts {
+				opt := iopt.(llb.GitOption)
+				opts = append(opts, opt)
+			}
+
+			st = llb.Git(remote, ref, opts...)
+		case "generate":
+			frontend, err := emitFilesystemExpr(info, scope, call, args[0], ac)
+			if err != nil {
+				return st, err
+			}
+
+			var opts []llb.FrontendOption
+			for _, iopt := range iopts {
+				opt := iopt.(llb.FrontendOption)
+				opts = append(opts, opt)
+			}
+
+			st = llb.Frontend(frontend, opts...)
 		default:
 			panic("unknown source stmt")
 		}
@@ -460,10 +456,24 @@ func emitStateOption(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call 
 	}
 
 	switch call.Func.Name {
-	case "exec":
-		shlex, err := emitStringExpr(info, scope, args[0])
-		if err != nil {
-			return so, err
+	case "run", "exec":
+		var shlex string
+		if call.Func.Name == "run" {
+			commandStr, err := emitStringExpr(info, scope, args[0])
+			if err != nil {
+				return so, err
+			}
+			shlex = shellquote.Join("/bin/sh", "-c", commandStr)
+		} else {
+			var execArgs []string
+			for _, arg := range args {
+				execArg, err := emitStringExpr(info, scope, arg)
+				if err != nil {
+					return so, err
+				}
+				execArgs = append(execArgs, execArg)
+			}
+			shlex = shellquote.Join(execArgs...)
 		}
 
 		var opts []llb.RunOption
@@ -620,7 +630,7 @@ func emitStateOption(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call 
 			)
 		}
 	case "copy":
-		input, err := emitStateExpr(info, scope, nil, args[0], ac)
+		input, err := emitFilesystemExpr(info, scope, nil, args[0], ac)
 		if err != nil {
 			return so, err
 		}
@@ -659,7 +669,9 @@ func emitOptions(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, stmt
 		return emitHTTPOptions(info, scope, stmts)
 	case "git":
 		return emitGitOptions(info, scope, stmts)
-	case "exec":
+	case "generate":
+		return emitGenerateOptions(info, scope, stmts, ac)
+	case "run", "exec":
 		return emitExecOptions(info, scope, stmts, ac)
 	case "ssh":
 		return emitSSHOptions(info, scope, stmts)
@@ -744,6 +756,38 @@ func emitGitOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opt
 				if v {
 					opts = append(opts, llb.KeepGitDir())
 				}
+			}
+		}
+	}
+	return
+}
+
+func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+	for _, stmt := range stmts {
+		switch {
+		case stmt.Call != nil:
+			args := stmt.Call.Args
+			switch stmt.Call.Func.Name {
+			case "frontendInput":
+				key, err := emitStringExpr(info, scope, args[0])
+				if err != nil {
+					return opts, err
+				}
+				value, err := emitFilesystemExpr(info, scope, stmt.Call, args[1], ac)
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, llb.WithFrontendInput(key, value))
+			case "frontendOpt":
+				key, err := emitStringExpr(info, scope, args[0])
+				if err != nil {
+					return opts, err
+				}
+				value, err := emitStringExpr(info, scope, args[1])
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, llb.WithFrontendOpt(key, value))
 			}
 		}
 	}
@@ -1020,7 +1064,7 @@ func emitExecOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac 
 
 				opts = append(opts, llb.AddSecret(target, secretOpts...))
 			case "mount":
-				input, err := emitStateExpr(info, scope, nil, args[0], ac)
+				input, err := emitFilesystemExpr(info, scope, nil, args[0], ac)
 				if err != nil {
 					return opts, err
 				}
@@ -1263,9 +1307,9 @@ func parameterizedScope(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt,
 			var v bool
 			v, err = emitBoolExpr(info, scope, args[i])
 			data = v
-		case ast.State:
+		case ast.Filesystem:
 			var v llb.State
-			v, err = emitStateExpr(info, scope, call, args[i], ac)
+			v, err = emitFilesystemExpr(info, scope, call, args[i], ac)
 			data = v
 		case ast.Option:
 			var v []interface{}

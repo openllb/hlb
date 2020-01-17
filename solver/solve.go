@@ -65,15 +65,17 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 
 	attachable := []session.Attachable{authprovider.NewDockerAuthProvider(os.Stderr)}
 
-	cfg := sshprovider.AgentConfig{
-		ID: "default",
-	}
+	if _, set := os.LookupEnv("SSH_AUTH_SOCK"); set {
+		cfg := sshprovider.AgentConfig{
+			ID: "default",
+		}
 
-	sp, err := sshprovider.NewSSHAgentProvider([]sshprovider.AgentConfig{cfg})
-	if err != nil {
-		return err
+		sp, err := sshprovider.NewSSHAgentProvider([]sshprovider.AgentConfig{cfg})
+		if err != nil {
+			return err
+		}
+		attachable = append(attachable, sp)
 	}
-	attachable = append(attachable, sp)
 
 	wrapWriter := func(wc io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
 		return func(m map[string]string) (io.WriteCloser, error) {

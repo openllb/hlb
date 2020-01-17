@@ -20,7 +20,7 @@ var publishCommand = &cli.Command{
 		&cli.StringFlag{
 			Name:    "target",
 			Aliases: []string{"t"},
-			Usage:   "target state to compile",
+			Usage:   "target filesystem to compile",
 			Value:   "default",
 		},
 		&cli.StringFlag{
@@ -66,6 +66,18 @@ var publishCommand = &cli.Command{
 			return true
 		})
 
+		var frontendStmts []*ast.Stmt
+		for _, param := range params {
+			fun := "frontendOpt"
+			if param.Type.Type() == ast.Filesystem {
+				fun = "frontendInput"
+			}
+			frontendStmts = append(frontendStmts, ast.NewCallStmt(fun, []*ast.Expr{
+				ast.NewStringExpr(param.Name.Name),
+				ast.NewIdentExpr(param.Name.Name),
+			}, nil, nil))
+		}
+
 		var sources []string
 		for _, f := range files {
 			sources = append(sources, f.String())
@@ -75,16 +87,20 @@ var publishCommand = &cli.Command{
 			Decls: []*ast.Decl{
 				{
 					Func: &ast.FuncDecl{
-						Type: ast.NewType(ast.Frontend),
+						Type: ast.NewType(ast.Filesystem),
 						Name: ast.NewIdent(c.String("target")),
 						Params: &ast.FieldList{
 							List: params,
 						},
 						Body: &ast.BlockStmt{
 							List: []*ast.Stmt{
-								ast.NewCallStmt("image", []*ast.Expr{
-									ast.NewStringExpr(c.String("ref")),
-								}, nil, nil),
+								ast.NewCallStmt("generate", []*ast.Expr{
+									ast.NewBlockLitExpr(ast.Filesystem,
+										ast.NewCallStmt("image", []*ast.Expr{
+											ast.NewStringExpr(c.String("ref")),
+										}, nil, nil),
+							                ),
+								}, ast.NewWithBlockLit(frontendStmts...), nil),
 							},
 						},
 					},
@@ -97,7 +113,7 @@ var publishCommand = &cli.Command{
 			Decls: []*ast.Decl{
 				{
 					Func: &ast.FuncDecl{
-						Type:   ast.NewType(ast.State),
+						Type:   ast.NewType(ast.Filesystem),
 						Name:   ast.NewIdent(entryName),
 						Params: &ast.FieldList{},
 						Body: &ast.BlockStmt{
@@ -133,7 +149,7 @@ var publishCommand = &cli.Command{
 		}
 
 		ctx := context.Background()
-		cln, err := solver.BuildkitClient(ctx)
+		cln, err := solver.MetatronClient(ctx)
 		if err != nil {
 			return err
 		}

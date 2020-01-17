@@ -1,14 +1,15 @@
-state hlbGit() {
-	git "https://github.com/openllb/hlb.git" "926d7354ae8caa31455d5304d36a7151b0c4bd32"
+fs hlbGit() {
+	git "https://github.com/openllb/hlb.git" "v2"
 }
 
-state goBuild() {
+fs goBuild(string package) {
 	image "golang:1.12-alpine"
-	exec "apk add -U git gcc libc-dev"
+	run "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	exec "/usr/local/go/bin/go build -o /out/hlb -ldflags '-linkmode external -extldflags -static' -a ./cmd/frontend" with option {
+	exec "/usr/local/go/bin/go" "build" "-o" "/out/binary" "-ldflags" "-linkmode external -extldflags -static" "-a" package with option {
 		mount hlbGit "/go/src/hlb"
+		mount { scratch; } "/out" as goBinary
         	mount { scratch; } "/root/.cache/go-build" with option {
 			cache "hlb/go-build" "private"
         	}
@@ -18,9 +19,14 @@ state goBuild() {
 	}
 }
 
-state hlb() {
+fs hlbFrontend() {
 	scratch
-	copy goBuild "/out/hlb" "/run"
+	copy { goBinary "./cmd/frontend"; } "/binary" "/run"
 	copy hlbGit "/source.hlb" "/"
 	copy hlbGit "/signature.hlb" "/"
+}
+
+fs hlb() {
+	scratch
+	copy { goBinary "./cmd/hlb"; } "/binary" "/hlb"
 }

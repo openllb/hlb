@@ -29,14 +29,14 @@ var getCommand = &cli.Command{
 			Decls: []*ast.Decl{
 				{
 					Func: &ast.FuncDecl{
-						Type:   ast.NewType(ast.State),
+						Type:   ast.NewType(ast.Filesystem),
 						Name:   ast.NewIdent(entryName),
 						Params: &ast.FieldList{},
 						Body: &ast.BlockStmt{
 							List: []*ast.Stmt{
 								ast.NewCallStmt("scratch", nil, nil, nil),
 								ast.NewCallStmt("copy", []*ast.Expr{
-									ast.NewBlockLitExpr(ast.State,
+									ast.NewBlockLitExpr(ast.Filesystem,
 										ast.NewCallStmt("image", []*ast.Expr{
 											ast.NewStringExpr(ref),
 										}, nil, nil),
@@ -62,7 +62,7 @@ var getCommand = &cli.Command{
 		}
 
 		ctx := context.Background()
-		cln, err := solver.BuildkitClient(ctx)
+		cln, err := solver.MetatronClient(ctx)
 		if err != nil {
 			return err
 		}

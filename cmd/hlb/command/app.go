@@ -1,17 +1,15 @@
 package command
 
 import (
-	"bufio"
 	"context"
 	"io"
 	"os"
 	"path/filepath"
 
 	isatty "github.com/mattn/go-isatty"
+	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/ast"
 	"github.com/openllb/hlb/codegen"
-	"github.com/openllb/hlb/report"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 )
@@ -30,22 +28,26 @@ func App() *cli.App {
 		&cli.StringFlag{
 			Name:    "target",
 			Aliases: []string{"t"},
-			Usage:   "specify target state to compile",
+			Usage:   "specify target filesystem to compile",
 			Value:   "default",
 		},
 		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "compile using a debugger",
 		},
+		&cli.BoolFlag{
+			Name:  "llb",
+			Usage: "output the LLB to stdout instead of solving it",
+		},
 		&cli.StringFlag{
 			Name:    "download",
 			Aliases: []string{"d"},
-			Usage:   "download the solved hlb state to a directory",
+			Usage:   "download the solved hlb filesystem to a directory",
 		},
 		&cli.StringFlag{
 			Name:    "push",
 			Aliases: []string{"p"},
-			Usage:   "push the solved hlb state to a docker registry",
+			Usage:   "push the solved hlb filesystem to a docker registry",
 		},
 	}
 	app.Action = compileAction
@@ -67,41 +69,29 @@ func compileAction(c *cli.Context) error {
 	}
 	defer cleanup()
 
-	files, ibs, err := hlb.ParseMultiple(rs, defaultOpts()...)
-	if err != nil {
-		return err
-	}
-
-	root, err := report.SemanticCheck(files...)
-	if err != nil {
-		return err
-	}
-
-	call := &ast.CallStmt{
-		Func: &ast.Ident{Name: c.String("target")},
-	}
-
 	ctx := context.Background()
-	cln, err := solver.BuildkitClient(ctx)
+	// cln, err := solver.BuildkitClient(ctx)
+	cln, err := solver.MetatronClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	var opts []codegen.CodeGenOption
-	if c.Bool("debug") {
-		r := bufio.NewReader(os.Stdin)
-
-		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(ctx, cln, os.Stderr, r, ibs)))
-	}
-
-	st, err := codegen.Generate(call, root, opts...)
+	st, err := hlb.Compile(ctx, cln, c.String("target"), rs, c.Bool("debug"))
 	if err != nil {
+		// Ignore early exits from the debugger.
+		if err == codegen.ErrDebugExit {
+			return nil
+		}
 		return err
 	}
 
-	// Ignore early exits from the debugger.
-	if err == codegen.ErrDebugExit {
-		return nil
+	if c.Bool("llb") {
+		def, err := st.Marshal(llb.LinuxAmd64)
+		if err != nil {
+			return err
+		}
+
+		return llb.WriteTo(def, os.Stdout)
 	}
 
 	var solveOpts []solver.SolveOption

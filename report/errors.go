@@ -46,7 +46,7 @@ type ErrNoSource struct {
 }
 
 func (e ErrNoSource) Error() string {
-	return fmt.Sprintf("%s state block statement must be non-empty", FormatPos(e.BlockStmt.Pos))
+	return fmt.Sprintf("%s fs block statement must be non-empty", FormatPos(e.BlockStmt.Pos))
 }
 
 type ErrFirstSource struct {
@@ -78,7 +78,7 @@ type ErrFuncSource struct {
 }
 
 func (e ErrFuncSource) Error() string {
-	return fmt.Sprintf("%s func %s must be used as a state source", FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
+	return fmt.Sprintf("%s func %s must be used as a fs source", FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
 }
 
 type ErrNumArgs struct {

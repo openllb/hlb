@@ -107,7 +107,7 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 			}
 
 			if next != nil {
-				// If next statement is not in the same function scope, skip over it.
+				// If nment is not in the same function scope, skip over it.
 				if next != fun {
 					return nil
 				}
@@ -261,12 +261,12 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 					fmt.Fprintf(w, "stepout - step out of current function\n")
 					fmt.Fprintf(w, "reverse-step - single step backwards through program\n")
 					fmt.Fprintf(w, "restart - restart program from the start\n")
-					fmt.Fprintf(w, "# State\n")
-					fmt.Fprintf(w, "exec - executes a command in a container from state\n")
-					fmt.Fprintf(w, "dir - print working directory of state\n")
-					fmt.Fprintf(w, "env - print environment of state\n")
-					fmt.Fprintf(w, "network - print network mode of state\n")
-					fmt.Fprintf(w, "security - print security mode of state\n")
+					fmt.Fprintf(w, "# Filesystem\n")
+					fmt.Fprintf(w, "exec - executes a command in a container\n")
+					fmt.Fprintf(w, "dir - print working directory\n")
+					fmt.Fprintf(w, "env - print environment\n")
+					fmt.Fprintf(w, "network - print network mode\n")
+					fmt.Fprintf(w, "security - print security mode\n")
 				case "list", "l":
 					if showList {
 						err = printList(color, ibs, w, s.node)

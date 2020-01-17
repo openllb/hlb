@@ -168,7 +168,7 @@ func NewType(typ ObjType) *Type {
 
 func (t *Type) Type() ObjType {
 	if t == nil {
-		return State
+		return Filesystem
 	}
 	return t.ObjType
 }
@@ -176,7 +176,7 @@ func (t *Type) Type() ObjType {
 // Equals returns whether type equals another ObjType.
 func (t *Type) Equals(typ ObjType) bool {
 	if t == nil {
-		return typ == State
+		return typ == Filesystem
 	}
 	return typ == t.ObjType
 }
@@ -184,12 +184,11 @@ func (t *Type) Equals(typ ObjType) bool {
 type ObjType string
 
 const (
-	Str      ObjType = "string"
-	Int              = "int"
-	Bool             = "bool"
-	State            = "state"
-	Option           = "option"
-	Frontend         = "frontend"
+	Str        ObjType = "string"
+	Int                = "int"
+	Bool               = "bool"
+	Filesystem         = "fs"
+	Option             = "option"
 )
 
 // Ident represents an identifier.
@@ -203,6 +202,12 @@ func (i *Ident) End() lexer.Position      { return shiftPosition(i.Pos, len(i.Na
 
 func NewIdent(name string) *Ident {
 	return &Ident{Name: name}
+}
+
+func NewIdentExpr(name string) *Expr {
+	return &Expr{
+		Ident: NewIdent(name),
+	}
 }
 
 // BasicLit represents a literal of basic type.
@@ -261,7 +266,7 @@ func NewBoolExpr(v bool) *Expr {
 }
 
 // BlockLit represents a literal block prefixed by its type. If the type is
-// missing then it's assumed to be a state block literal.
+// missing then it's assumed to be a fs block literal.
 type BlockLit struct {
 	Pos  lexer.Position
 	Type *Type      `( @@ )?`
@@ -271,22 +276,29 @@ type BlockLit struct {
 func (l *BlockLit) Position() lexer.Position { return l.Pos }
 func (l *BlockLit) End() lexer.Position      { return l.Body.End() }
 
-func NewBlockLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
-	return &Expr{
-		BlockLit: &BlockLit{
-			Type: NewType(typ),
-			Body: &BlockStmt{
-				List: stmts,
-			},
-		},
-	}
-}
-
 func (l *BlockLit) NumStmts() int {
 	if l == nil {
 		return 0
 	}
 	return l.Body.NumStmts()
+}
+
+func NewBlockLit(typ ObjType, stmts ...*Stmt) *BlockLit {
+	lit := &BlockLit{
+		Body: &BlockStmt{
+			List: stmts,
+		},
+	}
+	if typ != Filesystem {
+		lit.Type = NewType(typ)
+	}
+	return lit
+}
+
+func NewBlockLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
+	return &Expr{
+		BlockLit: NewBlockLit(typ, stmts...),
+	}
 }
 
 // Stmt represents a statement node.
@@ -354,6 +366,20 @@ func (w *WithOpt) End() lexer.Position {
 		return w.BlockLit.End()
 	default:
 		return shiftPosition(w.Pos, 1, 0)
+	}
+}
+
+func NewWithIdent(name string) *WithOpt {
+	return &WithOpt{
+		With:  &With{Keyword: "with"},
+		Ident: NewIdent(name),
+	}
+}
+
+func NewWithBlockLit(stmts ...*Stmt) *WithOpt {
+	return &WithOpt{
+		With:     &With{Keyword: "with"},
+		BlockLit: NewBlockLit(Option, stmts...),
 	}
 }
 

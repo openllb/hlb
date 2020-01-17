@@ -14,13 +14,14 @@ import (
 )
 
 var (
-	Sources = []string{"scratch", "image", "http", "git"}
-	Ops     = []string{"exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
+	Sources = []string{"scratch", "image", "http", "git", "generate"}
+	Ops     = []string{"shell", "run", "exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
 	ImageOptions  = []string{"resolve"}
 	HTTPOptions   = []string{"checksum", "chmod", "filename"}
 	GitOptions    = []string{"keepGitDir"}
+	GenerateOptions = []string{"frontendInput", "frontendOpt"}
 	ExecOptions   = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
 	SSHOptions    = []string{"target", "id", "uid", "gid", "mode", "optional"}
 	SecretOptions = []string{"id", "uid", "gid", "mode", "optional"}
@@ -40,14 +41,16 @@ var (
 	Keywords         = flatMap(ast.Types, Sources, Fields, Enums)
 	ReservedKeywords = flatMap(ast.Types, []string{"with"})
 
-	KeywordsWithOptions    = []string{"image", "http", "git", "exec", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
-	KeywordsWithBlocks     = flatMap(ast.Types, KeywordsWithOptions)
+	KeywordsWithOptions = []string{"image", "http", "git", "exec", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
+	KeywordsWithBlocks  = flatMap(ast.Types, KeywordsWithOptions)
 
 	KeywordsByName = map[string][]string{
-		"state":    Ops,
+		"fs":    Ops,
 		"image":    ImageOptions,
 		"http":     HTTPOptions,
 		"git":      GitOptions,
+		"generate":      GenerateOptions,
+		"run":      ExecOptions,
 		"exec":     ExecOptions,
 		"ssh":      SSHOptions,
 		"secret":   SecretOptions,
@@ -76,10 +79,15 @@ var (
 			ast.NewField(ast.Str, "remote"),
 			ast.NewField(ast.Str, "ref"),
 		},
+		"generate": []*ast.Field{
+			ast.NewField(ast.Filesystem, "frontend"),
+		},
 		// Ops
-		"exec": []*ast.Field{
+		"shell": nil,
+		"run": []*ast.Field{
 			ast.NewField(ast.Str, "command"),
 		},
+		"exec": nil,
 		"env": []*ast.Field{
 			ast.NewField(ast.Str, "key"),
 			ast.NewField(ast.Str, "value"),
@@ -103,7 +111,7 @@ var (
 			ast.NewField(ast.Str, "path"),
 		},
 		"copy": []*ast.Field{
-			ast.NewField(ast.State, "input"),
+			ast.NewField(ast.Filesystem, "input"),
 			ast.NewField(ast.Str, "src"),
 			ast.NewField(ast.Str, "dest"),
 		},
@@ -121,6 +129,15 @@ var (
 		},
 		// Git options
 		"keepGitDir": nil,
+		// Generate options
+		"frontendInput": []*ast.Field{
+			ast.NewField(ast.Str, "key"),
+			ast.NewField(ast.Filesystem, "value"),
+		},
+		"frontendOpt": []*ast.Field{
+			ast.NewField(ast.Str, "key"),
+			ast.NewField(ast.Str, "value"),
+		},
 		// Exec options
 		"readonlyRootfs": nil,
 		"network": []*ast.Field{
@@ -138,7 +155,7 @@ var (
 			ast.NewField(ast.Str, "target"),
 		},
 		"mount": []*ast.Field{
-			ast.NewField(ast.State, "input"),
+			ast.NewField(ast.Filesystem, "input"),
 			ast.NewField(ast.Str, "target"),
 		},
 		// SSH & Secret options
@@ -420,4 +437,3 @@ func (ib *IndexedBuffer) read(start, end int) ([]byte, error) {
 
 	return line[:n], nil
 }
-

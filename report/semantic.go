@@ -177,7 +177,7 @@ func checkBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt, paren
 					}
 				}
 
-				if !typ.Equals(ast.State) && !typ.Equals(ast.Frontend) {
+				if !typ.Equals(ast.Filesystem) {
 					return ErrFirstSource{call}
 				}
 			}
@@ -210,13 +210,21 @@ func checkCallStmt(scope *ast.Scope, typ ast.ObjType, index int, call, parent *a
 	)
 
 	switch typ {
-	case ast.State, ast.Frontend:
+	case ast.Filesystem:
 		if index == 0 {
 			funcs = flatMap(Sources, Debugs)
 		} else {
 			funcs = flatMap(Ops, Debugs)
 		}
 		params = Builtins[call.Func.Name]
+
+		if call.Func.Name == "exec" {
+			params = make([]*ast.Field, len(call.Args))
+			for i := range call.Args {
+				params[i] = ast.NewField(ast.Str, "")
+			}
+		}
+
 	case ast.Option:
 		funcs = KeywordsByName[parent.Func.Name]
 		params = Builtins[call.Func.Name]
