@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alecthomas/participle/lexer"
 )
@@ -167,28 +168,32 @@ func NewType(typ ObjType) *Type {
 }
 
 func (t *Type) Type() ObjType {
-	if t == nil {
-		return Filesystem
+	typeParts := strings.Split(string(t.ObjType), "::")
+	return ObjType(typeParts[0])
+}
+
+func (t *Type) SubType() ObjType {
+	typeParts := strings.Split(string(t.ObjType), "::")
+	if len(typeParts) == 1 {
+		return None
 	}
-	return t.ObjType
+	return ObjType(typeParts[1])
 }
 
 // Equals returns whether type equals another ObjType.
 func (t *Type) Equals(typ ObjType) bool {
-	if t == nil {
-		return typ == Filesystem
-	}
-	return typ == t.ObjType
+	return typ == t.Type()
 }
 
 type ObjType string
 
 const (
+	None       ObjType = ""
 	Str        ObjType = "string"
-	Int                = "int"
-	Bool               = "bool"
-	Filesystem         = "fs"
-	Option             = "option"
+	Int        ObjType = "int"
+	Bool       ObjType = "bool"
+	Filesystem ObjType = "fs"
+	Option     ObjType = "option"
 )
 
 // Ident represents an identifier.
@@ -269,7 +274,7 @@ func NewBoolExpr(v bool) *Expr {
 // missing then it's assumed to be a fs block literal.
 type BlockLit struct {
 	Pos  lexer.Position
-	Type *Type      `( @@ )?`
+	Type *Type      `@@`
 	Body *BlockStmt `@@`
 }
 

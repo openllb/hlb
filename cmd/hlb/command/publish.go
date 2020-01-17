@@ -66,7 +66,12 @@ var publishCommand = &cli.Command{
 			return true
 		})
 
-		var frontendStmts []*ast.Stmt
+		frontendStmts := []*ast.Stmt{
+			ast.NewCallStmt("frontendOpt", []*ast.Expr{
+				ast.NewStringExpr("hlb-target"),
+				ast.NewStringExpr(c.String("target")),
+			}, nil, nil),
+		}
 		for _, param := range params {
 			fun := "frontendOpt"
 			if param.Type.Type() == ast.Filesystem {

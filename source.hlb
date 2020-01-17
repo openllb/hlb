@@ -1,5 +1,5 @@
 fs hlbGit() {
-	git "https://github.com/openllb/hlb.git" "v2"
+	git "https://github.com/openllb/hlb.git" "4b29ac7b778ec5fd7b31e8296ff857453dbb2f90"
 }
 
 fs goBuild(string package) {

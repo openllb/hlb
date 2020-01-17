@@ -17,14 +17,14 @@ var (
 		String   = '(?:\\.|[^'])*'|"(?:\\.|[^"])*"|%s(\n|[^%s])*%s
 		Bool     = %s
 		Reserved = %s
-		Type     = %s
+		Type     = (%s)(::[a-z][a-z]*)?
 		Ident    = [a-zA-Z_][a-zA-Z0-9_]*
 		Operator = {|}|\(|\)|,|;
 	        Comment  = #[^\n]*\n
 	        Newline  = \n
 
 	        whitespace = \s+
-	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved([]string{"with", "as", "global"}), reserved(Types))))
+	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved([]string{"with", "as", "local"}), reserved(Types))))
 
 	Parser = participle.MustBuild(
 		&File{},

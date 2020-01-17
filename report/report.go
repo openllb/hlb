@@ -18,18 +18,18 @@ var (
 	Ops     = []string{"shell", "run", "exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
-	ImageOptions  = []string{"resolve"}
-	HTTPOptions   = []string{"checksum", "chmod", "filename"}
-	GitOptions    = []string{"keepGitDir"}
+	ImageOptions    = []string{"resolve"}
+	HTTPOptions     = []string{"checksum", "chmod", "filename"}
+	GitOptions      = []string{"keepGitDir"}
 	GenerateOptions = []string{"frontendInput", "frontendOpt"}
-	ExecOptions   = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
-	SSHOptions    = []string{"target", "id", "uid", "gid", "mode", "optional"}
-	SecretOptions = []string{"id", "uid", "gid", "mode", "optional"}
-	MountOptions  = []string{"readonly", "tmpfs", "sourcePath", "cache"}
-	MkdirOptions  = []string{"createParents", "chown", "createdTime"}
-	MkfileOptions = []string{"chown", "createdTime"}
-	RmOptions     = []string{"allowNotFound", "allowWildcard"}
-	CopyOptions   = []string{"followSymlinks", "contentsOnly", "unpack", "createDestPath", "allowWildcard", "allowEmptyWildcard", "chown", "createdTime"}
+	ExecOptions     = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
+	SSHOptions      = []string{"target", "id", "uid", "gid", "mode", "optional"}
+	SecretOptions   = []string{"id", "uid", "gid", "mode", "optional"}
+	MountOptions    = []string{"readonly", "tmpfs", "sourcePath", "cache"}
+	MkdirOptions    = []string{"createParents", "chown", "createdTime"}
+	MkfileOptions   = []string{"chown", "createdTime"}
+	RmOptions       = []string{"allowNotFound", "allowWildcard"}
+	CopyOptions     = []string{"followSymlinks", "contentsOnly", "unpack", "createDestPath", "allowWildcard", "allowEmptyWildcard", "chown", "createdTime"}
 
 	NetworkModes      = []string{"unset", "host", "none"}
 	SecurityModes     = []string{"sandbox", "insecure"}
@@ -45,11 +45,11 @@ var (
 	KeywordsWithBlocks  = flatMap(ast.Types, KeywordsWithOptions)
 
 	KeywordsByName = map[string][]string{
-		"fs":    Ops,
+		"fs":       Ops,
 		"image":    ImageOptions,
 		"http":     HTTPOptions,
 		"git":      GitOptions,
-		"generate":      GenerateOptions,
+		"generate": GenerateOptions,
 		"run":      ExecOptions,
 		"exec":     ExecOptions,
 		"ssh":      SSHOptions,

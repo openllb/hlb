@@ -344,7 +344,7 @@ func checkBasicLitArg(typ ast.ObjType, lit *ast.BasicLit) error {
 			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
 		}
 	default:
-		panic("unknown basic lit")
+		return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
 	}
 	return nil
 }
