@@ -3,6 +3,7 @@ package hlb
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 
@@ -22,6 +23,15 @@ const (
 )
 
 func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
+	res, err := frontend(ctx, c)
+	if err != nil {
+		ioutil.WriteFile("/error", []byte(err.Error()), 0644)
+		return res, nil
+	}
+	return res, nil
+}
+
+func frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 	opts := c.BuildOpts().Opts
 	target, ok := opts[OptTarget]
 	if !ok {
