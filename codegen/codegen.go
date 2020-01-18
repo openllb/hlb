@@ -47,7 +47,6 @@ func Generate(call *ast.CallStmt, root *ast.AST, opts ...CodeGenOption) (llb.Sta
 				return st, report.ErrInvalidTarget{call.Func}
 			}
 
-			fmt.Printf("emitting func decl %q\n", n.Name)
 			st, err = emitFilesystemFuncDecl(info, root.Scope, n, call, noopAliasCallback)
 		case *ast.AliasDecl:
 			st, err = emitAliasDecl(info, root.Scope, n, call)
@@ -190,7 +189,6 @@ func emitBlockLit(info *CodeGenInfo, scope *ast.Scope, lit *ast.BlockLit, op str
 	case ast.Filesystem:
 		return emitFilesystemBlock(info, scope, lit.Body.NonEmptyStmts(), ac)
 	case ast.Option:
-		fmt.Printf("emitting option block lit for %q\n", op)
 		return emitOptions(info, scope, op, lit.Body.NonEmptyStmts(), ac)
 	}
 	return nil, nil
@@ -338,7 +336,6 @@ func emitWithOption(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, w
 			panic("unknown with option kind")
 		}
 	case with.BlockLit != nil:
-		fmt.Printf("emitting with option for %q\n", parent.Func)
 		return emitOptions(info, scope, parent.Func.Name, with.BlockLit.Body.NonEmptyStmts(), ac)
 	default:
 		panic("unknown with option")
@@ -702,7 +699,6 @@ func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts [
 				if err != nil {
 					return opts, err
 				}
-				fmt.Printf("emitting frontendOpt %q=%q\n", key, value)
 				opts = append(opts, llb.WithFrontendOpt(key, value))
 			default:
 				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
@@ -1019,8 +1015,6 @@ func emitExecOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*as
 				if err != nil {
 					return opts, err
 				}
-
-				fmt.Printf("emitting mount fs %q\n", target)
 
 				var mountOpts []llb.MountOption
 				for _, iopt := range iopts {

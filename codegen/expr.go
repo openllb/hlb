@@ -1,8 +1,6 @@
 package codegen
 
 import (
-	"fmt"
-
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/ast"
 )
@@ -134,7 +132,6 @@ func emitOptionExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, op 
 	case expr.BasicLit != nil:
 		panic("option expr cannot be basic lit")
 	case expr.BlockLit != nil:
-		fmt.Printf("emitting option block lit expr for %q\n", op)
 		v, err := emitBlockLit(info, scope, expr.BlockLit, op, noopAliasCallback)
 		if err != nil {
 			return nil, err

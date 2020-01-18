@@ -31,13 +31,10 @@ func emitFuncDecl(info *CodeGenInfo, scope *ast.Scope, fun *ast.FuncDecl, call *
 
 	switch fun.Type.Type() {
 	case ast.Filesystem:
-		fmt.Printf("emitting filesystem block %q\n", fun.Name)
 		return emitFilesystemBlock(info, fun.Scope, fun.Body.NonEmptyStmts(), ac)
 	case ast.Option:
-		fmt.Printf("emitting option block %q\n", fun.Name)
 		return emitOptions(info, fun.Scope, string(fun.Type.SubType()), fun.Body.NonEmptyStmts(), ac)
 	case ast.Str:
-		fmt.Printf("emitting string block %q\n", fun.Name)
 		return emitStringBlock(info, fun.Scope, fun.Body.NonEmptyStmts())
 	default:
 		return nil, report.ErrInvalidTarget{fun.Name}
