@@ -212,7 +212,6 @@ const (
 	OptionGit      ObjType = "option::git"
 	OptionGenerate ObjType = "option::generate"
 	OptionRun      ObjType = "option::run"
-	OptionExec     ObjType = "option::exec"
 	OptionSSH      ObjType = "option::ssh"
 	OptionSecret   ObjType = "option::secret"
 	OptionMount    ObjType = "option::mount"

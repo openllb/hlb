@@ -350,24 +350,34 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 	}
 
 	switch call.Func.Name {
-	case "run", "exec":
+	case "run":
 		var shlex string
-		if call.Func.Name == "run" {
+		if len(args) == 1 {
 			commandStr, err := emitStringExpr(info, scope, args[0])
 			if err != nil {
 				return so, err
 			}
-			shlex = shellquote.Join("/bin/sh", "-c", commandStr)
+
+			parts, err := shellquote.Split(commandStr)
+			if err != nil {
+				return so, err
+			}
+
+			if len(parts) == 1 {
+				shlex = commandStr
+			} else {
+				shlex = shellquote.Join("/bin/sh", "-c", commandStr)
+			}
 		} else {
-			var execArgs []string
+			var runArgs []string
 			for _, arg := range args {
-				execArg, err := emitStringExpr(info, scope, arg)
+				runArg, err := emitStringExpr(info, scope, arg)
 				if err != nil {
 					return so, err
 				}
-				execArgs = append(execArgs, execArg)
+				runArgs = append(runArgs, runArg)
 			}
-			shlex = shellquote.Join(execArgs...)
+			shlex = shellquote.Join(runArgs...)
 		}
 
 		var opts []llb.RunOption
@@ -386,7 +396,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 				// Do nothing.
 				//
 				// Mounts inside option functions cannot be aliased because they need
-				// to be in the context of a specific function exec is in.
+				// to be in the context of a specific function run is in.
 			case with.BlockLit != nil:
 				for _, stmt := range with.BlockLit.Body.NonEmptyStmts() {
 					if stmt.Call.Func.Name != "mount" || stmt.Call.Alias == nil {
@@ -565,7 +575,7 @@ func emitOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.St
 		return emitGitOptions(info, scope, op, stmts)
 	case "generate":
 		return emitGenerateOptions(info, scope, op, stmts, ac)
-	case "run", "exec":
+	case "run":
 		return emitExecOptions(info, scope, op, stmts, ac)
 	case "ssh":
 		return emitSSHOptions(info, scope, op, stmts)

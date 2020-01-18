@@ -13,7 +13,7 @@ var (
 			image "alpine" with option {
 				resolve
 		        }
-			exec "echo foo" with option {
+			run "echo foo" with option {
 				readonlyRootfs
 				env "key" "value"
 				dir "path"

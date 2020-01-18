@@ -15,7 +15,7 @@ import (
 
 var (
 	Sources = []string{"scratch", "image", "http", "git", "generate"}
-	Ops     = []string{"shell", "run", "exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
+	Ops     = []string{"shell", "run", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
 	CommonOptions  = []string{"no-cache"}
@@ -23,7 +23,7 @@ var (
 	HTTPOptions     = []string{"checksum", "chmod", "filename"}
 	GitOptions      = []string{"keepGitDir"}
 	GenerateOptions = []string{"frontendInput", "frontendOpt"}
-	ExecOptions     = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
+	RunOptions     = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
 	SSHOptions      = []string{"target", "id", "uid", "gid", "mode", "optional"}
 	SecretOptions   = []string{"id", "uid", "gid", "mode", "optional"}
 	MountOptions    = []string{"readonly", "tmpfs", "sourcePath", "cache"}
@@ -36,13 +36,13 @@ var (
 	SecurityModes     = []string{"sandbox", "insecure"}
 	CacheSharingModes = []string{"shared", "private", "locked"}
 
-	Options          = flatMap(ImageOptions, HTTPOptions, GitOptions, ExecOptions, SSHOptions, SecretOptions, MountOptions, MkdirOptions, MkfileOptions, RmOptions, CopyOptions)
+	Options          = flatMap(ImageOptions, HTTPOptions, GitOptions, RunOptions, SSHOptions, SecretOptions, MountOptions, MkdirOptions, MkfileOptions, RmOptions, CopyOptions)
 	Enums            = flatMap(NetworkModes, SecurityModes, CacheSharingModes)
 	Fields           = flatMap(Sources, Ops, Options)
 	Keywords         = flatMap(ast.Types, Sources, Fields, Enums)
 	ReservedKeywords = flatMap(ast.Types, []string{"with"})
 
-	KeywordsWithOptions = []string{"image", "http", "git", "exec", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
+	KeywordsWithOptions = []string{"image", "http", "git", "run", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
 	KeywordsWithBlocks  = flatMap(ast.Types, KeywordsWithOptions)
 
 	KeywordsByName = map[string][]string{
@@ -51,8 +51,7 @@ var (
 		"http":     flatMap(CommonOptions, HTTPOptions),
 		"git":      flatMap(CommonOptions, GitOptions),
 		"generate": flatMap(CommonOptions, GenerateOptions),
-		"run":      flatMap(CommonOptions, ExecOptions),
-		"exec":     flatMap(CommonOptions, ExecOptions),
+		"run":      flatMap(CommonOptions, RunOptions),
 		"ssh":      flatMap(CommonOptions, SSHOptions),
 		"secret":   flatMap(CommonOptions, SecretOptions),
 		"mount":    flatMap(CommonOptions, MountOptions),
@@ -92,9 +91,6 @@ var (
 			// Ops
 			"shell": nil,
 			"run": []*ast.Field{
-				ast.NewField(ast.Str, "command", false),
-			},
-			"exec": []*ast.Field{
 				ast.NewField(ast.Str, "arg", true),
 			},
 			"env": []*ast.Field{
@@ -165,7 +161,7 @@ var (
 				ast.NewField(ast.Str, "value", false),
 			},
 		},
-		ast.OptionExec: map[string][]*ast.Field{
+		ast.OptionRun: map[string][]*ast.Field{
 			"readonlyRootfs": nil,
 			"network": []*ast.Field{
 				ast.NewField(ast.Str, "networkmode", false),

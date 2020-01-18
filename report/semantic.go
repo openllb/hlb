@@ -233,9 +233,6 @@ func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStm
 			}
 		}
 	case ast.Option:
-		if typ.SubType() == "run" {
-			typ.ObjType = ast.OptionExec
-		}
 		funcs = KeywordsByName[op]
 		params = Builtins[typ.ObjType][call.Func.Name]
 	}

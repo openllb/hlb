@@ -1,19 +1,21 @@
 fs hlbGit() {
-	git "https://github.com/openllb/hlb.git" "4b29ac7b778ec5fd7b31e8296ff857453dbb2f90"
+	git "https://github.com/openllb/hlb.git" "1684b5c90e2ec052dfe2fab6a7026b30a056df85"
 }
 
 fs goBuild(string package) {
 	image "golang:1.12-alpine"
-	run "apk add -U git gcc libc-dev"
+	run "apk" "add" "-U" "git" "gcc" "libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	exec "/usr/local/go/bin/go" "build" "-o" "/out/binary" "-ldflags" "-linkmode external -extldflags -static" "-a" package with option {
+	run string {
+		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
+	} with option {
 		mount hlbGit "/go/src/hlb"
-		mount { scratch; } "/out" as goBinary
-        	mount { scratch; } "/root/.cache/go-build" with option {
+		mount fs { scratch; } "/out" as goBinary
+        	mount fs { scratch; } "/root/.cache/go-build" with option {
 			cache "hlb/go-build" "private"
         	}
-        	mount { scratch; } "/go/pkg/mod" with option {
+        	mount fs { scratch; } "/go/pkg/mod" with option {
 			cache "hlb/go-mod" "private"
 		}
 	}
@@ -21,12 +23,12 @@ fs goBuild(string package) {
 
 fs hlbFrontend() {
 	scratch
-	copy { goBinary "./cmd/frontend"; } "/binary" "/run"
+	copy fs { goBinary "./cmd/frontend"; } "/binary" "/run"
 	copy hlbGit "/source.hlb" "/"
 	copy hlbGit "/signature.hlb" "/"
 }
 
 fs hlb() {
 	scratch
-	copy { goBinary "./cmd/hlb"; } "/binary" "/hlb"
+	copy fs { goBinary "./cmd/hlb"; } "/binary" "/hlb"
 }

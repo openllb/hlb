@@ -41,12 +41,12 @@ fs foo() {
 
 fs foo() {
 	image "alpine"
-	exec "sleep 5"
+	run "sleep 5"
 }
 
 fs foo() {
 	image "alpine"
-	exec "sh -c \"echo foo > foo\""
+	run "sh -c \"echo foo > foo\""
 }
 
 fs foo() {

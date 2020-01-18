@@ -26,7 +26,7 @@ fs i() { image "alpine";
 fs j() {
 	image "alpine"
 	env "key" "value"; env "key" "value"
-	exec "sh -c \"echo foo > foo\""
+	run "sh -c \"echo foo > foo\""
 }
 
 fs k() {
