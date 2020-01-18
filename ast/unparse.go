@@ -119,7 +119,15 @@ func (f *FieldList) String() string {
 }
 
 func (f *Field) String() string {
-	return fmt.Sprintf("%s %s", f.Type, f.Name)
+	variadic := ""
+	if f.Variadic != nil {
+		variadic = fmt.Sprintf("%s ", f.Variadic)
+	}
+	return fmt.Sprintf("%s%s %s", variadic, f.Type, f.Name)
+}
+
+func (v *Variadic) String() string {
+	return v.Keyword
 }
 
 func (e *Expr) String() string {
@@ -156,11 +164,7 @@ func (l *BasicLit) String() string {
 }
 
 func (l *BlockLit) String() string {
-	typ := ""
-	if l.Type != nil {
-		typ = fmt.Sprintf("%s ", l.Type)
-	}
-	return fmt.Sprintf("%s%s", typ, l.Body)
+	return fmt.Sprintf("%s %s", l.Type, l.Body)
 }
 
 func (s *Stmt) String() string {

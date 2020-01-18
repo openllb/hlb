@@ -57,6 +57,9 @@ func Walk(node Node, v Visitor) {
 	case *FieldList:
 		walkFieldList(n.List, v)
 	case *Field:
+		if n.Variadic != nil {
+			Walk(n.Variadic, v)
+		}
 		if n.Type != nil {
 			Walk(n.Type, v)
 		}

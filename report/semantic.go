@@ -1,6 +1,8 @@
 package report
 
 import (
+	"fmt"
+
 	"github.com/openllb/hlb/ast"
 )
 
@@ -90,7 +92,12 @@ func SemanticCheck(files ...*ast.File) (*ast.AST, error) {
 		}
 
 		if fun.Type != nil && fun.Body != nil {
-			err := checkBlockStmt(fun.Scope, fun.Type, fun.Body, nil)
+			var op string
+			if fun.Type.Type() == ast.Option {
+				op = string(fun.Type.SubType())
+			}
+
+			err := checkBlockStmt(fun.Scope, fun.Type, fun.Body, op)
 			if err != nil {
 				errs = append(errs, err)
 				return false
@@ -134,9 +141,9 @@ func checkFieldList(fields []*ast.Field) error {
 	return nil
 }
 
-func checkBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt, parent *ast.CallStmt) error {
+func checkBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt, op string) error {
 	if typ.Equals(ast.Option) {
-		return checkOptionBlockStmt(scope, typ.Type(), block, parent)
+		return checkOptionBlockStmt(scope, typ, block, op)
 	}
 
 	if block.NumStmts() == 0 {
@@ -155,46 +162,46 @@ func checkBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt, paren
 		i++
 
 		if !foundSource {
-			if !Contains(Sources, call.Func.Name) {
+			if !Contains(BuiltinSources[typ.Type()], call.Func.Name) {
 				obj := scope.Lookup(call.Func.Name)
 				if obj == nil {
 					return ErrFirstSource{call}
 				}
 
-				var typ *ast.Type
+				var callType *ast.Type
 				switch obj.Kind {
 				case ast.DeclKind:
 					switch n := obj.Node.(type) {
 					case *ast.FuncDecl:
-						typ = n.Type
+						callType = n.Type
 					case *ast.AliasDecl:
-						typ = n.Func.Type
+						callType = n.Func.Type
 					}
 				case ast.FieldKind:
 					field, ok := obj.Node.(*ast.Field)
 					if ok {
-						typ = field.Type
+						callType = field.Type
 					}
 				}
 
-				if !typ.Equals(ast.Filesystem) {
+				if !callType.Equals(typ.Type()) {
 					return ErrFirstSource{call}
 				}
 			}
 			foundSource = true
 
-			err := checkCallStmt(scope, typ.Type(), i, call, nil)
+			err := checkCallStmt(scope, typ, i, call, op)
 			if err != nil {
 				return err
 			}
 			continue
 		}
 
-		if Contains(Sources, call.Func.Name) {
+		if Contains(BuiltinSources[typ.Type()], call.Func.Name) {
 			return ErrOnlyFirstSource{call}
 		}
 
-		err := checkCallStmt(scope, typ.Type(), i, call, nil)
+		err := checkCallStmt(scope, typ, i, call, op)
 		if err != nil {
 			return err
 		}
@@ -203,31 +210,34 @@ func checkBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt, paren
 	return nil
 }
 
-func checkCallStmt(scope *ast.Scope, typ ast.ObjType, index int, call, parent *ast.CallStmt) error {
+func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStmt, op string) error {
 	var (
 		funcs  []string
 		params []*ast.Field
 	)
 
-	switch typ {
-	case ast.Filesystem:
+	switch typ.Type() {
+	case ast.Filesystem, ast.Str:
 		if index == 0 {
-			funcs = flatMap(Sources, Debugs)
+			funcs = flatMap(BuiltinSources[typ.Type()], Debugs)
 		} else {
 			funcs = flatMap(Ops, Debugs)
 		}
-		params = Builtins[call.Func.Name]
+		params = Builtins[typ.ObjType][call.Func.Name]
 
-		if call.Func.Name == "exec" {
-			params = make([]*ast.Field, len(call.Args))
-			for i := range call.Args {
-				params[i] = ast.NewField(ast.Str, "")
+		if len(params) > 0 && params[len(params)-1].Variadic != nil {
+			variadicParam := params[len(params)-1]
+			params = params[:len(params)-1]
+			for i, _ := range call.Args[len(params):] {
+				params = append(params, ast.NewField(variadicParam.Type.Type(), fmt.Sprintf("%s[%d]", variadicParam.Name, i), false))
 			}
 		}
-
 	case ast.Option:
-		funcs = KeywordsByName[parent.Func.Name]
-		params = Builtins[call.Func.Name]
+		if typ.SubType() == "run" {
+			typ.ObjType = ast.OptionExec
+		}
+		funcs = KeywordsByName[op]
+		params = Builtins[typ.ObjType][call.Func.Name]
 	}
 
 	if !Contains(funcs, call.Func.Name) {
@@ -253,17 +263,17 @@ func checkCallStmt(scope *ast.Scope, typ ast.ObjType, index int, call, parent *a
 	}
 
 	for i, arg := range call.Args {
-		typ := params[i].Type.Type()
+		typ := params[i].Type
 
 		var err error
 		switch {
 		case arg.Ident != nil:
-			err = checkIdentArg(scope, typ, arg.Ident, nil)
+			err = checkIdentArg(scope, typ.Type(), arg.Ident)
 		case arg.BasicLit != nil:
-			err = checkBasicLitArg(typ, arg.BasicLit)
+			err = checkBasicLitArg(typ.Type(), arg.BasicLit)
 
 		case arg.BlockLit != nil:
-			err = checkBlockLitArg(scope, typ, arg.BlockLit, nil)
+			err = checkBlockLitArg(scope, typ.Type(), arg.BlockLit, call.Func.Name)
 		default:
 			panic("unknown field type")
 		}
@@ -276,9 +286,9 @@ func checkCallStmt(scope *ast.Scope, typ ast.ObjType, index int, call, parent *a
 		var err error
 		switch {
 		case call.WithOpt.Ident != nil:
-			err = checkIdentArg(scope, ast.Option, call.WithOpt.Ident, call)
+			err = checkIdentArg(scope, ast.Option, call.WithOpt.Ident)
 		case call.WithOpt.BlockLit != nil:
-			err = checkBlockLitArg(scope, ast.Option, call.WithOpt.BlockLit, call)
+			err = checkBlockLitArg(scope, ast.Option, call.WithOpt.BlockLit, call.Func.Name)
 		default:
 			panic("unknown with opt type")
 		}
@@ -290,7 +300,7 @@ func checkCallStmt(scope *ast.Scope, typ ast.ObjType, index int, call, parent *a
 	return nil
 }
 
-func checkIdentArg(scope *ast.Scope, typ ast.ObjType, ident *ast.Ident, parent *ast.CallStmt) error {
+func checkIdentArg(scope *ast.Scope, typ ast.ObjType, ident *ast.Ident) error {
 	obj := scope.Lookup(ident.Name)
 	if obj == nil {
 		return ErrIdentNotDefined{ident}
@@ -315,7 +325,7 @@ func checkIdentArg(scope *ast.Scope, typ ast.ObjType, ident *ast.Ident, parent *
 		switch d := obj.Node.(type) {
 		case *ast.Field:
 			if !d.Type.Equals(typ) {
-				return ErrWrongArgType{ident.Pos, typ, d.Type.ObjType}
+				return ErrWrongArgType{ident.Pos, typ, d.Type.Type()}
 			}
 		default:
 			panic("unknown arg type")
@@ -349,15 +359,15 @@ func checkBasicLitArg(typ ast.ObjType, lit *ast.BasicLit) error {
 	return nil
 }
 
-func checkBlockLitArg(scope *ast.Scope, typ ast.ObjType, lit *ast.BlockLit, parent *ast.CallStmt) error {
+func checkBlockLitArg(scope *ast.Scope, typ ast.ObjType, lit *ast.BlockLit, op string) error {
 	if !lit.Type.Equals(typ) {
 		return ErrWrongArgType{lit.Pos, typ, lit.Type.ObjType}
 	}
 
-	return checkBlockStmt(scope, lit.Type, lit.Body, parent)
+	return checkBlockStmt(scope, lit.Type, lit.Body, op)
 }
 
-func checkOptionBlockStmt(scope *ast.Scope, typ ast.ObjType, block *ast.BlockStmt, parent *ast.CallStmt) error {
+func checkOptionBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt, op string) error {
 	i := -1
 	for _, stmt := range block.List {
 		call := stmt.Call
@@ -366,7 +376,8 @@ func checkOptionBlockStmt(scope *ast.Scope, typ ast.ObjType, block *ast.BlockStm
 		}
 		i++
 
-		err := checkCallStmt(scope, typ, i, call, parent)
+		callType := ast.NewType(ast.ObjType(fmt.Sprintf("%s::%s", ast.Option, op)))
+		err := checkCallStmt(scope, callType, i, call, op)
 		if err != nil {
 			return err
 		}

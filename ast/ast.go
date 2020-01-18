@@ -118,19 +118,32 @@ func (f *FieldList) NumFields() int {
 // Field represents a parameter declaration in a signature.
 type Field struct {
 	Pos  lexer.Position
+	Variadic *Variadic `( @@ )?`
 	Type *Type  `@@`
 	Name *Ident `@@`
 }
 
-func NewField(typ ObjType, name string) *Field {
-	return &Field{
+func NewField(typ ObjType, name string, variadic bool) *Field {
+	f := &Field{
 		Type: NewType(typ),
 		Name: NewIdent(name),
 	}
+	if variadic {
+		f.Variadic = &Variadic{Keyword: "variadic"}
+	}
+	return f
 }
 
 func (f *Field) Position() lexer.Position { return f.Pos }
 func (f *Field) End() lexer.Position      { return f.Name.End() }
+
+type Variadic struct {
+	Pos lexer.Position
+	Keyword string `@"variadic"`
+}
+
+func (v *Variadic) Position() lexer.Position { return v.Pos }
+func (v *Variadic) End() lexer.Position { return shiftPosition(v.Pos, len(v.Keyword), 0) }
 
 // Expr represents an expression node.
 type Expr struct {
@@ -188,12 +201,25 @@ func (t *Type) Equals(typ ObjType) bool {
 type ObjType string
 
 const (
-	None       ObjType = ""
-	Str        ObjType = "string"
-	Int        ObjType = "int"
-	Bool       ObjType = "bool"
-	Filesystem ObjType = "fs"
-	Option     ObjType = "option"
+	None           ObjType = ""
+	Str            ObjType = "string"
+	Int            ObjType = "int"
+	Bool           ObjType = "bool"
+	Filesystem     ObjType = "fs"
+	Option         ObjType = "option"
+	OptionImage    ObjType = "option::image"
+	OptionHTTP     ObjType = "option::http"
+	OptionGit      ObjType = "option::git"
+	OptionGenerate ObjType = "option::generate"
+	OptionRun      ObjType = "option::run"
+	OptionExec     ObjType = "option::exec"
+	OptionSSH      ObjType = "option::ssh"
+	OptionSecret   ObjType = "option::secret"
+	OptionMount    ObjType = "option::mount"
+	OptionMkdir    ObjType = "option::mkdir"
+	OptionMkfile   ObjType = "option::mkfile"
+	OptionRm       ObjType = "option::rm"
+	OptionCopy     ObjType = "option::copy"
 )
 
 // Ident represents an identifier.
@@ -289,15 +315,12 @@ func (l *BlockLit) NumStmts() int {
 }
 
 func NewBlockLit(typ ObjType, stmts ...*Stmt) *BlockLit {
-	lit := &BlockLit{
+	return &BlockLit{
+		Type: NewType(typ),
 		Body: &BlockStmt{
 			List: stmts,
 		},
 	}
-	if typ != Filesystem {
-		lit.Type = NewType(typ)
-	}
-	return lit
 }
 
 func NewBlockLitExpr(typ ObjType, stmts ...*Stmt) *Expr {

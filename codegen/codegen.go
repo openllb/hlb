@@ -43,7 +43,12 @@ func Generate(call *ast.CallStmt, root *ast.AST, opts ...CodeGenOption) (llb.Sta
 	case ast.DeclKind:
 		switch n := obj.Node.(type) {
 		case *ast.FuncDecl:
-			st, err = emitFuncDecl(info, root.Scope, n, call, noopAliasCallback)
+			if n.Type.Type() != ast.Filesystem {
+				return st, report.ErrInvalidTarget{call.Func}
+			}
+
+			fmt.Printf("emitting func decl %q\n", n.Name)
+			st, err = emitFilesystemFuncDecl(info, root.Scope, n, call, noopAliasCallback)
 		case *ast.AliasDecl:
 			st, err = emitAliasDecl(info, root.Scope, n, call)
 		}
@@ -71,61 +76,14 @@ type aliasCallback func(*ast.CallStmt, llb.State)
 
 func noopAliasCallback(_ *ast.CallStmt, _ llb.State) {}
 
-func emitFuncDecl(info *CodeGenInfo, scope *ast.Scope, fun *ast.FuncDecl, call *ast.CallStmt, ac aliasCallback) (st llb.State, err error) {
-	st = llb.Scratch()
-
-	var args []*ast.Expr
-	if call != nil {
-		args = call.Args
-	}
-
-	if len(args) != len(fun.Params.List) {
-		return st, fmt.Errorf("expected args %s", fun.Params)
-	}
-
-	err = parameterizedScope(info, scope, call, fun, args, ac)
-	if err != nil {
-		return st, err
-	}
-
-	// Before executing a function.
-	err = info.Debug(fun.Scope, fun, st)
-	if err != nil {
-		return st, err
-	}
-
-	switch fun.Type.Type() {
-	case ast.Filesystem:
-		st, err = emitFilesystem(info, fun.Scope, fun.Body.NonEmptyStmts(), ac)
-	default:
-		return st, report.ErrInvalidTarget{fun.Name}
-	}
-	return
-}
-
-func emitAliasDecl(info *CodeGenInfo, scope *ast.Scope, alias *ast.AliasDecl, call *ast.CallStmt) (st llb.State, err error) {
-	_, err = emitFuncDecl(info, scope, alias.Func, call, func(aliasCall *ast.CallStmt, aliasSt llb.State) {
-		if alias.Call == aliasCall {
-			st = aliasSt
-		}
-	})
-	if err != nil {
-		return llb.Scratch(), err
-	}
-
-	return st, nil
-}
-
-func emitFilesystem(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (llb.State, error) {
-	st := llb.Scratch()
-
+func emitBlock(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, stmts []*ast.Stmt, ac aliasCallback) (interface{}, error) {
 	index := 0
 
 	for i, stmt := range stmts {
 		if report.Contains(report.Debugs, stmt.Call.Func.Name) {
-			err := info.Debug(scope, stmt.Call, st)
+			err := info.Debug(scope, stmt.Call, llb.Scratch())
 			if err != nil {
-				return st, err
+				return nil, err
 			}
 			continue
 		}
@@ -136,269 +94,118 @@ func emitFilesystem(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac a
 
 	// Before executing a source call statement.
 	sourceStmt := stmts[index].Call
-	err := info.Debug(scope, sourceStmt, st)
+	err := info.Debug(scope, sourceStmt, llb.Scratch())
 	if err != nil {
-		return st, err
+		return nil, err
 	}
 
-	st, err = emitSourceStmt(info, scope, sourceStmt, ac)
+	v, err := emitSourceStmt(info, scope, typ, sourceStmt, ac)
 	if err != nil {
-		return st, err
+		return nil, err
 	}
 
 	if sourceStmt.Alias != nil {
 		// Source statements may be aliased.
-		ac(sourceStmt, st)
+		ac(sourceStmt, llb.Scratch())
 	}
 
 	for _, stmt := range stmts[index+1:] {
 		call := stmt.Call
 		if report.Contains(report.Debugs, call.Func.Name) {
-			err = info.Debug(scope, call, st)
+			err = info.Debug(scope, call, llb.Scratch())
 			if err != nil {
-				return st, err
+				return nil, err
 			}
 			continue
 		}
 
 		// Before executing the next call statement.
-		err = info.Debug(scope, call, st)
+		err = info.Debug(scope, call, llb.Scratch())
 		if err != nil {
-			return st, err
+			return nil, err
 		}
 
-		so, err := emitStateOption(info, scope, ast.Filesystem, call, ac)
+		chain, err := emitChainStmt(info, scope, typ, call, ac)
 		if err != nil {
-			return st, err
+			return nil, err
 		}
-
-		st = so(st)
+		v = chain(v)
 
 		if call.Alias != nil {
 			// Chain statements may be aliased.
-			ac(call, st)
+			ac(call, llb.Scratch())
 		}
 	}
 
-	return st, nil
+	return v, nil
 }
 
-func emitBlockLit(info *CodeGenInfo, scope *ast.Scope, lit *ast.BlockLit, parent *ast.CallStmt, ac aliasCallback) (interface{}, error) {
+func emitChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call *ast.CallStmt, ac aliasCallback) (func(v interface{}) interface{}, error) {
+	switch typ {
+	case ast.Filesystem:
+		chain, err := emitFilesystemChainStmt(info, scope, typ, call, ac)
+		if err != nil {
+			return nil, err
+		}
+		return func(v interface{}) interface{} {
+			return chain(v.(llb.State))
+		}, nil
+	case ast.Str:
+		chain, err := emitStringChainStmt(info, scope, call)
+		if err != nil {
+			return nil, err
+		}
+		return func(v interface{}) interface{} {
+			return chain(v.(string))
+		}, nil
+	default:
+		panic("unknown chain stmt")
+	}
+}
+
+func emitStringChainStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt) (func(string) string, error) {
+	panic("unimplemented")
+}
+
+func emitFilesystemBlock(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (llb.State, error) {
+	v, err := emitBlock(info, scope, ast.Filesystem, stmts, ac)
+	if err != nil {
+		return llb.Scratch(), err
+	}
+	return v.(llb.State), nil
+}
+
+func emitStringBlock(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (string, error) {
+	v, err := emitBlock(info, scope, ast.Str, stmts, noopAliasCallback)
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
+}
+
+func emitBlockLit(info *CodeGenInfo, scope *ast.Scope, lit *ast.BlockLit, op string, ac aliasCallback) (interface{}, error) {
 	switch lit.Type.Type() {
 	case ast.Str, ast.Int, ast.Bool:
 		panic("unimplemented")
 	case ast.Filesystem:
-		return emitFilesystem(info, scope, lit.Body.NonEmptyStmts(), ac)
+		return emitFilesystemBlock(info, scope, lit.Body.NonEmptyStmts(), ac)
 	case ast.Option:
-		return emitOptions(info, scope, parent, lit.Body.NonEmptyStmts(), ac)
+		fmt.Printf("emitting option block lit for %q\n", op)
+		return emitOptions(info, scope, op, lit.Body.NonEmptyStmts(), ac)
 	}
 	return nil, nil
 }
 
-func emitStringExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (string, error) {
-	switch {
-	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case ast.DeclKind:
-			panic("unimplemented")
-		case ast.ExprKind:
-			return obj.Data.(string), nil
-		default:
-			panic("unknown obj type")
-		}
-	case expr.BasicLit != nil:
-		return *expr.BasicLit.Str, nil
-	case expr.BlockLit != nil:
-		panic("unimplemented")
-	default:
-		panic("unknown string expr")
-	}
-}
-
-func emitIntExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (int, error) {
-	switch {
-	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case ast.DeclKind:
-			panic("unimplemented")
-		case ast.ExprKind:
-			return obj.Data.(int), nil
-		default:
-			panic("unknown obj type")
-		}
-	case expr.BasicLit != nil:
-		return *expr.BasicLit.Int, nil
-	case expr.BlockLit != nil:
-		panic("unimplemented")
-	default:
-		panic("unknown int expr")
-	}
-}
-
-func emitBoolExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (bool, error) {
-	switch {
-	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case ast.DeclKind:
-			panic("unimplemented")
-		case ast.ExprKind:
-			return obj.Data.(bool), nil
-		default:
-			panic("unknown obj type")
-		}
-	case expr.BasicLit != nil:
-		return *expr.BasicLit.Bool, nil
-	case expr.BlockLit != nil:
-		panic("unimplemented")
-	default:
-		panic("unknown bool expr")
-	}
-}
-
-func maybeEmitBoolExpr(info *CodeGenInfo, scope *ast.Scope, args []*ast.Expr) (bool, error) {
-	v := true
-	if len(args) > 0 {
-		var err error
-		v, err = emitBoolExpr(info, scope, args[0])
-		if err != nil {
-			return v, err
-		}
-	}
-	return v, nil
-}
-
-func emitFilesystemExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr *ast.Expr, ac aliasCallback) (llb.State, error) {
-	switch {
-	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case ast.DeclKind:
-			switch n := obj.Node.(type) {
-			case *ast.FuncDecl:
-				return emitFuncDecl(info, scope, n, call, noopAliasCallback)
-			case *ast.AliasDecl:
-				return emitAliasDecl(info, scope, n, call)
-			default:
-				panic("unknown decl object")
-			}
-		case ast.ExprKind:
-			return obj.Data.(llb.State), nil
-		default:
-			panic("unknown obj type")
-		}
-	case expr.BasicLit != nil:
-		panic("fs expr cannot be basic lit")
-	case expr.BlockLit != nil:
-		v, err := emitBlockLit(info, scope, expr.BlockLit, nil, ac)
-		if err != nil {
-			return llb.Scratch(), err
-		}
-		return v.(llb.State), nil
-	default:
-		panic("unknown fs expr")
-	}
-}
-
-func emitOptionExpr(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, expr *ast.Expr) ([]interface{}, error) {
-	switch {
-	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case ast.DeclKind:
-			panic("unimplemented")
-		case ast.ExprKind:
-			return obj.Data.([]interface{}), nil
-		default:
-			panic("unknown obj type")
-		}
-	case expr.BasicLit != nil:
-		panic("option expr cannot be basic lit")
-	case expr.BlockLit != nil:
-		v, err := emitBlockLit(info, scope, expr.BlockLit, parent, noopAliasCallback)
-		if err != nil {
-			return nil, err
-		}
-		return v.([]interface{}), nil
-	default:
-		panic("unknown option expr")
-	}
-}
-
-func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, ac aliasCallback) (llb.State, error) {
-	var st llb.State
-
-	iopts, err := emitWithOption(info, scope, call, call.WithOpt, ac)
-	if err != nil {
-		return st, err
-	}
-
-	_, ok := report.Builtins[call.Func.Name]
+func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call *ast.CallStmt, ac aliasCallback) (interface{}, error) {
+	_, ok := report.Builtins[typ][call.Func.Name]
 	if ok {
-		args := call.Args
-		switch call.Func.Name {
-		case "scratch":
-			st = llb.Scratch()
-		case "image":
-			ref, err := emitStringExpr(info, scope, args[0])
-			if err != nil {
-				return st, err
-			}
-
-			var opts []llb.ImageOption
-			for _, iopt := range iopts {
-				opt := iopt.(llb.ImageOption)
-				opts = append(opts, opt)
-			}
-
-			st = llb.Image(ref, opts...)
-		case "http":
-			url, err := emitStringExpr(info, scope, args[0])
-			if err != nil {
-				return st, err
-			}
-
-			var opts []llb.HTTPOption
-			for _, iopt := range iopts {
-				opt := iopt.(llb.HTTPOption)
-				opts = append(opts, opt)
-			}
-
-			st = llb.HTTP(url, opts...)
-		case "git":
-			remote, err := emitStringExpr(info, scope, args[0])
-			if err != nil {
-				return st, err
-			}
-			ref, err := emitStringExpr(info, scope, args[1])
-			if err != nil {
-				return st, err
-			}
-
-			var opts []llb.GitOption
-			for _, iopt := range iopts {
-				opt := iopt.(llb.GitOption)
-				opts = append(opts, opt)
-			}
-
-			st = llb.Git(remote, ref, opts...)
-		case "generate":
-			frontend, err := emitFilesystemExpr(info, scope, call, args[0], ac)
-			if err != nil {
-				return st, err
-			}
-
-			var opts []llb.FrontendOption
-			for _, iopt := range iopts {
-				opt := iopt.(llb.FrontendOption)
-				opts = append(opts, opt)
-			}
-
-			st = llb.Frontend(frontend, opts...)
+		switch typ {
+		case ast.Filesystem:
+			return emitFilesystemSourceStmt(info, scope, call, ac)
+		case ast.Str:
+			return emitStringSourceStmt(info, scope, call, ac)
 		default:
-			panic("unknown source stmt")
+			panic("unimplemented")
 		}
 	} else {
 		obj := scope.Lookup(call.Func.Name)
@@ -408,23 +215,112 @@ func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, ac 
 
 		switch n := obj.Node.(type) {
 		case *ast.FuncDecl:
-			var err error
-			st, err = emitFuncDecl(info, scope, n, call, noopAliasCallback)
-			if err != nil {
-				return st, err
-			}
+			return emitFuncDecl(info, scope, n, call, "", noopAliasCallback)
 		case *ast.AliasDecl:
-			var err error
-			st, err = emitAliasDecl(info, scope, n, call)
-			if err != nil {
-				return st, err
-			}
+			return emitAliasDecl(info, scope, n, call)
 		case *ast.Field:
-			st = obj.Data.(llb.State)
+			return obj.Data, nil
+		default:
+			panic("unknown obj type")
 		}
 	}
+}
 
-	return st, nil
+func emitFilesystemSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, ac aliasCallback) (st llb.State, err error) {
+	iopts, err := emitWithOption(info, scope, call, call.WithOpt, ac)
+	if err != nil {
+		return st, err
+	}
+
+	args := call.Args
+	switch call.Func.Name {
+	case "scratch":
+		return llb.Scratch(), nil
+	case "image":
+		ref, err := emitStringExpr(info, scope, args[0])
+		if err != nil {
+			return st, err
+		}
+
+		var opts []llb.ImageOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.ImageOption)
+			opts = append(opts, opt)
+		}
+
+		return llb.Image(ref, opts...), nil
+	case "http":
+		url, err := emitStringExpr(info, scope, args[0])
+		if err != nil {
+			return st, err
+		}
+
+		var opts []llb.HTTPOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.HTTPOption)
+			opts = append(opts, opt)
+		}
+
+		return llb.HTTP(url, opts...), nil
+	case "git":
+		remote, err := emitStringExpr(info, scope, args[0])
+		if err != nil {
+			return st, err
+		}
+		ref, err := emitStringExpr(info, scope, args[1])
+		if err != nil {
+			return st, err
+		}
+
+		var opts []llb.GitOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.GitOption)
+			opts = append(opts, opt)
+		}
+
+		return llb.Git(remote, ref, opts...), nil
+	case "generate":
+		frontend, err := emitFilesystemExpr(info, scope, call, args[0], ac)
+		if err != nil {
+			return st, err
+		}
+
+		var opts []llb.FrontendOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.FrontendOption)
+			opts = append(opts, opt)
+		}
+
+		return llb.Frontend(frontend, opts...), nil
+	default:
+		panic("unknown fs source stmt")
+	}
+}
+
+func emitStringSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, ac aliasCallback) (string, error) {
+	args := call.Args
+	switch call.Func.Name {
+	case "value":
+		return emitStringExpr(info, scope, args[0])
+	case "format":
+		formatStr, err := emitStringExpr(info, scope, args[0])
+		if err != nil {
+			return "", err
+		}
+
+		var as []interface{}
+		for _, arg := range args[1:] {
+			a, err := emitStringExpr(info, scope, arg)
+			if err != nil {
+				return "", err
+			}
+			as = append(as, a)
+		}
+
+		return fmt.Sprintf(formatStr, as...), nil
+	default:
+		panic("unknown string source stmt")
+	}
 }
 
 func emitWithOption(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, with *ast.WithOpt, ac aliasCallback) ([]interface{}, error) {
@@ -442,13 +338,14 @@ func emitWithOption(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, w
 			panic("unknown with option kind")
 		}
 	case with.BlockLit != nil:
-		return emitOptions(info, scope, parent, with.BlockLit.Body.NonEmptyStmts(), ac)
+		fmt.Printf("emitting with option for %q\n", parent.Func)
+		return emitOptions(info, scope, parent.Func.Name, with.BlockLit.Body.NonEmptyStmts(), ac)
 	default:
 		panic("unknown with option")
 	}
 }
 
-func emitStateOption(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call *ast.CallStmt, ac aliasCallback) (so llb.StateOption, err error) {
+func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call *ast.CallStmt, ac aliasCallback) (so llb.StateOption, err error) {
 	args := call.Args
 	iopts, err := emitWithOption(info, scope, call, call.WithOpt, ac)
 	if err != nil {
@@ -661,38 +558,38 @@ func emitStateOption(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call 
 	return so, nil
 }
 
-func emitOptions(info *CodeGenInfo, scope *ast.Scope, parent *ast.CallStmt, stmts []*ast.Stmt, ac aliasCallback) ([]interface{}, error) {
-	switch parent.Func.Name {
+func emitOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt, ac aliasCallback) ([]interface{}, error) {
+	switch op {
 	case "image":
-		return emitImageOptions(info, scope, stmts)
+		return emitImageOptions(info, scope, op, stmts)
 	case "http":
-		return emitHTTPOptions(info, scope, stmts)
+		return emitHTTPOptions(info, scope, op, stmts)
 	case "git":
-		return emitGitOptions(info, scope, stmts)
+		return emitGitOptions(info, scope, op, stmts)
 	case "generate":
-		return emitGenerateOptions(info, scope, stmts, ac)
+		return emitGenerateOptions(info, scope, op, stmts, ac)
 	case "run", "exec":
-		return emitExecOptions(info, scope, stmts, ac)
+		return emitExecOptions(info, scope, op, stmts, ac)
 	case "ssh":
-		return emitSSHOptions(info, scope, stmts)
+		return emitSSHOptions(info, scope, op, stmts)
 	case "secret":
-		return emitSecretOptions(info, scope, stmts)
+		return emitSecretOptions(info, scope, op, stmts)
 	case "mount":
-		return emitMountOptions(info, scope, stmts)
+		return emitMountOptions(info, scope, op, stmts)
 	case "mkdir":
-		return emitMkdirOptions(info, scope, stmts)
+		return emitMkdirOptions(info, scope, op, stmts)
 	case "mkfile":
-		return emitMkfileOptions(info, scope, stmts)
+		return emitMkfileOptions(info, scope, op, stmts)
 	case "rm":
-		return emitRmOptions(info, scope, stmts)
+		return emitRmOptions(info, scope, op, stmts)
 	case "copy":
-		return emitCopyOptions(info, scope, stmts)
+		return emitCopyOptions(info, scope, op, stmts)
 	default:
 		panic("call stmt does not support options")
 	}
 }
 
-func emitImageOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitImageOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -706,13 +603,19 @@ func emitImageOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (o
 				if v {
 					opts = append(opts, imagemetaresolver.WithDefault)
 				}
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitHTTPOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitHTTPOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -736,13 +639,19 @@ func emitHTTPOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (op
 					return opts, err
 				}
 				opts = append(opts, llb.Filename(filename))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitGitOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitGitOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -756,13 +665,19 @@ func emitGitOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opt
 				if v {
 					opts = append(opts, llb.KeepGitDir())
 				}
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -787,14 +702,21 @@ func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt,
 				if err != nil {
 					return opts, err
 				}
+				fmt.Printf("emitting frontendOpt %q=%q\n", key, value)
 				opts = append(opts, llb.WithFrontendOpt(key, value))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitMkdirOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitMkdirOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -824,13 +746,19 @@ func emitMkdirOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (o
 				}
 
 				opts = append(opts, llb.WithCreatedTime(t))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitMkfileOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitMkfileOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -854,13 +782,19 @@ func emitMkfileOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (
 				}
 
 				opts = append(opts, llb.WithCreatedTime(t))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitRmOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitRmOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -878,13 +812,19 @@ func emitRmOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts
 					return opts, err
 				}
 				opts = append(opts, llb.WithAllowWildcard(v))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
 }
 
-func emitCopyOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitCopyOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	cp := &llb.CopyInfo{}
 
 	for _, stmt := range stmts {
@@ -940,6 +880,12 @@ func emitCopyOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (op
 				}
 
 				opts = append(opts, llb.WithCreatedTime(t))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
@@ -948,7 +894,7 @@ func emitCopyOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (op
 	return
 }
 
-func emitExecOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func emitExecOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -1074,6 +1020,8 @@ func emitExecOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac 
 					return opts, err
 				}
 
+				fmt.Printf("emitting mount fs %q\n", target)
+
 				var mountOpts []llb.MountOption
 				for _, iopt := range iopts {
 					opt := iopt.(llb.MountOption)
@@ -1081,6 +1029,12 @@ func emitExecOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt, ac 
 				}
 
 				opts = append(opts, llb.AddMount(target, input, mountOpts...))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
@@ -1094,7 +1048,7 @@ type sshSocketOpt struct {
 	mode   int
 }
 
-func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	var sopt *sshSocketOpt
 	for _, stmt := range stmts {
 		switch {
@@ -1151,6 +1105,12 @@ func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opt
 				if v {
 					opts = append(opts, llb.SSHOptional)
 				}
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
@@ -1173,7 +1133,7 @@ type secretOpt struct {
 	mode int
 }
 
-func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	var sopt *secretOpt
 	for _, stmt := range stmts {
 		switch {
@@ -1213,6 +1173,12 @@ func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (
 					sopt = &secretOpt{}
 				}
 				sopt.mode = mode
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
@@ -1228,7 +1194,7 @@ func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (
 	return
 }
 
-func emitMountOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (opts []interface{}, err error) {
+func emitMountOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -1280,52 +1246,14 @@ func emitMountOptions(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (o
 				}
 
 				opts = append(opts, llb.AsPersistentCacheDir(id, sharing))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
 			}
 		}
 	}
 	return
-}
-
-func parameterizedScope(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, fun *ast.FuncDecl, args []*ast.Expr, ac aliasCallback) error {
-	for i, field := range fun.Params.List {
-		var (
-			data interface{}
-			err  error
-		)
-
-		typ := field.Type.Type()
-		switch typ {
-		case ast.Str:
-			var v string
-			v, err = emitStringExpr(info, scope, args[i])
-			data = v
-		case ast.Int:
-			var v int
-			v, err = emitIntExpr(info, scope, args[i])
-			data = v
-		case ast.Bool:
-			var v bool
-			v, err = emitBoolExpr(info, scope, args[i])
-			data = v
-		case ast.Filesystem:
-			var v llb.State
-			v, err = emitFilesystemExpr(info, scope, call, args[i], ac)
-			data = v
-		case ast.Option:
-			var v []interface{}
-			v, err = emitOptionExpr(info, scope, call, args[i])
-			data = v
-		}
-		if err != nil {
-			return err
-		}
-
-		fun.Scope.Insert(&ast.Object{
-			Kind:  ast.ExprKind,
-			Ident: field.Name,
-			Node:  field,
-			Data:  data,
-		})
-	}
-	return nil
 }

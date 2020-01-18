@@ -18,6 +18,7 @@ var (
 	Ops     = []string{"shell", "run", "exec", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
+	CommonOptions  = []string{"no-cache"}
 	ImageOptions    = []string{"resolve"}
 	HTTPOptions     = []string{"checksum", "chmod", "filename"}
 	GitOptions      = []string{"keepGitDir"}
@@ -46,161 +47,216 @@ var (
 
 	KeywordsByName = map[string][]string{
 		"fs":       Ops,
-		"image":    ImageOptions,
-		"http":     HTTPOptions,
-		"git":      GitOptions,
-		"generate": GenerateOptions,
-		"run":      ExecOptions,
-		"exec":     ExecOptions,
-		"ssh":      SSHOptions,
-		"secret":   SecretOptions,
-		"mount":    MountOptions,
-		"mkdir":    MkdirOptions,
-		"mkfile":   MkfileOptions,
-		"rm":       RmOptions,
-		"copy":     CopyOptions,
+		"image":    flatMap(CommonOptions, ImageOptions),
+		"http":     flatMap(CommonOptions, HTTPOptions),
+		"git":      flatMap(CommonOptions, GitOptions),
+		"generate": flatMap(CommonOptions, GenerateOptions),
+		"run":      flatMap(CommonOptions, ExecOptions),
+		"exec":     flatMap(CommonOptions, ExecOptions),
+		"ssh":      flatMap(CommonOptions, SSHOptions),
+		"secret":   flatMap(CommonOptions, SecretOptions),
+		"mount":    flatMap(CommonOptions, MountOptions),
+		"mkdir":    flatMap(CommonOptions, MkdirOptions),
+		"mkfile":   flatMap(CommonOptions, MkfileOptions),
+		"rm":       flatMap(CommonOptions, RmOptions),
+		"copy":     flatMap(CommonOptions, CopyOptions),
 		"network":  NetworkModes,
 		"security": SecurityModes,
 		"cache":    CacheSharingModes,
 	}
 
-	Builtins = map[string][]*ast.Field{
-		// Debug ops
-		"breakpoint": nil,
-		// Source ops
-		"scratch": nil,
-		"image": []*ast.Field{
-			ast.NewField(ast.Str, "ref"),
+	BuiltinSources = map[ast.ObjType][]string {
+		ast.Filesystem: Sources,
+		ast.Str: []string{"value", "format"},
+	}
+
+	Builtins = map[ast.ObjType]map[string][]*ast.Field{
+		ast.Filesystem: map[string][]*ast.Field{
+			// Debug ops
+			"breakpoint": nil,
+			// Source ops
+			"scratch": nil,
+			"image": []*ast.Field{
+				ast.NewField(ast.Str, "ref", false),
+			},
+			"http": []*ast.Field{
+				ast.NewField(ast.Str, "url", false),
+			},
+			"git": []*ast.Field{
+				ast.NewField(ast.Str, "remote", false),
+				ast.NewField(ast.Str, "ref", false),
+			},
+			"generate": []*ast.Field{
+				ast.NewField(ast.Filesystem, "frontend", false),
+			},
+			// Ops
+			"shell": nil,
+			"run": []*ast.Field{
+				ast.NewField(ast.Str, "command", false),
+			},
+			"exec": []*ast.Field{
+				ast.NewField(ast.Str, "arg", true),
+			},
+			"env": []*ast.Field{
+				ast.NewField(ast.Str, "key", false),
+				ast.NewField(ast.Str, "value", false),
+			},
+			"dir": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+			},
+			"user": []*ast.Field{
+				ast.NewField(ast.Str, "name", false),
+			},
+			"mkdir": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+				ast.NewField(ast.Int, "filemode", false),
+			},
+			"mkfile": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+				ast.NewField(ast.Int, "filemode", false),
+				ast.NewField(ast.Str, "content", false),
+			},
+			"rm": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+			},
+			"copy": []*ast.Field{
+				ast.NewField(ast.Filesystem, "input", false),
+				ast.NewField(ast.Str, "src", false),
+				ast.NewField(ast.Str, "dest", false),
+			},
 		},
-		"http": []*ast.Field{
-			ast.NewField(ast.Str, "url"),
+		ast.Str: map[string][]*ast.Field{
+			"value": []*ast.Field{
+				ast.NewField(ast.Str, "literal", false),
+			},
+			"format": []*ast.Field{
+				ast.NewField(ast.Str, "format", false),
+				ast.NewField(ast.Str, "values", true),
+			},
 		},
-		"git": []*ast.Field{
-			ast.NewField(ast.Str, "remote"),
-			ast.NewField(ast.Str, "ref"),
+		// Common options
+		ast.Option: map[string][]*ast.Field{
+			"no-cache": nil,
 		},
-		"generate": []*ast.Field{
-			ast.NewField(ast.Filesystem, "frontend"),
+		ast.OptionImage: map[string][]*ast.Field{
+			"resolve": nil,
 		},
-		// Ops
-		"shell": nil,
-		"run": []*ast.Field{
-			ast.NewField(ast.Str, "command"),
+		ast.OptionHTTP: map[string][]*ast.Field{
+			"checksum": []*ast.Field{
+				ast.NewField(ast.Str, "digest", false),
+			},
+			"chmod": []*ast.Field{
+				ast.NewField(ast.Int, "filemode", false),
+			},
+			"filename": []*ast.Field{
+				ast.NewField(ast.Str, "name", false),
+			},
 		},
-		"exec": nil,
-		"env": []*ast.Field{
-			ast.NewField(ast.Str, "key"),
-			ast.NewField(ast.Str, "value"),
+		ast.OptionGit: map[string][]*ast.Field{
+			"keepGitDir": nil,
 		},
-		"dir": []*ast.Field{
-			ast.NewField(ast.Str, "path"),
+		ast.OptionGenerate: map[string][]*ast.Field{
+			"frontendInput": []*ast.Field{
+				ast.NewField(ast.Str, "key", false),
+				ast.NewField(ast.Filesystem, "value", false),
+			},
+			"frontendOpt": []*ast.Field{
+				ast.NewField(ast.Str, "key", false),
+				ast.NewField(ast.Str, "value", false),
+			},
 		},
-		"user": []*ast.Field{
-			ast.NewField(ast.Str, "name"),
+		ast.OptionExec: map[string][]*ast.Field{
+			"readonlyRootfs": nil,
+			"network": []*ast.Field{
+				ast.NewField(ast.Str, "networkmode", false),
+			},
+			"security": []*ast.Field{
+				ast.NewField(ast.Str, "securitymode", false),
+			},
+			"host": []*ast.Field{
+				ast.NewField(ast.Str, "name", false),
+				ast.NewField(ast.Str, "address", false),
+			},
+			"ssh": nil,
+			"secret": []*ast.Field{
+				ast.NewField(ast.Str, "target", false),
+			},
+			"mount": []*ast.Field{
+				ast.NewField(ast.Filesystem, "input", false),
+				ast.NewField(ast.Str, "target", false),
+			},
 		},
-		"mkdir": []*ast.Field{
-			ast.NewField(ast.Str, "path"),
-			ast.NewField(ast.Int, "filemode"),
+		ast.OptionSSH: map[string][]*ast.Field{
+			"target": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+			},
+			"id": []*ast.Field{
+				ast.NewField(ast.Str, "cacheid", false),
+			},
+			"uid": []*ast.Field{
+				ast.NewField(ast.Int, "value", false),
+			},
+			"gid": []*ast.Field{
+				ast.NewField(ast.Int, "value", false),
+			},
+			"mode": []*ast.Field{
+				ast.NewField(ast.Int, "filemode", false),
+			},
+			"optional": nil,
 		},
-		"mkfile": []*ast.Field{
-			ast.NewField(ast.Str, "path"),
-			ast.NewField(ast.Int, "filemode"),
-			ast.NewField(ast.Str, "content"),
+		ast.OptionSecret: map[string][]*ast.Field{
+			"id": []*ast.Field{
+				ast.NewField(ast.Str, "cacheid", false),
+			},
+			"uid": []*ast.Field{
+				ast.NewField(ast.Int, "value", false),
+			},
+			"gid": []*ast.Field{
+				ast.NewField(ast.Int, "value", false),
+			},
+			"mode": []*ast.Field{
+				ast.NewField(ast.Int, "filemode", false),
+			},
+			"optional": nil,
 		},
-		"rm": []*ast.Field{
-			ast.NewField(ast.Str, "path"),
+		ast.OptionMount: map[string][]*ast.Field{
+			"readonly": nil,
+			"tmpfs":    nil,
+			"sourcePath": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+			},
+			"cache": []*ast.Field{
+				ast.NewField(ast.Str, "cacheid", false),
+				ast.NewField(ast.Str, "cachemode", false),
+			},
 		},
-		"copy": []*ast.Field{
-			ast.NewField(ast.Filesystem, "input"),
-			ast.NewField(ast.Str, "src"),
-			ast.NewField(ast.Str, "dest"),
+		ast.OptionMkdir: map[string][]*ast.Field{
+			"createParents": nil,
+			"chown": []*ast.Field{
+				ast.NewField(ast.Str, "owner", false),
+			},
+			"createdTime": []*ast.Field{
+				ast.NewField(ast.Str, "created", false),
+			},
 		},
-		// Image options
-		"resolve": nil,
-		// HTTP options
-		"checksum": []*ast.Field{
-			ast.NewField(ast.Str, "digest"),
+		ast.OptionMkfile: map[string][]*ast.Field{
+			"chown": []*ast.Field{
+				ast.NewField(ast.Str, "owner", false),
+			},
+			"createdTime": []*ast.Field{
+				ast.NewField(ast.Str, "created", false),
+			},
 		},
-		"chmod": []*ast.Field{
-			ast.NewField(ast.Int, "filemode"),
+		ast.OptionRm: map[string][]*ast.Field{
+			"allowNotFound":  nil,
+			"allowWildcards": nil,
 		},
-		"filename": []*ast.Field{
-			ast.NewField(ast.Str, "name"),
+		ast.OptionCopy: map[string][]*ast.Field{
+			"followSymlinks": nil,
+			"contentsOnly":   nil,
+			"unpack":         nil,
+			"createDestPath": nil,
 		},
-		// Git options
-		"keepGitDir": nil,
-		// Generate options
-		"frontendInput": []*ast.Field{
-			ast.NewField(ast.Str, "key"),
-			ast.NewField(ast.Filesystem, "value"),
-		},
-		"frontendOpt": []*ast.Field{
-			ast.NewField(ast.Str, "key"),
-			ast.NewField(ast.Str, "value"),
-		},
-		// Exec options
-		"readonlyRootfs": nil,
-		"network": []*ast.Field{
-			ast.NewField(ast.Str, "networkmode"),
-		},
-		"security": []*ast.Field{
-			ast.NewField(ast.Str, "securitymode"),
-		},
-		"host": []*ast.Field{
-			ast.NewField(ast.Str, "name"),
-			ast.NewField(ast.Str, "address"),
-		},
-		"ssh": nil,
-		"secret": []*ast.Field{
-			ast.NewField(ast.Str, "target"),
-		},
-		"mount": []*ast.Field{
-			ast.NewField(ast.Filesystem, "input"),
-			ast.NewField(ast.Str, "target"),
-		},
-		// SSH & Secret options
-		"target": []*ast.Field{
-			ast.NewField(ast.Str, "path"),
-		},
-		"id": []*ast.Field{
-			ast.NewField(ast.Str, "cacheid"),
-		},
-		"uid": []*ast.Field{
-			ast.NewField(ast.Int, "value"),
-		},
-		"gid": []*ast.Field{
-			ast.NewField(ast.Int, "value"),
-		},
-		"mode": []*ast.Field{
-			ast.NewField(ast.Int, "filemode"),
-		},
-		"optional": nil,
-		// Mount options
-		"readonly": nil,
-		"tmpfs":    nil,
-		"sourcePath": []*ast.Field{
-			ast.NewField(ast.Str, "path"),
-		},
-		"cache": []*ast.Field{
-			ast.NewField(ast.Str, "cacheid"),
-			ast.NewField(ast.Str, "cachemode"),
-		},
-		// Mkdir options
-		"createParents": nil,
-		"chown": []*ast.Field{
-			ast.NewField(ast.Str, "owner"),
-		},
-		"createdTime": []*ast.Field{
-			ast.NewField(ast.Str, "created"),
-		},
-		// Rm options
-		"allowNotFound":  nil,
-		"allowWildcards": nil,
-		// Copy options
-		"followSymlinks": nil,
-		"contentsOnly":   nil,
-		"unpack":         nil,
-		"createDestPath": nil,
 	}
 )
 
