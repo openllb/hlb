@@ -23,6 +23,13 @@ const (
 )
 
 func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			ioutil.WriteFile("/panic", []byte(fmt.Sprintf("%s", r)), 0644)
+		}
+	}()
+
 	res, err := frontend(ctx, c)
 	if err != nil {
 		ioutil.WriteFile("/error", []byte(err.Error()), 0644)
