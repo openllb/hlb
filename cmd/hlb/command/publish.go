@@ -16,6 +16,7 @@ import (
 var publishCommand = &cli.Command{
 	Name:  "publish",
 	Usage: "compiles a target and publishes it as a HLB frontend",
+	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "target",

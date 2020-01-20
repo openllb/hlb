@@ -15,6 +15,7 @@ var formatCommand = &cli.Command{
 	Name:    "format",
 	Aliases: []string{"fmt"},
 	Usage:   "formats HLB programs",
+	ArgsUsage: "[ <*.hlb> ... ]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:    "write",

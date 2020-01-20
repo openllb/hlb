@@ -223,7 +223,9 @@ func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStm
 		} else {
 			funcs = flatMap(Ops, Debugs)
 		}
-		params = Builtins[typ.ObjType][call.Func.Name]
+		builtins := Builtins[typ.ObjType][call.Func.Name]
+		params = make([]*ast.Field, len(builtins))
+		copy(params, builtins)
 
 		if len(params) > 0 && params[len(params)-1].Variadic != nil {
 			variadicParam := params[len(params)-1]

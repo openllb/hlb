@@ -16,6 +16,7 @@ import (
 var getCommand = &cli.Command{
 	Name:    "get",
 	Usage:   "compiles a HLB program to get signature HLB program from a frontend",
+	ArgsUsage: "<image ref>",
 	Action: func(c *cli.Context) error {
 		if c.NArg() != 1 {
 			return fmt.Errorf("must have exactly one argument")
