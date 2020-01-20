@@ -27,10 +27,10 @@ var (
 	ErrDebugExit = errors.New("exiting debugger")
 )
 
-type Debugger func(scope *ast.Scope, node ast.Node, st llb.State) error
+type Debugger func(scope *ast.Scope, node ast.Node, value interface{}) error
 
 func NewNoopDebugger() Debugger {
-	return func(_ *ast.Scope, _ ast.Node, _ llb.State) error {
+	return func(_ *ast.Scope, _ ast.Node, _ interface{}) error {
 		return nil
 	}
 }
@@ -38,7 +38,7 @@ func NewNoopDebugger() Debugger {
 type snapshot struct {
 	scope *ast.Scope
 	node  ast.Node
-	st    llb.State
+	value interface{}
 }
 
 func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]*report.IndexedBuffer) Debugger {
@@ -56,10 +56,10 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 		breakpoints       []*Breakpoint
 	)
 
-	return func(scope *ast.Scope, node ast.Node, st llb.State) error {
+	return func(scope *ast.Scope, node ast.Node, value interface{}) error {
 		// Store a snapshot of the current debug step so we can backtrack.
 		historyIndex++
-		history = append(history, &snapshot{scope, node, st})
+		history = append(history, &snapshot{scope, node, value})
 
 		debug := func(s *snapshot) error {
 			showList := true
@@ -195,21 +195,45 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 					cont = true
 					return nil
 				case "dir":
-					fmt.Fprintf(w, "Working directory %q\n", s.st.GetDir())
+					st, ok := s.value.(llb.State)
+					if !ok {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
+					fmt.Fprintf(w, "Working directory %q\n", st.GetDir())
 				case "dot":
+					st, ok := s.value.(llb.State)
+					if !ok {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
 					var sh string
 					if len(args) == 2 {
 						sh = args[1]
 					}
 
-					err = printGraph(ctx, s.st, sh)
+					err = printGraph(ctx, st, sh)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 					}
 					continue
 				case "env":
-					fmt.Fprintf(w, "Environment %s\n", s.st.Env())
+					st, ok := s.value.(llb.State)
+					if !ok {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
+					fmt.Fprintf(w, "Environment %s\n", st.Env())
 				case "exec":
+					st, ok := s.value.(llb.State)
+					if !ok {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
 					if len(args) == 0 {
 						fmt.Fprintf(w, "no args\n")
 						continue
@@ -219,13 +243,13 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 					wc := &nopWriteCloser{buf}
 
 					ref := "hlb-exec"
-					err = solver.Solve(ctx, c, s.st, solver.WithDownloadDockerTarball(ref, wc))
+					err = solver.Solve(ctx, c, st, solver.WithDownloadDockerTarball(ref, wc))
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 						continue
 					}
 
-					err = debugExec(ctx, s.st, buf, ref, args[1], args[2:]...)
+					err = debugExec(ctx, st, buf, ref, args[1], args[2:]...)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 						continue
@@ -288,7 +312,13 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 					next = fun
 					return nil
 				case "network":
-					fmt.Fprintf(w, "Network %s\n", s.st.GetNetwork())
+					st, ok := s.value.(llb.State)
+					if !ok {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
+					fmt.Fprintf(w, "Network %s\n", st.GetNetwork())
 				case "print":
 					fmt.Fprintf(w, "print\n")
 				case "restart", "r":
@@ -303,7 +333,13 @@ func NewDebugger(ctx context.Context, c *client.Client, w io.Writer, r *bufio.Re
 						return nil
 					}
 				case "security":
-					fmt.Fprintf(w, "Security %s\n", s.st.GetSecurity())
+					st, ok := s.value.(llb.State)
+					if !ok {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
+					fmt.Fprintf(w, "Security %s\n", st.GetSecurity())
 				case "step", "s":
 					return nil
 				case "stepout":
@@ -409,7 +445,7 @@ func printList(color aurora.Aurora, ibs map[string]*report.IndexedBuffer, w io.W
 		}
 	}
 
-	fmt.Fprintf(w, fmt.Sprintf("%s\n", strings.Join(lines, "\n")))
+	fmt.Fprintln(w, strings.Join(lines, "\n"))
 	return nil
 }
 

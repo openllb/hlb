@@ -23,8 +23,18 @@ func emitFuncDecl(info *CodeGenInfo, scope *ast.Scope, fun *ast.FuncDecl, call *
 		return nil, err
 	}
 
+	var v interface{}
+	switch fun.Type.Type() {
+	case ast.Filesystem:
+		v = llb.Scratch()
+	case ast.Option:
+		v = []interface{}{}
+	case ast.Str:
+		v = ""
+	}
+
 	// Before executing a function.
-	err = info.Debug(fun.Scope, fun, llb.Scratch())
+	err = info.Debug(fun.Scope, fun, v)
 	if err != nil {
 		return nil, err
 	}
@@ -65,17 +75,34 @@ func emitStringFuncDecl(info *CodeGenInfo, scope *ast.Scope, fun *ast.FuncDecl, 
 	return v.(string), nil
 }
 
-func emitAliasDecl(info *CodeGenInfo, scope *ast.Scope, alias *ast.AliasDecl, call *ast.CallStmt) (st llb.State, err error) {
-	_, err = emitFuncDecl(info, scope, alias.Func, call, "", func(aliasCall *ast.CallStmt, aliasSt llb.State) {
+func emitAliasDecl(info *CodeGenInfo, scope *ast.Scope, alias *ast.AliasDecl, call *ast.CallStmt) (interface{}, error) {
+	var v interface{}
+	_, err := emitFuncDecl(info, scope, alias.Func, call, "", func(aliasCall *ast.CallStmt, aliasValue interface{}) {
 		if alias.Call == aliasCall {
-			st = aliasSt
+			v = aliasValue
 		}
 	})
 	if err != nil {
-		return llb.Scratch(), err
+		return nil, err
 	}
 
-	return st, nil
+	return v, nil
+}
+
+func emitFilesystemAliasDecl(info *CodeGenInfo, scope *ast.Scope, alias *ast.AliasDecl, call *ast.CallStmt) (llb.State, error) {
+	v, err := emitAliasDecl(info, scope, alias, call)
+	if err != nil {
+		return llb.Scratch(), err
+	}
+	return v.(llb.State), nil
+}
+
+func emitStringAliasDecl(info *CodeGenInfo, scope *ast.Scope, alias *ast.AliasDecl, call *ast.CallStmt) (string, error) {
+	v, err := emitAliasDecl(info, scope, alias, call)
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
 }
 
 func parameterizedScope(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, op string, fun *ast.FuncDecl, args []*ast.Expr, ac aliasCallback) error {
@@ -89,7 +116,7 @@ func parameterizedScope(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt,
 		switch typ {
 		case ast.Str:
 			var v string
-			v, err = emitStringExpr(info, scope, args[i])
+			v, err = emitStringExpr(info, scope, call, args[i])
 			data = v
 		case ast.Int:
 			var v int

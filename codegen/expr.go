@@ -5,13 +5,20 @@ import (
 	"github.com/openllb/hlb/ast"
 )
 
-func emitStringExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (string, error) {
+func emitStringExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr *ast.Expr) (string, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
 		case ast.DeclKind:
-			panic("unimplemented")
+			switch n := obj.Node.(type) {
+			case *ast.FuncDecl:
+				return emitStringFuncDecl(info, scope, n, call, noopAliasCallback)
+			case *ast.AliasDecl:
+				return emitStringAliasDecl(info, scope, n, call)
+			default:
+				panic("unknown decl object")
+			}
 		case ast.ExprKind:
 			return obj.Data.(string), nil
 		default:
@@ -90,7 +97,7 @@ func emitFilesystemExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt,
 			case *ast.FuncDecl:
 				return emitFilesystemFuncDecl(info, scope, n, call, noopAliasCallback)
 			case *ast.AliasDecl:
-				return emitAliasDecl(info, scope, n, call)
+				return emitFilesystemAliasDecl(info, scope, n, call)
 			default:
 				panic("unknown decl object")
 			}
