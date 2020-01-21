@@ -117,10 +117,10 @@ func (f *FieldList) NumFields() int {
 
 // Field represents a parameter declaration in a signature.
 type Field struct {
-	Pos  lexer.Position
+	Pos      lexer.Position
 	Variadic *Variadic `( @@ )?`
-	Type *Type  `@@`
-	Name *Ident `@@`
+	Type     *Type     `@@`
+	Name     *Ident    `@@`
 }
 
 func NewField(typ ObjType, name string, variadic bool) *Field {
@@ -138,12 +138,12 @@ func (f *Field) Position() lexer.Position { return f.Pos }
 func (f *Field) End() lexer.Position      { return f.Name.End() }
 
 type Variadic struct {
-	Pos lexer.Position
+	Pos     lexer.Position
 	Keyword string `@"variadic"`
 }
 
 func (v *Variadic) Position() lexer.Position { return v.Pos }
-func (v *Variadic) End() lexer.Position { return shiftPosition(v.Pos, len(v.Keyword), 0) }
+func (v *Variadic) End() lexer.Position      { return shiftPosition(v.Pos, len(v.Keyword), 0) }
 
 // Expr represents an expression node.
 type Expr struct {
@@ -210,6 +210,7 @@ const (
 	OptionImage    ObjType = "option::image"
 	OptionHTTP     ObjType = "option::http"
 	OptionGit      ObjType = "option::git"
+	OptionLocal    ObjType = "option::local"
 	OptionGenerate ObjType = "option::generate"
 	OptionRun      ObjType = "option::run"
 	OptionSSH      ObjType = "option::ssh"

@@ -14,17 +14,17 @@ import (
 	"github.com/openllb/hlb/report"
 )
 
-func Compile(ctx context.Context, cln *client.Client, target string, rs []io.Reader, debug bool) (llb.State, error) {
+func Compile(ctx context.Context, cln *client.Client, target string, rs []io.Reader, debug bool) (llb.State, *codegen.CodeGenInfo, error) {
 	st := llb.Scratch()
 
 	files, ibs, err := ParseMultiple(rs, defaultOpts()...)
 	if err != nil {
-		return st, err
+		return st, nil, err
 	}
 
 	root, err := report.SemanticCheck(files...)
 	if err != nil {
-		return st, err
+		return st, nil, err
 	}
 
 	call := &ast.CallStmt{

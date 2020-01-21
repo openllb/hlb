@@ -9,34 +9,36 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
+	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/ast"
 	"github.com/openllb/hlb/report"
 )
 
-func Generate(call *ast.CallStmt, root *ast.AST, opts ...CodeGenOption) (llb.State, error) {
+func Generate(call *ast.CallStmt, root *ast.AST, opts ...CodeGenOption) (llb.State, *CodeGenInfo, error) {
 	st := llb.Scratch()
 
 	info := &CodeGenInfo{
-		Debug: NewNoopDebugger(),
+		Debug:  NewNoopDebugger(),
+		Locals: make(map[string]string),
 	}
 	for _, opt := range opts {
 		err := opt(info)
 		if err != nil {
-			return st, err
+			return st, info, err
 		}
 	}
 
 	obj := root.Scope.Lookup(call.Func.Name)
 	if obj == nil {
-		return st, fmt.Errorf("unknown target %q", call.Func.Name)
+		return st, info, fmt.Errorf("unknown target %q", call.Func.Name)
 	}
 
 	// Before executing anything.
 	err := info.Debug(root.Scope, root, nil)
 	if err != nil {
-		return st, err
+		return st, info, err
 	}
 
 	switch obj.Kind {
@@ -44,28 +46,29 @@ func Generate(call *ast.CallStmt, root *ast.AST, opts ...CodeGenOption) (llb.Sta
 		switch n := obj.Node.(type) {
 		case *ast.FuncDecl:
 			if n.Type.Type() != ast.Filesystem {
-				return st, report.ErrInvalidTarget{call.Func}
+				return st, info, report.ErrInvalidTarget{call.Func}
 			}
 
 			st, err = emitFilesystemFuncDecl(info, root.Scope, n, call, noopAliasCallback)
 		case *ast.AliasDecl:
 			if n.Func.Type.Type() != ast.Filesystem {
-				return st, report.ErrInvalidTarget{call.Func}
+				return st, info, report.ErrInvalidTarget{call.Func}
 			}
 
 			st, err = emitFilesystemAliasDecl(info, root.Scope, n, call)
 		}
 	default:
-		return st, report.ErrInvalidTarget{call.Func}
+		return st, info, report.ErrInvalidTarget{call.Func}
 	}
 
-	return st, err
+	return st, info, err
 }
 
 type CodeGenOption func(*CodeGenInfo) error
 
 type CodeGenInfo struct {
-	Debug Debugger
+	Debug  Debugger
+	Locals map[string]string
 }
 
 func WithDebugger(dbgr Debugger) CodeGenOption {
@@ -225,6 +228,7 @@ func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call *
 
 		switch n := obj.Node.(type) {
 		case *ast.FuncDecl:
+			fmt.Printf("emitting source func decl %s\n", n.Name)
 			return emitFuncDecl(info, scope, n, call, "", noopAliasCallback)
 		case *ast.AliasDecl:
 			return emitAliasDecl(info, scope, n, call)
@@ -289,8 +293,24 @@ func emitFilesystemSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.Cal
 		}
 
 		return llb.Git(remote, ref, opts...), nil
+	case "local":
+		path, err := emitStringExpr(info, scope, call, args[0])
+		if err != nil {
+			return st, err
+		}
+
+		id := identity.NewID()
+		info.Locals[id] = path
+
+		var opts []llb.LocalOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.LocalOption)
+			opts = append(opts, opt)
+		}
+
+		return llb.Local(id), nil
 	case "generate":
-		frontend, err := emitFilesystemExpr(info, scope, call, args[0], ac)
+		frontend, err := emitFilesystemExpr(info, scope, nil, args[0], ac)
 		if err != nil {
 			return st, err
 		}
@@ -585,6 +605,8 @@ func emitOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.St
 		return emitHTTPOptions(info, scope, op, stmts)
 	case "git":
 		return emitGitOptions(info, scope, op, stmts)
+	case "local":
+		return emitLocalOptions(info, scope, op, stmts)
 	case "generate":
 		return emitGenerateOptions(info, scope, op, stmts, ac)
 	case "run":
@@ -696,6 +718,51 @@ func emitGitOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast
 	return
 }
 
+func emitLocalOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
+	for _, stmt := range stmts {
+		switch {
+		case stmt.Call != nil:
+			args := stmt.Call.Args
+			switch stmt.Call.Func.Name {
+			case "includePatterns":
+				patterns := make([]string, len(args))
+				for i, arg := range args {
+					patterns[i], err = emitStringExpr(info, scope, stmt.Call, arg)
+					if err != nil {
+						return opts, err
+					}
+				}
+				opts = append(opts, llb.IncludePatterns(patterns))
+			case "excludePatterns":
+				patterns := make([]string, len(args))
+				for i, arg := range args {
+					patterns[i], err = emitStringExpr(info, scope, stmt.Call, arg)
+					if err != nil {
+						return opts, err
+					}
+				}
+				opts = append(opts, llb.ExcludePatterns(patterns))
+			case "followPaths":
+				paths := make([]string, len(args))
+				for i, arg := range args {
+					paths[i], err = emitStringExpr(info, scope, stmt.Call, arg)
+					if err != nil {
+						return opts, err
+					}
+				}
+				opts = append(opts, llb.FollowPaths(paths))
+			default:
+				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
+			}
+		}
+	}
+	return
+}
+
 func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
@@ -707,7 +774,7 @@ func emitGenerateOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts [
 				if err != nil {
 					return opts, err
 				}
-				value, err := emitFilesystemExpr(info, scope, stmt.Call, args[1], ac)
+				value, err := emitFilesystemExpr(info, scope, nil, args[1], ac)
 				if err != nil {
 					return opts, err
 				}

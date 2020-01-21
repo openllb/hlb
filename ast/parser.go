@@ -24,7 +24,7 @@ var (
 	        Newline  = \n
 
 	        whitespace = \s+
-	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved([]string{"with", "as", "local"}), reserved(Types))))
+	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved([]string{"with", "as"}), reserved(Types))))
 
 	Parser = participle.MustBuild(
 		&File{},

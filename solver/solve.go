@@ -22,6 +22,7 @@ type SolveInfo struct {
 	OutputDockerWriter io.WriteCloser
 	OutputPushImage    string
 	OutputLocal        string
+	Locals             map[string]string
 }
 
 func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
@@ -39,15 +40,24 @@ func WithPushImage(ref string) SolveOption {
 	}
 }
 
-func WithDownloadLocal(dest string) SolveOption {
+func WithDownload(dest string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputLocal = dest
 		return nil
 	}
 }
 
+func WithLocal(id, path string) SolveOption {
+	return func(info *SolveInfo) error {
+		info.Locals[id] = path
+		return nil
+	}
+}
+
 func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOption) error {
-	var info SolveInfo
+	info := SolveInfo{
+		Locals: make(map[string]string),
+	}
 	for _, opt := range opts {
 		err := opt(&info)
 		if err != nil {
@@ -59,9 +69,6 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 	if err != nil {
 		return err
 	}
-
-	ch := make(chan *client.SolveStatus)
-	eg, ctx := errgroup.WithContext(ctx)
 
 	attachable := []session.Attachable{authprovider.NewDockerAuthProvider(os.Stderr)}
 
@@ -85,6 +92,7 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 
 	solveOpt := client.SolveOpt{
 		Session: attachable,
+		LocalDirs: make(map[string]string),
 	}
 
 	if info.OutputDockerWriter != nil {
@@ -113,6 +121,13 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 			OutputDir: info.OutputLocal,
 		})
 	}
+
+	for id, path := range info.Locals {
+		solveOpt.LocalDirs[id] = path
+	}
+
+	ch := make(chan *client.SolveStatus)
+	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
 		_, err := c.Solve(ctx, def, solveOpt, ch)

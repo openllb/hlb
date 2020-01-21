@@ -14,8 +14,8 @@ import (
 )
 
 var runCommand = &cli.Command{
-	Name:  "run",
-	Usage: "compiles a HLB program to LLB",
+	Name:      "run",
+	Usage:     "compiles a HLB program to LLB",
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -71,7 +71,7 @@ var runCommand = &cli.Command{
 			return err
 		}
 
-		st, err := hlb.Compile(ctx, cln, c.String("target"), []io.Reader{r}, c.Bool("debug"))
+		st, info, err := hlb.Compile(ctx, cln, c.String("target"), []io.Reader{r}, c.Bool("debug"))
 		if err != nil {
 			// Ignore early exits from the debugger.
 			if err == codegen.ErrDebugExit {
@@ -91,10 +91,14 @@ var runCommand = &cli.Command{
 
 		var solveOpts []solver.SolveOption
 		if c.IsSet("download") {
-			solveOpts = append(solveOpts, solver.WithDownloadLocal(c.String("download")))
+			solveOpts = append(solveOpts, solver.WithDownload(c.String("download")))
 		}
 		if c.IsSet("push") {
 			solveOpts = append(solveOpts, solver.WithPushImage(c.String("push")))
+		}
+
+		for id, path := range info.Locals {
+			solveOpts = append(solveOpts, solver.WithLocal(id, path))
 		}
 
 		return solver.Solve(ctx, cln, st, solveOpts...)

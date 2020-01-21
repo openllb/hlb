@@ -149,7 +149,7 @@ var publishCommand = &cli.Command{
 			return err
 		}
 
-		st, err := codegen.Generate(ast.NewCallStmt(entryName, nil, nil, nil).Call, root)
+		st, _, err := codegen.Generate(ast.NewCallStmt(entryName, nil, nil, nil).Call, root)
 		if err != nil {
 			return err
 		}

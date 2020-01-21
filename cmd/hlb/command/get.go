@@ -14,8 +14,8 @@ import (
 )
 
 var getCommand = &cli.Command{
-	Name:    "get",
-	Usage:   "compiles a HLB program to get signature HLB program from a frontend",
+	Name:      "get",
+	Usage:     "compiles a HLB program to get signature HLB program from a frontend",
 	ArgsUsage: "<image ref>",
 	Action: func(c *cli.Context) error {
 		if c.NArg() != 1 {
@@ -57,7 +57,7 @@ var getCommand = &cli.Command{
 			return err
 		}
 
-		st, err := codegen.Generate(ast.NewCallStmt(entryName, nil, nil, nil).Call, root)
+		st, _, err := codegen.Generate(ast.NewCallStmt(entryName, nil, nil, nil).Call, root)
 		if err != nil {
 			return err
 		}
@@ -68,6 +68,6 @@ var getCommand = &cli.Command{
 			return err
 		}
 
-		return solver.Solve(ctx, cln, st, solver.WithDownloadLocal("."))
+		return solver.Solve(ctx, cln, st, solver.WithDownload("."))
 	},
 }

@@ -14,16 +14,17 @@ import (
 )
 
 var (
-	Sources = []string{"scratch", "image", "http", "git", "generate"}
+	Sources = []string{"scratch", "image", "http", "git", "local", "generate"}
 	Ops     = []string{"shell", "run", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
-	CommonOptions  = []string{"no-cache"}
+	CommonOptions   = []string{"no-cache"}
 	ImageOptions    = []string{"resolve"}
 	HTTPOptions     = []string{"checksum", "chmod", "filename"}
 	GitOptions      = []string{"keepGitDir"}
+	LocalOptions    = []string{"includePatterns", "excludePatterns", "followPaths"}
 	GenerateOptions = []string{"frontendInput", "frontendOpt"}
-	RunOptions     = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
+	RunOptions      = []string{"readonlyRootfs", "env", "dir", "user", "network", "security", "host", "ssh", "secret", "mount"}
 	SSHOptions      = []string{"target", "id", "uid", "gid", "mode", "optional"}
 	SecretOptions   = []string{"id", "uid", "gid", "mode", "optional"}
 	MountOptions    = []string{"readonly", "tmpfs", "sourcePath", "cache"}
@@ -50,6 +51,7 @@ var (
 		"image":    flatMap(CommonOptions, ImageOptions),
 		"http":     flatMap(CommonOptions, HTTPOptions),
 		"git":      flatMap(CommonOptions, GitOptions),
+		"local":    flatMap(CommonOptions, LocalOptions),
 		"generate": flatMap(CommonOptions, GenerateOptions),
 		"run":      flatMap(CommonOptions, RunOptions),
 		"ssh":      flatMap(CommonOptions, SSHOptions),
@@ -64,9 +66,9 @@ var (
 		"cache":    CacheSharingModes,
 	}
 
-	BuiltinSources = map[ast.ObjType][]string {
+	BuiltinSources = map[ast.ObjType][]string{
 		ast.Filesystem: Sources,
-		ast.Str: []string{"value", "format"},
+		ast.Str:        []string{"value", "format"},
 	}
 
 	Builtins = map[ast.ObjType]map[string][]*ast.Field{
@@ -84,6 +86,9 @@ var (
 			"git": []*ast.Field{
 				ast.NewField(ast.Str, "remote", false),
 				ast.NewField(ast.Str, "ref", false),
+			},
+			"local": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
 			},
 			"generate": []*ast.Field{
 				ast.NewField(ast.Filesystem, "frontend", false),
@@ -150,6 +155,17 @@ var (
 		},
 		ast.OptionGit: map[string][]*ast.Field{
 			"keepGitDir": nil,
+		},
+		ast.OptionLocal: map[string][]*ast.Field{
+			"includePatterns": []*ast.Field{
+				ast.NewField(ast.Str, "patterns", true),
+			},
+			"excludePatterns": []*ast.Field{
+				ast.NewField(ast.Str, "patterns", true),
+			},
+			"followPaths": []*ast.Field{
+				ast.NewField(ast.Str, "paths", true),
+			},
 		},
 		ast.OptionGenerate: map[string][]*ast.Field{
 			"frontendInput": []*ast.Field{

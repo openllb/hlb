@@ -133,7 +133,7 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		}
 	}
 
-	st, err := codegen.Generate(call, root)
+	st, _, err := codegen.Generate(call, root)
 	if err != nil {
 		return nil, err
 	}

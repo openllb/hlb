@@ -15,7 +15,7 @@ func emitFuncDecl(info *CodeGenInfo, scope *ast.Scope, fun *ast.FuncDecl, call *
 	}
 
 	if len(args) != len(fun.Params.List) {
-		return nil, fmt.Errorf("expected args %s", fun.Params)
+		return nil, fmt.Errorf("%s expected args %s, found %s", fun.Name, fun.Params.List, args)
 	}
 
 	err := parameterizedScope(info, scope, call, op, fun, args, ac)
@@ -128,7 +128,7 @@ func parameterizedScope(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt,
 			data = v
 		case ast.Filesystem:
 			var v llb.State
-			v, err = emitFilesystemExpr(info, scope, call, args[i], ac)
+			v, err = emitFilesystemExpr(info, scope, nil, args[i], ac)
 			data = v
 		case ast.Option:
 			var v []interface{}

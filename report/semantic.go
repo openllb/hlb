@@ -223,20 +223,13 @@ func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStm
 		} else {
 			funcs = flatMap(Ops, Debugs)
 		}
-		builtins := Builtins[typ.ObjType][call.Func.Name]
-		params = make([]*ast.Field, len(builtins))
-		copy(params, builtins)
-
-		if len(params) > 0 && params[len(params)-1].Variadic != nil {
-			variadicParam := params[len(params)-1]
-			params = params[:len(params)-1]
-			for i, _ := range call.Args[len(params):] {
-				params = append(params, ast.NewField(variadicParam.Type.Type(), fmt.Sprintf("%s[%d]", variadicParam.Name, i), false))
-			}
-		}
+		builtins := Builtins[typ.Type()][call.Func.Name]
+		params = handleVariadicParams(builtins, call.Args)
 	case ast.Option:
+		optionType := ast.ObjType(fmt.Sprintf("%s::%s", ast.Option, op))
 		funcs = KeywordsByName[op]
-		params = Builtins[typ.ObjType][call.Func.Name]
+		builtins := Builtins[optionType][call.Func.Name]
+		params = handleVariadicParams(builtins, call.Args)
 	}
 
 	if !Contains(funcs, call.Func.Name) {
@@ -245,16 +238,18 @@ func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStm
 			return ErrInvalidFunc{call}
 		}
 
+		var fields []*ast.Field
 		if obj.Kind == ast.DeclKind {
 			switch n := obj.Node.(type) {
 			case *ast.FuncDecl:
-				params = n.Params.List
+				fields = n.Params.List
 			case *ast.AliasDecl:
-				params = n.Func.Params.List
+				fields = n.Func.Params.List
 			default:
 				panic("unknown decl object")
 			}
 		}
+		params = handleVariadicParams(fields, call.Args)
 	}
 
 	if len(params) != len(call.Args) {
@@ -382,4 +377,19 @@ func checkOptionBlockStmt(scope *ast.Scope, typ *ast.Type, block *ast.BlockStmt,
 		}
 	}
 	return nil
+}
+
+func handleVariadicParams(fields []*ast.Field, args []*ast.Expr) []*ast.Field {
+	params := make([]*ast.Field, len(fields))
+	copy(params, fields)
+
+	if len(params) > 0 && params[len(params)-1].Variadic != nil {
+		variadicParam := params[len(params)-1]
+		params = params[:len(params)-1]
+		for i, _ := range args[len(params):] {
+			params = append(params, ast.NewField(variadicParam.Type.Type(), fmt.Sprintf("%s[%d]", variadicParam.Name, i), false))
+		}
+	}
+
+	return params
 }
