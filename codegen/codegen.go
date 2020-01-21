@@ -228,7 +228,6 @@ func emitSourceStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, call *
 
 		switch n := obj.Node.(type) {
 		case *ast.FuncDecl:
-			fmt.Printf("emitting source func decl %s\n", n.Name)
 			return emitFuncDecl(info, scope, n, call, "", noopAliasCallback)
 		case *ast.AliasDecl:
 			return emitAliasDecl(info, scope, n, call)
