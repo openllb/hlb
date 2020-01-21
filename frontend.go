@@ -124,6 +124,8 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 				return nil, fmt.Errorf("expected input %q", name)
 			}
 
+			call.Args = append(call.Args, ast.NewIdentExpr(param.Name.Name))
+
 			fun.Scope.Insert(&ast.Object{
 				Kind:  ast.ExprKind,
 				Ident: param.Name,
