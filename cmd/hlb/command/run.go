@@ -28,14 +28,19 @@ var runCommand = &cli.Command{
 			Name:  "debug",
 			Usage: "compile using a debugger",
 		},
-		&cli.BoolFlag{
-			Name:  "llb",
-			Usage: "output the LLB to stdout instead of solving it",
-		},
 		&cli.StringFlag{
 			Name:    "download",
 			Aliases: []string{"d"},
 			Usage:   "download the solved hlb filesystem to a directory",
+		},
+		&cli.StringFlag{
+			Name:  "log-output",
+			Usage: "set type of log output (tty, plain, json, raw)",
+			Value: "tty",
+		},
+		&cli.BoolFlag{
+			Name:  "llb",
+			Usage: "output the LLB to stdout instead of solving it",
 		},
 		&cli.StringFlag{
 			Name:    "push",
@@ -90,6 +95,20 @@ var runCommand = &cli.Command{
 		}
 
 		var solveOpts []solver.SolveOption
+		if c.IsSet("log-output") {
+			switch c.String("log-output") {
+			case "tty":
+				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputTTY))
+			case "plain":
+				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputPlain))
+			case "json":
+				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputJSON))
+			case "raw":
+				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputRaw))
+			default:
+				return fmt.Errorf("unrecognized log-output %q", c.String("log-output"))
+			}
+		}
 		if c.IsSet("download") {
 			solveOpts = append(solveOpts, solver.WithDownload(c.String("download")))
 		}

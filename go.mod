@@ -5,9 +5,8 @@ go 1.12
 require (
 	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
 	github.com/containerd/console v0.0.0-20181022165439-0650fd9eeb50
-	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/kr/pretty v0.2.0
+	github.com/kr/pretty v0.2.0 // indirect
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
 	github.com/moby/buildkit v0.6.3

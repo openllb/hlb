@@ -18,11 +18,28 @@ import (
 type SolveOption func(*SolveInfo) error
 
 type SolveInfo struct {
+	LogOutput          LogOutput
 	OutputDockerRef    string
 	OutputDockerWriter io.WriteCloser
 	OutputPushImage    string
 	OutputLocal        string
 	Locals             map[string]string
+}
+
+type LogOutput int
+
+const (
+	LogOutputTTY LogOutput = iota
+	LogOutputPlain
+	LogOutputJSON
+	LogOutputRaw
+)
+
+func WithLogOutput(logOutput LogOutput) SolveOption {
+	return func(info *SolveInfo) error {
+		info.LogOutput = logOutput
+		return nil
+	}
 }
 
 func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
@@ -91,7 +108,7 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 	}
 
 	solveOpt := client.SolveOpt{
-		Session: attachable,
+		Session:   attachable,
 		LocalDirs: make(map[string]string),
 	}
 
@@ -138,18 +155,23 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 	})
 
 	eg.Go(func() error {
-		var (
-			c   console.Console
-			err error
-		)
+		switch info.LogOutput {
+		case LogOutputTTY, LogOutputPlain:
+			var c console.Console
+			if info.LogOutput == LogOutputTTY {
+				var err error
+				c, err = console.ConsoleFromFile(os.Stderr)
+				if err != nil {
+					return err
+				}
+			}
 
-		c, err = console.ConsoleFromFile(os.Stderr)
-		if err != nil {
-			return err
+			// not using shared context to not disrupt display but let is finish reporting errors
+			return progressui.DisplaySolveStatus(context.TODO(), "", c, os.Stderr, ch)
+		case LogOutputJSON, LogOutputRaw:
+			return StreamSolveStatus(ctx, info.LogOutput, os.Stdout, ch)
 		}
-
-		// not using shared context to not disrupt display but let is finish reporting errors
-		return progressui.DisplaySolveStatus(context.TODO(), "", c, os.Stderr, ch)
+		return nil
 	})
 
 	err = eg.Wait()
