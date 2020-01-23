@@ -2,16 +2,20 @@ package solver
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 
 	"github.com/containerd/console"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/exporter/containerimage/exptypes"
+	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -147,10 +151,32 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		_, err := c.Solve(ctx, def, solveOpt, ch)
-		if err != nil {
-			return err
-		}
+		_, err := c.Build(ctx, solveOpt, "", func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+			res, err := c.Solve(ctx, gateway.SolveRequest{
+				Definition: def.ToPB(),
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if _, ok := res.Metadata[exptypes.ExporterImageConfigKey]; !ok {
+				img := specs.Image{
+					Config: specs.ImageConfig{
+						Env:        st.Env(),
+						Entrypoint: st.GetArgs(),
+						WorkingDir: st.GetDir(),
+					},
+				}
+
+				config, err := json.Marshal(img)
+				if err != nil {
+					return nil, err
+				}
+
+				res.AddMeta(exptypes.ExporterImageConfigKey, config)
+			}
+			return res, nil
+		}, ch)
 		return err
 	})
 

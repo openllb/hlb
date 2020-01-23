@@ -343,6 +343,10 @@ func checkBasicLitArg(typ ast.ObjType, lit *ast.BasicLit) error {
 		if lit.Int == nil {
 			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
 		}
+	case ast.Octal:
+		if lit.Octal == nil {
+			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
+		}
 	case ast.Bool:
 		if lit.Bool == nil {
 			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}

@@ -199,10 +199,12 @@ func emitStringBlock(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (st
 
 func emitBlockLit(info *CodeGenInfo, scope *ast.Scope, lit *ast.BlockLit, op string, ac aliasCallback) (interface{}, error) {
 	switch lit.Type.Type() {
-	case ast.Str, ast.Int, ast.Bool:
+	case ast.Int, ast.Octal, ast.Bool:
 		panic("unimplemented")
 	case ast.Filesystem:
 		return emitFilesystemBlock(info, scope, lit.Body.NonEmptyStmts(), ac)
+	case ast.Str:
+		return emitStringBlock(info, scope, lit.Body.NonEmptyStmts())
 	case ast.Option:
 		return emitOptions(info, scope, op, lit.Body.NonEmptyStmts(), ac)
 	}
@@ -493,13 +495,26 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 		so = func(st llb.State) llb.State {
 			return st.User(name)
 		}
+	case "args":
+		var stArgs []string
+		for _, arg := range args {
+			stArg, err := emitStringExpr(info, scope, call, arg)
+			if err != nil {
+				return so, err
+			}
+			stArgs = append(stArgs, stArg)
+		}
+
+		so = func(st llb.State) llb.State {
+			return st.Args(stArgs...)
+		}
 	case "mkdir":
 		path, err := emitStringExpr(info, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
 
-		mode, err := emitIntExpr(info, scope, args[1])
+		mode, err := emitOctalExpr(info, scope, args[1])
 		if err != nil {
 			return so, err
 		}
@@ -517,7 +532,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 
 		so = func(st llb.State) llb.State {
 			return st.File(
-				llb.Mkdir(path, os.FileMode(mode), opts...),
+				llb.Mkdir(path, mode, opts...),
 			)
 		}
 	case "mkfile":
@@ -526,7 +541,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 			return so, err
 		}
 
-		mode, err := emitIntExpr(info, scope, args[1])
+		mode, err := emitOctalExpr(info, scope, args[1])
 		if err != nil {
 			return so, err
 		}
@@ -544,7 +559,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 
 		so = func(st llb.State) llb.State {
 			return st.File(
-				llb.Mkfile(path, os.FileMode(mode), []byte(content), opts...),
+				llb.Mkfile(path, mode, []byte(content), opts...),
 			)
 		}
 	case "rm":
@@ -668,11 +683,11 @@ func emitHTTPOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*as
 				}
 				opts = append(opts, llb.Checksum(digest.Digest(dgst)))
 			case "chmod":
-				mode, err := emitIntExpr(info, scope, args[0])
+				mode, err := emitOctalExpr(info, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
-				opts = append(opts, llb.Chmod(os.FileMode(mode)))
+				opts = append(opts, llb.Chmod(mode))
 			case "filename":
 				filename, err := emitStringExpr(info, scope, stmt.Call, args[0])
 				if err != nil {
@@ -1127,7 +1142,7 @@ type sshSocketOpt struct {
 	target string
 	uid    int
 	gid    int
-	mode   int
+	mode   os.FileMode
 }
 
 func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
@@ -1171,7 +1186,7 @@ func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast
 				}
 				sopt.gid = gid
 			case "mode":
-				mode, err := emitIntExpr(info, scope, args[0])
+				mode, err := emitOctalExpr(info, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1202,7 +1217,7 @@ func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast
 			sopt.target,
 			sopt.uid,
 			sopt.gid,
-			sopt.mode,
+			int(sopt.mode),
 		))
 	}
 
@@ -1212,7 +1227,7 @@ func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast
 type secretOpt struct {
 	uid  int
 	gid  int
-	mode int
+	mode os.FileMode
 }
 
 func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast.Stmt) (opts []interface{}, err error) {
@@ -1247,7 +1262,7 @@ func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*
 				}
 				sopt.gid = gid
 			case "mode":
-				mode, err := emitIntExpr(info, scope, args[0])
+				mode, err := emitOctalExpr(info, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1269,7 +1284,7 @@ func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*
 		opts = append(opts, llb.SecretFileOpt(
 			sopt.uid,
 			sopt.gid,
-			sopt.mode,
+			int(sopt.mode),
 		))
 	}
 

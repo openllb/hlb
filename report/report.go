@@ -15,7 +15,7 @@ import (
 
 var (
 	Sources = []string{"scratch", "image", "http", "git", "local", "generate"}
-	Ops     = []string{"shell", "run", "env", "dir", "user", "mkdir", "mkfile", "rm", "copy"}
+	Ops     = []string{"shell", "run", "env", "dir", "user", "args", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
 	CommonOptions   = []string{"no-cache"}
@@ -108,13 +108,16 @@ var (
 			"user": []*ast.Field{
 				ast.NewField(ast.Str, "name", false),
 			},
+			"args": []*ast.Field{
+				ast.NewField(ast.Str, "command", true),
+			},
 			"mkdir": []*ast.Field{
 				ast.NewField(ast.Str, "path", false),
-				ast.NewField(ast.Int, "filemode", false),
+				ast.NewField(ast.Octal, "filemode", false),
 			},
 			"mkfile": []*ast.Field{
 				ast.NewField(ast.Str, "path", false),
-				ast.NewField(ast.Int, "filemode", false),
+				ast.NewField(ast.Octal, "filemode", false),
 				ast.NewField(ast.Str, "content", false),
 			},
 			"rm": []*ast.Field{
@@ -147,7 +150,7 @@ var (
 				ast.NewField(ast.Str, "digest", false),
 			},
 			"chmod": []*ast.Field{
-				ast.NewField(ast.Int, "filemode", false),
+				ast.NewField(ast.Octal, "filemode", false),
 			},
 			"filename": []*ast.Field{
 				ast.NewField(ast.Str, "name", false),
@@ -179,6 +182,16 @@ var (
 		},
 		ast.OptionRun: map[string][]*ast.Field{
 			"readonlyRootfs": nil,
+			"env": []*ast.Field{
+				ast.NewField(ast.Str, "key", false),
+				ast.NewField(ast.Str, "value", false),
+			},
+			"dir": []*ast.Field{
+				ast.NewField(ast.Str, "path", false),
+			},
+			"user": []*ast.Field{
+				ast.NewField(ast.Str, "name", false),
+			},
 			"network": []*ast.Field{
 				ast.NewField(ast.Str, "networkmode", false),
 			},
@@ -212,7 +225,7 @@ var (
 				ast.NewField(ast.Int, "value", false),
 			},
 			"mode": []*ast.Field{
-				ast.NewField(ast.Int, "filemode", false),
+				ast.NewField(ast.Octal, "filemode", false),
 			},
 			"optional": nil,
 		},
@@ -227,7 +240,7 @@ var (
 				ast.NewField(ast.Int, "value", false),
 			},
 			"mode": []*ast.Field{
-				ast.NewField(ast.Int, "filemode", false),
+				ast.NewField(ast.Octal, "filemode", false),
 			},
 			"optional": nil,
 		},

@@ -14,8 +14,8 @@ import (
 )
 
 var publishCommand = &cli.Command{
-	Name:  "publish",
-	Usage: "compiles a target and publishes it as a HLB frontend",
+	Name:      "publish",
+	Usage:     "compiles a target and publishes it as a HLB frontend",
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -105,7 +105,7 @@ var publishCommand = &cli.Command{
 										ast.NewCallStmt("image", []*ast.Expr{
 											ast.NewStringExpr(c.String("ref")),
 										}, nil, nil),
-							                ),
+									),
 								}, ast.NewWithBlockLit(frontendStmts...), nil),
 							},
 						},
@@ -129,12 +129,12 @@ var publishCommand = &cli.Command{
 								}, nil, nil),
 								ast.NewCallStmt("mkfile", []*ast.Expr{
 									ast.NewStringExpr(hlb.SourceHLB),
-									ast.NewIntExpr(int(hlb.HLBFileMode)),
+									ast.NewOctalExpr(hlb.HLBFileMode),
 									ast.NewStringExpr(strings.Join(sources, "")),
 								}, nil, nil),
 								ast.NewCallStmt("mkfile", []*ast.Expr{
 									ast.NewStringExpr(hlb.SignatureHLB),
-									ast.NewIntExpr(int(hlb.HLBFileMode)),
+									ast.NewOctalExpr(hlb.HLBFileMode),
 									ast.NewStringExpr(signatureHLB.String()),
 								}, nil, nil),
 							},

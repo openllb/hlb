@@ -34,6 +34,10 @@ var runCommand = &cli.Command{
 			Usage:   "download the solved hlb filesystem to a directory",
 		},
 		&cli.StringFlag{
+			Name:    "docker-tarball",
+			Usage:   "download the solved hlb filesystem as a docker-tarball",
+		},
+		&cli.StringFlag{
 			Name:  "log-output",
 			Usage: "set type of log output (tty, plain, json, raw)",
 			Value: "tty",
@@ -111,6 +115,9 @@ var runCommand = &cli.Command{
 		}
 		if c.IsSet("download") {
 			solveOpts = append(solveOpts, solver.WithDownload(c.String("download")))
+		}
+		if c.IsSet("docker-tarball") {
+			solveOpts = append(solveOpts, solver.WithDownloadDockerTarball(c.String("docker-tarball"), os.Stdout))
 		}
 		if c.IsSet("push") {
 			solveOpts = append(solveOpts, solver.WithPushImage(c.String("push")))

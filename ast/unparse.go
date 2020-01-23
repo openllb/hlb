@@ -155,8 +155,9 @@ func (l *BasicLit) String() string {
 	case l.Str != nil:
 		return strconv.Quote(*l.Str)
 	case l.Int != nil:
-		// return strconv.Itoa(*l.Int)
-		return fmt.Sprintf("%04o", *l.Int)
+		return strconv.Itoa(*l.Int)
+	case l.Octal != nil:
+		return fmt.Sprintf("%04o", *l.Octal)
 	case l.Bool != nil:
 		return strconv.FormatBool(*l.Bool)
 	}

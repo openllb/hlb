@@ -1,6 +1,8 @@
 package codegen
 
 import (
+	"os"
+
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/ast"
 )
@@ -47,6 +49,27 @@ func emitIntExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (int, erro
 		}
 	case expr.BasicLit != nil:
 		return *expr.BasicLit.Int, nil
+	case expr.BlockLit != nil:
+		panic("unimplemented")
+	default:
+		panic("unknown int expr")
+	}
+}
+
+func emitOctalExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (os.FileMode, error) {
+	switch {
+	case expr.Ident != nil:
+		obj := scope.Lookup(expr.Ident.Name)
+		switch obj.Kind {
+		case ast.DeclKind:
+			panic("unimplemented")
+		case ast.ExprKind:
+			return obj.Data.(os.FileMode), nil
+		default:
+			panic("unknown obj type")
+		}
+	case expr.BasicLit != nil:
+		return *expr.BasicLit.Octal, nil
 	case expr.BlockLit != nil:
 		panic("unimplemented")
 	default:

@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
@@ -204,6 +205,7 @@ const (
 	None           ObjType = ""
 	Str            ObjType = "string"
 	Int            ObjType = "int"
+	Octal          ObjType = "octal"
 	Bool           ObjType = "bool"
 	Filesystem     ObjType = "fs"
 	Option         ObjType = "option"
@@ -243,16 +245,17 @@ func NewIdentExpr(name string) *Expr {
 
 // BasicLit represents a literal of basic type.
 type BasicLit struct {
-	Pos  lexer.Position
-	Str  *string `( @String`
-	Int  *int    `| @Int`
-	Bool *bool   `| @Bool )`
+	Pos   lexer.Position
+	Str   *string      `( @String`
+	Int   *int         `| @Int`
+	Octal *os.FileMode `| @Int`
+	Bool  *bool        `| @Bool )`
 }
 
 func (l *BasicLit) Position() lexer.Position { return l.Pos }
 func (l *BasicLit) End() lexer.Position {
 	switch {
-	case l.Str != nil, l.Int != nil, l.Bool != nil:
+	case l.Str != nil, l.Int != nil, l.Octal != nil, l.Bool != nil:
 		return shiftPosition(l.Pos, len(l.String()), 0)
 	default:
 		return shiftPosition(l.Pos, 1, 0)
@@ -266,6 +269,8 @@ func (l *BasicLit) ObjType() ObjType {
 		return Str
 	case l.Int != nil:
 		return Int
+	case l.Octal != nil:
+		return Octal
 	case l.Bool != nil:
 		return Bool
 	}
@@ -284,6 +289,14 @@ func NewIntExpr(v int) *Expr {
 	return &Expr{
 		BasicLit: &BasicLit{
 			Int: &v,
+		},
+	}
+}
+
+func NewOctalExpr(v os.FileMode) *Expr {
+	return &Expr{
+		BasicLit: &BasicLit{
+			Octal: &v,
 		},
 	}
 }
