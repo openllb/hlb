@@ -103,11 +103,20 @@ func (d *FuncDecl) String() string {
 		doc = fmt.Sprintf("%s", d.Doc)
 	}
 
+	method := ""
+	if d.Method != nil {
+		method = fmt.Sprintf(" %s", d.Method)
+	}
+
 	params := "()"
 	if d.Params != nil {
 		params = d.Params.String()
 	}
-	return fmt.Sprintf("%s%s %s%s %s", doc, d.Type, d.Name, params, d.Body)
+	return fmt.Sprintf("%s%s%s %s%s %s", doc, d.Type, method, d.Name, params, d.Body)
+}
+
+func (m *Method) String() string {
+	return fmt.Sprintf("(%s)", m.Type)
 }
 
 func (f *FieldList) String() string {

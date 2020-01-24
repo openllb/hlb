@@ -89,6 +89,7 @@ type FuncDecl struct {
 	Scope  *Scope
 	Doc    *CommentGroup `@@`
 	Type   *Type         `@@`
+	Method *Method       `( @@ )?`
 	Name   *Ident        `@@`
 	Params *FieldList    `@@`
 	Body   *BlockStmt    `@@`
@@ -96,6 +97,16 @@ type FuncDecl struct {
 
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
+
+type Method struct {
+	Pos        lexer.Position
+	OpenParen  *OpenParen  `@@`
+	Type       *Type       `@@`
+	CloseParen *CloseParen `@@`
+}
+
+func (m *Method) Position() lexer.Position { return m.Pos }
+func (m *Method) End() lexer.Position      { return m.CloseParen.End() }
 
 // FieldList represents a list of Fields, enclosed by parentheses.
 type FieldList struct {

@@ -199,16 +199,16 @@ var (
 				ast.NewField(ast.Str, "securitymode", false),
 			},
 			"host": []*ast.Field{
-				ast.NewField(ast.Str, "name", false),
+				ast.NewField(ast.Str, "hostname", false),
 				ast.NewField(ast.Str, "address", false),
 			},
 			"ssh": nil,
 			"secret": []*ast.Field{
-				ast.NewField(ast.Str, "target", false),
+				ast.NewField(ast.Str, "mountpoint", false),
 			},
 			"mount": []*ast.Field{
-				ast.NewField(ast.Filesystem, "input", false),
-				ast.NewField(ast.Str, "target", false),
+				ast.NewField(ast.Filesystem, "src", false),
+				ast.NewField(ast.Str, "mountpoint", false),
 			},
 		},
 		ast.OptionSSH: map[string][]*ast.Field{

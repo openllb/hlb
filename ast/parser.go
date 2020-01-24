@@ -12,6 +12,8 @@ import (
 var (
 	Types = []string{"string", "int", "octal", "bool", "fs", "option"}
 
+	Reserved = []string{"with", "as", "variadic"}
+
 	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
 		Int      = [0-9][0-9]*
 		String   = '(?:\\.|[^'])*'|"(?:\\.|[^"])*"|%s(\n|[^%s])*%s
@@ -24,7 +26,7 @@ var (
 	        Newline  = \n
 
 	        whitespace = \s+
-	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved([]string{"with", "as"}), reserved(Types))))
+	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved(Reserved), reserved(Types))))
 
 	Parser = participle.MustBuild(
 		&File{},
