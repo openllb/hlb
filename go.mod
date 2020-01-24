@@ -19,7 +19,7 @@ require (
 
 replace github.com/alecthomas/participle => github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc
 
-replace github.com/moby/buildkit => github.com/hinshun/buildkit v0.0.0-20200123030914-aacaae031fb3
+replace github.com/moby/buildkit => github.com/hinshun/buildkit v0.0.0-20200124180140-de841d8fbe32
 
 replace github.com/hashicorp/go-immutable-radix => github.com/tonistiigi/go-immutable-radix v0.0.0-20170803185627-826af9ccf0fe
 

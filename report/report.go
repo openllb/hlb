@@ -94,7 +94,9 @@ var (
 				ast.NewField(ast.Filesystem, "frontend", false),
 			},
 			// Ops
-			"shell": nil,
+			"shell": []*ast.Field{
+				ast.NewField(ast.Str, "arg", true),
+			},
 			"run": []*ast.Field{
 				ast.NewField(ast.Str, "arg", true),
 			},
@@ -207,7 +209,7 @@ var (
 				ast.NewField(ast.Str, "mountpoint", false),
 			},
 			"mount": []*ast.Field{
-				ast.NewField(ast.Filesystem, "src", false),
+				ast.NewField(ast.Filesystem, "input", false),
 				ast.NewField(ast.Str, "mountpoint", false),
 			},
 		},
