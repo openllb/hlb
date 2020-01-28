@@ -98,6 +98,8 @@ github.com/hinshun/buildkit v0.0.0-20200124195638-0c3dc7860ade h1:hUFUuYYh/v8aGj
 github.com/hinshun/buildkit v0.0.0-20200124195638-0c3dc7860ade/go.mod h1:WQIGS7nzTzJmq0pkCDbMCpOcDAnW51TnfctMIcZCzkU=
 github.com/hinshun/buildkit v0.0.0-20200124222854-3b739056e4db h1:F16ukeJ7NorYR1fuY5/J+GgfGpZ0oY1N7WDPG5lBcu4=
 github.com/hinshun/buildkit v0.0.0-20200124222854-3b739056e4db/go.mod h1:WQIGS7nzTzJmq0pkCDbMCpOcDAnW51TnfctMIcZCzkU=
+github.com/hinshun/buildkit v0.0.0-20200124224350-99d18890d310 h1:p4OHP6s24Pco7zP3gdCB31CUkThFh/IhU2eUmAKb6AM=
+github.com/hinshun/buildkit v0.0.0-20200124224350-99d18890d310/go.mod h1:WQIGS7nzTzJmq0pkCDbMCpOcDAnW51TnfctMIcZCzkU=
 github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc h1:/IDEdmcUnCJtSDErozACKN9d++/yboRmwCC8DgFQro0=
 github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc/go.mod h1:T8u4bQOSMwrkTWOSyt8/jSFPEnRtd0FKFMjVfYBlqPs=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
