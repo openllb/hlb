@@ -33,10 +33,22 @@ var (
 func MetatronClient(ctx context.Context) (*client.Client, error) {
 	opts := []client.ClientOpt{client.WithFailFast()}
 
-	srcMetatronDir := filepath.Join(os.Getenv("HOME"), ".metatron")
-	caCert := filepath.Join(srcMetatronDir, "metatronClient.trust.pem")
-	cert := filepath.Join(srcMetatronDir, "user.crt")
-	key := filepath.Join(srcMetatronDir, "user.key")
+	var (
+		caCert string
+		cert   string
+		key    string
+	)
+
+	if os.Getenv("CI") != "" {
+		caCert = "/metatron/certificates/metatronClient.trust.pem"
+		cert = "/run/metatron/certificates/client.crt"
+		key = "/run/metatron/certificates/client.key"
+	} else {
+		srcMetatronDir := filepath.Join(os.Getenv("HOME"), ".metatron")
+		caCert = filepath.Join(srcMetatronDir, "metatronClient.trust.pem")
+		cert = filepath.Join(srcMetatronDir, "user.crt")
+		key = filepath.Join(srcMetatronDir, "user.key")
+	}
 
 	opts = append(opts, client.WithCredentials(CloudBuildSAN, caCert, cert, key))
 
