@@ -12,7 +12,7 @@ require (
 	github.com/moby/buildkit v0.6.3
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/opencontainers/image-spec v1.0.1
-	github.com/openllb/doxygen-parser v0.0.0-20200128001714-1516f71aa64d
+	github.com/openllb/doxygen-parser v0.0.0-20200128221307-2aa2d8be1c35
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli/v2 v2.1.1
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
