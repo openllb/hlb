@@ -258,15 +258,15 @@ func NewIdentExpr(name string) *Expr {
 type BasicLit struct {
 	Pos   lexer.Position
 	Str   *string      `( @String`
-	Int   *int         `| @Int`
 	Octal *os.FileMode `| @Int`
+	Int   *int         `| @Int`
 	Bool  *bool        `| @Bool )`
 }
 
 func (l *BasicLit) Position() lexer.Position { return l.Pos }
 func (l *BasicLit) End() lexer.Position {
 	switch {
-	case l.Str != nil, l.Int != nil, l.Octal != nil, l.Bool != nil:
+	case l.Str != nil, l.Octal != nil, l.Int != nil, l.Octal != nil, l.Bool != nil:
 		return shiftPosition(l.Pos, len(l.String()), 0)
 	default:
 		return shiftPosition(l.Pos, 1, 0)

@@ -1195,14 +1195,6 @@ func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast
 					sopt = &sshSocketOpt{}
 				}
 				sopt.mode = mode
-			case "optional":
-				v, err := maybeEmitBoolExpr(info, scope, args)
-				if err != nil {
-					return opts, err
-				}
-				if v {
-					opts = append(opts, llb.SSHOptional)
-				}
 			default:
 				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
 				if err != nil {

@@ -46,6 +46,7 @@ func MetatronClient(ctx context.Context) (*client.Client, error) {
 	}
 
 	uri := fmt.Sprintf("tcp://%s:8980", ip)
+
 	return client.New(ctx, uri, opts...)
 }
 
