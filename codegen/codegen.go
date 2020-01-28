@@ -495,7 +495,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 		so = func(st llb.State) llb.State {
 			return st.User(name)
 		}
-	case "args":
+	case "entrypoint":
 		var stArgs []string
 		for _, arg := range args {
 			stArg, err := emitStringExpr(info, scope, call, arg)
@@ -506,8 +506,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 		}
 
 		so = func(st llb.State) llb.State {
-			return st
-			// return st.Args(stArgs...)
+			return st.Args(stArgs...)
 		}
 	case "mkdir":
 		path, err := emitStringExpr(info, scope, call, args[0])

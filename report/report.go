@@ -15,7 +15,7 @@ import (
 
 var (
 	Sources = []string{"scratch", "image", "http", "git", "local", "generate"}
-	Ops     = []string{"shell", "run", "env", "dir", "user", "args", "mkdir", "mkfile", "rm", "copy"}
+	Ops     = []string{"shell", "run", "env", "dir", "user", "entrypoint", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 
 	CommonOptions   = []string{"no-cache"}
@@ -110,7 +110,7 @@ var (
 			"user": []*ast.Field{
 				ast.NewField(ast.Str, "name", false),
 			},
-			"args": []*ast.Field{
+			"entrypoint": []*ast.Field{
 				ast.NewField(ast.Str, "command", true),
 			},
 			"mkdir": []*ast.Field{
