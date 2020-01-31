@@ -28,13 +28,10 @@ func Walk(node Node, v Visitor) {
 		switch {
 		case n.Func != nil:
 			Walk(n.Func, v)
-		case n.Comment != nil:
-			Walk(n.Comment, v)
-		}
-	case *FuncDecl:
-		if n.Doc != nil {
+		case n.Doc != nil:
 			Walk(n.Doc, v)
 		}
+	case *FuncDecl:
 		if n.Type != nil {
 			Walk(n.Type, v)
 		}
@@ -88,13 +85,10 @@ func Walk(node Node, v Visitor) {
 		switch {
 		case n.Call != nil:
 			Walk(n.Call, v)
-		case n.Comment != nil:
-			Walk(n.Comment, v)
-		}
-	case *CallStmt:
-		if n.Doc != nil {
+		case n.Doc != nil:
 			Walk(n.Doc, v)
 		}
+	case *CallStmt:
 		if n.Func != nil {
 			Walk(n.Func, v)
 		}

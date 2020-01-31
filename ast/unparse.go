@@ -89,20 +89,15 @@ func (d *Decl) String() string {
 	switch {
 	case d.Func != nil:
 		return d.Func.String()
-	case d.Comment != nil:
-		return d.Comment.String()
 	case d.Newline != nil:
 		return d.Newline.String()
+	case d.Doc != nil:
+		return d.Doc.String()
 	}
 	panic("unknown decl")
 }
 
 func (d *FuncDecl) String() string {
-	doc := ""
-	if d.Doc.NumComments() > 0 {
-		doc = fmt.Sprintf("%s", d.Doc)
-	}
-
 	method := ""
 	if d.Method != nil {
 		method = fmt.Sprintf(" %s", d.Method)
@@ -112,7 +107,7 @@ func (d *FuncDecl) String() string {
 	if d.Params != nil {
 		params = d.Params.String()
 	}
-	return fmt.Sprintf("%s%s%s %s%s %s", doc, d.Type, method, d.Name, params, d.Body)
+	return fmt.Sprintf("%s%s %s%s %s", d.Type, method, d.Name, params, d.Body)
 }
 
 func (m *Method) String() string {
@@ -181,20 +176,15 @@ func (s *Stmt) String() string {
 	switch {
 	case s.Call != nil:
 		return s.Call.String()
-	case s.Comment != nil:
-		return s.Comment.String()
 	case s.Newline != nil:
 		return s.Newline.String()
+	case s.Doc != nil:
+		return s.Doc.String()
 	}
 	panic("unknown stmt")
 }
 
 func (s *CallStmt) String() string {
-	doc := ""
-	if s.Doc.NumComments() > 0 {
-		doc = fmt.Sprintf("%s", s.Doc)
-	}
-
 	args := ""
 	if len(s.Args) > 0 {
 		var exprs []string
@@ -223,7 +213,7 @@ func (s *CallStmt) String() string {
 		}
 	}
 
-	return fmt.Sprintf("%s%s%s%s%s%s", doc, s.Func, args, withOpt, alias, end)
+	return fmt.Sprintf("%s%s%s%s%s", s.Func, args, withOpt, alias, end)
 }
 
 func (d *AliasDecl) String() string {

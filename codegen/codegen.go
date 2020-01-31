@@ -316,7 +316,7 @@ func emitFilesystemSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.Cal
 			return st, err
 		}
 
-		var opts []llb.FrontendOption
+		opts := []llb.FrontendOption{llb.IgnoreCache}
 		for _, iopt := range iopts {
 			opt := iopt.(llb.FrontendOption)
 			opts = append(opts, opt)

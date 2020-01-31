@@ -51,20 +51,17 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		return nil, err
 	}
 
-	var fun *ast.FuncDecl
 	var params []*ast.Field
 
 	ast.Inspect(root, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.FuncDecl:
 			if n.Name.Name == target {
-				fun = n
 				params = n.Params.List
 				return false
 			}
 		case *ast.AliasDecl:
 			if n.Ident.Name == target {
-				fun = n.Func
 				params = n.Func.Params.List
 				return false
 			}

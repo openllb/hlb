@@ -45,7 +45,7 @@ func (ast *AST) End() lexer.Position {
 // File represents a HLB source file.
 type File struct {
 	Pos   lexer.Position
-	Doc   *CommentGroup `@@`
+	Doc   *CommentGroup `( @@ )?`
 	Decls []*Decl       `( @@ )*`
 }
 
@@ -64,9 +64,9 @@ func (f *File) End() lexer.Position {
 // Decl represents a declaration node.
 type Decl struct {
 	Pos     lexer.Position
-	Func    *FuncDecl `( @@`
-	Comment *Comment  `| @@`
-	Newline *Newline  `| @@ )`
+	Func    *FuncDecl     `( @@`
+	Newline *Newline      `| @@`
+	Doc     *CommentGroup `| @@ )`
 }
 
 func (d *Decl) Position() lexer.Position { return d.Pos }
@@ -74,10 +74,10 @@ func (d *Decl) End() lexer.Position {
 	switch {
 	case d.Func != nil:
 		return d.Func.End()
-	case d.Comment != nil:
-		return d.Comment.End()
 	case d.Newline != nil:
 		return d.Newline.End()
+	case d.Doc != nil:
+		return d.Doc.End()
 	default:
 		return shiftPosition(d.Pos, 1, 0)
 	}
@@ -87,12 +87,11 @@ func (d *Decl) End() lexer.Position {
 type FuncDecl struct {
 	Pos    lexer.Position
 	Scope  *Scope
-	Doc    *CommentGroup `@@`
-	Type   *Type         `@@`
-	Method *Method       `( @@ )?`
-	Name   *Ident        `@@`
-	Params *FieldList    `@@`
-	Body   *BlockStmt    `@@`
+	Type   *Type      `@@`
+	Method *Method    `( @@ )?`
+	Name   *Ident     `@@`
+	Params *FieldList `@@`
+	Body   *BlockStmt `@@`
 }
 
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
@@ -356,9 +355,9 @@ func NewBlockLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
 // Stmt represents a statement node.
 type Stmt struct {
 	Pos     lexer.Position
-	Call    *CallStmt `( @@`
-	Comment *Comment  `| @@`
-	Newline *Newline  `| @@ )`
+	Call    *CallStmt     `( @@`
+	Newline *Newline      `| @@`
+	Doc     *CommentGroup `| @@ )`
 }
 
 func (s *Stmt) Position() lexer.Position { return s.Pos }
@@ -366,10 +365,10 @@ func (s *Stmt) End() lexer.Position {
 	switch {
 	case s.Call != nil:
 		return s.Call.End()
-	case s.Comment != nil:
-		return s.Comment.End()
 	case s.Newline != nil:
 		return s.Newline.End()
+	case s.Doc != nil:
+		return s.Doc.End()
 	default:
 		return shiftPosition(s.Pos, 1, 0)
 	}
@@ -379,12 +378,11 @@ func (s *Stmt) End() lexer.Position {
 // optional WithOpt.
 type CallStmt struct {
 	Pos     lexer.Position
-	Doc     *CommentGroup `@@`
-	Func    *Ident        `@@`
-	Args    []*Expr       `( @@ )*`
-	WithOpt *WithOpt      `( @@ )?`
-	Alias   *AliasDecl    `( @@ )?`
-	StmtEnd *StmtEnd      `@@`
+	Func    *Ident     `@@`
+	Args    []*Expr    `( @@ )*`
+	WithOpt *WithOpt   `( @@ )?`
+	Alias   *AliasDecl `( @@ )?`
+	StmtEnd *StmtEnd   `@@`
 }
 
 func (s *CallStmt) Position() lexer.Position { return s.Pos }
@@ -505,7 +503,7 @@ func (s *BlockStmt) NumStmts() int {
 	}
 	num := 0
 	for _, stmt := range s.List {
-		if stmt.Newline != nil || stmt.Comment != nil {
+		if stmt.Newline != nil || stmt.Doc != nil {
 			continue
 		}
 		num++
@@ -519,7 +517,7 @@ func (s *BlockStmt) NonEmptyStmts() []*Stmt {
 	}
 	var stmts []*Stmt
 	for _, stmt := range s.List {
-		if stmt.Newline != nil || stmt.Comment != nil {
+		if stmt.Newline != nil || stmt.Doc != nil {
 			continue
 		}
 		stmts = append(stmts, stmt)
@@ -531,7 +529,7 @@ func (s *BlockStmt) NonEmptyStmts() []*Stmt {
 // empty lines between.
 type CommentGroup struct {
 	Pos  lexer.Position
-	List []*Comment `( @@ )*`
+	List []*Comment `( @@ )+`
 }
 
 func (g *CommentGroup) Position() lexer.Position { return g.Pos }
