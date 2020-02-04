@@ -3,12 +3,11 @@
 package gen
 
 var (
-	Reference = Documentation{
-		Builtins: []Builtin{
-			{
-				Type: "fs",
-				Funcs: []*Func{
-					{
+	Reference = Lookup{
+		BuiltinsByType: map[string]BuiltinsLookup{
+			"fs": BuiltinsLookup{
+				FuncByName: map[string]*Func{
+					"generate": &Func{
 						Doc:    "Generates a filesystem using an external frontend.",
 						Type:   "fs",
 						Method: false,
@@ -64,7 +63,7 @@ var (
 							},
 						},
 					},
-					{
+					"git": &Func{
 						Doc:    "A filesystem with the files from a git repository checked out from\na git reference. Note that by default, the `.git` directory is not included.",
 						Type:   "fs",
 						Method: false,
@@ -92,7 +91,7 @@ var (
 							},
 						},
 					},
-					{
+					"http": &Func{
 						Doc:    "A filesystem with a file retrieved from a HTTP URL.",
 						Type:   "fs",
 						Method: false,
@@ -150,7 +149,7 @@ var (
 							},
 						},
 					},
-					{
+					"image": &Func{
 						Doc:    "An OCI image's filesystem.",
 						Type:   "fs",
 						Method: false,
@@ -172,7 +171,7 @@ var (
 							},
 						},
 					},
-					{
+					"local": &Func{
 						Doc:    "A filesystem with the files synced up from a directory on the\nlocal system.",
 						Type:   "fs",
 						Method: false,
@@ -230,15 +229,14 @@ var (
 							},
 						},
 					},
-					{
+					"scratch": &Func{
 						Doc:    "An empty filesystem.",
 						Type:   "fs",
 						Method: false,
 						Name:   "scratch",
 					},
-				},
-				Methods: []*Func{
-					{
+
+					"copy": &Func{
 						Doc:    "Copies a file from an input filesystem into the current filesystem.",
 						Type:   "fs",
 						Method: true,
@@ -290,7 +288,7 @@ var (
 							},
 						},
 					},
-					{
+					"dir": &Func{
 						Doc:    "Sets the working directory for all subsequent calls in this filesystem block.",
 						Type:   "fs",
 						Method: true,
@@ -304,7 +302,7 @@ var (
 							},
 						},
 					},
-					{
+					"env": &Func{
 						Doc:    "Sets an environment key pair for all subsequent calls in this filesystem\nblock.",
 						Type:   "fs",
 						Method: true,
@@ -324,7 +322,7 @@ var (
 							},
 						},
 					},
-					{
+					"mkdir": &Func{
 						Doc:    "Creates a directory in the current filesystem.",
 						Type:   "fs",
 						Method: true,
@@ -380,7 +378,7 @@ var (
 							},
 						},
 					},
-					{
+					"mkfile": &Func{
 						Doc:    "Creates a file in the current filesystem.",
 						Type:   "fs",
 						Method: true,
@@ -436,7 +434,7 @@ var (
 							},
 						},
 					},
-					{
+					"rm": &Func{
 						Doc:    "Removes a file from the current filesystem.",
 						Type:   "fs",
 						Method: true,
@@ -464,7 +462,7 @@ var (
 							},
 						},
 					},
-					{
+					"run": &Func{
 						Doc:    "Executes an command in the current filesystem.\nIf no arguments are given, it will execute the current args set on the\nfilesystem.\nIf exactly one arg is given, it will attempt to parse as a command with\nshell-style quoting. If it remains a single element, it is executed directly,\notherwise it is run with the current shell.\nIf more than one arg is given, it will be executed directly, without a shell.",
 						Type:   "fs",
 						Method: true,
@@ -793,7 +791,7 @@ var (
 							},
 						},
 					},
-					{
+					"shell": &Func{
 						Doc:    "Sets the current shell command to use when executing subsequent `run`\nmethods. By default, this is [\"sh\", \"-c\"].",
 						Type:   "fs",
 						Method: true,
@@ -807,7 +805,7 @@ var (
 							},
 						},
 					},
-					{
+					"user": &Func{
 						Doc:    "Sets the current user for all subsequent calls in this filesystem block.",
 						Type:   "fs",
 						Method: true,
