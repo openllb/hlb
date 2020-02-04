@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -12,12 +11,12 @@ import (
 
 func main() {
 	if len(os.Args) != 3 {
-		log.Fatal("docgen: must have exactly 2 args")
+		log.Fatal("builtingen: must have exactly 2 args")
 	}
 
 	err := run(os.Args[1], os.Args[2])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "docgen: %s", err)
+		fmt.Fprintf(os.Stderr, "builtingen: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -29,12 +28,7 @@ func run(src, dest string) error {
 	}
 	defer f.Close()
 
-	doc, err := gen.GenerateDocumentation(f)
-	if err != nil {
-		return err
-	}
-
-	dt, err := json.MarshalIndent(doc, "", "    ")
+	dt, err := gen.GenerateBuiltins(f)
 	if err != nil {
 		return err
 	}

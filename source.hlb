@@ -1,21 +1,47 @@
 fs hlbGit() {
-	git "https://github.com/openllb/hlb.git" "1684b5c90e2ec052dfe2fab6a7026b30a056df85"
+	git "https://github.com/openllb/hlb.git" "280409782c222d1fc4880b3b1511a573dfad17c2"
+	breakpoint
+}
+
+fs goCross() {
+	git "https://github.com/hinshun/go-cross.git" ""
 }
 
 fs goBuild(string package) {
 	image "golang:1.12-alpine"
-	run "apk" "add" "-U" "git" "gcc" "libc-dev"
+	run "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
+	breakpoint
 	run string {
 		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
 	} with option {
 		mount hlbGit "/go/src/hlb"
 		mount fs { scratch; } "/out" as goBinary
-        	mount fs { scratch; } "/root/.cache/go-build" with option {
+		mount fs { scratch; } "/root/.cache/go-build" with option {
 			cache "hlb/go-build" "private"
-        	}
-        	mount fs { scratch; } "/go/pkg/mod" with option {
+		}
+		mount fs { scratch; } "/go/pkg/mod" with option {
+			cache "hlb/go-mod" "private"
+		}
+	} as goStdout
+}
+
+fs crossBuild(string package) {
+	image "dockercore/golang-cross:1.12.5" with option { resolve; }
+	env "GOPATH" "/root/go"
+	env "GO111MODULE" "on"
+	dir "/go/src/hlb"
+	run "/cross/build" package with option {
+		mount hlbGit "/go/src/hlb"
+		mount goCross "/cross" with option {
+			sourcePath "/scripts"
+		}
+		mount fs { scratch; } "/root/go/bin" as crossBinaries
+		mount fs { scratch; } "/root/.cache/go-build" with option {
+			cache "hlb/go-build" "private"
+		}
+		mount fs { scratch; } "/go/pkg/mod" with option {
 			cache "hlb/go-mod" "private"
 		}
 	}
@@ -28,7 +54,6 @@ fs hlbFrontend() {
 	copy hlbGit "/signature.hlb" "/"
 }
 
-fs hlb() {
-	scratch
-	copy fs { goBinary "./cmd/hlb"; } "/binary" "/hlb"
+fs crossHLB() {
+	crossBinaries "github.com/openllb/hlb/cmd/hlb"
 }

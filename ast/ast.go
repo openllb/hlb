@@ -45,7 +45,7 @@ func (ast *AST) End() lexer.Position {
 // File represents a HLB source file.
 type File struct {
 	Pos   lexer.Position
-	Doc   *CommentGroup `( @@ )?`
+	Doc   *CommentGroup
 	Decls []*Decl       `( @@ )*`
 }
 
@@ -86,12 +86,13 @@ func (d *Decl) End() lexer.Position {
 // FuncDecl represents a function declaration.
 type FuncDecl struct {
 	Pos    lexer.Position
+	Doc    *CommentGroup
 	Scope  *Scope
 	Type   *Type      `@@`
 	Method *Method    `( @@ )?`
 	Name   *Ident     `@@`
 	Params *FieldList `@@`
-	Body   *BlockStmt `@@`
+	Body   *BlockStmt `( @@ )?`
 }
 
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
@@ -378,6 +379,7 @@ func (s *Stmt) End() lexer.Position {
 // optional WithOpt.
 type CallStmt struct {
 	Pos     lexer.Position
+	Doc     *CommentGroup
 	Func    *Ident     `@@`
 	Args    []*Expr    `( @@ )*`
 	WithOpt *WithOpt   `( @@ )?`

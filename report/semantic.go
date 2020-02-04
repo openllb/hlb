@@ -6,15 +6,52 @@ import (
 	"github.com/openllb/hlb/ast"
 )
 
+func LinkDocs(file *ast.File) {
+	root := ast.NewAST(file)
+
+	var (
+		lastCG *ast.CommentGroup
+	)
+
+	ast.Inspect(root, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.Decl:
+			if n.Doc != nil {
+				lastCG = n.Doc
+			}
+		case *ast.FuncDecl:
+			if lastCG != nil && lastCG.End().Line == n.Pos.Line-1 {
+				n.Doc = lastCG
+			}
+
+			ast.Inspect(n, func(node ast.Node) bool {
+				switch n := node.(type) {
+				case *ast.CommentGroup:
+					lastCG = n
+				case *ast.CallStmt:
+					if lastCG != nil && lastCG.End().Line == n.Pos.Line-1 {
+						n.Doc = lastCG
+					}
+				}
+				return true
+			})
+		}
+		return true
+	})
+}
+
 func SemanticCheck(files ...*ast.File) (*ast.AST, error) {
 	root := ast.NewAST(files...)
 
-	var dupDecls []*ast.Ident
+	var (
+		dupDecls []*ast.Ident
+	)
 
 	ast.Inspect(root, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.FuncDecl:
 			fun := n
+
 			if fun.Name != nil {
 				obj := root.Scope.Lookup(fun.Name.Name)
 				if obj != nil {
@@ -44,7 +81,7 @@ func SemanticCheck(files ...*ast.File) (*ast.AST, error) {
 				}
 			}
 
-			ast.Inspect(node, func(node ast.Node) bool {
+			ast.Inspect(fun, func(node ast.Node) bool {
 				switch n := node.(type) {
 				case *ast.CallStmt:
 					if n.Alias == nil {

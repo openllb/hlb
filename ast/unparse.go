@@ -107,7 +107,13 @@ func (d *FuncDecl) String() string {
 	if d.Params != nil {
 		params = d.Params.String()
 	}
-	return fmt.Sprintf("%s%s %s%s %s", d.Type, method, d.Name, params, d.Body)
+
+	body := ""
+	if d.Body != nil {
+		body = fmt.Sprintf(" %s", d.Body)
+	}
+
+	return fmt.Sprintf("%s%s %s%s%s", d.Type, method, d.Name, params, body)
 }
 
 func (m *Method) String() string {
