@@ -1,71 +1,71 @@
 
-state a() { scratch; } state b(){scratch;}
-state c() {
+fs a() { scratch; } fs b(){scratch;}
+fs c() {
 scratch; }
-state d() { scratch
+fs d() { scratch
 }
-state e()
+fs e()
 {
 	scratch
 }
 
-state f() {
+fs f() {
 		scratch
 }
 
 
-state g() {
+fs g() {
 	scratch
 }
 
-state h() { image "alpine"; env "key" "value"; }
+fs h() { image "alpine"; env "key" "value"; }
 
-state i() { image "alpine";
+fs i() { image "alpine";
 	env "key" "value"; }
 
-state j() {
+fs j() {
 	image "alpine"
 	env "key" "value"; env "key" "value"
-	exec "sh -c \"echo foo > foo\""
+	run "sh -c \"echo foo > foo\""
 }
 
-state k() {
+fs k() {
 	image "alpine" with foo
 	env "key" "value"
 }
 
-state l() {
+fs l() {
 	image "alpine" with option { }
 	env "key" "value"
 }
 
-state m() {
+fs m() {
 	image "alpine" with option { resolve; }; env "key" "value"
 }
 
-state n() {
+fs n() {
 	image "alpine" with option { resolve; }
 	env "key" "value"
 }
 
-state o() {
+fs o() {
 	image "alpine" with option { resolve
 	}; env "key" "value"
 }
 
-state p() {
+fs p() {
 	image "alpine" with option {
 	resolve; }; env "key" "value"
 }
 
-state q() {
+fs q() {
 	image "alpine" with option
 	{
 	resolve
 	}; env "key" "value"
 }
 
-state r() {
+fs r() {
 	image "alpine" with option {
 resolve
 	}; env "key" "value"

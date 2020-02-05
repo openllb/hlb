@@ -6,31 +6,20 @@ import (
 	"path/filepath"
 
 	isatty "github.com/mattn/go-isatty"
-	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/naive"
 	cli "github.com/urfave/cli/v2"
 )
 
 func App() *cli.App {
 	app := cli.NewApp()
 	app.Name = "hlb"
-	app.Usage = "compiles a HLB program to LLB"
-	app.Description = "high-level build language compiler"
+	app.Usage = "high-level build language compiler"
 	app.Commands = []*cli.Command{
+		runCommand,
 		formatCommand,
-		packageCommand,
-		signatureCommand,
+		getCommand,
+		publishCommand,
 	}
-	app.Flags = []cli.Flag{
-		&cli.StringFlag{
-			Name: "target",
-			Aliases: []string{"t"},
-			Usage: "specify target state to compile",
-			Value: "default",
-		},
-	}
-	app.Action = compileAction
 	return app
 }
 
@@ -40,31 +29,6 @@ func defaultOpts() []hlb.ParseOption {
 		opts = append(opts, hlb.WithColor(true))
 	}
 	return opts
-}
-
-func compileAction(c *cli.Context) error {
-	rs, cleanup, err := collectReaders(c)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
-	files, err := hlb.ParseMultiple(rs, defaultOpts()...)
-	if err != nil {
-		return err
-	}
-
-	st, err := naive.CodeGen(c.String("target"), files...)
-	if err != nil {
-		return err
-	}
-
-	def, err := st.Marshal()
-	if err != nil {
-		return err
-	}
-
-	return llb.WriteTo(def, os.Stdout)
 }
 
 func collectReaders(c *cli.Context) (rs []io.Reader, cleanup func() error, err error) {

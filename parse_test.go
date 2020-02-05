@@ -9,11 +9,11 @@ import (
 
 var (
 	def = `
-		state foo() {
+		fs foo() {
 			image "alpine" with option {
 				resolve
 		        }
-			exec "echo foo" with option {
+			run "echo foo" with option {
 				readonlyRootfs
 				env "key" "value"
 				dir "path"
@@ -58,7 +58,7 @@ var (
 				allowNotFound
 				allowWildcard
 			}
-			copy { from bar; } "src" "dst" with option {
+			copy fs { from bar; } "src" "dst" with option {
 				followSymlinks
 				contentsOnly
 				unpack
@@ -70,16 +70,16 @@ var (
 			}
 		}
 
-		state bar() {
+		fs bar() {
 			scratch
-			copy {
+			copy fs {
 				http "url" with option {
 					checksum "digest"
 					chmod 0700
 					filename "name"
 				}
 			} "src" "dst"
-			copy {
+			copy fs {
 				git "remote" "ref" with option {
 					keepGitDir
 				}
@@ -90,7 +90,7 @@ var (
 
 func TestParse(t *testing.T) {
 	t.Parallel()
-	file, err := Parse(strings.NewReader(def))
+	file, _, err := Parse(strings.NewReader(def))
 	require.NoError(t, err)
 	require.NotNil(t, file)
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb"
+	"github.com/openllb/hlb/report"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -14,6 +15,7 @@ var formatCommand = &cli.Command{
 	Name:    "format",
 	Aliases: []string{"fmt"},
 	Usage:   "formats HLB programs",
+	ArgsUsage: "[ <*.hlb> ... ]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:    "write",
@@ -28,7 +30,12 @@ var formatCommand = &cli.Command{
 		}
 		defer cleanup()
 
-		files, err := hlb.ParseMultiple(rs, defaultOpts()...)
+		files, _, err := hlb.ParseMultiple(rs, defaultOpts()...)
+		if err != nil {
+			return err
+		}
+
+		_, err = report.SemanticCheck(files...)
 		if err != nil {
 			return err
 		}

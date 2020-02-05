@@ -1,4 +1,4 @@
-package hlb
+package report
 
 // Levenshtein returns the levenshtein distance between two rune arrays.
 //
