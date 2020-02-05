@@ -52,9 +52,9 @@ fs foo() {
 fs foo() {
 	image "alpine"
 	copy foo "src" "dst"
-	copy { image "alpine"; env "key" "value"; } "src" "dst"
-	copy { image "alpine"; env "key" "value"; } "src" "dst"
-	copy {
+	copy fs { image "alpine"; env "key" "value"; } "src" "dst"
+	copy fs { image "alpine"; env "key" "value"; } "src" "dst"
+	copy fs {
 		image "alpine"
 		env "key" "value"
 	} "src" "dst"

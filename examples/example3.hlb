@@ -4,8 +4,7 @@ fs c() {
 scratch; }
 fs d() { scratch
 }
-fs e()
-{
+fs e() {
 	scratch
 }
 
@@ -59,8 +58,7 @@ fs p() {
 }
 
 fs q() {
-	image "alpine" with option
-	{
+	image "alpine" with option {
 	resolve
 	}; env "key" "value"
 }
