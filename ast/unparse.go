@@ -164,14 +164,26 @@ func (l *BasicLit) String() string {
 	switch {
 	case l.Str != nil:
 		return strconv.Quote(*l.Str)
-	case l.Int != nil:
-		return strconv.Itoa(*l.Int)
-	case l.Octal != nil:
-		return fmt.Sprintf("%04o", *l.Octal)
+	case l.Decimal != nil:
+		return strconv.Itoa(*l.Decimal)
+	case l.Numeric != nil:
+		return l.Numeric.String()
 	case l.Bool != nil:
 		return strconv.FormatBool(*l.Bool)
 	}
 	panic("unknown basic lit")
+}
+
+func (l *NumericLit) String() string {
+	switch l.Base {
+	case 2:
+		return fmt.Sprintf("0b%0b", l.Value)
+	case 8:
+		return fmt.Sprintf("0o%0o", l.Value)
+	case 16:
+		return fmt.Sprintf("0x%0x", l.Value)
+	}
+	panic("unknown numeric lit")
 }
 
 func (l *BlockLit) String() string {

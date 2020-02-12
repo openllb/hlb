@@ -126,9 +126,9 @@ var (
 								Name:   "chmod",
 								Params: []Field{
 									{
-										Doc:      "the new permissions of the file in octal.",
+										Doc:      "the new permissions of the file in int.",
 										Variadic: false,
-										Type:     "octal",
+										Type:     "int",
 										Name:     "filemode",
 									},
 								},
@@ -337,7 +337,7 @@ var (
 							{
 								Doc:      "the permissions of the directory.",
 								Variadic: false,
-								Type:     "octal",
+								Type:     "int",
 								Name:     "filemode",
 							},
 						},
@@ -393,7 +393,7 @@ var (
 							{
 								Doc:      "the permissions of the file.",
 								Variadic: false,
-								Type:     "octal",
+								Type:     "int",
 								Name:     "filemode",
 							},
 							{
@@ -667,15 +667,15 @@ var (
 										},
 									},
 									{
-										Doc:    "Sets the permissions for the secure file. By default, the file mode is 0600.",
+										Doc:    "Sets the permissions for the secure file. By default, the file mode is 0o600.",
 										Type:   "option::secret",
 										Method: false,
 										Name:   "mode",
 										Params: []Field{
 											{
-												Doc:      "the new permissions of the secure file in octal.",
+												Doc:      "the new permissions of the secure file in int.",
 												Variadic: false,
-												Type:     "octal",
+												Type:     "int",
 												Name:     "filemode",
 											},
 										},
@@ -760,15 +760,15 @@ var (
 										},
 									},
 									{
-										Doc:    "Sets the permissions for the SSH agent socket. By default, the file mode is\n0600.",
+										Doc:    "Sets the permissions for the SSH agent socket. By default, the file mode is\n0o600.",
 										Type:   "option::ssh",
 										Method: false,
 										Name:   "mode",
 										Params: []Field{
 											{
-												Doc:      "the new permissions of the SSH agent socket in octal.",
+												Doc:      "the new permissions of the SSH agent socket in int.",
 												Variadic: false,
-												Type:     "octal",
+												Type:     "int",
 												Name:     "filemode",
 											},
 										},

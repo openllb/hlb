@@ -129,12 +129,12 @@ var publishCommand = &cli.Command{
 								}, nil, nil),
 								ast.NewCallStmt("mkfile", []*ast.Expr{
 									ast.NewStringExpr(hlb.SourceHLB),
-									ast.NewOctalExpr(hlb.HLBFileMode),
+									ast.NewNumericExpr(int64(hlb.HLBFileMode), 8),
 									ast.NewStringExpr(strings.Join(sources, "")),
 								}, nil, nil),
 								ast.NewCallStmt("mkfile", []*ast.Expr{
 									ast.NewStringExpr(hlb.SignatureHLB),
-									ast.NewOctalExpr(hlb.HLBFileMode),
+									ast.NewNumericExpr(int64(hlb.HLBFileMode), 8),
 									ast.NewStringExpr(signatureHLB.String()),
 								}, nil, nil),
 							},

@@ -2,7 +2,6 @@ package ast
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
@@ -10,23 +9,22 @@ import (
 )
 
 var (
-	Types = []string{"string", "int", "octal", "bool", "fs", "option"}
-
-	Reserved = []string{"with", "as", "variadic"}
+	Types = []string{"string", "int", "bool", "fs", "option"}
 
 	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
-		Int      = [0-9][0-9]*
-		String   = '(?:\\.|[^'])*'|"(?:\\.|[^"])*"|%s(\n|[^%s])*%s
-		Bool     = %s
-		Reserved = %s
-		Type     = (%s)(::[a-z][a-z]*)?
-		Ident    = [a-zA-Z_][a-zA-Z0-9_]*
+	        whitespace = [\r\t ]+
+
+		Keyword  = \b(with|as|variadic)\b
+		Type     = \b(string|int|bool|fs|option)(::[a-z][a-z]*)?\b
+		Numeric  = \b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b
+		Decimal  = \b(0|[1-9][0-9]*)\b
+		String   = "(\\.|[^"])*"|'[^']*'
+		Bool     = \b(true|false)\b
+		Ident    = \b[a-zA-Z_][a-zA-Z0-9_]*\b
+	        Newline  = \n
 		Operator = {|}|\(|\)|,|;
 	        Comment  = #[^\n]*\n
-	        Newline  = \n
-
-	        whitespace = \s+
-	`, "`", "`", "`", reserved([]string{"true", "false"}), reserved(Reserved), reserved(Types))))
+	`)))
 
 	Parser = participle.MustBuild(
 		&File{},
@@ -34,11 +32,3 @@ var (
 		participle.Unquote(),
 	)
 )
-
-func reserved(keywords []string) string {
-	var rules []string
-	for _, keyword := range keywords {
-		rules = append(rules, fmt.Sprintf("\\b%s\\b", keyword))
-	}
-	return fmt.Sprintf("%s", strings.Join(rules, "|"))
-}

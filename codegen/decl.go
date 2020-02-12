@@ -2,7 +2,6 @@ package codegen
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/ast"
@@ -122,10 +121,6 @@ func parameterizedScope(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt,
 		case ast.Int:
 			var v int
 			v, err = emitIntExpr(info, scope, args[i])
-			data = v
-		case ast.Octal:
-			var v os.FileMode
-			v, err = emitOctalExpr(info, scope, args[i])
 			data = v
 		case ast.Bool:
 			var v bool

@@ -62,8 +62,8 @@ fs foo() {
 
 fs foo() {
 	image "alpine"
-	mkdir "path" 0600
-	mkfile "path" 0600 "content"
+	mkdir "path" 0o600
+	mkfile "path" 0o600 "content"
 	rm "path"
 }
 

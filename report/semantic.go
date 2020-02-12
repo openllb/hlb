@@ -1,6 +1,7 @@
 package report
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/openllb/hlb/ast"
@@ -290,6 +291,8 @@ func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStm
 	}
 
 	if len(params) != len(call.Args) {
+		dt, _ := json.MarshalIndent(call.Args, "", "    ")
+		panic(fmt.Sprintf("%s", string(dt)))
 		return ErrNumArgs{len(params), call}
 	}
 
@@ -377,11 +380,7 @@ func checkBasicLitArg(typ ast.ObjType, lit *ast.BasicLit) error {
 			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
 		}
 	case ast.Int:
-		if lit.Int == nil {
-			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
-		}
-	case ast.Octal:
-		if lit.Octal == nil {
+		if lit.Decimal == nil && lit.Numeric == nil {
 			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
 		}
 	case ast.Bool:

@@ -25,11 +25,9 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 		)
 
 		expected, unexpected := uerr.Expected, uerr.Unexpected
-		// panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
+		panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
 		switch expected {
 		case "":
-			// Function type `s` and `fs` both become expected "" so we need to
-			// differentiate if the function type is present.
 			if !Contains(ast.Types, unexpected.Value) {
 				// Invalid function type.
 				group, err = errFunc(color, ib, lex, unexpected)

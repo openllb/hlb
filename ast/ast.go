@@ -2,7 +2,7 @@ package ast
 
 import (
 	"fmt"
-	"os"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
@@ -46,7 +46,7 @@ func (ast *AST) End() lexer.Position {
 type File struct {
 	Pos   lexer.Position
 	Doc   *CommentGroup
-	Decls []*Decl       `( @@ )*`
+	Decls []*Decl `( @@ )*`
 }
 
 func (f *File) Position() lexer.Position { return f.Pos }
@@ -216,7 +216,6 @@ const (
 	None           ObjType = ""
 	Str            ObjType = "string"
 	Int            ObjType = "int"
-	Octal          ObjType = "octal"
 	Bool           ObjType = "bool"
 	Filesystem     ObjType = "fs"
 	Option         ObjType = "option"
@@ -256,21 +255,52 @@ func NewIdentExpr(name string) *Expr {
 
 // BasicLit represents a literal of basic type.
 type BasicLit struct {
-	Pos   lexer.Position
-	Str   *string      `( @String`
-	Octal *os.FileMode `| @Int`
-	Int   *int         `| @Int`
-	Bool  *bool        `| @Bool )`
+	Pos     lexer.Position
+	Str     *string     `( @String`
+	Decimal *int        `| @Decimal`
+	Numeric *NumericLit `| @Numeric`
+	Bool    *bool       `| @Bool )`
 }
 
 func (l *BasicLit) Position() lexer.Position { return l.Pos }
 func (l *BasicLit) End() lexer.Position {
 	switch {
-	case l.Str != nil, l.Octal != nil, l.Int != nil, l.Octal != nil, l.Bool != nil:
+	case l.Str != nil, l.Decimal != nil, l.Numeric != nil, l.Bool != nil:
 		return shiftPosition(l.Pos, len(l.String()), 0)
 	default:
 		return shiftPosition(l.Pos, 1, 0)
 	}
+}
+
+// NumericLit represents a number literal with a non-decimal base.
+type NumericLit struct {
+	Pos   lexer.Position
+	Value int64
+	Base  int
+}
+
+func (l *NumericLit) Position() lexer.Position { return l.Pos }
+func (l *NumericLit) End() lexer.Position      { return shiftPosition(l.Pos, len(l.String()), 0) }
+
+func (l *NumericLit) Capture(tokens []string) error {
+	base := 10
+	n := tokens[0]
+	if len(n) >= 2 {
+		switch n[1] {
+		case 'b', 'B':
+			base = 2
+		case 'o', 'O':
+			base = 8
+		case 'x', 'X':
+			base = 16
+		}
+		n = n[2:]
+	}
+	var err error
+	num, err := strconv.ParseInt(n, base, 64)
+	l.Value = num
+	l.Base = base
+	return err
 }
 
 // ObjType returns the type of the basic literal.
@@ -278,10 +308,8 @@ func (l *BasicLit) ObjType() ObjType {
 	switch {
 	case l.Str != nil:
 		return Str
-	case l.Int != nil:
+	case l.Decimal != nil, l.Numeric != nil:
 		return Int
-	case l.Octal != nil:
-		return Octal
 	case l.Bool != nil:
 		return Bool
 	}
@@ -296,18 +324,21 @@ func NewStringExpr(v string) *Expr {
 	}
 }
 
-func NewIntExpr(v int) *Expr {
+func NewDecimalExpr(v int) *Expr {
 	return &Expr{
 		BasicLit: &BasicLit{
-			Int: &v,
+			Decimal: &v,
 		},
 	}
 }
 
-func NewOctalExpr(v os.FileMode) *Expr {
+func NewNumericExpr(v int64, base int) *Expr {
 	return &Expr{
 		BasicLit: &BasicLit{
-			Octal: &v,
+			Numeric: &NumericLit{
+				Value: v,
+				Base:  base,
+			},
 		},
 	}
 }

@@ -95,19 +95,7 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 				return nil, err
 			}
 
-			call.Args = append(call.Args, ast.NewIntExpr(i))
-		case ast.Octal:
-			v, ok := opts[name]
-			if !ok {
-				return nil, fmt.Errorf("expected param %q", name)
-			}
-
-			i, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, err
-			}
-
-			call.Args = append(call.Args, ast.NewOctalExpr(os.FileMode(i)))
+			call.Args = append(call.Args, ast.NewDecimalExpr(i))
 		case ast.Bool:
 			v, ok := opts[name]
 			if !ok {

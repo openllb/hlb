@@ -26,13 +26,13 @@ var (
 					id "cacheid"
 					uid 1000
 					gid 1000
-					mode 0700
+					mode 0o700
 					optional
 				}
 				secret "target" with option {
 					id "cacheid"
 					uid 1000
-					mode 0700
+					mode 0o700
 					optional
 				}
 				mount bar "target" with option {
@@ -45,12 +45,12 @@ var (
 			env "key" "value"
 			dir "path"
 			user "name"
-			mkdir "path" 0700 with option {
+			mkdir "path" 0o700 with option {
 				createParents
 				chown "user:group"
 				createdTime "time"
 			}
-			mkfile "path" 0700 "content" with option {
+			mkfile "path" 0o700 "content" with option {
 				chown "user:group"
 				createdTime "time"
 			}
@@ -75,7 +75,7 @@ var (
 			copy fs {
 				http "url" with option {
 					checksum "digest"
-					chmod 0700
+					chmod 0o700
 					filename "name"
 				}
 			} "src" "dst"

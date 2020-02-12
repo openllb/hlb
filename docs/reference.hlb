@@ -31,9 +31,9 @@ option::http checksum(string digest)
 
 # Modifies the permissions of the retrieved file.
 #
-# @param filemode the new permissions of the file in octal.
+# @param filemode the new permissions of the file in int.
 # @return an option to chmod the file.
-option::http chmod(octal filemode)
+option::http chmod(int filemode)
 
 # Writes the retrieved file with a specified name.
 #
@@ -227,11 +227,11 @@ option::ssh uid(int id)
 option::ssh gid(int id)
 
 # Sets the permissions for the SSH agent socket. By default, the file mode is
-# 0600.
+# 0o600.
 #
-# @param filemode the new permissions of the SSH agent socket in octal.
+# @param filemode the new permissions of the SSH agent socket in int.
 # @return an option to set the permissions of the SSH agent socket.
-option::ssh mode(octal filemode)
+option::ssh mode(int filemode)
 
 # Sets the user ID for the secure file. By default, the UID is 0.
 #
@@ -245,11 +245,11 @@ option::secret uid(int id)
 # @return an option to set the group ID of the secure file.
 option::secret gid(int id)
 
-# Sets the permissions for the secure file. By default, the file mode is 0600.
+# Sets the permissions for the secure file. By default, the file mode is 0o600.
 #
-# @param filemode the new permissions of the secure file in octal.
+# @param filemode the new permissions of the secure file in int.
 # @return an option to set the permissions of the secure file.
-option::secret mode(octal filemode)
+option::secret mode(int filemode)
 
 # Sets the mount to be attached as a read-only filesystem.
 #
@@ -315,7 +315,7 @@ fs (fs) user(string name)
 # @param path the path of the directory.
 # @param filemode the permissions of the directory.
 # @return a filesystem with a new directory.
-fs (fs) mkdir(string path, octal filemode)
+fs (fs) mkdir(string path, int filemode)
 
 # Create the parent directories if they don't exist already.
 #
@@ -340,7 +340,7 @@ option::mkdir createdTime(string created)
 # @param filemode the permissions of the file.
 # @param content the contents of the file.
 # @return a filesystem with a new file.
-fs (fs) mkfile(string path, octal filemode, string content)
+fs (fs) mkfile(string path, int filemode, string content)
 
 # Change the owner of the file.
 #

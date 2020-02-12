@@ -77,6 +77,11 @@ func Walk(node Node, v Visitor) {
 		case n.BlockLit != nil:
 			Walk(n.BlockLit, v)
 		}
+	case *BasicLit:
+		switch {
+		case n.Numeric != nil:
+			Walk(n.Numeric, v)
+		}
 	case *BlockLit:
 		if n.Body != nil {
 			Walk(n.Body, v)

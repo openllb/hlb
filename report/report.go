@@ -115,11 +115,11 @@ var (
 			},
 			"mkdir": []*ast.Field{
 				ast.NewField(ast.Str, "path", false),
-				ast.NewField(ast.Octal, "filemode", false),
+				ast.NewField(ast.Int, "filemode", false),
 			},
 			"mkfile": []*ast.Field{
 				ast.NewField(ast.Str, "path", false),
-				ast.NewField(ast.Octal, "filemode", false),
+				ast.NewField(ast.Int, "filemode", false),
 				ast.NewField(ast.Str, "content", false),
 			},
 			"rm": []*ast.Field{
@@ -152,7 +152,7 @@ var (
 				ast.NewField(ast.Str, "digest", false),
 			},
 			"chmod": []*ast.Field{
-				ast.NewField(ast.Octal, "filemode", false),
+				ast.NewField(ast.Int, "filemode", false),
 			},
 			"filename": []*ast.Field{
 				ast.NewField(ast.Str, "name", false),
@@ -227,7 +227,7 @@ var (
 				ast.NewField(ast.Int, "value", false),
 			},
 			"mode": []*ast.Field{
-				ast.NewField(ast.Octal, "filemode", false),
+				ast.NewField(ast.Int, "filemode", false),
 			},
 			"optional": nil,
 		},
@@ -242,7 +242,7 @@ var (
 				ast.NewField(ast.Int, "value", false),
 			},
 			"mode": []*ast.Field{
-				ast.NewField(ast.Octal, "filemode", false),
+				ast.NewField(ast.Int, "filemode", false),
 			},
 			"optional": nil,
 		},

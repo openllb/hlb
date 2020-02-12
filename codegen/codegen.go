@@ -199,7 +199,7 @@ func emitStringBlock(info *CodeGenInfo, scope *ast.Scope, stmts []*ast.Stmt) (st
 
 func emitBlockLit(info *CodeGenInfo, scope *ast.Scope, lit *ast.BlockLit, op string, ac aliasCallback) (interface{}, error) {
 	switch lit.Type.Type() {
-	case ast.Int, ast.Octal, ast.Bool:
+	case ast.Int, ast.Bool:
 		panic("unimplemented")
 	case ast.Filesystem:
 		return emitFilesystemBlock(info, scope, lit.Body.NonEmptyStmts(), ac)
@@ -514,7 +514,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 			return so, err
 		}
 
-		mode, err := emitOctalExpr(info, scope, args[1])
+		mode, err := emitIntExpr(info, scope, args[1])
 		if err != nil {
 			return so, err
 		}
@@ -532,7 +532,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 
 		so = func(st llb.State) llb.State {
 			return st.File(
-				llb.Mkdir(path, mode, opts...),
+				llb.Mkdir(path, os.FileMode(mode), opts...),
 			)
 		}
 	case "mkfile":
@@ -541,7 +541,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 			return so, err
 		}
 
-		mode, err := emitOctalExpr(info, scope, args[1])
+		mode, err := emitIntExpr(info, scope, args[1])
 		if err != nil {
 			return so, err
 		}
@@ -559,7 +559,7 @@ func emitFilesystemChainStmt(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjTyp
 
 		so = func(st llb.State) llb.State {
 			return st.File(
-				llb.Mkfile(path, mode, []byte(content), opts...),
+				llb.Mkfile(path, os.FileMode(mode), []byte(content), opts...),
 			)
 		}
 	case "rm":
@@ -683,11 +683,11 @@ func emitHTTPOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*as
 				}
 				opts = append(opts, llb.Checksum(digest.Digest(dgst)))
 			case "chmod":
-				mode, err := emitOctalExpr(info, scope, args[0])
+				mode, err := emitIntExpr(info, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
-				opts = append(opts, llb.Chmod(mode))
+				opts = append(opts, llb.Chmod(os.FileMode(mode)))
 			case "filename":
 				filename, err := emitStringExpr(info, scope, stmt.Call, args[0])
 				if err != nil {
@@ -955,12 +955,18 @@ func emitCopyOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*as
 					return opts, err
 				}
 				cp.CreateDestPath = v
-			case "allowWildcard":
+			case "allowWildcards":
 				v, err := maybeEmitBoolExpr(info, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.AllowWildcard = v
+			case "allowEmptyWildcard":
+				v, err := maybeEmitBoolExpr(info, scope, args)
+				if err != nil {
+					return opts, err
+				}
+				cp.AllowEmptyWildcard = v
 			case "chown":
 				owner, err := emitStringExpr(info, scope, stmt.Call, args[0])
 				if err != nil {
@@ -1186,14 +1192,14 @@ func emitSSHOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*ast
 				}
 				sopt.gid = gid
 			case "mode":
-				mode, err := emitOctalExpr(info, scope, args[0])
+				mode, err := emitIntExpr(info, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
 				if sopt == nil {
 					sopt = &sshSocketOpt{}
 				}
-				sopt.mode = mode
+				sopt.mode = os.FileMode(mode)
 			default:
 				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
 				if err != nil {
@@ -1254,14 +1260,14 @@ func emitSecretOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*
 				}
 				sopt.gid = gid
 			case "mode":
-				mode, err := emitOctalExpr(info, scope, args[0])
+				mode, err := emitIntExpr(info, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
 				if sopt == nil {
 					sopt = &secretOpt{}
 				}
-				sopt.mode = mode
+				sopt.mode = os.FileMode(mode)
 			default:
 				iopts, err := emitOptionExpr(info, scope, stmt.Call, op, ast.NewIdentExpr(stmt.Call.Func.Name))
 				if err != nil {
