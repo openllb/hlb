@@ -6,7 +6,7 @@ Describe your build in containerized units of work, and BuildKit will build your
 
 ## Getting started with HLB
 
-If you're on a MacOS or Linux (`linux-amd64`), head on over to the [Release](./releases) to grab a static binary.
+If you're on a MacOS or Linux (`linux-amd64`), head on over to [Releases](https://github.com/openllb/hlb/releases) to grab a static binary.
 
 Otherwise, you can compile HLB yourself using [go](https://golang.org/dl/):
 ```sh
