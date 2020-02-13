@@ -21,6 +21,7 @@ docker run -d --name buildkitd --privileged openllb/buildkit:experimental
 
 Then you can run one of the examples in `./examples`:
 ```sh
+export BUILDKIT_HOST=docker-container://buildkitd
 hlb run ./examples/node.hlb
 ```
 
