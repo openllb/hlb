@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 
 	isatty "github.com/mattn/go-isatty"
+	_ "github.com/moby/buildkit/client/connhelper/dockercontainer"
+	_ "github.com/moby/buildkit/client/connhelper/kubepod"
+	"github.com/moby/buildkit/util/appdefaults"
 	"github.com/openllb/hlb"
 	cli "github.com/urfave/cli/v2"
 )
@@ -14,6 +17,20 @@ func App() *cli.App {
 	app := cli.NewApp()
 	app.Name = "hlb"
 	app.Usage = "high-level build language compiler"
+
+	defaultAddress := os.Getenv("BUILDKIT_HOST")
+	if defaultAddress == "" {
+		defaultAddress = appdefaults.Address
+	}
+
+	app.Flags = []cli.Flag{
+		&cli.StringFlag{
+			Name:  "addr",
+			Usage: "buildkitd address",
+			Value: defaultAddress,
+		},
+	}
+
 	app.Commands = []*cli.Command{
 		runCommand,
 		formatCommand,

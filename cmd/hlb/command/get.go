@@ -15,7 +15,7 @@ import (
 
 var getCommand = &cli.Command{
 	Name:      "get",
-	Usage:     "compiles a HLB program to get signature HLB program from a frontend",
+	Usage:     "retrieves the HLB signatures from a HLB frontend",
 	ArgsUsage: "<image ref>",
 	Action: func(c *cli.Context) error {
 		if c.NArg() != 1 {
@@ -63,7 +63,7 @@ var getCommand = &cli.Command{
 		}
 
 		ctx := context.Background()
-		cln, err := solver.MetatronClient(ctx)
+		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
 			return err
 		}

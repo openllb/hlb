@@ -15,7 +15,7 @@ import (
 
 var publishCommand = &cli.Command{
 	Name:      "publish",
-	Usage:     "compiles a target and publishes it as a HLB frontend",
+	Usage:     "compiles a HLB program and publishes it as a HLB frontend",
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -155,7 +155,7 @@ var publishCommand = &cli.Command{
 		}
 
 		ctx := context.Background()
-		cln, err := solver.MetatronClient(ctx)
+		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
 			return err
 		}

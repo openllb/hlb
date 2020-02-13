@@ -1,7 +1,6 @@
 package report
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/openllb/hlb/ast"
@@ -291,8 +290,6 @@ func checkCallStmt(scope *ast.Scope, typ *ast.Type, index int, call *ast.CallStm
 	}
 
 	if len(params) != len(call.Args) {
-		dt, _ := json.MarshalIndent(call.Args, "", "    ")
-		panic(fmt.Sprintf("%s", string(dt)))
 		return ErrNumArgs{len(params), call}
 	}
 

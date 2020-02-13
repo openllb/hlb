@@ -15,7 +15,7 @@ import (
 
 var runCommand = &cli.Command{
 	Name:      "run",
-	Usage:     "compiles a HLB program to LLB",
+	Usage:     "compiles and runs a HLB program",
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -74,8 +74,7 @@ var runCommand = &cli.Command{
 		}
 
 		ctx := context.Background()
-		// cln, err := solver.BuildkitClient(ctx)
-		cln, err := solver.MetatronClient(ctx)
+		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
 			return err
 		}

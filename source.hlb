@@ -1,30 +1,9 @@
-fs hlbGit() {
-	git "https://github.com/openllb/hlb.git" "280409782c222d1fc4880b3b1511a573dfad17c2"
-	breakpoint
+fs default() {
+	crossHLB
 }
 
-fs goCross() {
-	git "https://github.com/hinshun/go-cross.git" ""
-}
-
-fs goBuild(string package) {
-	image "golang:1.12-alpine"
-	run "apk add -U git gcc libc-dev"
-	env "GO111MODULE" "on"
-	dir "/go/src/hlb"
-	breakpoint
-	run string {
-		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
-	} with option {
-		mount hlbGit "/go/src/hlb"
-		mount fs { scratch; } "/out" as goBinary
-		mount fs { scratch; } "/root/.cache/go-build" with option {
-			cache "hlb/go-build" "private"
-		}
-		mount fs { scratch; } "/go/pkg/mod" with option {
-			cache "hlb/go-mod" "private"
-		}
-	} as goStdout
+fs crossHLB() {
+	crossBinaries "github.com/openllb/hlb/cmd/hlb"
 }
 
 fs crossBuild(string package) {
@@ -33,8 +12,8 @@ fs crossBuild(string package) {
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
 	run "/cross/build" package with option {
-		mount hlbGit "/go/src/hlb"
-		mount goCross "/cross" with option {
+		mount src "/go/src/hlb"
+		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
 			sourcePath "/scripts"
 		}
 		mount fs { scratch; } "/root/go/bin" as crossBinaries
@@ -47,13 +26,33 @@ fs crossBuild(string package) {
 	}
 }
 
+fs src() {
+	local "."
+}
+
+fs goBuild(string package) {
+	image "golang:1.12-alpine"
+	run "apk add -U git gcc libc-dev"
+	env "GO111MODULE" "on"
+	dir "/go/src/hlb"
+	breakpoint
+	run string {
+		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
+	} with option {
+		mount src "/go/src/hlb"
+		mount fs { scratch; } "/out" as goBinary
+		mount fs { scratch; } "/root/.cache/go-build" with option {
+			cache "hlb/go-build" "private"
+		}
+		mount fs { scratch; } "/go/pkg/mod" with option {
+			cache "hlb/go-mod" "private"
+		}
+	}
+}
+
 fs hlbFrontend() {
 	scratch
 	copy fs { goBinary "./cmd/frontend"; } "/binary" "/run"
-	copy hlbGit "/source.hlb" "/"
-	copy hlbGit "/signature.hlb" "/"
-}
-
-fs crossHLB() {
-	crossBinaries "github.com/openllb/hlb/cmd/hlb"
+	copy src "/source.hlb" "/"
+	copy src "/signature.hlb" "/"
 }
