@@ -1,4 +1,4 @@
-//go:generate go run ../cmd/builtingen ../docs/reference.hlb reference.go
+//go:generate go run ../cmd/builtingen ../language/reference.hlb reference.go
 
 package gen
 
