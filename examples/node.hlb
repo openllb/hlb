@@ -1,3 +1,4 @@
+# Run `npm test` for the node project `left-pad`.
 fs default() {
     npmRun leftPad fs { nodeModules leftPad; } "test"
 }
@@ -11,6 +12,7 @@ fs npmInstall(fs src) {
     run "npm install" with option {
         dir "/src"
         mount src "/src"
+	# Name the mounted filesystem as nodeModules
         mount fs { scratch; } "/src/node_modules" as nodeModules
     }
 }
