@@ -202,7 +202,7 @@
             </dict>
           </dict>
           <key>contentName</key>
-          <string>text.hlb</string>
+          <string>string.hlb</string>
           <key>end</key>
           <string>(&quot;)</string>
           <key>endCaptures</key>

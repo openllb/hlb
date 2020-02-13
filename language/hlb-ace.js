@@ -93,7 +93,7 @@ this.$rules = {
       "next" : "pop"
    },
    {
-      defaultToken : "text",
+      defaultToken : "string",
    }
 ], 
 "params" : [

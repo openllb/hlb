@@ -45,7 +45,7 @@ contexts:
             0: punctuation.hlb
         - match: '(.)'
           captures:
-            0: text.hlb
+            0: string.hlb
     - match: '(.)'
       captures:
         0: text.hlb

@@ -127,7 +127,7 @@
             'name' : 'punctuation.hlb'
           }
         }
-        'contentName' : 'text.hlb'
+        'contentName' : 'string.hlb'
         'end' : '(")'
         'endCaptures' : {
           '1' : {

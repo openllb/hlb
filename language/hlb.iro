@@ -1,3 +1,11 @@
+#################################################################
+## Iro
+################################################################ 
+##
+## https://eeyo.io/iro/
+##
+################################################################
+
 name = hlb
 file_extensions [] = hlb;
 textmate_uuid = 88c38584-8b5f-45be-93a6-e2c9da5b6e3f
@@ -8,48 +16,66 @@ styles [] {
 
    .string : style {
       color = #c679dd
+      textmate_scope = string
+      ace_scope = string
+      pygments_scope = String
    }
 
    .constant : style {
       color = #c95b69
       textmate_scope = constant
+      ace_scope = constant
+      pygments_scope = Name.Constant
    }
 
    .variable : style {
       color = #98c373
       textmate_scope = variable
+      ace_scope = variable
+      pygments_scope = Name.Variable
    }
 
    .builtin : style {
       bold = true
       textmate_scope = variable.language
+      ace_scope = variable.language
+      pygments_scope = Name.Builtin
    }
 
    .keyword : style {
       color = #4096dd
       textmate_scope = keyword
+      ace_scope = keyword
+      pygments_scope = Keyword
    }
 
    .type : style {
       color = #ad7c09
       textmate_scope = entity.name.type
+      ace_scope = entity.name.type
+      pygments_scope = Keyword.Type
    }
 
    .comment : style {
       color = #8abeb7
       italic = true
       textmate_scope = comment
+      ace_scope = comment
+      pygments_scope = Comment.Single
    }
 
    .punctuation : style {
       color = red_2
       textmate_scope = punctuation
+      ace_scope = punctuation
+      pygments_scope = Punctuation
    }
 
    .illegal : style {
       color = white
       background_color = red
       textmate_scope = invalid
+      ace_scope = invalid
    }
 
 }
