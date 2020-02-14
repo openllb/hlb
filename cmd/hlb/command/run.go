@@ -31,11 +31,15 @@ var runCommand = &cli.Command{
 		&cli.StringFlag{
 			Name:    "download",
 			Aliases: []string{"d"},
-			Usage:   "download the solved hlb filesystem to a directory",
+			Usage:   "downloads the solved hlb filesystem to a directory",
+		},
+		&cli.BoolFlag{
+			Name:  "tarball",
+			Usage: "downloads the solved hlb filesystem as a tarball and writes to stdout",
 		},
 		&cli.StringFlag{
-			Name:    "docker-tarball",
-			Usage:   "download the solved hlb filesystem as a docker-tarball",
+			Name:  "docker-tarball",
+			Usage: "specify a image name for downloading the solved hlb as a docker image tarball and writes to stdout",
 		},
 		&cli.StringFlag{
 			Name:  "log-output",
@@ -114,6 +118,9 @@ var runCommand = &cli.Command{
 		}
 		if c.IsSet("download") {
 			solveOpts = append(solveOpts, solver.WithDownload(c.String("download")))
+		}
+		if c.IsSet("tarball") {
+			solveOpts = append(solveOpts, solver.WithDownloadTarball(os.Stdout))
 		}
 		if c.IsSet("docker-tarball") {
 			solveOpts = append(solveOpts, solver.WithDownloadDockerTarball(c.String("docker-tarball"), os.Stdout))

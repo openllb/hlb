@@ -24,9 +24,10 @@ type SolveOption func(*SolveInfo) error
 type SolveInfo struct {
 	LogOutput          LogOutput
 	OutputDockerRef    string
-	OutputDockerWriter io.WriteCloser
+	OutputWriter       io.WriteCloser
 	OutputPushImage    string
 	OutputLocal        string
+	OutputLocalTarball bool
 	Locals             map[string]string
 }
 
@@ -49,7 +50,7 @@ func WithLogOutput(logOutput LogOutput) SolveOption {
 func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputDockerRef = ref
-		info.OutputDockerWriter = w
+		info.OutputWriter = w
 		return nil
 	}
 }
@@ -64,6 +65,14 @@ func WithPushImage(ref string) SolveOption {
 func WithDownload(dest string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputLocal = dest
+		return nil
+	}
+}
+
+func WithDownloadTarball(w io.WriteCloser) SolveOption {
+	return func(info *SolveInfo) error {
+		info.OutputLocalTarball = true
+		info.OutputWriter = w
 		return nil
 	}
 }
@@ -116,13 +125,13 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 		LocalDirs: make(map[string]string),
 	}
 
-	if info.OutputDockerWriter != nil {
+	if info.OutputDockerRef != "" {
 		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
 			Type: client.ExporterDocker,
 			Attrs: map[string]string{
 				"name": info.OutputDockerRef,
 			},
-			Output: wrapWriter(info.OutputDockerWriter),
+			Output: wrapWriter(info.OutputWriter),
 		})
 	}
 
@@ -140,6 +149,13 @@ func Solve(ctx context.Context, c *client.Client, st llb.State, opts ...SolveOpt
 		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
 			Type:      client.ExporterLocal,
 			OutputDir: info.OutputLocal,
+		})
+	}
+
+	if info.OutputLocalTarball {
+		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
+			Type:   client.ExporterTar,
+			Output: wrapWriter(info.OutputWriter),
 		})
 	}
 
