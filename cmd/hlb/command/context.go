@@ -23,6 +23,6 @@ func Context() context.Context {
 
 func Client(c *cli.Context) (*client.Client, context.Context, error) {
 	ctx := Context()
-	cln, err := solver.BuildkitClient(ctx, c.String("addr"))
+	cln, err := solver.MetatronClient(ctx)
 	return cln, ctx, err
 }
