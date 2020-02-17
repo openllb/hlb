@@ -1,0 +1,613 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.6.3">
+    
+    
+      
+        <title>Let's begin! - HLB (High-level build)</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.adb8469c.css">
+      
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.86422ebf.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700%7CRoboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="../../css/asciinema-player.css">
+    
+    
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#defining-a-function" tabindex="0" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="HLB (High-level build)" aria-label="HLB (High-level build)" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              HLB (High-level build)
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Let's begin!
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" aria-label="search" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://openllb.github.io/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    openllb/hlb
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="../.." title="HLB (High-level build)" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    HLB (High-level build)
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://openllb.github.io/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    openllb/hlb
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-1" type="checkbox" id="nav-1">
+    
+    <label class="md-nav__link" for="nav-1">
+      Introduction
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-1">
+        Introduction
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="What is HLB?" class="md-nav__link">
+      What is HLB?
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../intro/quickstart/" title="Quickstart" class="md-nav__link">
+      Quickstart
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
+    
+    <label class="md-nav__link" for="nav-2">
+      Tutorial
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Tutorial
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Let's begin!
+      </label>
+    
+    <a href="./" title="Let's begin!" class="md-nav__link md-nav__link--active">
+      Let's begin!
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#defining-a-function" class="md-nav__link">
+    Defining a function
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exporting-a-directory" class="md-nav__link">
+    Exporting a directory
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#going-further" class="md-nav__link">
+    Going further
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../improving/" title="Improving our program" class="md-nav__link">
+      Improving our program
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../arguments/" title="Using arguments" class="md-nav__link">
+      Using arguments
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../reference/" title="Reference" class="md-nav__link">
+      Reference
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../specification/" title="Specification" class="md-nav__link">
+      Specification
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#defining-a-function" class="md-nav__link">
+    Defining a function
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exporting-a-directory" class="md-nav__link">
+    Exporting a directory
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#going-further" class="md-nav__link">
+    Going further
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://openllb.github.io/edit/tutorial/lets-begin.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                  <h1>Let's begin!</h1>
+                
+                <p>Welcome to the <code>hlb</code> tutorial!</p>
+<p>In this tutorial, we will write a <code>hlb</code> program to fetch the <code>node_modules</code> of a node project.</p>
+<p>Along the way, you will learn the basics of creating and debugging a build graph. If you ever get stuck at any point of the tutorial, feel free to clone <a href="">hlb-tutorial</a> to get a complete working example.</p>
+<h2 id="defining-a-function">Defining a function<a class="headerlink" href="#defining-a-function" title="Permanent link">&para;</a></h2>
+<p>Let's start by creating a new directory and a file <code>node.hlb</code>. This is where we will write our <code>hlb</code> program. We will begin by defining a function which will become our target to build later.</p>
+<table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">npmInstall</span><span class="p">()</span> <span class="p">{</span>
+    image <span class="s">&quot;node:alpine&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+</td></tr></table>
+
+<p>A function begins with a <code>return type</code>, an <code>identifier</code>, an optional list of <code>arguments</code>, and then followed by a body enclosed in braces. The body must be non-empty, and in this example we are starting from a filesystem of a Docker image <code>node:alpine</code>.</p>
+<p>Since we haven't executed anything, we aren't done yet. Let's add a few more instructions to complete our program:</p>
+<table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">npmInstall</span><span class="p">()</span> <span class="p">{</span>
+    image <span class="s">&quot;node:alpine&quot;</span>
+    run <span class="s">&quot;apk add -U git&quot;</span>
+    run <span class="s">&quot;git clone https://github.com/left-pad/left-pad.git /src&quot;</span>
+    dir <span class="s">&quot;/src&quot;</span>
+    run <span class="s">&quot;npm install&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+</td></tr></table>
+
+<p>If you are thinking, "Hey, that looks like Dockerfile!", then you would be right! <code>hlb</code> is a superset of the features from Dockerfiles, but designed to leverage the full power of BuildKit. Let's go over what we did.</p>
+<ol>
+<li>Fetched <code>git</code> using alpine's package manager <code>apk</code></li>
+<li>Cloned a simple node project from stash</li>
+<li>Changed the current working directory to <code>/src</code></li>
+<li>Run <code>npm install</code>, which should produce a directory at <code>/src/node_modules</code> containing all the dependencies for the node project</li>
+</ol>
+<p>When you are ready, save the <code>node.hlb</code> file and run the build by using the <code>hlb</code> binary we previously installed.</p>
+<div class="codehilite"><pre><span></span><code>./hlb run --target npmInstall node.hlb
+</code></pre></div>
+
+<p>You generated a <code>node_modules</code> directory, but since nothing was exported it is still with the BuildKit daemon. Of course, that is what we will be learning next.</p>
+<h2 id="exporting-a-directory">Exporting a directory<a class="headerlink" href="#exporting-a-directory" title="Permanent link">&para;</a></h2>
+<p>Now that our build graph produces a <code>/src/node_modules</code>, one thing we might want to do is to export it to our system. However, if we export the target <code>npmInstall</code>, we'll not only get the <code>node_modules</code> directory, but also the rest of the alpine filesystem. In order to isolate the directory we want, we need to copy it to a new filesystem.</p>
+<table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">nodeModules</span><span class="p">()</span> <span class="p">{</span>
+    scratch
+    copy <span class="nv">npmInstall</span> <span class="s">&quot;/src/node_modules&quot;</span> <span class="s">&quot;/&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+</td></tr></table>
+
+<p>As we learned earlier, we can define functions which we can later target when running the build. In this new function, we are starting from a <code>scratch</code> filesystem (an empty one), and then copying the <code>/src/node_modules</code> from <code>npmInstall</code>.</p>
+<p>Since <code>hlb</code> is a functional language, variables and functions cannot be modified dynamically. When we copy from <code>npmInstall</code>, it is always referring to a snapshot of its filesystem after all its instructions have been executed. If we want to modify <code>npmInstall</code>, we will have to write a new function that starts from <code>npmInstall</code> but it will have to be defined with a new identifier.</p>
+<p>Now that we have isolated the directory, we can download the filesystem (containing only the <code>node_modules</code>) by specifying <code>--download &lt;dest-dir&gt;</code>:</p>
+<div class="codehilite"><pre><span></span><code>./hlb run --target nodeModules --download . node.hlb
+</code></pre></div>
+
+<p>After the build have finished, you should see the <code>node_modules</code> in your working directory.</p>
+<div class="codehilite"><pre><span></span><code>$ ls
+node_modules  node.hlb
+
+$ tree node_modules <span class="p">|</span> tail -n <span class="m">1</span>
+<span class="m">307</span> directories, <span class="m">4014</span> files
+
+$ rm -rf node_modules
+</code></pre></div>
+
+<p>Once you have verified the directory is correct, remove it so we can keep our workspace clean.</p>
+<div class="admonition tip">
+<p class="admonition-title">Not just to produce images</p>
+<p>Although we are running a containerized build, it doesn't have to result in a container image. We can leverage the sandboxed environment in containers as a way to have a repeatable workflow. </p>
+</div>
+<h2 id="going-further">Going further<a class="headerlink" href="#going-further" title="Permanent link">&para;</a></h2>
+<p>Well done! We've now defined two functions <code>npmInstall</code> and <code>nodeModules</code> in our <code>hlb</code> program, and we've successfully downloaded just the <code>node_modules</code> directory to our system. We can still run <code>npmInstall</code> independently, because unused nodes in the build graph will be pruned if they're not a dependency of the target.</p>
+<p>If you've noticed, we didn't explicitly declare that <code>npmInstall</code> must be run before <code>nodeModules</code>.  The superpower of <code>hlb</code> comes from the implicit build graph constructed by the instructions that invoke other functions. You don't need to think about what is safe to parallelize, and the more you decompose your build into smaller functions, the more concurrent your build!</p>
+<p>However, what we achieved so far is also possible with multi-stage Dockerfiles today. In the next chapter, we'll find out about hidden powers in BuildKit which we can start using in <code>hlb</code>.</p>
+                
+                  
+                
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../../intro/quickstart/" title="Quickstart" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Quickstart
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../improving/" title="Improving our program" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Improving our program
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org" target="_blank" rel="noopener">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.c33a9706.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
+      
+        <script src="../../js/asciinema-player.js"></script>
+      
+    
+  </body>
+</html>
