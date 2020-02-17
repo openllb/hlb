@@ -7,12 +7,15 @@ fs leftPad() {
     git "https://github.com/left-pad/left-pad.git" "master"
 }
 
-fs npmInstall(fs src) {
-    image "node:alpine"
+fs npmInstall(fs src, variadic string test) {
+    image "node:alpine" with option {
+        resolve
+    }
+    mkdir "/dir" 0o644
     run "npm install" with option {
         dir "/src"
         mount src "/src"
-	# Name the mounted filesystem as nodeModules
+        # Name the mounted filesystem as nodeModules
         mount fs { scratch; } "/src/node_modules" as nodeModules
     }
 }
