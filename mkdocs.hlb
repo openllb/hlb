@@ -1,10 +1,26 @@
 fs default() {
-	mkdocs src
+	buildMkdocs src
+}
+
+fs publish() {
+	publishMkdocs src
+}
+
+fs testSSH() {
+	image "python:alpine"
+	run "apk add -U openssh-client"
+	mkdir "/root/.ssh" 0o700
+        run "ssh-keyscan github.com >> ~/.ssh/known_hosts"
+	run "ssh -q -T git@github.com" with option {
+		ssh
+	}
 }
 
 fs mkdocsMaterial() {
 	image "python:alpine"
-	run "apk add -U git"
+	run "apk add -U git git-fast-import openssh-client"
+	mkdir "/root/.ssh" 0o700
+        run "ssh-keyscan github.com >> ~/.ssh/known_hosts"
 	run "pip install --upgrade pip"
 	run "pip install mkdocs-material pymdown-extensions"
 	run "pip install -e git+https://github.com/hinshun/pygments.git@hlb-lexer#egg=pygments"
@@ -12,16 +28,24 @@ fs mkdocsMaterial() {
 
 fs src() {
 	local "." with option {
-		includePatterns "mkdocs.yml" "docs/"
+		includePatterns "mkdocs.yml" "docs/" ".git"
 	}
 }
 
-fs buildMkdocs(fs src) {
+fs runMkdocsBuild(fs src) {
 	mkdocsMaterial
 	run "mkdocs build -d /out" with option {
 		dir "/mkdocs"
 		mount src "/mkdocs"
-		mount fs { scratch; } "/out" as mkdocs
+		mount fs { scratch; } "/out" as buildMkdocs
 	}
 }
 
+fs publishMkdocs(fs src) {
+	mkdocsMaterial
+	run "mkdocs gh-deploy" with option {
+		ssh
+		dir "/mkdocs"
+		mount src "/mkdocs"
+	}
+}

@@ -8,13 +8,19 @@ Otherwise, you can compile HLB yourself using [go](https://golang.org/dl/):
 ```sh
 go get -u github.com/openllb/hlb/cmd/hlb
 ```
+
+You'll also need to run `buildkitd` somewhere you can connect to. The easiest way if you have [Docker](https://www.docker.com/get-started), is to run a local buildkit container:
+```sh
+# We're still waiting on some upstream PRs to be merged, but soon you'll be able to use standard moby/buildkit
+docker run -d --name buildkitd --privileged openllb/buildkit:experimental
+```
 	
 ## Run your first build
 
 Now that you have installed `hlb`, we can run our first build. Typically, we will write our program in a file with a `.hlb` extension, but for our first build we can just pipe the program in from stdin. Try it yourself!
 
 ```sh
-echo 'fs default() { generate fs { image "hinshun/hello-world"; }; }' | hlb run --download .
+echo 'fs default() { scratch; mkfile "/out" 0o644 "hello world"; }' | hlb run --download .
 ```
 
 Once the build has finished, you should end up with a file `output` in your working directory.

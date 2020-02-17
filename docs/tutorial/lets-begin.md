@@ -36,7 +36,7 @@ If you are thinking, "Hey, that looks like Dockerfile!", then you would be right
 When you are ready, save the `node.hlb` file and run the build by using the `hlb` binary we previously installed.
 
 ```sh
-./hlb run --target npmInstall node.hlb
+hlb run --target npmInstall node.hlb
 ```
 
 You generated a `node_modules` directory, but since nothing was exported it is still with the BuildKit daemon. Of course, that is what we will be learning next.
@@ -58,7 +58,7 @@ Since `hlb` is a functional language, variables and functions cannot be modified
 Now that we have isolated the directory, we can download the filesystem (containing only the `node_modules`) by specifying `--download <dest-dir>`:
 
 ```sh
-./hlb run --target nodeModules --download . node.hlb
+hlb run --target nodeModules --download . node.hlb
 ```
 
 After the build have finished, you should see the `node_modules` in your working directory.

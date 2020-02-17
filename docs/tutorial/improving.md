@@ -85,7 +85,7 @@ After the arguments to the function and the optional `with <option>` block, you 
 Try running a build targetting `nodeModules` now, and this time we don't have to download it.
 
 ```sh
-./hlb run --target nodeModules node.hlb
+hlb run --target nodeModules node.hlb
 ```
 
 Your build should complete slightly quicker (or much quicker if you had more dependencies), but we don't have to stop there. We briefly mentioned in the previous chapter that we chose to start from a filesystem of a Docker image, so we can explore other source functions too.
@@ -120,7 +120,7 @@ Instead of cloning the repository and then running it, we can implicitly depend 
 Run the build again to see the speed improve once again.
 
 ```sh
-./hlb run --target npmInstall node.hlb
+hlb run --target npmInstall node.hlb
 ```
 
 !!! tip "Formatting"

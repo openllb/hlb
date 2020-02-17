@@ -78,7 +78,7 @@ This time, instead of passing a string literal, we can pass a string block liter
 When you're ready, run a build targetting `nodeProjectWithLeftPad` and download the initialized node project.
 
 ```sh
-./hlb run --target nodeProjectWithLeftPad --download . node.hlb
+hlb run --target nodeProjectWithLeftPad --download . node.hlb
 ```
 
 You should see two new files `package.json` and `package-lock.json` in your working directory.
@@ -102,7 +102,7 @@ Now we can use the `local` source to download `node_modules`, but let's also use
 And finally, we can run `npm install` remotely using our working directory and transfer back the `node_modules`.
 	
 ```sh
-./hlb run --target localModules --download node_modules node.hlb
+hlb run --target localModules --download node_modules node.hlb
 ```
 
 ## Advanced concepts
