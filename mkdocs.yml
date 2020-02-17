@@ -1,0 +1,33 @@
+site_name: HLB (High-level build)
+repo_url: https://openllb.github.io
+edit_uri: edit
+repo_name: openllb/hlb
+pages:
+  - Introduction:
+      - "What is HLB?": index.md
+      - "Quickstart": intro/quickstart.md
+  - Tutorial:
+      - "Let's begin!": tutorial/lets-begin.md
+      - "Improving our program": tutorial/improving.md
+      - "Using arguments": tutorial/arguments.md
+  - Reference: reference.md
+  - Specification: specification.md
+theme:
+  name: material
+
+# There are many available formatting extensions available, please read:
+# https://facelessuser.github.io/pymdown-extensions/
+markdown_extensions:
+  - toc:
+      permalink: True
+  - pymdownx.tilde
+  - admonition
+  - pymdownx.superfences
+  - codehilite:
+      guess_lang: false
+
+extra_css:
+  - css/asciinema-player.css
+
+extra_javascript:
+  - js/asciinema-player.js

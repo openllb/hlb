@@ -1,0 +1,27 @@
+fs default() {
+	mkdocs src
+}
+
+fs mkdocsMaterial() {
+	image "python:alpine"
+	run "apk add -U git"
+	run "pip install --upgrade pip"
+	run "pip install mkdocs-material pymdown-extensions"
+	run "pip install -e git+https://github.com/hinshun/pygments.git@hlb-lexer#egg=pygments"
+}
+
+fs src() {
+	local "." with option {
+		includePatterns "mkdocs.yml" "docs/"
+	}
+}
+
+fs buildMkdocs(fs src) {
+	mkdocsMaterial
+	run "mkdocs build -d /out" with option {
+		dir "/mkdocs"
+		mount src "/mkdocs"
+		mount fs { scratch; } "/out" as mkdocs
+	}
+}
+
