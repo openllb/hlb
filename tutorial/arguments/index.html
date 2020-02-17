@@ -556,7 +556,7 @@
 
 <p>This time, instead of passing a string literal, we can pass a string block literal where we have access to string functions like <code>format</code>. This allows us to interpolate values into string to install an arbitrary package.</p>
 <p>When you're ready, run a build targetting <code>nodeProjectWithLeftPad</code> and download the initialized node project.</p>
-<div class="codehilite"><pre><span></span><code>./hlb run --target nodeProjectWithLeftPad --download . node.hlb
+<div class="codehilite"><pre><span></span><code>hlb run --target nodeProjectWithLeftPad --download . node.hlb
 </code></pre></div>
 
 <p>You should see two new files <code>package.json</code> and <code>package-lock.json</code> in your working directory.</p>
@@ -582,7 +582,7 @@ node.hlb  package.json  package-lock.json
 </td></tr></table>
 
 <p>And finally, we can run <code>npm install</code> remotely using our working directory and transfer back the <code>node_modules</code>.</p>
-<div class="codehilite"><pre><span></span><code>./hlb run --target localModules --download node_modules node.hlb
+<div class="codehilite"><pre><span></span><code>hlb run --target localModules --download node_modules node.hlb
 </code></pre></div>
 
 <h2 id="advanced-concepts">Advanced concepts<a class="headerlink" href="#advanced-concepts" title="Permanent link">&para;</a></h2>

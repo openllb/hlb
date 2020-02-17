@@ -581,7 +581,7 @@
 </td></tr></table>
 
 <p>Try running a build targetting <code>nodeModules</code> now, and this time we don't have to download it.</p>
-<div class="codehilite"><pre><span></span><code>./hlb run --target nodeModules node.hlb
+<div class="codehilite"><pre><span></span><code>hlb run --target nodeModules node.hlb
 </code></pre></div>
 
 <p>Your build should complete slightly quicker (or much quicker if you had more dependencies), but we don't have to stop there. We briefly mentioned in the previous chapter that we chose to start from a filesystem of a Docker image, so we can explore other source functions too.</p>
@@ -624,7 +624,7 @@
 </td></tr></table>
 
 <p>Run the build again to see the speed improve once again.</p>
-<div class="codehilite"><pre><span></span><code>./hlb run --target npmInstall node.hlb
+<div class="codehilite"><pre><span></span><code>hlb run --target npmInstall node.hlb
 </code></pre></div>
 
 <div class="admonition tip">

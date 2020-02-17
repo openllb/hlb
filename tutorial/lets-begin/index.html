@@ -491,7 +491,7 @@
 <li>Run <code>npm install</code>, which should produce a directory at <code>/src/node_modules</code> containing all the dependencies for the node project</li>
 </ol>
 <p>When you are ready, save the <code>node.hlb</code> file and run the build by using the <code>hlb</code> binary we previously installed.</p>
-<div class="codehilite"><pre><span></span><code>./hlb run --target npmInstall node.hlb
+<div class="codehilite"><pre><span></span><code>hlb run --target npmInstall node.hlb
 </code></pre></div>
 
 <p>You generated a <code>node_modules</code> directory, but since nothing was exported it is still with the BuildKit daemon. Of course, that is what we will be learning next.</p>
@@ -510,7 +510,7 @@
 <p>As we learned earlier, we can define functions which we can later target when running the build. In this new function, we are starting from a <code>scratch</code> filesystem (an empty one), and then copying the <code>/src/node_modules</code> from <code>npmInstall</code>.</p>
 <p>Since <code>hlb</code> is a functional language, variables and functions cannot be modified dynamically. When we copy from <code>npmInstall</code>, it is always referring to a snapshot of its filesystem after all its instructions have been executed. If we want to modify <code>npmInstall</code>, we will have to write a new function that starts from <code>npmInstall</code> but it will have to be defined with a new identifier.</p>
 <p>Now that we have isolated the directory, we can download the filesystem (containing only the <code>node_modules</code>) by specifying <code>--download &lt;dest-dir&gt;</code>:</p>
-<div class="codehilite"><pre><span></span><code>./hlb run --target nodeModules --download . node.hlb
+<div class="codehilite"><pre><span></span><code>hlb run --target nodeModules --download . node.hlb
 </code></pre></div>
 
 <p>After the build have finished, you should see the <code>node_modules</code> in your working directory.</p>
