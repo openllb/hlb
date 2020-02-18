@@ -450,7 +450,8 @@ docker run -d --name buildkitd --privileged openllb/buildkit:experimental
 </code></pre></div></p>
 <h2 id="run-your-first-build">Run your first build<a class="headerlink" href="#run-your-first-build" title="Permanent link">&para;</a></h2>
 <p>Now that you have installed <code>hlb</code>, we can run our first build. Typically, we will write our program in a file with a <code>.hlb</code> extension, but for our first build we can just pipe the program in from stdin. Try it yourself!</p>
-<div class="codehilite"><pre><span></span><code><span class="nb">echo</span> <span class="s1">&#39;fs default() { scratch; mkfile &quot;/out&quot; 0o644 &quot;hello world&quot;; }&#39;</span> <span class="p">|</span> hlb run --download .
+<div class="codehilite"><pre><span></span><code><span class="nb">export</span> <span class="nv">BUILDKIT_HOST</span><span class="o">=</span>docker-container://buildkitd
+<span class="nb">echo</span> <span class="s1">&#39;fs default() { scratch; mkfile &quot;/out&quot; 0o644 &quot;hello world&quot;; }&#39;</span> <span class="p">|</span> hlb run --download .
 </code></pre></div>
 
 <p>Once the build has finished, you should end up with a file <code>output</code> in your working directory.</p>
