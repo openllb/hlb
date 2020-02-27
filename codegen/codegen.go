@@ -309,7 +309,7 @@ func emitFilesystemSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.Cal
 			opts = append(opts, opt)
 		}
 
-		return llb.Local(id), nil
+		return llb.Local(id, opts...), nil
 	case "generate":
 		frontend, err := emitFilesystemExpr(info, scope, nil, args[0], ac)
 		if err != nil {
