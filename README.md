@@ -1,4 +1,4 @@
-[![GoDoc](https://godoc.org/github.com/openllb/hlb?status.svg)](https://godoc.org/github.com/openllb/hlb)
+[![GoDoc](https://img.shields.io/static/v1?label=godoc&message=reference&color=blue)](https://pkg.go.dev/github.com/openllb/hlb)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 # hlb
