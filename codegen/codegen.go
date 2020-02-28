@@ -1301,7 +1301,7 @@ func emitMountOptions(info *CodeGenInfo, scope *ast.Scope, op string, stmts []*a
 					return opts, err
 				}
 				if v {
-					opts = append(opts, llb.Readonly)
+					opts = append(opts, llb.MountOption(llb.Readonly))
 				}
 			case "tmpfs":
 				v, err := maybeEmitBoolExpr(info, scope, args)
