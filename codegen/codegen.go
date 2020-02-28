@@ -9,7 +9,6 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
-	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/ast"
@@ -300,14 +299,26 @@ func emitFilesystemSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.Cal
 			return st, err
 		}
 
-		id := identity.NewID()
-		info.Locals[id] = path
-
 		var opts []llb.LocalOption
 		for _, iopt := range iopts {
 			opt := iopt.(llb.LocalOption)
 			opts = append(opts, opt)
 		}
+
+		// get a consistent hash for this local (path + options) so we don't
+		// transport the same content multiple times when referenced repeatedly
+
+		// first get serialized bytes for this llb.Local state
+		tmpSt := llb.Local("", opts...)
+		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
+		if err != nil {
+			return tmpSt, err
+		}
+		// next append the path so we have the path + options serialized hash input
+		hashInput = append(hashInput, []byte(path)...)
+
+		id := string(digest.FromBytes(hashInput))
+		info.Locals[id] = path
 
 		return llb.Local(id, opts...), nil
 	case "generate":
