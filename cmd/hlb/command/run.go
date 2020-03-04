@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/codegen"
@@ -82,57 +83,89 @@ var runCommand = &cli.Command{
 		if err != nil {
 			return err
 		}
+		return Run(ctx, cln, r, RunOptions{
+			Debug:         c.Bool("debug"),
+			DockerTarball: c.String("docker-tarball"),
+			Download:      c.String("download"),
+			Target:        c.String("target"),
+			LLB:           c.Bool("llb"),
+			LogOutput:     c.String("log-output"),
+			Output:        os.Stdout,
+			Push:          c.String("push"),
+			Tarball:       c.Bool("tarball"),
+		})
+	},
+}
 
-		st, info, err := hlb.Compile(ctx, cln, c.String("target"), []io.Reader{r}, c.Bool("debug"))
+type RunOptions struct {
+	Debug         bool
+	DockerTarball string
+	Download      string
+	Target        string
+	LLB           bool
+	LogOutput     string
+	Output        io.WriteCloser
+	Push          string
+	Tarball       bool
+}
+
+func Run(ctx context.Context, cln *client.Client, r io.Reader, opts RunOptions) error {
+	if opts.Target == "" {
+		opts.Target = "default"
+	}
+	if opts.Output == nil {
+		opts.Output = os.Stdout
+	}
+
+	st, info, err := hlb.Compile(ctx, cln, opts.Target, []io.Reader{r}, opts.Debug)
+	if err != nil {
+		// Ignore early exits from the debugger.
+		if err == codegen.ErrDebugExit {
+			return nil
+		}
+		return err
+	}
+
+	if opts.LLB {
+		def, err := st.Marshal(llb.LinuxAmd64)
 		if err != nil {
-			// Ignore early exits from the debugger.
-			if err == codegen.ErrDebugExit {
-				return nil
-			}
 			return err
 		}
 
-		if c.Bool("llb") {
-			def, err := st.Marshal(llb.LinuxAmd64)
-			if err != nil {
-				return err
-			}
+		return llb.WriteTo(def, opts.Output)
+	}
 
-			return llb.WriteTo(def, os.Stdout)
+	var solveOpts []solver.SolveOption
+	if opts.LogOutput != "" {
+		switch opts.LogOutput {
+		case "tty":
+			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputTTY))
+		case "plain":
+			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputPlain))
+		case "json":
+			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputJSON))
+		case "raw":
+			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputRaw))
+		default:
+			return fmt.Errorf("unrecognized log-output %q", opts.LogOutput)
 		}
+	}
+	if opts.Download != "" {
+		solveOpts = append(solveOpts, solver.WithDownload(opts.Download))
+	}
+	if opts.Tarball {
+		solveOpts = append(solveOpts, solver.WithDownloadTarball(opts.Output))
+	}
+	if opts.DockerTarball != "" {
+		solveOpts = append(solveOpts, solver.WithDownloadDockerTarball(opts.DockerTarball, opts.Output))
+	}
+	if opts.Push != "" {
+		solveOpts = append(solveOpts, solver.WithPushImage(opts.Push))
+	}
 
-		var solveOpts []solver.SolveOption
-		if c.IsSet("log-output") {
-			switch c.String("log-output") {
-			case "tty":
-				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputTTY))
-			case "plain":
-				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputPlain))
-			case "json":
-				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputJSON))
-			case "raw":
-				solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputRaw))
-			default:
-				return fmt.Errorf("unrecognized log-output %q", c.String("log-output"))
-			}
-		}
-		if c.IsSet("download") {
-			solveOpts = append(solveOpts, solver.WithDownload(c.String("download")))
-		}
-		if c.IsSet("tarball") {
-			solveOpts = append(solveOpts, solver.WithDownloadTarball(os.Stdout))
-		}
-		if c.IsSet("docker-tarball") {
-			solveOpts = append(solveOpts, solver.WithDownloadDockerTarball(c.String("docker-tarball"), os.Stdout))
-		}
-		if c.IsSet("push") {
-			solveOpts = append(solveOpts, solver.WithPushImage(c.String("push")))
-		}
+	for id, path := range info.Locals {
+		solveOpts = append(solveOpts, solver.WithLocal(id, path))
+	}
 
-		for id, path := range info.Locals {
-			solveOpts = append(solveOpts, solver.WithLocal(id, path))
-		}
-
-		return solver.Solve(ctx, cln, st, solveOpts...)
-	},
+	return solver.Solve(ctx, cln, st, solveOpts...)
 }
