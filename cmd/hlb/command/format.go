@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -12,9 +13,9 @@ import (
 )
 
 var formatCommand = &cli.Command{
-	Name:    "format",
-	Aliases: []string{"fmt"},
-	Usage:   "formats HLB programs",
+	Name:      "format",
+	Aliases:   []string{"fmt"},
+	Usage:     "formats HLB programs",
 	ArgsUsage: "[ <*.hlb> ... ]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
@@ -29,36 +30,48 @@ var formatCommand = &cli.Command{
 			return err
 		}
 		defer cleanup()
-
-		files, _, err := hlb.ParseMultiple(rs, defaultOpts()...)
-		if err != nil {
-			return err
-		}
-
-		_, err = report.SemanticCheck(files...)
-		if err != nil {
-			return err
-		}
-
-		if c.Bool("write") && c.NArg() > 0 {
-			for i, f := range files {
-				filename := lexer.NameOfReader(rs[i])
-				info, err := os.Stat(filename)
-				if err != nil {
-					return err
-				}
-
-				err = ioutil.WriteFile(filename, []byte(f.String()), info.Mode())
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			for _, f := range files {
-				fmt.Printf("%s", f)
-			}
-		}
-
-		return nil
+		return Format(rs, FormatOptions{
+			Write: c.Bool("write"),
+		})
 	},
+}
+
+type FormatOptions struct {
+	Write bool
+}
+
+func Format(rs []io.Reader, opts FormatOptions) error {
+	files, _, err := hlb.ParseMultiple(rs, defaultOpts()...)
+	if err != nil {
+		return err
+	}
+
+	_, err = report.SemanticCheck(files...)
+	if err != nil {
+		return err
+	}
+
+	if opts.Write {
+		for i, f := range files {
+			filename := lexer.NameOfReader(rs[i])
+			if filename == "" {
+				return fmt.Errorf("Unable to write, file name unavailable")
+			}
+			info, err := os.Stat(filename)
+			if err != nil {
+				return err
+			}
+
+			err = ioutil.WriteFile(filename, []byte(f.String()), info.Mode())
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		for _, f := range files {
+			fmt.Printf("%s", f)
+		}
+	}
+
+	return nil
 }
