@@ -123,3 +123,12 @@ type ErrInvalidTarget struct {
 func (e ErrInvalidTarget) Error() string {
 	return fmt.Sprintf("%s invalid compile target %s", FormatPos(e.Ident.Position()), e.Ident)
 }
+
+type ErrCodeGen struct {
+	Node ast.Node
+	Err error
+}
+
+func (e ErrCodeGen) Error() string {
+	return fmt.Sprintf("%s %s", FormatPos(e.Node.Position()), e.Err)
+}

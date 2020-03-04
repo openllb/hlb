@@ -117,6 +117,13 @@ func emitBlock(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, stmts []*as
 		return nil, err
 	}
 
+	if st, ok := v.(llb.State); ok && st.Output() != nil {
+		err = st.Validate()
+		if err != nil {
+			return nil, report.ErrCodeGen{sourceStmt, err}
+		}
+	}
+
 	if sourceStmt.Alias != nil {
 		// Source statements may be aliased.
 		ac(sourceStmt, v)
@@ -143,6 +150,13 @@ func emitBlock(info *CodeGenInfo, scope *ast.Scope, typ ast.ObjType, stmts []*as
 			return nil, err
 		}
 		v = chain(v)
+
+		if st, ok := v.(llb.State); ok && st.Output() != nil {
+			err = st.Validate()
+			if err != nil {
+				return nil, report.ErrCodeGen{sourceStmt, err}
+			}
+		}
 
 		if call.Alias != nil {
 			// Chain statements may be aliased.
@@ -312,7 +326,7 @@ func emitFilesystemSourceStmt(info *CodeGenInfo, scope *ast.Scope, call *ast.Cal
 		tmpSt := llb.Local("", opts...)
 		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
 		if err != nil {
-			return tmpSt, err
+			return tmpSt, report.ErrCodeGen{call, err}
 		}
 		// next append the path so we have the path + options serialized hash input
 		hashInput = append(hashInput, []byte(path)...)
