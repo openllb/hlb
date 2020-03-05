@@ -1,0 +1,48 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go 1.12
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.12
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Get dependencies
+      run: |
+        go get
+
+    - name: Build HLB
+      run: go build -o build/hlb ./cmd/hlb
+
+    - name: Build Frontend
+      run: go build -o build/frontend ./cmd/frontend
+
+    - name: Build DocGen
+      run: go build -o build/docgen ./cmd/docgen
+
+    - name: Build BuiltinGen
+      run: go build -o build/builtingen ./cmd/builtingen
+
+    - name: Start BuildkitD
+      run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
+
+    - name: GoLint
+      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t goLint ./source.hlb
+
+    - name: Crosscompile
+      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain --download build/dist ./source.hlb
+
+

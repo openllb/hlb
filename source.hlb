@@ -12,22 +12,50 @@ fs crossBuild(string package) {
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
 	run "/cross/build" package with option {
-		mount src "/go/src/hlb"
+		goCacheMounts
 		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
 			sourcePath "/scripts"
+			readonly
 		}
 		mount fs { scratch; } "/root/go/bin" as crossBinaries
-		mount fs { scratch; } "/root/.cache/go-build" with option {
-			cache "hlb/go-build" "private"
-		}
-		mount fs { scratch; } "/go/pkg/mod" with option {
-			cache "hlb/go-mod" "private"
-		}
 	}
 }
 
 fs src() {
-	local "."
+	local "." with option {
+		excludePatterns ".git" "build"
+	}
+}
+
+option::run goCacheMounts() {
+	mount src "/go/src/hlb" with option {
+		readonly
+	}
+	mount fs { scratch; } "/root/.cache/go-build" with option {
+		cache "hlb/go-build" "private"
+	}
+	mount fs { scratch; } "/go/pkg/mod" with option {
+		cache "hlb/go-mod" "private"
+	}
+}
+
+fs goLint() {
+	image "golang:1.12-alpine"
+	run "apk add -U git gcc libc-dev"
+	run "sh /golangci/install.sh -b /usr/bin v1.23.8" with option {
+		mount fs {
+			http "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh"
+		} "/golangci"
+	}
+	env "GO111MODULE" "on"
+	env "PATH" "/usr/bin:/bin:/usr/local/go/bin"
+	dir "/go/src/hlb"
+	run "go get" with option {
+		goCacheMounts
+	}
+	run "/usr/bin/golangci-lint run" with option {
+		goCacheMounts
+	}
 }
 
 fs goBuild(string package) {
@@ -39,14 +67,8 @@ fs goBuild(string package) {
 	run string {
 		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
 	} with option {
-		mount src "/go/src/hlb"
+		goCacheMounts
 		mount fs { scratch; } "/out" as goBinary
-		mount fs { scratch; } "/root/.cache/go-build" with option {
-			cache "hlb/go-build" "private"
-		}
-		mount fs { scratch; } "/go/pkg/mod" with option {
-			cache "hlb/go-mod" "private"
-		}
 	}
 }
 
@@ -56,3 +78,4 @@ fs hlbFrontend() {
 	copy src "/source.hlb" "/"
 	copy src "/signature.hlb" "/"
 }
+
