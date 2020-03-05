@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  GO111MODULE=on
 jobs:
   build:
     name: Build
@@ -21,20 +23,14 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Get dependencies
+      run: go get
+
+    - name: Compile
       run: |
-        go get
-
-    - name: Build HLB
-      run: go build -o build/hlb ./cmd/hlb
-
-    - name: Build Frontend
-      run: go build -o build/frontend ./cmd/frontend
-
-    - name: Build DocGen
-      run: go build -o build/docgen ./cmd/docgen
-
-    - name: Build BuiltinGen
-      run: go build -o build/builtingen ./cmd/builtingen
+        go build -o build/hlb ./cmd/hlb
+        go build -o build/frontend ./cmd/frontend
+        go build -o build/docgen ./cmd/docgen
+        go build -o build/builtingen ./cmd/builtingen
 
     - name: Start BuildkitD
       run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
