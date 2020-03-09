@@ -7,7 +7,7 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
-	"github.com/openllb/hlb/ast"
+	"github.com/openllb/hlb/parser"
 )
 
 func searchToken(lex *lexer.PeekingLexer, tokenOffset int) (lexer.Token, int, error) {
@@ -203,7 +203,7 @@ func helpReservedKeyword(color aurora.Aurora, keywords []string) string {
 }
 
 func isSymbol(token lexer.Token, types ...string) bool {
-	symbols := ast.Lexer.Symbols()
+	symbols := parser.Lexer.Symbols()
 	for _, t := range types {
 		if token.Type == symbols[t] {
 			return true

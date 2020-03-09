@@ -10,13 +10,14 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
-	"github.com/openllb/hlb/ast"
+	"github.com/openllb/hlb/parser"
 )
 
 var (
 	Sources = []string{"scratch", "image", "http", "git", "local", "generate"}
 	Ops     = []string{"shell", "run", "env", "dir", "user", "entrypoint", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
+	Types   = []string{"string", "int", "bool", "fs", "option"}
 
 	CommonOptions   = []string{"no-cache"}
 	ImageOptions    = []string{"resolve"}
@@ -40,11 +41,11 @@ var (
 	Options          = flatMap(ImageOptions, HTTPOptions, GitOptions, RunOptions, SSHOptions, SecretOptions, MountOptions, MkdirOptions, MkfileOptions, RmOptions, CopyOptions)
 	Enums            = flatMap(NetworkModes, SecurityModes, CacheSharingModes)
 	Fields           = flatMap(Sources, Ops, Options)
-	Keywords         = flatMap(ast.Types, Sources, Fields, Enums)
-	ReservedKeywords = flatMap(ast.Types, []string{"with"})
+	Keywords         = flatMap(Types, Sources, Fields, Enums)
+	ReservedKeywords = flatMap(Types, []string{"with"})
 
 	KeywordsWithOptions = []string{"image", "http", "git", "run", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
-	KeywordsWithBlocks  = flatMap(ast.Types, KeywordsWithOptions)
+	KeywordsWithBlocks  = flatMap(Types, KeywordsWithOptions)
 
 	KeywordsByName = map[string][]string{
 		"fs":       Ops,
@@ -65,226 +66,6 @@ var (
 		"security": SecurityModes,
 		"cache":    CacheSharingModes,
 	}
-
-	BuiltinSources = map[ast.ObjType][]string{
-		ast.Filesystem: Sources,
-		ast.Str:        []string{"value", "format"},
-	}
-
-	Builtins = map[ast.ObjType]map[string][]*ast.Field{
-		ast.Filesystem: map[string][]*ast.Field{
-			// Debug ops
-			"breakpoint": nil,
-			// Source ops
-			"scratch": nil,
-			"image": []*ast.Field{
-				ast.NewField(ast.Str, "ref", false),
-			},
-			"http": []*ast.Field{
-				ast.NewField(ast.Str, "url", false),
-			},
-			"git": []*ast.Field{
-				ast.NewField(ast.Str, "remote", false),
-				ast.NewField(ast.Str, "ref", false),
-			},
-			"local": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-			},
-			"generate": []*ast.Field{
-				ast.NewField(ast.Filesystem, "frontend", false),
-			},
-			// Ops
-			"shell": []*ast.Field{
-				ast.NewField(ast.Str, "arg", true),
-			},
-			"run": []*ast.Field{
-				ast.NewField(ast.Str, "arg", true),
-			},
-			"env": []*ast.Field{
-				ast.NewField(ast.Str, "key", false),
-				ast.NewField(ast.Str, "value", false),
-			},
-			"dir": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-			},
-			"user": []*ast.Field{
-				ast.NewField(ast.Str, "name", false),
-			},
-			"entrypoint": []*ast.Field{
-				ast.NewField(ast.Str, "command", true),
-			},
-			"mkdir": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-				ast.NewField(ast.Int, "filemode", false),
-			},
-			"mkfile": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-				ast.NewField(ast.Int, "filemode", false),
-				ast.NewField(ast.Str, "content", false),
-			},
-			"rm": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-			},
-			"copy": []*ast.Field{
-				ast.NewField(ast.Filesystem, "input", false),
-				ast.NewField(ast.Str, "src", false),
-				ast.NewField(ast.Str, "dest", false),
-			},
-		},
-		ast.Str: map[string][]*ast.Field{
-			"value": []*ast.Field{
-				ast.NewField(ast.Str, "literal", false),
-			},
-			"format": []*ast.Field{
-				ast.NewField(ast.Str, "format", false),
-				ast.NewField(ast.Str, "values", true),
-			},
-		},
-		// Common options
-		ast.Option: map[string][]*ast.Field{
-			"no-cache": nil,
-		},
-		ast.OptionImage: map[string][]*ast.Field{
-			"resolve": nil,
-		},
-		ast.OptionHTTP: map[string][]*ast.Field{
-			"checksum": []*ast.Field{
-				ast.NewField(ast.Str, "digest", false),
-			},
-			"chmod": []*ast.Field{
-				ast.NewField(ast.Int, "filemode", false),
-			},
-			"filename": []*ast.Field{
-				ast.NewField(ast.Str, "name", false),
-			},
-		},
-		ast.OptionGit: map[string][]*ast.Field{
-			"keepGitDir": nil,
-		},
-		ast.OptionLocal: map[string][]*ast.Field{
-			"includePatterns": []*ast.Field{
-				ast.NewField(ast.Str, "patterns", true),
-			},
-			"excludePatterns": []*ast.Field{
-				ast.NewField(ast.Str, "patterns", true),
-			},
-			"followPaths": []*ast.Field{
-				ast.NewField(ast.Str, "paths", true),
-			},
-		},
-		ast.OptionGenerate: map[string][]*ast.Field{
-			"frontendInput": []*ast.Field{
-				ast.NewField(ast.Str, "key", false),
-				ast.NewField(ast.Filesystem, "value", false),
-			},
-			"frontendOpt": []*ast.Field{
-				ast.NewField(ast.Str, "key", false),
-				ast.NewField(ast.Str, "value", false),
-			},
-		},
-		ast.OptionRun: map[string][]*ast.Field{
-			"readonlyRootfs": nil,
-			"env": []*ast.Field{
-				ast.NewField(ast.Str, "key", false),
-				ast.NewField(ast.Str, "value", false),
-			},
-			"dir": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-			},
-			"user": []*ast.Field{
-				ast.NewField(ast.Str, "name", false),
-			},
-			"network": []*ast.Field{
-				ast.NewField(ast.Str, "networkmode", false),
-			},
-			"security": []*ast.Field{
-				ast.NewField(ast.Str, "securitymode", false),
-			},
-			"host": []*ast.Field{
-				ast.NewField(ast.Str, "hostname", false),
-				ast.NewField(ast.Str, "address", false),
-			},
-			"ssh": nil,
-			"secret": []*ast.Field{
-				ast.NewField(ast.Str, "mountpoint", false),
-			},
-			"mount": []*ast.Field{
-				ast.NewField(ast.Filesystem, "input", false),
-				ast.NewField(ast.Str, "mountpoint", false),
-			},
-		},
-		ast.OptionSSH: map[string][]*ast.Field{
-			"target": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-			},
-			"id": []*ast.Field{
-				ast.NewField(ast.Str, "cacheid", false),
-			},
-			"uid": []*ast.Field{
-				ast.NewField(ast.Int, "value", false),
-			},
-			"gid": []*ast.Field{
-				ast.NewField(ast.Int, "value", false),
-			},
-			"mode": []*ast.Field{
-				ast.NewField(ast.Int, "filemode", false),
-			},
-			"optional": nil,
-		},
-		ast.OptionSecret: map[string][]*ast.Field{
-			"id": []*ast.Field{
-				ast.NewField(ast.Str, "cacheid", false),
-			},
-			"uid": []*ast.Field{
-				ast.NewField(ast.Int, "value", false),
-			},
-			"gid": []*ast.Field{
-				ast.NewField(ast.Int, "value", false),
-			},
-			"mode": []*ast.Field{
-				ast.NewField(ast.Int, "filemode", false),
-			},
-			"optional": nil,
-		},
-		ast.OptionMount: map[string][]*ast.Field{
-			"readonly": nil,
-			"tmpfs":    nil,
-			"sourcePath": []*ast.Field{
-				ast.NewField(ast.Str, "path", false),
-			},
-			"cache": []*ast.Field{
-				ast.NewField(ast.Str, "cacheid", false),
-				ast.NewField(ast.Str, "cachemode", false),
-			},
-		},
-		ast.OptionMkdir: map[string][]*ast.Field{
-			"createParents": nil,
-			"chown": []*ast.Field{
-				ast.NewField(ast.Str, "owner", false),
-			},
-			"createdTime": []*ast.Field{
-				ast.NewField(ast.Str, "created", false),
-			},
-		},
-		ast.OptionMkfile: map[string][]*ast.Field{
-			"chown": []*ast.Field{
-				ast.NewField(ast.Str, "owner", false),
-			},
-			"createdTime": []*ast.Field{
-				ast.NewField(ast.Str, "created", false),
-			},
-		},
-		ast.OptionRm: map[string][]*ast.Field{
-			"allowNotFound":  nil,
-			"allowWildcards": nil,
-		},
-		ast.OptionCopy: map[string][]*ast.Field{
-			"followSymlinks": nil,
-			"contentsOnly":   nil,
-			"unpack":         nil,
-			"createDestPath": nil,
-		},
-	}
 )
 
 func flatMap(arrays ...[]string) []string {
@@ -302,7 +83,7 @@ func flatMap(arrays ...[]string) []string {
 	return flat
 }
 
-func keys(m map[string][]*ast.Field) []string {
+func keys(m map[string][]*parser.Field) []string {
 	var keys []string
 	for key := range m {
 		keys = append(keys, key)

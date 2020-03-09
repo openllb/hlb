@@ -6,8 +6,9 @@ import (
 	"io"
 	"os"
 
+	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/solver"
@@ -16,18 +17,18 @@ import (
 
 var runCommand = &cli.Command{
 	Name:      "run",
-	Usage:     "compiles and runs a HLB program",
+	Usage:     "compiles and runs a hlb program",
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "target",
 			Aliases: []string{"t"},
-			Usage:   "specify target filesystem to compile",
+			Usage:   "specify target filesystem to solve",
 			Value:   "default",
 		},
 		&cli.BoolFlag{
 			Name:  "debug",
-			Usage: "compile using a debugger",
+			Usage: "jump into a source level debugger for hlb",
 		},
 		&cli.StringFlag{
 			Name:    "download",
@@ -47,10 +48,6 @@ var runCommand = &cli.Command{
 			Usage: "set type of log output (tty, plain, json, raw)",
 			Value: "tty",
 		},
-		&cli.BoolFlag{
-			Name:  "llb",
-			Usage: "output the LLB to stdout instead of solving it",
-		},
 		&cli.StringFlag{
 			Name:    "push",
 			Aliases: []string{"p"},
@@ -58,32 +55,19 @@ var runCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		var r io.Reader
-		if c.NArg() == 0 {
-			fi, err := os.Stdin.Stat()
-			if err != nil {
-				return err
-			}
-
-			if fi.Mode()&os.ModeNamedPipe == 0 {
-				return fmt.Errorf("must provided hlb file or pipe to stdin")
-			}
-
-			r = os.Stdin
-		} else {
-			f, err := os.Open(c.Args().First())
-			if err != nil {
-				return err
-			}
-			r = f
+		rc, err := ModuleReadCloser(c.Args().Slice())
+		if err != nil {
+			return err
 		}
+		defer rc.Close()
 
-		ctx := context.Background()
+		ctx := appcontext.Context()
 		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
 			return err
 		}
-		return Run(ctx, cln, r, RunOptions{
+
+		return Run(ctx, cln, rc, RunOptions{
 			Debug:         c.Bool("debug"),
 			DockerTarball: c.String("docker-tarball"),
 			Download:      c.String("download"),
@@ -109,7 +93,7 @@ type RunOptions struct {
 	Tarball       bool
 }
 
-func Run(ctx context.Context, cln *client.Client, r io.Reader, opts RunOptions) error {
+func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOptions) error {
 	if opts.Target == "" {
 		opts.Target = "default"
 	}
@@ -117,7 +101,35 @@ func Run(ctx context.Context, cln *client.Client, r io.Reader, opts RunOptions) 
 		opts.Output = os.Stdout
 	}
 
-	st, info, err := hlb.Compile(ctx, cln, opts.Target, []io.Reader{r}, opts.Debug)
+	var progressOpts []solver.ProgressOption
+	switch opts.LogOutput {
+	case "tty":
+		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputTTY))
+	case "plain":
+		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputPlain))
+	case "json":
+		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputJSON))
+	case "raw":
+		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputRaw))
+	default:
+		return fmt.Errorf("unrecognized log-output %q", opts.LogOutput)
+	}
+
+	var (
+		p  *solver.Progress
+		mw *progress.MultiWriter
+	)
+
+	if !opts.Debug {
+		var err error
+		p, err = solver.NewProgress(ctx, progressOpts...)
+		if err != nil {
+			return err
+		}
+		mw = p.MultiWriter()
+	}
+
+	st, info, err := hlb.Compile(ctx, cln, mw, opts.Target, rc)
 	if err != nil {
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
@@ -126,30 +138,15 @@ func Run(ctx context.Context, cln *client.Client, r io.Reader, opts RunOptions) 
 		return err
 	}
 
-	if opts.LLB {
-		def, err := st.Marshal(llb.LinuxAmd64)
-		if err != nil {
-			return err
-		}
-
-		return llb.WriteTo(def, opts.Output)
+	if opts.Debug {
+		return nil
 	}
 
 	var solveOpts []solver.SolveOption
-	if opts.LogOutput != "" {
-		switch opts.LogOutput {
-		case "tty":
-			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputTTY))
-		case "plain":
-			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputPlain))
-		case "json":
-			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputJSON))
-		case "raw":
-			solveOpts = append(solveOpts, solver.WithLogOutput(solver.LogOutputRaw))
-		default:
-			return fmt.Errorf("unrecognized log-output %q", opts.LogOutput)
-		}
+	for id, path := range info.Locals {
+		solveOpts = append(solveOpts, solver.WithLocal(id, path))
 	}
+
 	if opts.Download != "" {
 		solveOpts = append(solveOpts, solver.WithDownload(opts.Download))
 	}
@@ -163,9 +160,37 @@ func Run(ctx context.Context, cln *client.Client, r io.Reader, opts RunOptions) 
 		solveOpts = append(solveOpts, solver.WithPushImage(opts.Push))
 	}
 
-	for id, path := range info.Locals {
-		solveOpts = append(solveOpts, solver.WithLocal(id, path))
+	if p == nil {
+		return solver.Solve(ctx, cln, nil, st, solveOpts...)
 	}
 
-	return solver.Solve(ctx, cln, st, solveOpts...)
+	p.WithPrefix("solve", func(ctx context.Context, pw progress.Writer) error {
+		defer p.Release()
+		return solver.Solve(ctx, cln, pw, st, solveOpts...)
+	})
+
+	return p.Wait()
+}
+
+func ModuleReadCloser(args []string) (io.ReadCloser, error) {
+	var rc io.ReadCloser
+	if len(args) == 0 {
+		fi, err := os.Stdin.Stat()
+		if err != nil {
+			return nil, err
+		}
+
+		if fi.Mode()&os.ModeNamedPipe == 0 {
+			return nil, fmt.Errorf("must provide path to hlb module or pipe to stdin")
+		}
+
+		rc = os.Stdin
+	} else {
+		f, err := os.Open(args[0])
+		if err != nil {
+			return nil, err
+		}
+		rc = f
+	}
+	return rc, nil
 }

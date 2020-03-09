@@ -7,9 +7,7 @@ import (
 	"strings"
 
 	"github.com/openllb/doxygen-parser/doxygen"
-	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/ast"
-	"github.com/openllb/hlb/report"
+	"github.com/openllb/hlb/parser"
 )
 
 // Documentation contains all the builtin functions defined for HLB.
@@ -40,12 +38,10 @@ type Field struct {
 }
 
 func GenerateDocumentation(r io.Reader) (*Documentation, error) {
-	file, _, err := hlb.Parse(r)
+	file, err := parser.Parse(r)
 	if err != nil {
 		return nil, err
 	}
-
-	report.LinkDocs(file)
 
 	var (
 		funcsByType   = make(map[string][]*Func)
@@ -132,8 +128,8 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 			funcDoc.Doc = strings.TrimSpace(group.Doc)
 		}
 
-		if fun.Type.Type() == ast.Option {
-			subtype := string(fun.Type.SubType())
+		if fun.Type.Primary() == parser.Option {
+			subtype := string(fun.Type.Secondary())
 			optionsByFunc[subtype] = append(optionsByFunc[subtype], funcDoc)
 		}
 		funcsByType[typ] = append(funcsByType[typ], funcDoc)

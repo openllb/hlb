@@ -8,14 +8,13 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/report"
 	cli "github.com/urfave/cli/v2"
 )
 
 var formatCommand = &cli.Command{
 	Name:      "format",
 	Aliases:   []string{"fmt"},
-	Usage:     "formats HLB programs",
+	Usage:     "formats hlb programs",
 	ArgsUsage: "[ <*.hlb> ... ]",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
@@ -30,6 +29,7 @@ var formatCommand = &cli.Command{
 			return err
 		}
 		defer cleanup()
+
 		return Format(rs, FormatOptions{
 			Write: c.Bool("write"),
 		})
@@ -41,12 +41,7 @@ type FormatOptions struct {
 }
 
 func Format(rs []io.Reader, opts FormatOptions) error {
-	files, _, err := hlb.ParseMultiple(rs, defaultOpts()...)
-	if err != nil {
-		return err
-	}
-
-	_, err = report.SemanticCheck(files...)
+	files, _, err := hlb.ParseMultiple(rs, hlb.DefaultParseOpts()...)
 	if err != nil {
 		return err
 	}

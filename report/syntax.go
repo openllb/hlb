@@ -6,7 +6,6 @@ import (
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
-	"github.com/openllb/hlb/ast"
 )
 
 func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
@@ -25,10 +24,10 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 		)
 
 		expected, unexpected := uerr.Expected, uerr.Unexpected
-		// panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
+		panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
 		switch expected {
 		case "":
-			if !Contains(ast.Types, unexpected.Value) {
+			if !Contains(Types, unexpected.Value) {
 				// Invalid function type.
 				group, err = errFunc(color, ib, lex, unexpected)
 			} else {
@@ -80,8 +79,8 @@ func errFunc(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, to
 		return group, err
 	}
 
-	suggestion, _ := getSuggestion(color, ast.Types, token.Value)
-	help := helpValidKeywords(color, ast.Types, "type")
+	suggestion, _ := getSuggestion(color, Types, token.Value)
+	help := helpValidKeywords(color, Types, "type")
 
 	return AnnotationGroup{
 		Pos: token.Pos,
@@ -302,7 +301,7 @@ func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer,
 		return group, err
 	}
 
-	suggestion, _ := getSuggestion(color, ast.Types, endToken.Value)
+	suggestion, _ := getSuggestion(color, Types, endToken.Value)
 
 	return AnnotationGroup{
 		Pos: endToken.Pos,
@@ -323,7 +322,7 @@ func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer,
 					suggestion),
 			},
 		},
-		Help: helpValidKeywords(color, ast.Types, "argument type"),
+		Help: helpValidKeywords(color, Types, "argument type"),
 	}, nil
 }
 
@@ -570,7 +569,7 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 // 		orField    string
 // 	)
 
-// 	if !contains(ast.Types, unexpected.Value) && unexpected.Value != "{" {
+// 	if !contains(Types, unexpected.Value) && unexpected.Value != "{" {
 // 		keywords, ok := KeywordsByName[keyword]
 // 		if ok {
 // 			suggestion, _ = getSuggestion(color, keywords, endToken.Value)
