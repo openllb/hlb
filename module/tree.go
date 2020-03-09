@@ -12,6 +12,9 @@ import (
 	"github.com/xlab/treeprint"
 )
 
+// NewTree resolves the import graph and returns a treeprint.Tree that can be
+// printed to display a visualization of the imports. Imports that transitively
+// import the same module will be duplicated in the tree.
 func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod *parser.Module, long bool) (treeprint.Tree, error) {
 	resolver, err := NewResolver(cln, mw)
 	if err != nil {

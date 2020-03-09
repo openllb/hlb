@@ -21,15 +21,27 @@ import (
 )
 
 var (
-	DotHLBPath     = "./.hlb"
-	ModulesPath    = filepath.Join(DotHLBPath, "modules")
+	// DotHLBPath is a relative directory containing files related to HLB.
+	// It is expected to commit files in this directory to git repositories.
+	DotHLBPath = "./.hlb"
+
+	// ModulesPath is the subdirectory of DotHLBPath that contains vendored
+	// modules.
+	ModulesPath = filepath.Join(DotHLBPath, "modules")
+
+	// ModuleFilename is the filename of the HLB module expected to be in the
+	// solved filesystem provided to the import declaration.
 	ModuleFilename = "module.hlb"
 )
 
+// Resolver resolves imports into a reader ready for parsing and checking.
 type Resolver interface {
+	// Resolve returns a reader for the HLB module and its compiled LLB.
 	Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (io.ReadCloser, llb.State, error)
 }
 
+// NewResolver returns a resolver based on whether the modules path exists in
+// the current working directory.
 func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error) {
 	root, err := filepath.Abs(ModulesPath)
 	if err != nil {
@@ -48,6 +60,8 @@ func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error)
 	return &lockResolver{root}, nil
 }
 
+// ModulesPathExist returns true if the modules directory exists in the current
+// working directory.
 func ModulesPathExist() (bool, error) {
 	_, exist, err := modulesPathExist()
 	return exist, err
@@ -212,6 +226,9 @@ func (r *lazyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *p
 	return r.remote.Resolve(ctx, scope, decl)
 }
 
+// VertexPath returns a modules path based on the digest of marshalling the
+// LLB. This digest is stable even when the underlying remote sources change
+// contents, for example `alpine:latest` may be pushed to.
 func VertexPath(root string, st llb.State) (string, error) {
 	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
 	if err != nil {
@@ -222,8 +239,15 @@ func VertexPath(root string, st llb.State) (string, error) {
 	return filepath.Join(root, dgst.Algorithm().String(), encoded[:2], encoded, ModuleFilename), nil
 }
 
+// Visitor is a callback invoked for every import when traversing the import
+// graph.
 type Visitor func(st llb.State, decl *parser.ImportDecl, parentMod, importMod *parser.Module) error
 
+// ResolveGraph traverses the import graph of a given module.
+//
+// If targets are nil or empty, all imports are traversed.
+// If targets are non-empty, then only imports matching one of the targets are
+// traversed. All transitive modules of matched targets are traversed.
 func ResolveGraph(ctx context.Context, resolver Resolver, mod *parser.Module, targets []string, visitor Visitor) error {
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -292,6 +316,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, mod *parser.Module, ta
 		return err
 	}
 
+	// Register imported modules in the scope of the module that imported it.
 	for name, imp := range imports {
 		obj := mod.Scope.Lookup(name)
 		if obj == nil {

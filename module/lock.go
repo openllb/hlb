@@ -13,7 +13,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Lock is append/overwrite-only
+// Lock resolves the import graph and writes the contents into the modules
+// directory of the current working directory.
+//
+// If tidy mode is enabled, vertices with digests that already exist in the
+// modules directory are skipped, and unused modules are pruned.
 func Lock(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod *parser.Module, targets []string, tidy bool) error {
 	root, err := filepath.Abs(ModulesPath)
 	if err != nil {
