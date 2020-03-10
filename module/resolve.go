@@ -326,5 +326,5 @@ func ResolveGraph(ctx context.Context, resolver Resolver, mod *parser.Module, ta
 		obj.Data = imp.Scope
 	}
 
-	return nil
+	return checker.CheckSelectors(mod)
 }

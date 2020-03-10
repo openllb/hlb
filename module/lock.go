@@ -39,8 +39,11 @@ func Lock(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod
 
 	g, ctx := errgroup.WithContext(ctx)
 
+	ready := make(chan struct{})
 	err = ResolveGraph(ctx, resolver, mod, targets, func(st llb.State, decl *parser.ImportDecl, _, importMod *parser.Module) error {
 		g.Go(func() error {
+			<-ready
+
 			vp, err := VertexPath(root, st)
 			if err != nil {
 				return err
@@ -84,6 +87,7 @@ func Lock(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod
 		return err
 	}
 
+	close(ready)
 	err = g.Wait()
 	if err != nil {
 		return err

@@ -124,6 +124,30 @@ func (e ErrInvalidTarget) Error() string {
 	return fmt.Sprintf("%s invalid compile target %s", FormatPos(e.Ident.Position()), e.Ident)
 }
 
+type ErrCallUnexported struct {
+	Selector *parser.Selector
+}
+
+func (e ErrCallUnexported) Error() string {
+	return fmt.Sprintf("%s cannot call unexported function %s from import", FormatPos(e.Selector.Position()), e.Selector)
+}
+
+type ErrNotImport struct {
+	Ident *parser.Ident
+}
+
+func (e ErrNotImport) Error() string {
+	return fmt.Sprintf("%s %s is not an import", FormatPos(e.Ident.Position()), e.Ident)
+}
+
+type ErrIdentUndefined struct {
+	Ident *parser.Ident
+}
+
+func (e ErrIdentUndefined) Error() string {
+	return fmt.Sprintf("%s %s is undefined", FormatPos(e.Ident.Position()), e.Ident)
+}
+
 type ErrCodeGen struct {
 	Node parser.Node
 	Err  error

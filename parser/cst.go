@@ -225,8 +225,8 @@ func (e *Expr) End() lexer.Position {
 	switch {
 	case e.Bad != nil:
 		return e.Bad.End()
-	case e.Selector  != nil:
-		return e.Selector .End()
+	case e.Selector != nil:
+		return e.Selector.End()
 	case e.Ident != nil:
 		return e.Ident.End()
 	case e.BasicLit != nil:
@@ -323,7 +323,7 @@ func NewIdentExpr(name string) *Expr {
 // Selector represents an identifier followed by a selector.
 type Selector struct {
 	Pos    lexer.Position
-	Ident *Ident
+	Ident  *Ident
 	Select *Ident
 }
 
@@ -334,11 +334,11 @@ func (s *Selector) Capture(tokens []string) error {
 	n := tokens[0]
 	i := strings.IndexByte(n, byte('.'))
 	s.Ident = &Ident{
-		Pos: s.Pos,
+		Pos:  s.Pos,
 		Name: n[:i],
 	}
 	s.Select = &Ident{
-		Pos: shiftPosition(s.Pos, i+1, 0),
+		Pos:  shiftPosition(s.Pos, i+1, 0),
 		Name: n[i+1:],
 	}
 	return nil

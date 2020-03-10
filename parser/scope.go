@@ -84,4 +84,5 @@ type Object struct {
 	Ident *Ident
 	Node  Node
 	Data  interface{}
+	Exported bool
 }
