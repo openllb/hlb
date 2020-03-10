@@ -44,6 +44,11 @@ func Lock(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod
 		g.Go(func() error {
 			<-ready
 
+			// Skip local imports.
+			if decl.LocalImport != nil {
+				return nil
+			}
+
 			vp, err := VertexPath(root, st)
 			if err != nil {
 				return err

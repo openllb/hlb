@@ -116,13 +116,22 @@ func (d *Decl) End() lexer.Position {
 
 // ImportDecl represents an import declaration.
 type ImportDecl struct {
-	Pos    lexer.Position
-	Ident  *Ident   `"import" @@`
-	Import *FuncLit `"from" @@`
+	Pos         lexer.Position
+	Ident       *Ident   `"import" @@`
+	Import      *FuncLit `( "from" @@`
+	LocalImport *Expr    `| @@ )`
 }
 
 func (d *ImportDecl) Position() lexer.Position { return d.Pos }
-func (d *ImportDecl) End() lexer.Position      { return d.Import.End() }
+func (d *ImportDecl) End() lexer.Position {
+	switch {
+	case d.Import != nil:
+		return d.Import.End()
+	case d.LocalImport != nil:
+		return d.LocalImport.End()
+	}
+	panic("unknown import decl")
+}
 
 // ExportDecl represents an export declaration.
 type ExportDecl struct {

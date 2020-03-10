@@ -9,7 +9,7 @@ import (
 	"github.com/openllb/hlb/parser"
 )
 
-func emitFuncDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string, ac aliasCallback) (interface{}, error) {
+func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string, ac aliasCallback) (interface{}, error) {
 	var args []*parser.Expr
 	if call != nil {
 		args = call.Args
@@ -19,7 +19,7 @@ func emitFuncDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, f
 		return nil, fmt.Errorf("%s expected args %s, found %s", fun.Name, fun.Params.List, args)
 	}
 
-	err := parameterizedScope(ctx, info, scope, call, op, fun, args, ac)
+	err := cg.ParameterizedScope(ctx, scope, call, op, fun, args, ac)
 	if err != nil {
 		return nil, err
 	}
@@ -35,50 +35,50 @@ func emitFuncDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, f
 	}
 
 	// Before executing a function.
-	err = info.Debug(ctx, fun.Scope, fun, v)
+	err = cg.Debug(ctx, fun.Scope, fun, v)
 	if err != nil {
 		return nil, err
 	}
 
 	switch fun.Type.Primary() {
 	case parser.Filesystem:
-		return emitFilesystemBlock(ctx, info, fun.Scope, fun.Body.NonEmptyStmts(), ac)
+		return cg.EmitFilesystemBlock(ctx, fun.Scope, fun.Body.NonEmptyStmts(), ac)
 	case parser.Option:
-		return emitOptions(ctx, info, fun.Scope, string(fun.Type.Secondary()), fun.Body.NonEmptyStmts(), ac)
+		return cg.EmitOptions(ctx, fun.Scope, string(fun.Type.Secondary()), fun.Body.NonEmptyStmts(), ac)
 	case parser.Str:
-		return emitStringBlock(ctx, info, fun.Scope, fun.Body.NonEmptyStmts())
+		return cg.EmitStringBlock(ctx, fun.Scope, fun.Body.NonEmptyStmts())
 	default:
 		return nil, checker.ErrInvalidTarget{fun.Name}
 	}
 }
 
-func emitFilesystemFuncDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (llb.State, error) {
-	v, err := emitFuncDecl(ctx, info, scope, fun, call, "", ac)
+func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (llb.State, error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, "", ac)
 	if err != nil {
 		return llb.Scratch(), err
 	}
 	return v.(llb.State), nil
 }
 
-func emitOptionFuncDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string) ([]interface{}, error) {
-	v, err := emitFuncDecl(ctx, info, scope, fun, call, op, noopAliasCallback)
+func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string) ([]interface{}, error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, op, noopAliasCallback)
 	if err != nil {
 		return nil, err
 	}
 	return v.([]interface{}), nil
 }
 
-func emitStringFuncDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (string, error) {
-	v, err := emitFuncDecl(ctx, info, scope, fun, call, "", ac)
+func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (string, error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, "", ac)
 	if err != nil {
 		return "", err
 	}
 	return v.(string), nil
 }
 
-func emitAliasDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (interface{}, error) {
+func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (interface{}, error) {
 	var v interface{}
-	_, err := emitFuncDecl(ctx, info, scope, alias.Func, call, "", func(aliasCall *parser.CallStmt, aliasValue interface{}) {
+	_, err := cg.EmitFuncDecl(ctx, scope, alias.Func, call, "", func(aliasCall *parser.CallStmt, aliasValue interface{}) {
 		if alias.Call == aliasCall {
 			v = aliasValue
 		}
@@ -90,23 +90,23 @@ func emitAliasDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, 
 	return v, nil
 }
 
-func emitFilesystemAliasDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (llb.State, error) {
-	v, err := emitAliasDecl(ctx, info, scope, alias, call)
+func (cg *CodeGen) EmitFilesystemAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (llb.State, error) {
+	v, err := cg.EmitAliasDecl(ctx, scope, alias, call)
 	if err != nil {
 		return llb.Scratch(), err
 	}
 	return v.(llb.State), nil
 }
 
-func emitStringAliasDecl(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (string, error) {
-	v, err := emitAliasDecl(ctx, info, scope, alias, call)
+func (cg *CodeGen) EmitStringAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (string, error) {
+	v, err := cg.EmitAliasDecl(ctx, scope, alias, call)
 	if err != nil {
 		return "", err
 	}
 	return v.(string), nil
 }
 
-func parameterizedScope(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt, op string, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback) error {
+func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, op string, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback) error {
 	for i, field := range fun.Params.List {
 		var (
 			data interface{}
@@ -117,23 +117,23 @@ func parameterizedScope(ctx context.Context, info *CodeGenInfo, scope *parser.Sc
 		switch typ {
 		case parser.Str:
 			var v string
-			v, err = emitStringExpr(ctx, info, scope, call, args[i])
+			v, err = cg.EmitStringExpr(ctx, scope, call, args[i])
 			data = v
 		case parser.Int:
 			var v int
-			v, err = emitIntExpr(ctx, info, scope, args[i])
+			v, err = cg.EmitIntExpr(ctx, scope, args[i])
 			data = v
 		case parser.Bool:
 			var v bool
-			v, err = emitBoolExpr(ctx, info, scope, args[i])
+			v, err = cg.EmitBoolExpr(ctx, scope, args[i])
 			data = v
 		case parser.Filesystem:
 			var v llb.State
-			v, err = emitFilesystemExpr(ctx, info, scope, nil, args[i], ac)
+			v, err = cg.EmitFilesystemExpr(ctx, scope, nil, args[i], ac)
 			data = v
 		case parser.Option:
 			var v []interface{}
-			v, err = emitOptionExpr(ctx, info, scope, call, op, args[i])
+			v, err = cg.EmitOptionExpr(ctx, scope, call, op, args[i])
 			data = v
 		}
 		if err != nil {

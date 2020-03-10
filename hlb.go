@@ -26,7 +26,7 @@ func DefaultParseOpts() []ParseOption {
 	return opts
 }
 
-func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, target string, r io.Reader) (llb.State, *codegen.CodeGenInfo, error) {
+func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, target string, r io.Reader) (llb.State, *codegen.CodeGen, error) {
 	st := llb.Scratch()
 
 	mod, ib, err := Parse(r, DefaultParseOpts()...)
@@ -57,12 +57,18 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	}
 
 	var (
-		info *codegen.CodeGenInfo
+		cg  *codegen.CodeGen
 		opts []codegen.CodeGenOption
 	)
 
 	gen := func() error {
-		st, info, err = codegen.Generate(ctx, call, mod, opts...)
+		var err error
+		cg, err = codegen.New(opts...)
+		if err != nil {
+			return err
+		}
+
+		st, err = cg.Generate(ctx, call, mod)
 		return err
 	}
 
@@ -77,5 +83,5 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		progress.Write(pw, fmt.Sprintf("compiling %s", mod.Pos.Filename), gen)
 	}
 
-	return st, info, err
+	return st, cg, err
 }

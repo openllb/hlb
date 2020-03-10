@@ -111,12 +111,13 @@ func (r *lockResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *p
 }
 
 func resolveLocal(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl, modulePath string) (io.ReadCloser, llb.State, error) {
-	info := &codegen.CodeGenInfo{
-		Debug:  codegen.NewNoopDebugger(),
-		Locals: make(map[string]string),
+	var st llb.State
+	cg, err := codegen.New()
+	if err != nil {
+		return nil, st, err
 	}
 
-	st, err := codegen.GenerateImport(ctx, info, scope, decl.Import)
+	st, err = cg.GenerateImport(ctx, scope, decl.Import)
 	if err != nil {
 		return nil, st, err
 	}
@@ -142,12 +143,13 @@ type remoteResolver struct {
 }
 
 func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (io.ReadCloser, llb.State, error) {
-	info := &codegen.CodeGenInfo{
-		Debug:  codegen.NewNoopDebugger(),
-		Locals: make(map[string]string),
+	var st llb.State
+	cg, err := codegen.New()
+	if err != nil {
+		return nil, st, err
 	}
 
-	st, err := codegen.GenerateImport(ctx, info, scope, decl.Import)
+	st, err = cg.GenerateImport(ctx, scope, decl.Import)
 	if err != nil {
 		return nil, st, err
 	}
@@ -158,7 +160,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 	}
 
 	var solveOpts []solver.SolveOption
-	for id, path := range info.Locals {
+	for id, path := range cg.Locals {
 		solveOpts = append(solveOpts, solver.WithLocal(id, path))
 	}
 
@@ -273,7 +275,36 @@ func ResolveGraph(ctx context.Context, resolver Resolver, mod *parser.Module, ta
 			}
 
 			g.Go(func() error {
-				rc, st, err := resolver.Resolve(ctx, mod.Scope, n)
+				var (
+					rc  io.ReadCloser
+					st  llb.State
+					err error
+				)
+
+				switch {
+				case n.Import != nil:
+					rc, st, err = resolver.Resolve(ctx, mod.Scope, n)
+				case n.LocalImport != nil:
+					cg, err := codegen.New()
+					if err != nil {
+						return checker.ErrCodeGen{n.LocalImport, err}
+					}
+
+					rel, err := cg.EmitStringExpr(ctx, mod.Scope, nil, n.LocalImport)
+					if err != nil {
+						return checker.ErrCodeGen{n.LocalImport, err}
+					}
+
+					filename, err := filepath.Rel(filepath.Dir(mod.Pos.Filename), rel)
+					if err != nil {
+						return checker.ErrCodeGen{n.LocalImport, err}
+					}
+
+					rc, err = os.Open(filename)
+					if err != nil {
+						return checker.ErrCodeGen{n.LocalImport, err}
+					}
+				}
 				if err != nil {
 					return err
 				}

@@ -7,7 +7,7 @@ import (
 	"github.com/openllb/hlb/parser"
 )
 
-func emitStringExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr) (string, error) {
+func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr) (string, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -15,9 +15,9 @@ func emitStringExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return emitStringFuncDecl(ctx, info, scope, n, call, noopAliasCallback)
+				return cg.EmitStringFuncDecl(ctx, scope, n, call, noopAliasCallback)
 			case *parser.AliasDecl:
-				return emitStringAliasDecl(ctx, info, scope, n, call)
+				return cg.EmitStringAliasDecl(ctx, scope, n, call)
 			default:
 				panic("unknown decl object")
 			}
@@ -29,13 +29,13 @@ func emitStringExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 	case expr.BasicLit != nil:
 		return *expr.BasicLit.Str, nil
 	case expr.FuncLit != nil:
-		return emitStringBlock(ctx, info, scope, expr.FuncLit.Body.NonEmptyStmts())
+		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts())
 	default:
 		panic("unknown string expr")
 	}
 }
 
-func emitIntExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, expr *parser.Expr) (int, error) {
+func (cg *CodeGen) EmitIntExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (int, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -63,7 +63,7 @@ func emitIntExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, ex
 	}
 }
 
-func emitBoolExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, expr *parser.Expr) (bool, error) {
+func (cg *CodeGen) EmitBoolExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (bool, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -84,11 +84,11 @@ func emitBoolExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, e
 	}
 }
 
-func maybeEmitBoolExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, args []*parser.Expr) (bool, error) {
+func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, args []*parser.Expr) (bool, error) {
 	v := true
 	if len(args) > 0 {
 		var err error
-		v, err = emitBoolExpr(ctx, info, scope, args[0])
+		v, err = cg.EmitBoolExpr(ctx, scope, args[0])
 		if err != nil {
 			return v, err
 		}
@@ -96,7 +96,7 @@ func maybeEmitBoolExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 	return v, nil
 }
 
-func emitFilesystemExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (llb.State, error) {
+func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (llb.State, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -104,9 +104,9 @@ func emitFilesystemExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Sc
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return emitFilesystemFuncDecl(ctx, info, scope, n, call, noopAliasCallback)
+				return cg.EmitFilesystemFuncDecl(ctx, scope, n, call, noopAliasCallback)
 			case *parser.AliasDecl:
-				return emitFilesystemAliasDecl(ctx, info, scope, n, call)
+				return cg.EmitFilesystemAliasDecl(ctx, scope, n, call)
 			default:
 				panic("unknown decl object")
 			}
@@ -118,7 +118,7 @@ func emitFilesystemExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Sc
 	case expr.BasicLit != nil:
 		panic("fs expr cannot be basic lit")
 	case expr.FuncLit != nil:
-		v, err := emitFuncLit(ctx, info, scope, expr.FuncLit, "", ac)
+		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, "", ac)
 		if err != nil {
 			return llb.Scratch(), err
 		}
@@ -128,7 +128,7 @@ func emitFilesystemExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Sc
 	}
 }
 
-func emitOptionExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt, op string, expr *parser.Expr) ([]interface{}, error) {
+func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, op string, expr *parser.Expr) ([]interface{}, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -136,7 +136,7 @@ func emitOptionExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return emitOptionFuncDecl(ctx, info, scope, n, call, op)
+				return cg.EmitOptionFuncDecl(ctx, scope, n, call, op)
 			default:
 				panic("unknown option decl kind")
 			}
@@ -148,7 +148,7 @@ func emitOptionExpr(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 	case expr.BasicLit != nil:
 		panic("option expr cannot be basic lit")
 	case expr.FuncLit != nil:
-		v, err := emitFuncLit(ctx, info, scope, expr.FuncLit, op, noopAliasCallback)
+		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, op, noopAliasCallback)
 		if err != nil {
 			return nil, err
 		}

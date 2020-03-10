@@ -3,11 +3,14 @@ package module
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/parser"
 	"github.com/xlab/treeprint"
 )
@@ -31,16 +34,35 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	nodeByModule[mod] = tree
 
 	err = ResolveGraph(ctx, resolver, mod, nil, func(st llb.State, decl *parser.ImportDecl, parentMod, importMod *parser.Module) error {
-		dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
-		if err != nil {
-			return err
-		}
+		var value string
+		switch {
+		case decl.Import != nil:
+			dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
+			if err != nil {
+				return err
+			}
 
-		encoded := dgst.Encoded()
-		if !long && len(encoded) > 7 {
-			encoded = encoded[:7]
+			encoded := dgst.Encoded()
+			if !long && len(encoded) > 7 {
+				encoded = encoded[:7]
+			}
+			value = fmt.Sprintf("%s:%s", dgst.Algorithm(), encoded)
+		case decl.LocalImport != nil:
+			cg, err := codegen.New()
+			if err != nil {
+				return checker.ErrCodeGen{decl.LocalImport, err}
+			}
+
+			rel, err := cg.EmitStringExpr(ctx, parentMod.Scope, nil, decl.LocalImport)
+			if err != nil {
+				return checker.ErrCodeGen{decl.LocalImport, err}
+			}
+
+			value, err = filepath.Rel(filepath.Dir(mod.Pos.Filename), rel)
+			if err != nil {
+				return checker.ErrCodeGen{decl.LocalImport, err}
+			}
 		}
-		value := fmt.Sprintf("%s:%s", dgst.Algorithm(), encoded)
 
 		mu.Lock()
 		node := nodeByModule[parentMod]

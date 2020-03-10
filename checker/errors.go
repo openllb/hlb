@@ -148,6 +148,15 @@ func (e ErrIdentUndefined) Error() string {
 	return fmt.Sprintf("%s %s is undefined", FormatPos(e.Ident.Position()), e.Ident)
 }
 
+type ErrLocalImportNotExist struct {
+	Expr     *parser.Expr
+	Filename string
+}
+
+func (e ErrLocalImportNotExist) Error() string {
+	return fmt.Sprintf("%s no such file %s", FormatPos(e.Expr.Position()), e.Filename)
+}
+
 type ErrCodeGen struct {
 	Node parser.Node
 	Err  error

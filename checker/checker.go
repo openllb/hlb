@@ -114,14 +114,21 @@ func (c *checker) Check(mod *parser.Module) error {
 		switch n := node.(type) {
 		case *parser.ImportDecl:
 			imp := n
-			if imp.Import == nil {
-				return false
+
+			switch {
+			case n.Import != nil:
+				err := c.checkFuncLitArg(mod.Scope, parser.Filesystem, imp.Import)
+				if err != nil {
+					c.errs = append(c.errs, err)
+				}
+			case n.LocalImport != nil:
+				err := c.checkExpr(mod.Scope, parser.Str, imp.LocalImport)
+				if err != nil {
+					c.errs = append(c.errs, err)
+					return false
+				}
 			}
 
-			err := c.checkFuncLitArg(mod.Scope, parser.Filesystem, imp.Import)
-			if err != nil {
-				c.errs = append(c.errs, err)
-			}
 			return false
 		case *parser.ExportDecl:
 			exp := n
@@ -452,18 +459,7 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 
 	for i, arg := range call.Args {
 		typ := params[i].Type.ObjType
-
-		var err error
-		switch {
-		case arg.Ident != nil:
-			err = c.checkIdentArg(scope, typ, arg.Ident)
-		case arg.BasicLit != nil:
-			err = c.checkBasicLitArg(typ, arg.BasicLit)
-		case arg.FuncLit != nil:
-			err = c.checkFuncLitArg(scope, typ, arg.FuncLit)
-		default:
-			panic("unknown field type")
-		}
+		err := c.checkExpr(scope, typ, arg)
 		if err != nil {
 			return err
 		}
@@ -488,6 +484,21 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 	}
 
 	return nil
+}
+
+func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parser.Expr) error {
+	var err error
+	switch {
+	case expr.Ident != nil:
+		err = c.checkIdentArg(scope, typ, expr.Ident)
+	case expr.BasicLit != nil:
+		err = c.checkBasicLitArg(typ, expr.BasicLit)
+	case expr.FuncLit != nil:
+		err = c.checkFuncLitArg(scope, typ, expr.FuncLit)
+	default:
+		panic("unknown field type")
+	}
+	return err
 }
 
 func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *parser.Ident) error {

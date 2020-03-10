@@ -17,29 +17,47 @@ import (
 	"github.com/openllb/hlb/parser"
 )
 
-func Generate(ctx context.Context, call *parser.CallStmt, mod *parser.Module, opts ...CodeGenOption) (llb.State, *CodeGenInfo, error) {
-	st := llb.Scratch()
+type CodeGen struct {
+	Debug  Debugger
+	Locals map[string]string
+}
 
-	info := &CodeGenInfo{
+type CodeGenOption func(*CodeGen) error
+
+func WithDebugger(dbgr Debugger) CodeGenOption {
+	return func(i *CodeGen) error {
+		i.Debug = dbgr
+		return nil
+	}
+}
+
+func New(opts ...CodeGenOption) (*CodeGen, error) {
+	cg := &CodeGen{
 		Debug:  NewNoopDebugger(),
 		Locals: make(map[string]string),
 	}
 	for _, opt := range opts {
-		err := opt(info)
+		err := opt(cg)
 		if err != nil {
-			return st, info, err
+			return cg, err
 		}
 	}
 
+	return cg, nil
+}
+
+func (cg *CodeGen) Generate(ctx context.Context, call *parser.CallStmt, mod *parser.Module) (llb.State, error) {
+	st := llb.Scratch()
+
 	obj := mod.Scope.Lookup(call.Func.Ident.Name)
 	if obj == nil {
-		return st, info, fmt.Errorf("unknown target %q", call.Func.Ident.Name)
+		return st, fmt.Errorf("unknown target %q", call.Func.Ident.Name)
 	}
 
 	// Yield to the debugger before compiling anything.
-	err := info.Debug(ctx, mod.Scope, mod, nil)
+	err := cg.Debug(ctx, mod.Scope, mod, nil)
 	if err != nil {
-		return st, info, err
+		return st, err
 	}
 
 	switch obj.Kind {
@@ -47,41 +65,27 @@ func Generate(ctx context.Context, call *parser.CallStmt, mod *parser.Module, op
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
 			if n.Type.ObjType != parser.Filesystem {
-				return st, info, checker.ErrInvalidTarget{call.Func.Ident}
+				return st, checker.ErrInvalidTarget{call.Func.Ident}
 			}
 
-			st, err = emitFilesystemFuncDecl(ctx, info, mod.Scope, n, call, noopAliasCallback)
+			st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, call, noopAliasCallback)
 		case *parser.AliasDecl:
 			if n.Func.Type.ObjType != parser.Filesystem {
-				return st, info, checker.ErrInvalidTarget{call.Func.Ident}
+				return st, checker.ErrInvalidTarget{call.Func.Ident}
 			}
 
-			st, err = emitFilesystemAliasDecl(ctx, info, mod.Scope, n, call)
+			st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, call)
 		}
 	default:
-		return st, info, checker.ErrInvalidTarget{call.Func.Ident}
+		return st, checker.ErrInvalidTarget{call.Func.Ident}
 	}
 
-	return st, info, err
-}
-
-func GenerateImport(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
-	st, err := emitFilesystemBlock(ctx, info, scope, lit.Body.NonEmptyStmts(), nil)
 	return st, err
 }
 
-type CodeGenOption func(*CodeGenInfo) error
-
-type CodeGenInfo struct {
-	Debug  Debugger
-	Locals map[string]string
-}
-
-func WithDebugger(dbgr Debugger) CodeGenOption {
-	return func(i *CodeGenInfo) error {
-		i.Debug = dbgr
-		return nil
-	}
+func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
+	st, err := cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
+	return st, err
 }
 
 type aliasCallback func(*parser.CallStmt, interface{})
@@ -92,7 +96,7 @@ func isBreakpoint(call *parser.CallStmt) bool {
 	return call.Func.Ident != nil && call.Func.Ident.Name == "breakpoint"
 }
 
-func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback) (interface{}, error) {
+func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback) (interface{}, error) {
 	index := 0
 
 	var v interface{}
@@ -105,7 +109,7 @@ func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ 
 
 	for i, stmt := range stmts {
 		if isBreakpoint(stmt.Call) {
-			err := info.Debug(ctx, scope, stmt.Call, v)
+			err := cg.Debug(ctx, scope, stmt.Call, v)
 			if err != nil {
 				return nil, err
 			}
@@ -118,7 +122,7 @@ func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ 
 
 	// Before executing a source call statement.
 	sourceStmt := stmts[index].Call
-	err := info.Debug(ctx, scope, sourceStmt, v)
+	err := cg.Debug(ctx, scope, sourceStmt, v)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +135,7 @@ func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ 
 		name = sourceStmt.Func.Selector.Ident.Name
 	}
 
-	v, err = emitSourceStmt(ctx, info, scope, typ, sourceStmt, name, ac)
+	v, err = cg.EmitSourceStmt(ctx, scope, typ, sourceStmt, name, ac)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +155,7 @@ func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ 
 	for _, stmt := range stmts[index+1:] {
 		call := stmt.Call
 		if isBreakpoint(call) {
-			err = info.Debug(ctx, scope, call, v)
+			err = cg.Debug(ctx, scope, call, v)
 			if err != nil {
 				return nil, err
 			}
@@ -159,12 +163,12 @@ func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ 
 		}
 
 		// Before executing the next call statement.
-		err = info.Debug(ctx, scope, call, v)
+		err = cg.Debug(ctx, scope, call, v)
 		if err != nil {
 			return nil, err
 		}
 
-		chain, err := emitChainStmt(ctx, info, scope, typ, call, ac)
+		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, ac)
 		if err != nil {
 			return nil, err
 		}
@@ -186,10 +190,10 @@ func emitBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ 
 	return v, nil
 }
 
-func emitChainStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (func(v interface{}) interface{}, error) {
+func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (func(v interface{}) interface{}, error) {
 	switch typ {
 	case parser.Filesystem:
-		chain, err := emitFilesystemChainStmt(ctx, info, scope, typ, call, ac)
+		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +201,7 @@ func emitChainStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, 
 			return chain(v.(llb.State))
 		}, nil
 	case parser.Str:
-		chain, err := emitStringChainStmt(ctx, info, scope, call)
+		chain, err := cg.EmitStringChainStmt(ctx, scope, call)
 		if err != nil {
 			return nil, err
 		}
@@ -209,48 +213,48 @@ func emitChainStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, 
 	}
 }
 
-func emitStringChainStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt) (func(string) string, error) {
+func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt) (func(string) string, error) {
 	panic("unimplemented")
 }
 
-func emitFilesystemBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback) (llb.State, error) {
-	v, err := emitBlock(ctx, info, scope, parser.Filesystem, stmts, ac)
+func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback) (llb.State, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, stmts, ac)
 	if err != nil {
 		return llb.Scratch(), err
 	}
 	return v.(llb.State), nil
 }
 
-func emitStringBlock(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, stmts []*parser.Stmt) (string, error) {
-	v, err := emitBlock(ctx, info, scope, parser.Str, stmts, noopAliasCallback)
+func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt) (string, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Str, stmts, noopAliasCallback)
 	if err != nil {
 		return "", err
 	}
 	return v.(string), nil
 }
 
-func emitFuncLit(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, lit *parser.FuncLit, op string, ac aliasCallback) (interface{}, error) {
+func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, op string, ac aliasCallback) (interface{}, error) {
 	switch lit.Type.Primary() {
 	case parser.Int, parser.Bool:
 		panic("unimplemented")
 	case parser.Filesystem:
-		return emitFilesystemBlock(ctx, info, scope, lit.Body.NonEmptyStmts(), ac)
+		return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), ac)
 	case parser.Str:
-		return emitStringBlock(ctx, info, scope, lit.Body.NonEmptyStmts())
+		return cg.EmitStringBlock(ctx, scope, lit.Body.NonEmptyStmts())
 	case parser.Option:
-		return emitOptions(ctx, info, scope, op, lit.Body.NonEmptyStmts(), ac)
+		return cg.EmitOptions(ctx, scope, op, lit.Body.NonEmptyStmts(), ac)
 	}
 	return nil, nil
 }
 
-func emitSourceStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, name string, ac aliasCallback) (interface{}, error) {
+func (cg *CodeGen) EmitSourceStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, name string, ac aliasCallback) (interface{}, error) {
 	_, ok := builtin.Lookup.ByType[typ].Func[name]
 	if ok {
 		switch typ {
 		case parser.Filesystem:
-			return emitFilesystemSourceStmt(ctx, info, scope, call, ac)
+			return cg.EmitFilesystemSourceStmt(ctx, scope, call, ac)
 		case parser.Str:
-			return emitStringSourceStmt(ctx, info, scope, call, ac)
+			return cg.EmitStringSourceStmt(ctx, scope, call, ac)
 		default:
 			panic("unimplemented")
 		}
@@ -262,17 +266,17 @@ func emitSourceStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			return emitFuncDecl(ctx, info, scope, n, call, "", noopAliasCallback)
+			return cg.EmitFuncDecl(ctx, scope, n, call, "", noopAliasCallback)
 		case *parser.AliasDecl:
-			return emitAliasDecl(ctx, info, scope, n, call)
+			return cg.EmitAliasDecl(ctx, scope, n, call)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				return emitFuncDecl(ctx, info, scope, m, call, "", noopAliasCallback)
+				return cg.EmitFuncDecl(ctx, scope, m, call, "", noopAliasCallback)
 			case *parser.AliasDecl:
-				return emitAliasDecl(ctx, info, scope, m, call)
+				return cg.EmitAliasDecl(ctx, scope, m, call)
 			default:
 				panic("unknown obj type")
 			}
@@ -284,8 +288,8 @@ func emitSourceStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 	}
 }
 
-func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback) (st llb.State, err error) {
-	iopts, err := emitWithOption(ctx, info, scope, call, call.WithOpt, ac)
+func (cg *CodeGen) EmitFilesystemSourceStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback) (st llb.State, err error) {
+	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
 		return st, err
 	}
@@ -295,7 +299,7 @@ func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *par
 	case "scratch":
 		return llb.Scratch(), nil
 	case "image":
-		ref, err := emitStringExpr(ctx, info, scope, call, args[0])
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return st, err
 		}
@@ -308,7 +312,7 @@ func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *par
 
 		return llb.Image(ref, opts...), nil
 	case "http":
-		url, err := emitStringExpr(ctx, info, scope, call, args[0])
+		url, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return st, err
 		}
@@ -321,11 +325,11 @@ func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *par
 
 		return llb.HTTP(url, opts...), nil
 	case "git":
-		remote, err := emitStringExpr(ctx, info, scope, call, args[0])
+		remote, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return st, err
 		}
-		ref, err := emitStringExpr(ctx, info, scope, call, args[1])
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
 			return st, err
 		}
@@ -338,7 +342,7 @@ func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *par
 
 		return llb.Git(remote, ref, opts...), nil
 	case "local":
-		path, err := emitStringExpr(ctx, info, scope, call, args[0])
+		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return st, err
 		}
@@ -349,24 +353,25 @@ func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *par
 			opts = append(opts, opt)
 		}
 
-		// get a consistent hash for this local (path + options) so we don't
-		// transport the same content multiple times when referenced repeatedly
+		// Get a consistent hash for this local (path + options) so we don't
+		// transport the same content multiple times when referenced repeatedly.
 
-		// first get serialized bytes for this llb.Local state
+		// First get serialized bytes for this llb.Local state.
 		tmpSt := llb.Local("", opts...)
 		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
 		if err != nil {
 			return tmpSt, checker.ErrCodeGen{call, err}
 		}
-		// next append the path so we have the path + options serialized hash input
+
+		// Next append the path so we have the path + options serialized hash input.
 		hashInput = append(hashInput, []byte(path)...)
 
 		id := string(digest.FromBytes(hashInput))
-		info.Locals[id] = path
+		cg.Locals[id] = path
 
 		return llb.Local(id, opts...), nil
 	case "generate":
-		frontend, err := emitFilesystemExpr(ctx, info, scope, nil, args[0], ac)
+		frontend, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
 		if err != nil {
 			return st, err
 		}
@@ -383,20 +388,20 @@ func emitFilesystemSourceStmt(ctx context.Context, info *CodeGenInfo, scope *par
 	}
 }
 
-func emitStringSourceStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback) (string, error) {
+func (cg *CodeGen) EmitStringSourceStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback) (string, error) {
 	args := call.Args
 	switch call.Func.Ident.Name {
 	case "value":
-		return emitStringExpr(ctx, info, scope, call, args[0])
+		return cg.EmitStringExpr(ctx, scope, call, args[0])
 	case "format":
-		formatStr, err := emitStringExpr(ctx, info, scope, call, args[0])
+		formatStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return "", err
 		}
 
 		var as []interface{}
 		for _, arg := range args[1:] {
-			a, err := emitStringExpr(ctx, info, scope, call, arg)
+			a, err := cg.EmitStringExpr(ctx, scope, call, arg)
 			if err != nil {
 				return "", err
 			}
@@ -409,7 +414,7 @@ func emitStringSourceStmt(ctx context.Context, info *CodeGenInfo, scope *parser.
 	}
 }
 
-func emitWithOption(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, parent *parser.CallStmt, with *parser.WithOpt, ac aliasCallback) ([]interface{}, error) {
+func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, parent *parser.CallStmt, with *parser.WithOpt, ac aliasCallback) ([]interface{}, error) {
 	if with == nil {
 		return nil, nil
 	}
@@ -424,15 +429,15 @@ func emitWithOption(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 			panic("unknown with option kind")
 		}
 	case with.FuncLit != nil:
-		return emitOptions(ctx, info, scope, parent.Func.Ident.Name, with.FuncLit.Body.NonEmptyStmts(), ac)
+		return cg.EmitOptions(ctx, scope, parent.Func.Ident.Name, with.FuncLit.Body.NonEmptyStmts(), ac)
 	default:
 		panic("unknown with option")
 	}
 }
 
-func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (so llb.StateOption, err error) {
+func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (so llb.StateOption, err error) {
 	args := call.Args
-	iopts, err := emitWithOption(ctx, info, scope, call, call.WithOpt, ac)
+	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
 		return so, err
 	}
@@ -441,7 +446,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 	case "run":
 		var shlex string
 		if len(args) == 1 {
-			commandStr, err := emitStringExpr(ctx, info, scope, call, args[0])
+			commandStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 			if err != nil {
 				return so, err
 			}
@@ -459,7 +464,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 		} else {
 			var runArgs []string
 			for _, arg := range args {
-				runArg, err := emitStringExpr(ctx, info, scope, call, arg)
+				runArg, err := cg.EmitStringExpr(ctx, scope, call, arg)
 				if err != nil {
 					return so, err
 				}
@@ -491,7 +496,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 						continue
 					}
 
-					target, err := emitStringExpr(ctx, info, scope, call, stmt.Call.Args[1])
+					target, err := cg.EmitStringExpr(ctx, scope, call, stmt.Call.Args[1])
 					if err != nil {
 						return so, err
 					}
@@ -519,12 +524,12 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			return exec.Root()
 		}
 	case "env":
-		key, err := emitStringExpr(ctx, info, scope, call, args[0])
+		key, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
 
-		value, err := emitStringExpr(ctx, info, scope, call, args[1])
+		value, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
 			return so, err
 		}
@@ -533,7 +538,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			return st.AddEnv(key, value)
 		}
 	case "dir":
-		path, err := emitStringExpr(ctx, info, scope, call, args[0])
+		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
@@ -542,7 +547,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			return st.Dir(path)
 		}
 	case "user":
-		name, err := emitStringExpr(ctx, info, scope, call, args[0])
+		name, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
@@ -553,7 +558,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 	case "entrypoint":
 		var stArgs []string
 		for _, arg := range args {
-			stArg, err := emitStringExpr(ctx, info, scope, call, arg)
+			stArg, err := cg.EmitStringExpr(ctx, scope, call, arg)
 			if err != nil {
 				return so, err
 			}
@@ -564,17 +569,17 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			return st.Args(stArgs...)
 		}
 	case "mkdir":
-		path, err := emitStringExpr(ctx, info, scope, call, args[0])
+		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
 
-		mode, err := emitIntExpr(ctx, info, scope, args[1])
+		mode, err := cg.EmitIntExpr(ctx, scope, args[1])
 		if err != nil {
 			return so, err
 		}
 
-		iopts, err := emitWithOption(ctx, info, scope, call, call.WithOpt, ac)
+		iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 		if err != nil {
 			return so, err
 		}
@@ -591,17 +596,17 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			)
 		}
 	case "mkfile":
-		path, err := emitStringExpr(ctx, info, scope, call, args[0])
+		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
 
-		mode, err := emitIntExpr(ctx, info, scope, args[1])
+		mode, err := cg.EmitIntExpr(ctx, scope, args[1])
 		if err != nil {
 			return so, err
 		}
 
-		content, err := emitStringExpr(ctx, info, scope, call, args[2])
+		content, err := cg.EmitStringExpr(ctx, scope, call, args[2])
 		if err != nil {
 			return so, err
 		}
@@ -618,7 +623,7 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			)
 		}
 	case "rm":
-		path, err := emitStringExpr(ctx, info, scope, call, args[0])
+		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
@@ -635,17 +640,17 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 			)
 		}
 	case "copy":
-		input, err := emitFilesystemExpr(ctx, info, scope, nil, args[0], ac)
+		input, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
 		if err != nil {
 			return so, err
 		}
 
-		src, err := emitStringExpr(ctx, info, scope, call, args[1])
+		src, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
 			return so, err
 		}
 
-		dest, err := emitStringExpr(ctx, info, scope, call, args[2])
+		dest, err := cg.EmitStringExpr(ctx, scope, call, args[2])
 		if err != nil {
 			return so, err
 		}
@@ -666,47 +671,47 @@ func emitFilesystemChainStmt(ctx context.Context, info *CodeGenInfo, scope *pars
 	return so, nil
 }
 
-func emitOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) ([]interface{}, error) {
+func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) ([]interface{}, error) {
 	switch op {
 	case "image":
-		return emitImageOptions(ctx, info, scope, op, stmts)
+		return cg.EmitImageOptions(ctx, scope, op, stmts)
 	case "http":
-		return emitHTTPOptions(ctx, info, scope, op, stmts)
+		return cg.EmitHTTPOptions(ctx, scope, op, stmts)
 	case "git":
-		return emitGitOptions(ctx, info, scope, op, stmts)
+		return cg.EmitGitOptions(ctx, scope, op, stmts)
 	case "local":
-		return emitLocalOptions(ctx, info, scope, op, stmts)
+		return cg.EmitLocalOptions(ctx, scope, op, stmts)
 	case "generate":
-		return emitGenerateOptions(ctx, info, scope, op, stmts, ac)
+		return cg.EmitGenerateOptions(ctx, scope, op, stmts, ac)
 	case "run":
-		return emitExecOptions(ctx, info, scope, op, stmts, ac)
+		return cg.EmitExecOptions(ctx, scope, op, stmts, ac)
 	case "ssh":
-		return emitSSHOptions(ctx, info, scope, op, stmts)
+		return cg.EmitSSHOptions(ctx, scope, op, stmts)
 	case "secret":
-		return emitSecretOptions(ctx, info, scope, op, stmts)
+		return cg.EmitSecretOptions(ctx, scope, op, stmts)
 	case "mount":
-		return emitMountOptions(ctx, info, scope, op, stmts)
+		return cg.EmitMountOptions(ctx, scope, op, stmts)
 	case "mkdir":
-		return emitMkdirOptions(ctx, info, scope, op, stmts)
+		return cg.EmitMkdirOptions(ctx, scope, op, stmts)
 	case "mkfile":
-		return emitMkfileOptions(ctx, info, scope, op, stmts)
+		return cg.EmitMkfileOptions(ctx, scope, op, stmts)
 	case "rm":
-		return emitRmOptions(ctx, info, scope, op, stmts)
+		return cg.EmitRmOptions(ctx, scope, op, stmts)
 	case "copy":
-		return emitCopyOptions(ctx, info, scope, op, stmts)
+		return cg.EmitCopyOptions(ctx, scope, op, stmts)
 	default:
 		panic("call stmt does not support options")
 	}
 }
 
-func emitImageOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "resolve":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
@@ -714,7 +719,7 @@ func emitImageOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 					opts = append(opts, imagemetaresolver.WithDefault)
 				}
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -725,32 +730,32 @@ func emitImageOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 	return
 }
 
-func emitHTTPOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "checksum":
-				dgst, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				dgst, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.Checksum(digest.Digest(dgst)))
 			case "chmod":
-				mode, err := emitIntExpr(ctx, info, scope, args[0])
+				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.Chmod(os.FileMode(mode)))
 			case "filename":
-				filename, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				filename, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.Filename(filename))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -761,14 +766,14 @@ func emitHTTPOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 	return
 }
 
-func emitGitOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "keepGitDir":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
@@ -776,7 +781,7 @@ func emitGitOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 					opts = append(opts, llb.KeepGitDir())
 				}
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -787,7 +792,7 @@ func emitGitOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 	return
 }
 
-func emitLocalOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
@@ -796,7 +801,7 @@ func emitLocalOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 			case "includePatterns":
 				patterns := make([]string, len(args))
 				for i, arg := range args {
-					patterns[i], err = emitStringExpr(ctx, info, scope, stmt.Call, arg)
+					patterns[i], err = cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
 					if err != nil {
 						return opts, err
 					}
@@ -805,7 +810,7 @@ func emitLocalOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 			case "excludePatterns":
 				patterns := make([]string, len(args))
 				for i, arg := range args {
-					patterns[i], err = emitStringExpr(ctx, info, scope, stmt.Call, arg)
+					patterns[i], err = cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
 					if err != nil {
 						return opts, err
 					}
@@ -814,14 +819,14 @@ func emitLocalOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 			case "followPaths":
 				paths := make([]string, len(args))
 				for i, arg := range args {
-					paths[i], err = emitStringExpr(ctx, info, scope, stmt.Call, arg)
+					paths[i], err = cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
 					if err != nil {
 						return opts, err
 					}
 				}
 				opts = append(opts, llb.FollowPaths(paths))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -832,34 +837,34 @@ func emitLocalOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 	return
 }
 
-func emitGenerateOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "frontendInput":
-				key, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
-				value, err := emitFilesystemExpr(ctx, info, scope, nil, args[1], ac)
+				value, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[1], ac)
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithFrontendInput(key, value))
 			case "frontendOpt":
-				key, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
-				value, err := emitStringExpr(ctx, info, scope, stmt.Call, args[1])
+				value, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithFrontendOpt(key, value))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -870,26 +875,26 @@ func emitGenerateOptions(ctx context.Context, info *CodeGenInfo, scope *parser.S
 	return
 }
 
-func emitMkdirOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "createParents":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithParents(v))
 			case "chown":
-				owner, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				owner, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithUser(owner))
 			case "createdTime":
-				v, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				v, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -901,7 +906,7 @@ func emitMkdirOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -912,20 +917,20 @@ func emitMkdirOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 	return
 }
 
-func emitMkfileOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "chown":
-				owner, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				owner, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithUser(owner))
 			case "createdTime":
-				v, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				v, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -937,7 +942,7 @@ func emitMkfileOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -948,26 +953,26 @@ func emitMkfileOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 	return
 }
 
-func emitRmOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "allowNotFound":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithAllowNotFound(v))
 			case "allowWildcard":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithAllowWildcard(v))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -978,7 +983,7 @@ func emitRmOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, 
 	return
 }
 
-func emitCopyOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	cp := &llb.CopyInfo{}
 
 	for _, stmt := range stmts {
@@ -987,49 +992,49 @@ func emitCopyOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "followSymlinks":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.FollowSymlinks = v
 			case "contentsOnly":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.CopyDirContentsOnly = v
 			case "unpack":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.AttemptUnpack = v
 			case "createDestPath":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.CreateDestPath = v
 			case "allowWildcards":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.AllowWildcard = v
 			case "allowEmptyWildcard":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
 				cp.AllowEmptyWildcard = v
 			case "chown":
-				owner, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				owner, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.WithUser(owner))
 			case "createdTime":
-				v, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				v, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1041,7 +1046,7 @@ func emitCopyOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1054,19 +1059,19 @@ func emitCopyOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 	return
 }
 
-func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
-			iopts, err := emitWithOption(ctx, info, scope, stmt.Call, stmt.Call.WithOpt, ac)
+			iopts, err := cg.EmitWithOption(ctx, scope, stmt.Call, stmt.Call.WithOpt, ac)
 			if err != nil {
 				return opts, err
 			}
 
 			switch stmt.Call.Func.Ident.Name {
 			case "readonlyRootfs":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
@@ -1074,33 +1079,33 @@ func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 					opts = append(opts, llb.ReadonlyRootFS())
 				}
 			case "env":
-				key, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
-				value, err := emitStringExpr(ctx, info, scope, stmt.Call, args[1])
+				value, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
 
 				opts = append(opts, llb.AddEnv(key, value))
 			case "dir":
-				path, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
 				opts = append(opts, llb.Dir(path))
 			case "user":
-				name, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				name, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
 				opts = append(opts, llb.User(name))
 			case "network":
-				mode, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1119,7 +1124,7 @@ func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 
 				opts = append(opts, llb.Network(netMode))
 			case "security":
-				mode, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1136,12 +1141,12 @@ func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 
 				opts = append(opts, llb.Security(securityMode))
 			case "host":
-				host, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				host, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
-				address, err := emitStringExpr(ctx, info, scope, stmt.Call, args[1])
+				address, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
@@ -1157,7 +1162,7 @@ func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
 			case "secret":
-				target, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1170,12 +1175,12 @@ func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 
 				opts = append(opts, llb.AddSecret(target, secretOpts...))
 			case "mount":
-				input, err := emitFilesystemExpr(ctx, info, scope, nil, args[0], ac)
+				input, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
 				if err != nil {
 					return opts, err
 				}
 
-				target, err := emitStringExpr(ctx, info, scope, stmt.Call, args[1])
+				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
@@ -1188,7 +1193,7 @@ func emitExecOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope
 
 				opts = append(opts, llb.AddMount(target, input, mountOpts...))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1206,7 +1211,7 @@ type sshSocketOpt struct {
 	mode   os.FileMode
 }
 
-func emitSSHOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	var sopt *sshSocketOpt
 	for _, stmt := range stmts {
 		switch {
@@ -1214,7 +1219,7 @@ func emitSSHOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "target":
-				target, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1223,13 +1228,13 @@ func emitSSHOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 				}
 				sopt.target = target
 			case "id":
-				id, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.SSHID(id))
 			case "uid":
-				uid, err := emitIntExpr(ctx, info, scope, args[0])
+				uid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1238,7 +1243,7 @@ func emitSSHOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 				}
 				sopt.uid = uid
 			case "gid":
-				gid, err := emitIntExpr(ctx, info, scope, args[0])
+				gid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1247,7 +1252,7 @@ func emitSSHOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 				}
 				sopt.gid = gid
 			case "mode":
-				mode, err := emitIntExpr(ctx, info, scope, args[0])
+				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1256,7 +1261,7 @@ func emitSSHOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope,
 				}
 				sopt.mode = os.FileMode(mode)
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1283,7 +1288,7 @@ type secretOpt struct {
 	mode os.FileMode
 }
 
-func emitSecretOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	var sopt *secretOpt
 	for _, stmt := range stmts {
 		switch {
@@ -1291,13 +1296,13 @@ func emitSecretOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "id":
-				id, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.SecretID(id))
 			case "uid":
-				uid, err := emitIntExpr(ctx, info, scope, args[0])
+				uid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1306,7 +1311,7 @@ func emitSecretOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 				}
 				sopt.uid = uid
 			case "gid":
-				gid, err := emitIntExpr(ctx, info, scope, args[0])
+				gid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1315,7 +1320,7 @@ func emitSecretOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 				}
 				sopt.gid = gid
 			case "mode":
-				mode, err := emitIntExpr(ctx, info, scope, args[0])
+				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
@@ -1324,7 +1329,7 @@ func emitSecretOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 				}
 				sopt.mode = os.FileMode(mode)
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1344,14 +1349,14 @@ func emitSecretOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Sco
 	return
 }
 
-func emitMountOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		switch {
 		case stmt.Call != nil:
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "readonly":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
@@ -1359,7 +1364,7 @@ func emitMountOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 					opts = append(opts, llb.MountOption(llb.Readonly))
 				}
 			case "tmpfs":
-				v, err := maybeEmitBoolExpr(ctx, info, scope, args)
+				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
@@ -1367,18 +1372,18 @@ func emitMountOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 					opts = append(opts, llb.Tmpfs())
 				}
 			case "sourcePath":
-				path, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 				opts = append(opts, llb.SourcePath(path))
 			case "cache":
-				id, err := emitStringExpr(ctx, info, scope, stmt.Call, args[0])
+				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
-				mode, err := emitStringExpr(ctx, info, scope, stmt.Call, args[1])
+				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
@@ -1397,7 +1402,7 @@ func emitMountOptions(ctx context.Context, info *CodeGenInfo, scope *parser.Scop
 
 				opts = append(opts, llb.AsPersistentCacheDir(id, sharing))
 			default:
-				iopts, err := emitOptionExpr(ctx, info, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
