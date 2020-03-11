@@ -24,14 +24,14 @@ var moduleCommand = &cli.Command{
 	Aliases: []string{"mod"},
 	Usage:   "manage hlb modules",
 	Subcommands: []*cli.Command{
-		moduleLockCommand,
+		moduleVendorCommand,
 		moduleTidyCommand,
 		moduleTreeCommand,
 	},
 }
 
-var moduleLockCommand = &cli.Command{
-	Name:      "lock",
+var moduleVendorCommand = &cli.Command{
+	Name:      "vendor",
 	Usage:     "vendor a copy of imported modules",
 	ArgsUsage: "<*.hlb | module digest>",
 	Flags: []cli.Flag{
@@ -48,7 +48,7 @@ var moduleLockCommand = &cli.Command{
 			return err
 		}
 
-		return Lock(ctx, cln, LockOptions{
+		return Vendor(ctx, cln, VendorOptions{
 			Args:    c.Args().Slice(),
 			Targets: c.StringSlice("target"),
 			Tidy:    false,
@@ -67,7 +67,7 @@ var moduleTidyCommand = &cli.Command{
 			return err
 		}
 
-		return Lock(ctx, cln, LockOptions{
+		return Vendor(ctx, cln, VendorOptions{
 			Args: c.Args().Slice(),
 			Tidy: true,
 		})
@@ -98,13 +98,13 @@ var moduleTreeCommand = &cli.Command{
 	},
 }
 
-type LockOptions struct {
+type VendorOptions struct {
 	Args    []string
 	Targets []string
 	Tidy    bool
 }
 
-func Lock(ctx context.Context, cln *client.Client, opts LockOptions) error {
+func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 	rc, err := ModuleReadCloser(opts.Args)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -151,7 +151,7 @@ func Lock(ctx context.Context, cln *client.Client, opts LockOptions) error {
 
 	p.Go(func() error {
 		defer p.Release()
-		return module.Lock(ctx, cln, p.MultiWriter(), mod, opts.Targets, opts.Tidy)
+		return module.Vendor(ctx, cln, p.MultiWriter(), mod, opts.Targets, opts.Tidy)
 	})
 
 	return p.Wait()

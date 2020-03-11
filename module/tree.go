@@ -8,9 +8,7 @@ import (
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/client/llb"
-	"github.com/openllb/hlb/checker"
-	"github.com/openllb/hlb/codegen"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
 	"github.com/xlab/treeprint"
 )
@@ -24,6 +22,9 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		return nil, err
 	}
 
+	res := NewLocalResolved(mod)
+	defer res.Close()
+
 	var (
 		tree         = treeprint.New()
 		nodeByModule = make(map[*parser.Module]treeprint.Tree)
@@ -33,39 +34,30 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	tree.SetValue(mod.Pos.Filename)
 	nodeByModule[mod] = tree
 
-	err = ResolveGraph(ctx, resolver, mod, nil, func(st llb.State, decl *parser.ImportDecl, parentMod, importMod *parser.Module) error {
-		var value string
-		switch {
-		case decl.Import != nil:
-			dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
-			if err != nil {
-				return err
-			}
-
+	err = ResolveGraph(ctx, resolver, res, mod, func(decl *parser.ImportDecl, dgst digest.Digest, mod, importMod *parser.Module) error {
+		var prefix string
+		if dgst != "" {
 			encoded := dgst.Encoded()
 			if !long && len(encoded) > 7 {
 				encoded = encoded[:7]
 			}
-			value = fmt.Sprintf("%s:%s", dgst.Algorithm(), encoded)
+			prefix = fmt.Sprintf("%s:%s", dgst.Algorithm(), encoded)
+		}
+
+		var value string
+		switch {
+		case decl.Import != nil:
+			value = filepath.Join(prefix, ModuleFilename)
 		case decl.LocalImport != nil:
-			cg, err := codegen.New()
-			if err != nil {
-				return checker.ErrCodeGen{decl.LocalImport, err}
-			}
-
-			rel, err := cg.EmitStringExpr(ctx, parentMod.Scope, nil, decl.LocalImport)
-			if err != nil {
-				return checker.ErrCodeGen{decl.LocalImport, err}
-			}
-
-			value, err = filepath.Rel(filepath.Dir(mod.Pos.Filename), rel)
-			if err != nil {
-				return checker.ErrCodeGen{decl.LocalImport, err}
+			if prefix == "" {
+				value = *decl.LocalImport
+			} else {
+				value = filepath.Join(prefix, *decl.LocalImport)
 			}
 		}
 
 		mu.Lock()
-		node := nodeByModule[parentMod]
+		node := nodeByModule[mod]
 		importNode := node.AddMetaBranch(decl.Ident.Name, value)
 		nodeByModule[importMod] = importNode
 		mu.Unlock()

@@ -13,6 +13,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/parser"
@@ -37,7 +38,15 @@ var (
 // Resolver resolves imports into a reader ready for parsing and checking.
 type Resolver interface {
 	// Resolve returns a reader for the HLB module and its compiled LLB.
-	Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (io.ReadCloser, llb.State, error)
+	Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error)
+}
+
+type Resolved interface {
+	Digest() digest.Digest
+
+	Open(filename string) (io.ReadCloser, error)
+
+	Close() error
 }
 
 // NewResolver returns a resolver based on whether the modules path exists in
@@ -57,7 +66,7 @@ func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error)
 		return &remoteResolver{cln, mw, root}, nil
 	}
 
-	return &lockResolver{root}, nil
+	return &vendorResolver{root}, nil
 }
 
 // ModulesPathExist returns true if the modules directory exists in the current
@@ -84,57 +93,74 @@ func modulesPathExist() (string, bool, error) {
 	return root, true, nil
 }
 
-type lockResolver struct {
+type vendorResolver struct {
 	modulePath string
 }
 
-func (r *lockResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (io.ReadCloser, llb.State, error) {
-	rc, st, err := resolveLocal(ctx, scope, decl, r.modulePath)
+func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
+	res, err := resolveLocal(ctx, scope, decl, r.modulePath)
 	if err == nil {
-		return rc, st, nil
+		return res, nil
 	}
 	if !os.IsNotExist(err) {
-		return rc, st, err
+		return res, err
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
-		return nil, st, err
+		return res, err
 	}
 
 	filename, err := filepath.Rel(wd, decl.Pos.Filename)
 	if err != nil {
-		return nil, st, err
+		return res, err
 	}
 
-	return nil, st, fmt.Errorf("missing module %q from lock, run `hlb mod lock --target %s %s` to lock module", decl.Ident, decl.Ident, filename)
+	return res, fmt.Errorf("missing module %q from lock, run `hlb mod lock --target %s %s` to lock module", decl.Ident, decl.Ident, filename)
 }
 
-func resolveLocal(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl, modulePath string) (io.ReadCloser, llb.State, error) {
-	var st llb.State
+func resolveLocal(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl, modulePath string) (Resolved, error) {
 	cg, err := codegen.New()
 	if err != nil {
-		return nil, st, err
+		return nil, err
 	}
 
-	st, err = cg.GenerateImport(ctx, scope, decl.Import)
+	st, err := cg.GenerateImport(ctx, scope, decl.Import)
 	if err != nil {
-		return nil, st, err
+		return nil, err
 	}
 
-	vp, err := VertexPath(modulePath, st)
+	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
 	if err != nil {
-		return nil, st, err
+		return nil, err
 	}
 
-	_, err = os.Stat(vp)
+	vp, err := VendorPath(modulePath, dgst)
 	if err != nil {
-
+		return nil, err
 	}
 
-	f, err := os.Open(vp)
-	return f, st, err
+	return &localResolved{dgst, vp}, nil
 }
+
+type localResolved struct {
+	dgst digest.Digest
+	root string
+}
+
+func NewLocalResolved(mod *parser.Module) Resolved {
+	return &localResolved{"", filepath.Dir(mod.Pos.Filename)}
+}
+
+func (r *localResolved) Digest() digest.Digest {
+	return r.dgst
+}
+
+func (r *localResolved) Open(filename string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(r.root, filename))
+}
+
+func (r *localResolved) Close() error { return nil }
 
 type remoteResolver struct {
 	cln        *client.Client
@@ -142,21 +168,25 @@ type remoteResolver struct {
 	modulePath string
 }
 
-func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (io.ReadCloser, llb.State, error) {
-	var st llb.State
+func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
 	cg, err := codegen.New()
 	if err != nil {
-		return nil, st, err
+		return nil, err
 	}
 
-	st, err = cg.GenerateImport(ctx, scope, decl.Import)
+	st, err := cg.GenerateImport(ctx, scope, decl.Import)
 	if err != nil {
-		return nil, st, err
+		return nil, err
+	}
+
+	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
+	if err != nil {
+		return nil, err
 	}
 
 	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
-		return nil, st, err
+		return nil, err
 	}
 
 	var solveOpts []solver.SolveOption
@@ -169,40 +199,87 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		pw = r.mw.WithPrefix(fmt.Sprintf("import %s", decl.Ident), true)
 	}
 
-	var data []byte
-	err = solver.Build(ctx, r.cln, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
-		res, err := c.Solve(ctx, gateway.SolveRequest{
-			Definition: def.ToPB(),
-		})
-		if err != nil {
-			return nil, err
-		}
+	g, ctx := errgroup.WithContext(ctx)
 
-		ref, err := res.SingleRef()
-		if err != nil {
-			return nil, err
-		}
+	// Block constructing remoteResolved until the graph is solved and assigned to
+	// ref.
+	resolved := make(chan struct{})
 
-		_, err = ref.StatFile(ctx, gateway.StatRequest{
-			Path: ModuleFilename,
-		})
-		if err != nil {
-			return nil, err
-		}
+	// Block solver.Build from exiting until remoteResolved is closed.
+	// This ensures that cache keys and results from the build are not garbage
+	// collected.
+	closed := make(chan struct{})
 
-		data, err = ref.ReadFile(ctx, gateway.ReadRequest{
-			Filename: ModuleFilename,
-		})
+	var ref gateway.Reference
 
-		return gateway.NewResult(), nil
-	}, solveOpts...)
-	if err != nil {
-		return nil, st, err
+	g.Go(func() error {
+		return solver.Build(ctx, r.cln, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+			res, err := c.Solve(ctx, gateway.SolveRequest{
+				Definition: def.ToPB(),
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			ref, err = res.SingleRef()
+			if err != nil {
+				return nil, err
+			}
+
+			close(resolved)
+			<-closed
+
+			return gateway.NewResult(), nil
+		}, solveOpts...)
+	})
+
+	<-resolved
+
+	// If ref is nil, then an error has occurred when solving, clean up and
+	// return.
+	if ref == nil {
+		close(closed)
+		return nil, g.Wait()
 	}
 
-	return &noopCloser{
-		Reader: bytes.NewReader(data),
-	}, st, nil
+	return &remoteResolved{dgst, ref, g, ctx, closed}, nil
+}
+
+type remoteResolved struct {
+	dgst   digest.Digest
+	ref    gateway.Reference
+	g      *errgroup.Group
+	ctx    context.Context
+	closed chan struct{}
+}
+
+func (r *remoteResolved) Digest() digest.Digest {
+	return r.dgst
+}
+
+func (r *remoteResolved) Open(filename string) (io.ReadCloser, error) {
+	_, err := r.ref.StatFile(r.ctx, gateway.StatRequest{
+		Path: filename,
+	})
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+
+	data, err := r.ref.ReadFile(r.ctx, gateway.ReadRequest{
+		Filename: filename,
+	})
+	if err != nil {
+		panic(err)
+		return nil, err
+	}
+
+	return &noopCloser{bytes.NewReader(data)}, nil
+}
+
+func (r *remoteResolved) Close() error {
+	close(r.closed)
+	return r.g.Wait()
 }
 
 type noopCloser struct {
@@ -211,46 +288,70 @@ type noopCloser struct {
 
 func (nc *noopCloser) Close() error { return nil }
 
-type lazyResolver struct {
-	modulePath string
-	remote     *remoteResolver
+type tidyResolver struct {
+	remote *remoteResolver
 }
 
-func (r *lazyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (io.ReadCloser, llb.State, error) {
-	rc, st, err := resolveLocal(ctx, scope, decl, r.modulePath)
+func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
+	res, err := resolveLocal(ctx, scope, decl, r.remote.modulePath)
 	if err == nil {
-		return rc, st, nil
+		return res, nil
 	}
 	if !os.IsNotExist(err) {
-		return rc, st, err
+		return res, err
 	}
 
 	return r.remote.Resolve(ctx, scope, decl)
 }
 
-// VertexPath returns a modules path based on the digest of marshalling the
-// LLB. This digest is stable even when the underlying remote sources change
-// contents, for example `alpine:latest` may be pushed to.
-func VertexPath(root string, st llb.State) (string, error) {
-	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
-	if err != nil {
-		return "", err
+type targetResolver struct {
+	filename string
+	targets  []string
+	remote   *remoteResolver
+}
+
+func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
+	if decl.Pos.Filename == r.filename {
+		matchTarget := true
+		if len(r.targets) > 0 {
+			matchTarget = false
+			for _, target := range r.targets {
+				if decl.Ident.Name == target {
+					matchTarget = true
+				}
+			}
+		}
+
+		if matchTarget {
+			return r.remote.Resolve(ctx, scope, decl)
+		}
 	}
 
+	res, err := resolveLocal(ctx, scope, decl, r.remote.modulePath)
+	if err == nil {
+		return res, nil
+	}
+	if !os.IsNotExist(err) {
+		return res, err
+	}
+
+	return r.remote.Resolve(ctx, scope, decl)
+}
+
+// VendorPath returns a modules path based on the digest of marshalling the
+// LLB. This digest is stable even when the underlying remote sources change
+// contents, for example `alpine:latest` may be pushed to.
+func VendorPath(root string, dgst digest.Digest) (string, error) {
 	encoded := dgst.Encoded()
-	return filepath.Join(root, dgst.Algorithm().String(), encoded[:2], encoded, ModuleFilename), nil
+	return filepath.Join(root, dgst.Algorithm().String(), encoded[:2], encoded), nil
 }
 
 // Visitor is a callback invoked for every import when traversing the import
 // graph.
-type Visitor func(st llb.State, decl *parser.ImportDecl, parentMod, importMod *parser.Module) error
+type Visitor func(decl *parser.ImportDecl, dgst digest.Digest, mod, importMod *parser.Module) error
 
 // ResolveGraph traverses the import graph of a given module.
-//
-// If targets are nil or empty, all imports are traversed.
-// If targets are non-empty, then only imports matching one of the targets are
-// traversed. All transitive modules of matched targets are traversed.
-func ResolveGraph(ctx context.Context, resolver Resolver, mod *parser.Module, targets []string, visitor Visitor) error {
+func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *parser.Module, visitor Visitor) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	var (
@@ -261,79 +362,61 @@ func ResolveGraph(ctx context.Context, resolver Resolver, mod *parser.Module, ta
 	parser.Inspect(mod, func(node parser.Node) bool {
 		switch n := node.(type) {
 		case *parser.ImportDecl:
-			if len(targets) > 0 {
-				matchTarget := false
-				for _, target := range targets {
-					if n.Ident.Name == target {
-						matchTarget = true
-					}
-				}
-
-				if !matchTarget {
-					return false
-				}
-			}
 
 			g.Go(func() error {
 				var (
-					rc  io.ReadCloser
-					st  llb.State
-					err error
+					importRes Resolved
+					filename  string
+					err       error
 				)
 
 				switch {
 				case n.Import != nil:
-					rc, st, err = resolver.Resolve(ctx, mod.Scope, n)
+					importRes, err = resolver.Resolve(ctx, mod.Scope, n)
+					if err != nil {
+						return err
+					}
+					defer importRes.Close()
+
+					filename = ModuleFilename
 				case n.LocalImport != nil:
-					cg, err := codegen.New()
-					if err != nil {
-						return checker.ErrCodeGen{n.LocalImport, err}
-					}
-
-					rel, err := cg.EmitStringExpr(ctx, mod.Scope, nil, n.LocalImport)
-					if err != nil {
-						return checker.ErrCodeGen{n.LocalImport, err}
-					}
-
-					filename, err := filepath.Rel(filepath.Dir(mod.Pos.Filename), rel)
-					if err != nil {
-						return checker.ErrCodeGen{n.LocalImport, err}
-					}
-
-					rc, err = os.Open(filename)
-					if err != nil {
-						return checker.ErrCodeGen{n.LocalImport, err}
-					}
+					importRes = res
+					filename = *n.LocalImport
 				}
+
+				rc, err := importRes.Open(filename)
 				if err != nil {
-					return err
+					if !os.IsNotExist(err) {
+						return err
+					}
+					return checker.ErrImportNotExist{n, filename}
 				}
 				defer rc.Close()
 
-				importModule, err := parser.Parse(rc)
+				importMod, err := parser.Parse(rc)
 				if err != nil {
 					return err
 				}
 
-				err = checker.Check(importModule)
+				err = checker.Check(importMod)
 				if err != nil {
 					return err
 				}
 
 				if visitor != nil {
-					err = visitor(st, n, mod, importModule)
+					err = visitor(n, importRes.Digest(), mod, importMod)
 					if err != nil {
 						return err
 					}
 				}
 
-				err = ResolveGraph(ctx, resolver, importModule, nil, visitor)
+				err = ResolveGraph(ctx, resolver, importRes, importMod, visitor)
 				if err != nil {
 					return err
 				}
 
 				mu.Lock()
-				imports[n.Ident.Name] = importModule
+				imports[n.Ident.Name] = importMod
 				mu.Unlock()
 				return nil
 			})

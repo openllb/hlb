@@ -47,7 +47,10 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		return st, nil, err
 	}
 
-	err = module.ResolveGraph(ctx, resolver, mod, nil, nil)
+	res := module.NewLocalResolved(mod)
+	defer res.Close()
+
+	err = module.ResolveGraph(ctx, resolver, res, mod, nil)
 	if err != nil {
 		return st, nil, err
 	}
@@ -57,7 +60,7 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	}
 
 	var (
-		cg  *codegen.CodeGen
+		cg   *codegen.CodeGen
 		opts []codegen.CodeGenOption
 	)
 

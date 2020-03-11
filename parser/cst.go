@@ -119,7 +119,7 @@ type ImportDecl struct {
 	Pos         lexer.Position
 	Ident       *Ident   `"import" @@`
 	Import      *FuncLit `( "from" @@`
-	LocalImport *Expr    `| @@ )`
+	LocalImport *string  `| @String )`
 }
 
 func (d *ImportDecl) Position() lexer.Position { return d.Pos }
@@ -128,7 +128,7 @@ func (d *ImportDecl) End() lexer.Position {
 	case d.Import != nil:
 		return d.Import.End()
 	case d.LocalImport != nil:
-		return d.LocalImport.End()
+		return shiftPosition(d.Pos, len(d.String()), 0)
 	}
 	panic("unknown import decl")
 }

@@ -100,7 +100,13 @@ func (d *Decl) String() string {
 }
 
 func (d *ImportDecl) String() string {
-	return fmt.Sprintf("import %s from %s", d.Ident, d.Import)
+	switch {
+	case d.Import != nil:
+		return fmt.Sprintf("import %s from %s", d.Ident, d.Import)
+	case d.LocalImport != nil:
+		return fmt.Sprintf("import %s %s", d.Ident, strconv.Quote(*d.LocalImport))
+	}
+	panic("unknown import decl")
 }
 
 func (d *ExportDecl) String() string {

@@ -121,12 +121,6 @@ func (c *checker) Check(mod *parser.Module) error {
 				if err != nil {
 					c.errs = append(c.errs, err)
 				}
-			case n.LocalImport != nil:
-				err := c.checkExpr(mod.Scope, parser.Str, imp.LocalImport)
-				if err != nil {
-					c.errs = append(c.errs, err)
-					return false
-				}
 			}
 
 			return false
