@@ -1,4 +1,4 @@
-package ast
+package parser
 
 import "sort"
 
@@ -84,4 +84,5 @@ type Object struct {
 	Ident *Ident
 	Node  Node
 	Data  interface{}
+	Exported bool
 }

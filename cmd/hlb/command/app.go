@@ -5,11 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	isatty "github.com/mattn/go-isatty"
 	_ "github.com/moby/buildkit/client/connhelper/dockercontainer"
 	_ "github.com/moby/buildkit/client/connhelper/kubepod"
 	"github.com/moby/buildkit/util/appdefaults"
-	"github.com/openllb/hlb"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -34,18 +32,9 @@ func App() *cli.App {
 	app.Commands = []*cli.Command{
 		runCommand,
 		formatCommand,
-		getCommand,
-		publishCommand,
+		moduleCommand,
 	}
 	return app
-}
-
-func defaultOpts() []hlb.ParseOption {
-	var opts []hlb.ParseOption
-	if isatty.IsTerminal(os.Stderr.Fd()) {
-		opts = append(opts, hlb.WithColor(true))
-	}
-	return opts
 }
 
 func collectReaders(c *cli.Context) (rs []io.Reader, cleanup func() error, err error) {

@@ -4,7 +4,8 @@ go 1.12
 
 require (
 	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
-	github.com/containerd/console v0.0.0-20181022165439-0650fd9eeb50
+	github.com/docker/buildx v0.3.1
+	github.com/docker/docker v1.14.0-0.20190410063227-3998dffb806f3887f804b813069f59bc14a7f3c1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
@@ -13,8 +14,11 @@ require (
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/opencontainers/image-spec v1.0.1
 	github.com/openllb/doxygen-parser v0.0.0-20200128221307-2aa2d8be1c35
+	github.com/opentracing/opentracing-go v1.1.0 // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli/v2 v2.1.1
+	github.com/xlab/treeprint v1.0.0
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 )
 

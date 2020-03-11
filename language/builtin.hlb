@@ -399,3 +399,11 @@ option::copy unpack()
 #
 # @return an option to create the parent directories of the destination.
 option::copy createDestPath()
+
+# A format specifier that is interpolated with values.
+#
+# @param formatString the format specifier.
+# @param values the list of values to be interpolated into the format
+# specifier.
+# @return the resulting string from formatting.
+string format(string formatString, variadic string values)

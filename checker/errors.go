@@ -1,11 +1,11 @@
-package report
+package checker
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/openllb/hlb/ast"
+	"github.com/openllb/hlb/parser"
 )
 
 // FormatPos returns a lexer.Position formatted as a string.
@@ -26,7 +26,7 @@ func (e ErrSemantic) Error() string {
 }
 
 type ErrDuplicateDecls struct {
-	Idents []*ast.Ident
+	Idents []*parser.Ident
 }
 
 func (e ErrDuplicateDecls) Error() string {
@@ -34,7 +34,7 @@ func (e ErrDuplicateDecls) Error() string {
 }
 
 type ErrDuplicateFields struct {
-	Fields []*ast.Field
+	Fields []*parser.Field
 }
 
 func (e ErrDuplicateFields) Error() string {
@@ -42,7 +42,7 @@ func (e ErrDuplicateFields) Error() string {
 }
 
 type ErrNoSource struct {
-	BlockStmt *ast.BlockStmt
+	BlockStmt *parser.BlockStmt
 }
 
 func (e ErrNoSource) Error() string {
@@ -50,7 +50,7 @@ func (e ErrNoSource) Error() string {
 }
 
 type ErrFirstSource struct {
-	CallStmt *ast.CallStmt
+	CallStmt *parser.CallStmt
 }
 
 func (e ErrFirstSource) Error() string {
@@ -58,7 +58,7 @@ func (e ErrFirstSource) Error() string {
 }
 
 type ErrOnlyFirstSource struct {
-	CallStmt *ast.CallStmt
+	CallStmt *parser.CallStmt
 }
 
 func (e ErrOnlyFirstSource) Error() string {
@@ -66,7 +66,7 @@ func (e ErrOnlyFirstSource) Error() string {
 }
 
 type ErrInvalidFunc struct {
-	CallStmt *ast.CallStmt
+	CallStmt *parser.CallStmt
 }
 
 func (e ErrInvalidFunc) Error() string {
@@ -74,7 +74,7 @@ func (e ErrInvalidFunc) Error() string {
 }
 
 type ErrFuncSource struct {
-	CallStmt *ast.CallStmt
+	CallStmt *parser.CallStmt
 }
 
 func (e ErrFuncSource) Error() string {
@@ -83,7 +83,7 @@ func (e ErrFuncSource) Error() string {
 
 type ErrNumArgs struct {
 	Expected int
-	CallStmt *ast.CallStmt
+	CallStmt *parser.CallStmt
 }
 
 func (e ErrNumArgs) Error() string {
@@ -91,7 +91,7 @@ func (e ErrNumArgs) Error() string {
 }
 
 type ErrIdentNotDefined struct {
-	Ident *ast.Ident
+	Ident *parser.Ident
 }
 
 func (e ErrIdentNotDefined) Error() string {
@@ -99,7 +99,7 @@ func (e ErrIdentNotDefined) Error() string {
 }
 
 type ErrFuncArg struct {
-	Ident *ast.Ident
+	Ident *parser.Ident
 }
 
 func (e ErrFuncArg) Error() string {
@@ -108,8 +108,8 @@ func (e ErrFuncArg) Error() string {
 
 type ErrWrongArgType struct {
 	Pos      lexer.Position
-	Expected ast.ObjType
-	Found    ast.ObjType
+	Expected parser.ObjType
+	Found    parser.ObjType
 }
 
 func (e ErrWrongArgType) Error() string {
@@ -117,16 +117,57 @@ func (e ErrWrongArgType) Error() string {
 }
 
 type ErrInvalidTarget struct {
-	Ident *ast.Ident
+	Ident *parser.Ident
 }
 
 func (e ErrInvalidTarget) Error() string {
 	return fmt.Sprintf("%s invalid compile target %s", FormatPos(e.Ident.Position()), e.Ident)
 }
 
+type ErrCallUnexported struct {
+	Selector *parser.Selector
+}
+
+func (e ErrCallUnexported) Error() string {
+	return fmt.Sprintf("%s cannot call unexported function %s from import", FormatPos(e.Selector.Position()), e.Selector)
+}
+
+type ErrNotImport struct {
+	Ident *parser.Ident
+}
+
+func (e ErrNotImport) Error() string {
+	return fmt.Sprintf("%s %s is not an import", FormatPos(e.Ident.Position()), e.Ident)
+}
+
+type ErrIdentUndefined struct {
+	Ident *parser.Ident
+}
+
+func (e ErrIdentUndefined) Error() string {
+	return fmt.Sprintf("%s %s is undefined", FormatPos(e.Ident.Position()), e.Ident)
+}
+
+type ErrImportNotExist struct {
+	Import     *parser.ImportDecl
+	Filename string
+}
+
+func (e ErrImportNotExist) Error() string {
+	return fmt.Sprintf("%s no such file %s", FormatPos(e.Import.Position()), e.Filename)
+}
+
+type ErrBadParse struct {
+	Node parser.Node
+}
+
+func (e ErrBadParse) Error() string {
+	return fmt.Sprintf("%s unable to parse", FormatPos(e.Node.Position()))
+}
+
 type ErrCodeGen struct {
-	Node ast.Node
-	Err error
+	Node parser.Node
+	Err  error
 }
 
 func (e ErrCodeGen) Error() string {

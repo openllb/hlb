@@ -1,4 +1,4 @@
-package ast
+package parser
 
 // A Visitor's Visit method is invoked for each node encountered by Walk.
 // If the result visitor w is not nil, Walk visits each of the children
@@ -7,7 +7,7 @@ type Visitor interface {
 	Visit(node Node) (w Visitor)
 }
 
-// Walk traverses an AST in depth-first order: It starts by calling
+// Walk traverses an CST in depth-first order: It starts by calling
 // v.Visit(node); node must not be nil. If the visitor w returned by
 // v.Visit(node) is not nil, Walk is invoked recursively with visitor
 // w for each of the non-nil children of node, followed by a call of
@@ -17,19 +17,34 @@ func Walk(node Node, v Visitor) {
 		return
 	}
 	switch n := node.(type) {
-	case *AST:
-		walkFileList(n.Files, v)
-	case *File:
+	case *Module:
 		if n.Doc != nil {
 			Walk(n.Doc, v)
 		}
 		walkDeclList(n.Decls, v)
 	case *Decl:
 		switch {
+		case n.Bad != nil:
+			Walk(n.Bad, v)
+		case n.Import != nil:
+			Walk(n.Import, v)
+		case n.Export != nil:
+			Walk(n.Export, v)
 		case n.Func != nil:
 			Walk(n.Func, v)
 		case n.Doc != nil:
 			Walk(n.Doc, v)
+		}
+	case *ImportDecl:
+		if n.Ident != nil {
+			Walk(n.Ident, v)
+		}
+		if n.Import != nil {
+			Walk(n.Import, v)
+		}
+	case *ExportDecl:
+		if n.Ident != nil {
+			Walk(n.Ident, v)
 		}
 	case *FuncDecl:
 		if n.Type != nil {
@@ -70,24 +85,37 @@ func Walk(node Node, v Visitor) {
 		}
 	case *Expr:
 		switch {
+		case n.Bad != nil:
+			Walk(n.Bad, v)
+		case n.Selector != nil:
+			Walk(n.Selector, v)
 		case n.Ident != nil:
 			Walk(n.Ident, v)
 		case n.BasicLit != nil:
 			Walk(n.BasicLit, v)
-		case n.BlockLit != nil:
-			Walk(n.BlockLit, v)
+		case n.FuncLit != nil:
+			Walk(n.FuncLit, v)
+		}
+	case *Selector:
+		if n.Ident != nil {
+			Walk(n.Ident, v)
+		}
+		if n.Select != nil {
+			Walk(n.Select, v)
 		}
 	case *BasicLit:
 		switch {
 		case n.Numeric != nil:
 			Walk(n.Numeric, v)
 		}
-	case *BlockLit:
+	case *FuncLit:
 		if n.Body != nil {
 			Walk(n.Body, v)
 		}
 	case *Stmt:
 		switch {
+		case n.Bad != nil:
+			Walk(n.Bad, v)
 		case n.Call != nil:
 			Walk(n.Call, v)
 		case n.Doc != nil:
@@ -116,8 +144,8 @@ func Walk(node Node, v Visitor) {
 		switch {
 		case n.Ident != nil:
 			Walk(n.Ident, v)
-		case n.BlockLit != nil:
-			Walk(n.BlockLit, v)
+		case n.FuncLit != nil:
+			Walk(n.FuncLit, v)
 		}
 	case *BlockStmt:
 		walkStmtList(n.List, v)
@@ -128,7 +156,7 @@ func Walk(node Node, v Visitor) {
 	v.Visit(nil)
 }
 
-// Inspect traverses an AST in depth-first order: It starts by calling
+// Inspect traverses an CST in depth-first order: It starts by calling
 // f(node); node must not be nil. If f returns true, Inspect invokes f
 // recursively for each of the non-nil children of node, followed by a
 // call of f(nil).
@@ -143,12 +171,6 @@ func (f inspector) Visit(node Node) Visitor {
 		return f
 	}
 	return nil
-}
-
-func walkFileList(list []*File, v Visitor) {
-	for _, x := range list {
-		Walk(x, v)
-	}
 }
 
 func walkDeclList(list []*Decl, v Visitor) {

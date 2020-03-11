@@ -1,15 +1,45 @@
-package ast
+package parser
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/lexer/regex"
 )
 
-// Node is implemented by all nodes in the AST.
+var (
+	// Lexer lexes HLB into tokens for the parser.
+	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
+	        whitespace = [\r\t ]+
+
+		Keyword  = \b(with|as|variadic|import|export)\b
+		Type     = \b(string|int|bool|fs|option)(::[a-z][a-z]*)?\b
+		Numeric  = \b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b
+		Decimal  = \b(0|[1-9][0-9]*)\b
+		String   = "(\\.|[^"])*"|'[^']*'
+		Bool     = \b(true|false)\b
+		Selector = \b[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*\b
+		Ident    = \b[a-zA-Z_][a-zA-Z0-9_]*\b
+	        Newline  = \n
+		Operator = {|}|\(|\)|,|;
+	        Comment  = #[^\n]*\n
+	        Bad      = .*
+	`)))
+
+	// Parser parses HLB into a concrete syntax tree rooted from a Module.
+	Parser = participle.MustBuild(
+		&Module{},
+		participle.Lexer(Lexer),
+		participle.Unquote(),
+	)
+)
+
+// Node is implemented by all nodes in the CST.
 type Node interface {
+	// Stringer is implemented to unparse a node back into formatted HLB.
 	fmt.Stringer
 
 	// Position returns position of the first character belonging to the node.
@@ -19,52 +49,47 @@ type Node interface {
 	End() lexer.Position
 }
 
-// AST represents the abstract syntax tree.
-type AST struct {
-	Scope *Scope
-	Files []*File
-}
-
-// NewAST builds a new AST for the given files.
-func NewAST(files ...*File) *AST {
-	root := &AST{
-		Files: files,
-	}
-	root.Scope = NewScope(root, nil)
-	return root
-}
-
-func (ast *AST) Position() lexer.Position { return lexer.Position{} }
-func (ast *AST) End() lexer.Position {
-	if len(ast.Files) == 0 {
-		return lexer.Position{}
-	}
-	return ast.Files[len(ast.Files)-1].End()
-}
-
-// File represents a HLB source file.
-type File struct {
+// Module represents a HLB source file. HLB is file-scoped, so every file
+// represents a module.
+//
+// Initially, the Parser will fill in this struct as a parse tree / concrete
+// syntax tree, but a second pass from the Analyzer will type check and fill in
+// fields without parser struct tags like scopes and doc linking.
+type Module struct {
 	Pos   lexer.Position
+	Scope *Scope
 	Doc   *CommentGroup
 	Decls []*Decl `( @@ )*`
 }
 
-func (f *File) Position() lexer.Position { return f.Pos }
-func (f *File) End() lexer.Position {
-	if len(f.Decls) == 0 {
-		if f.Doc == nil {
-			return shiftPosition(f.Pos, 1, 0)
+func (m *Module) Position() lexer.Position { return m.Pos }
+func (m *Module) End() lexer.Position {
+	if len(m.Decls) == 0 {
+		if m.Doc == nil {
+			return shiftPosition(m.Pos, 1, 0)
 		}
 
-		return f.Doc.End()
+		return m.Doc.End()
 	}
-	return f.Decls[len(f.Decls)-1].End()
+	return m.Decls[len(m.Decls)-1].End()
 }
+
+// Bad represents a parsed lexeme containing errors.
+type Bad struct {
+	Pos    lexer.Position
+	Lexeme string `@Bad`
+}
+
+func (b *Bad) Position() lexer.Position { return b.Pos }
+func (b *Bad) End() lexer.Position      { return shiftPosition(b.Pos, len(b.Lexeme), 0) }
 
 // Decl represents a declaration node.
 type Decl struct {
 	Pos     lexer.Position
-	Func    *FuncDecl     `( @@`
+	Bad     *Bad          `( @@`
+	Import  *ImportDecl   `| @@`
+	Export  *ExportDecl   `| @@`
+	Func    *FuncDecl     `| @@`
 	Newline *Newline      `| @@`
 	Doc     *CommentGroup `| @@ )`
 }
@@ -72,6 +97,12 @@ type Decl struct {
 func (d *Decl) Position() lexer.Position { return d.Pos }
 func (d *Decl) End() lexer.Position {
 	switch {
+	case d.Bad != nil:
+		return d.Bad.End()
+	case d.Import != nil:
+		return d.Import.End()
+	case d.Export != nil:
+		return d.Export.End()
 	case d.Func != nil:
 		return d.Func.End()
 	case d.Newline != nil:
@@ -83,11 +114,39 @@ func (d *Decl) End() lexer.Position {
 	}
 }
 
+// ImportDecl represents an import declaration.
+type ImportDecl struct {
+	Pos         lexer.Position
+	Ident       *Ident   `"import" @@`
+	Import      *FuncLit `( "from" @@`
+	LocalImport *string  `| @String )`
+}
+
+func (d *ImportDecl) Position() lexer.Position { return d.Pos }
+func (d *ImportDecl) End() lexer.Position {
+	switch {
+	case d.Import != nil:
+		return d.Import.End()
+	case d.LocalImport != nil:
+		return shiftPosition(d.Pos, len(d.String()), 0)
+	}
+	panic("unknown import decl")
+}
+
+// ExportDecl represents an export declaration.
+type ExportDecl struct {
+	Pos   lexer.Position
+	Ident *Ident `"export" @@`
+}
+
+func (d *ExportDecl) Position() lexer.Position { return d.Pos }
+func (d *ExportDecl) End() lexer.Position      { return d.Ident.End() }
+
 // FuncDecl represents a function declaration.
 type FuncDecl struct {
 	Pos    lexer.Position
-	Doc    *CommentGroup
 	Scope  *Scope
+	Doc    *CommentGroup
 	Type   *Type      `@@`
 	Method *Method    `( @@ )?`
 	Name   *Ident     `@@`
@@ -98,6 +157,7 @@ type FuncDecl struct {
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 
+// Method represents the recieving type of the method function.
 type Method struct {
 	Pos        lexer.Position
 	OpenParen  *OpenParen  `@@`
@@ -112,7 +172,7 @@ func (m *Method) End() lexer.Position      { return m.CloseParen.End() }
 type FieldList struct {
 	Pos        lexer.Position
 	OpenParen  *OpenParen  `@@`
-	List       []*Field    `( @@ ( ","  @@ )* )?`
+	List       []*Field    `( ( Newline )? @@ ( "," ( Newline )?  @@ )* ( "," Newline )? )?`
 	CloseParen *CloseParen `@@`
 }
 
@@ -149,6 +209,8 @@ func NewField(typ ObjType, name string, variadic bool) *Field {
 func (f *Field) Position() lexer.Position { return f.Pos }
 func (f *Field) End() lexer.Position      { return f.Name.End() }
 
+// Variadic represents a modifier for variadic fields. Variadic must only
+// modify the last field of a FieldList.
 type Variadic struct {
 	Pos     lexer.Position
 	Keyword string `@"variadic"`
@@ -160,20 +222,26 @@ func (v *Variadic) End() lexer.Position      { return shiftPosition(v.Pos, len(v
 // Expr represents an expression node.
 type Expr struct {
 	Pos      lexer.Position
-	Ident    *Ident    `( @@`
+	Bad      *Bad      `( @@`
+	Selector *Selector `| @Selector`
+	Ident    *Ident    `| @@`
 	BasicLit *BasicLit `| @@`
-	BlockLit *BlockLit `| @@ )`
+	FuncLit  *FuncLit  `| @@ )`
 }
 
 func (e *Expr) Position() lexer.Position { return e.Pos }
 func (e *Expr) End() lexer.Position {
 	switch {
+	case e.Bad != nil:
+		return e.Bad.End()
+	case e.Selector != nil:
+		return e.Selector.End()
 	case e.Ident != nil:
 		return e.Ident.End()
 	case e.BasicLit != nil:
 		return e.BasicLit.End()
-	case e.BlockLit != nil:
-		return e.BlockLit.End()
+	case e.FuncLit != nil:
+		return e.FuncLit.End()
 	default:
 		return shiftPosition(e.Pos, 1, 0)
 	}
@@ -192,22 +260,30 @@ func NewType(typ ObjType) *Type {
 	return &Type{ObjType: typ}
 }
 
-func (t *Type) Type() ObjType {
-	typeParts := strings.Split(string(t.ObjType), "::")
-	return ObjType(typeParts[0])
+func (t *Type) Primary() ObjType {
+	parts := typeParts(t.ObjType)
+	return ObjType(parts[0])
 }
 
-func (t *Type) SubType() ObjType {
-	typeParts := strings.Split(string(t.ObjType), "::")
-	if len(typeParts) == 1 {
+func (t *Type) Secondary() ObjType {
+	parts := typeParts(t.ObjType)
+	if len(parts) == 1 {
 		return None
 	}
-	return ObjType(typeParts[1])
+	return ObjType(parts[1])
+}
+
+func typeParts(typ ObjType) []string {
+	return strings.Split(string(typ), "::")
 }
 
 // Equals returns whether type equals another ObjType.
 func (t *Type) Equals(typ ObjType) bool {
-	return typ == t.Type()
+	if t.Primary() == Option && t.Secondary() == None {
+		parts := typeParts(typ)
+		return ObjType(parts[0]) == Option
+	}
+	return t.ObjType == typ
 }
 
 type ObjType string
@@ -251,6 +327,30 @@ func NewIdentExpr(name string) *Expr {
 	return &Expr{
 		Ident: NewIdent(name),
 	}
+}
+
+// Selector represents an identifier followed by a selector.
+type Selector struct {
+	Pos    lexer.Position
+	Ident  *Ident
+	Select *Ident
+}
+
+func (s *Selector) Position() lexer.Position { return s.Pos }
+func (s *Selector) End() lexer.Position      { return s.Select.End() }
+
+func (s *Selector) Capture(tokens []string) error {
+	n := tokens[0]
+	i := strings.IndexByte(n, byte('.'))
+	s.Ident = &Ident{
+		Pos:  s.Pos,
+		Name: n[:i],
+	}
+	s.Select = &Ident{
+		Pos:  shiftPosition(s.Pos, i+1, 0),
+		Name: n[i+1:],
+	}
+	return nil
 }
 
 // BasicLit represents a literal of basic type.
@@ -351,26 +451,26 @@ func NewBoolExpr(v bool) *Expr {
 	}
 }
 
-// BlockLit represents a literal block prefixed by its type. If the type is
+// FuncLit represents a literal block prefixed by its type. If the type is
 // missing then it's assumed to be a fs block literal.
-type BlockLit struct {
+type FuncLit struct {
 	Pos  lexer.Position
 	Type *Type      `@@`
 	Body *BlockStmt `@@`
 }
 
-func (l *BlockLit) Position() lexer.Position { return l.Pos }
-func (l *BlockLit) End() lexer.Position      { return l.Body.End() }
+func (l *FuncLit) Position() lexer.Position { return l.Pos }
+func (l *FuncLit) End() lexer.Position      { return l.Body.End() }
 
-func (l *BlockLit) NumStmts() int {
+func (l *FuncLit) NumStmts() int {
 	if l == nil {
 		return 0
 	}
 	return l.Body.NumStmts()
 }
 
-func NewBlockLit(typ ObjType, stmts ...*Stmt) *BlockLit {
-	return &BlockLit{
+func NewFuncLit(typ ObjType, stmts ...*Stmt) *FuncLit {
+	return &FuncLit{
 		Type: NewType(typ),
 		Body: &BlockStmt{
 			List: stmts,
@@ -378,16 +478,17 @@ func NewBlockLit(typ ObjType, stmts ...*Stmt) *BlockLit {
 	}
 }
 
-func NewBlockLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
+func NewFuncLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
 	return &Expr{
-		BlockLit: NewBlockLit(typ, stmts...),
+		FuncLit: NewFuncLit(typ, stmts...),
 	}
 }
 
 // Stmt represents a statement node.
 type Stmt struct {
 	Pos     lexer.Position
-	Call    *CallStmt     `( @@`
+	Bad     *Bad          `( @@`
+	Call    *CallStmt     `| @@`
 	Newline *Newline      `| @@`
 	Doc     *CommentGroup `| @@ )`
 }
@@ -395,6 +496,8 @@ type Stmt struct {
 func (s *Stmt) Position() lexer.Position { return s.Pos }
 func (s *Stmt) End() lexer.Position {
 	switch {
+	case s.Bad != nil:
+		return s.Bad.End()
 	case s.Call != nil:
 		return s.Call.End()
 	case s.Newline != nil:
@@ -411,7 +514,7 @@ func (s *Stmt) End() lexer.Position {
 type CallStmt struct {
 	Pos     lexer.Position
 	Doc     *CommentGroup
-	Func    *Ident     `@@`
+	Func    *Expr      `@@`
 	Args    []*Expr    `( @@ )*`
 	WithOpt *WithOpt   `( @@ )?`
 	Alias   *AliasDecl `( @@ )?`
@@ -424,7 +527,7 @@ func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
 func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, alias *AliasDecl) *Stmt {
 	return &Stmt{
 		Call: &CallStmt{
-			Func:    NewIdent(name),
+			Func:    NewIdentExpr(name),
 			Args:    args,
 			WithOpt: withOpt,
 			Alias:   alias,
@@ -434,10 +537,10 @@ func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, alias *AliasDecl) 
 
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
-	Pos      lexer.Position
-	With     *With     `@@`
-	Ident    *Ident    `( @@`
-	BlockLit *BlockLit `| @@ )`
+	Pos     lexer.Position
+	With    *With    `@@`
+	Ident   *Ident   `( @@`
+	FuncLit *FuncLit `| @@ )`
 }
 
 func (w *WithOpt) Position() lexer.Position { return w.Pos }
@@ -445,8 +548,8 @@ func (w *WithOpt) End() lexer.Position {
 	switch {
 	case w.Ident != nil:
 		return w.Ident.End()
-	case w.BlockLit != nil:
-		return w.BlockLit.End()
+	case w.FuncLit != nil:
+		return w.FuncLit.End()
 	default:
 		return shiftPosition(w.Pos, 1, 0)
 	}
@@ -459,10 +562,10 @@ func NewWithIdent(name string) *WithOpt {
 	}
 }
 
-func NewWithBlockLit(stmts ...*Stmt) *WithOpt {
+func NewWithFuncLit(stmts ...*Stmt) *WithOpt {
 	return &WithOpt{
-		With:     &With{Keyword: "with"},
-		BlockLit: NewBlockLit(Option, stmts...),
+		With:    &With{Keyword: "with"},
+		FuncLit: NewFuncLit(Option, stmts...),
 	}
 }
 
@@ -478,9 +581,8 @@ func (w *With) End() lexer.Position      { return shiftPosition(w.Pos, len(w.Key
 // AliasDecl represents a declaration of an alias for a CallStmt.
 type AliasDecl struct {
 	Pos   lexer.Position
-	As    *As     `@@`
-	Local *string `( @"local" )?`
-	Ident *Ident  `@@`
+	As    *As    `@@`
+	Ident *Ident `@@`
 	Func  *FuncDecl
 	Call  *CallStmt
 }

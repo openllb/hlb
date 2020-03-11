@@ -1,46 +1,48 @@
 package codegen
 
 import (
+	"context"
+
 	"github.com/moby/buildkit/client/llb"
-	"github.com/openllb/hlb/ast"
+	"github.com/openllb/hlb/parser"
 )
 
-func emitStringExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr *ast.Expr) (string, error) {
+func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr) (string, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
-		case ast.DeclKind:
+		case parser.DeclKind:
 			switch n := obj.Node.(type) {
-			case *ast.FuncDecl:
-				return emitStringFuncDecl(info, scope, n, call, noopAliasCallback)
-			case *ast.AliasDecl:
-				return emitStringAliasDecl(info, scope, n, call)
+			case *parser.FuncDecl:
+				return cg.EmitStringFuncDecl(ctx, scope, n, call, noopAliasCallback)
+			case *parser.AliasDecl:
+				return cg.EmitStringAliasDecl(ctx, scope, n, call)
 			default:
 				panic("unknown decl object")
 			}
-		case ast.ExprKind:
+		case parser.ExprKind:
 			return obj.Data.(string), nil
 		default:
 			panic("unknown obj type")
 		}
 	case expr.BasicLit != nil:
 		return *expr.BasicLit.Str, nil
-	case expr.BlockLit != nil:
-		return emitStringBlock(info, scope, expr.BlockLit.Body.NonEmptyStmts())
+	case expr.FuncLit != nil:
+		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts())
 	default:
 		panic("unknown string expr")
 	}
 }
 
-func emitIntExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (int, error) {
+func (cg *CodeGen) EmitIntExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (int, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
-		case ast.DeclKind:
+		case parser.DeclKind:
 			panic("unimplemented")
-		case ast.ExprKind:
+		case parser.ExprKind:
 			return obj.Data.(int), nil
 		default:
 			panic("unknown obj type")
@@ -54,39 +56,39 @@ func emitIntExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (int, erro
 		default:
 			panic("unknown int basic lit")
 		}
-	case expr.BlockLit != nil:
+	case expr.FuncLit != nil:
 		panic("unimplemented")
 	default:
 		panic("unknown int expr")
 	}
 }
 
-func emitBoolExpr(info *CodeGenInfo, scope *ast.Scope, expr *ast.Expr) (bool, error) {
+func (cg *CodeGen) EmitBoolExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (bool, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
-		case ast.DeclKind:
+		case parser.DeclKind:
 			panic("unimplemented")
-		case ast.ExprKind:
+		case parser.ExprKind:
 			return obj.Data.(bool), nil
 		default:
 			panic("unknown obj type")
 		}
 	case expr.BasicLit != nil:
 		return *expr.BasicLit.Bool, nil
-	case expr.BlockLit != nil:
+	case expr.FuncLit != nil:
 		panic("unimplemented")
 	default:
 		panic("unknown bool expr")
 	}
 }
 
-func maybeEmitBoolExpr(info *CodeGenInfo, scope *ast.Scope, args []*ast.Expr) (bool, error) {
+func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, args []*parser.Expr) (bool, error) {
 	v := true
 	if len(args) > 0 {
 		var err error
-		v, err = emitBoolExpr(info, scope, args[0])
+		v, err = cg.EmitBoolExpr(ctx, scope, args[0])
 		if err != nil {
 			return v, err
 		}
@@ -94,29 +96,29 @@ func maybeEmitBoolExpr(info *CodeGenInfo, scope *ast.Scope, args []*ast.Expr) (b
 	return v, nil
 }
 
-func emitFilesystemExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, expr *ast.Expr, ac aliasCallback) (llb.State, error) {
+func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (llb.State, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
-		case ast.DeclKind:
+		case parser.DeclKind:
 			switch n := obj.Node.(type) {
-			case *ast.FuncDecl:
-				return emitFilesystemFuncDecl(info, scope, n, call, noopAliasCallback)
-			case *ast.AliasDecl:
-				return emitFilesystemAliasDecl(info, scope, n, call)
+			case *parser.FuncDecl:
+				return cg.EmitFilesystemFuncDecl(ctx, scope, n, call, noopAliasCallback)
+			case *parser.AliasDecl:
+				return cg.EmitFilesystemAliasDecl(ctx, scope, n, call)
 			default:
 				panic("unknown decl object")
 			}
-		case ast.ExprKind:
+		case parser.ExprKind:
 			return obj.Data.(llb.State), nil
 		default:
 			panic("unknown obj type")
 		}
 	case expr.BasicLit != nil:
 		panic("fs expr cannot be basic lit")
-	case expr.BlockLit != nil:
-		v, err := emitBlockLit(info, scope, expr.BlockLit, "", ac)
+	case expr.FuncLit != nil:
+		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, "", ac)
 		if err != nil {
 			return llb.Scratch(), err
 		}
@@ -126,27 +128,27 @@ func emitFilesystemExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt,
 	}
 }
 
-func emitOptionExpr(info *CodeGenInfo, scope *ast.Scope, call *ast.CallStmt, op string, expr *ast.Expr) ([]interface{}, error) {
+func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, op string, expr *parser.Expr) ([]interface{}, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
-		case ast.DeclKind:
+		case parser.DeclKind:
 			switch n := obj.Node.(type) {
-			case *ast.FuncDecl:
-				return emitOptionFuncDecl(info, scope, n, call, op)
+			case *parser.FuncDecl:
+				return cg.EmitOptionFuncDecl(ctx, scope, n, call, op)
 			default:
 				panic("unknown option decl kind")
 			}
-		case ast.ExprKind:
+		case parser.ExprKind:
 			return obj.Data.([]interface{}), nil
 		default:
 			panic("unknown obj type")
 		}
 	case expr.BasicLit != nil:
 		panic("option expr cannot be basic lit")
-	case expr.BlockLit != nil:
-		v, err := emitBlockLit(info, scope, expr.BlockLit, op, noopAliasCallback)
+	case expr.FuncLit != nil:
+		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, op, noopAliasCallback)
 		if err != nil {
 			return nil, err
 		}

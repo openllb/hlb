@@ -91,14 +91,14 @@ AliasDecl = "as" FunctionName .
 
 ```ebnf
 ExprList = Expr { Expr } .
-Expr     = identifier | BasicLit | BlockLit .
+Expr     = identifier | BasicLit | FuncLit .
 ```
 
 #### Operands
 
 ```ebnf
 BasicLit = string_lit | octal_lit | int_lit | bool_lit .
-BlockLit = ReturnType Block .
+FuncLit = ReturnType Block .
 ```
 
 ### Statements
@@ -114,5 +114,5 @@ Statement     = CallStatement
 ```ebnf
 CallStatement = FunctionName [ ExprList ] [ WithOption ] [ AliasDecl ] .
 WithOption    = "with" Option
-Option        = identifier | BlockLit .
+Option        = identifier | FuncLit .
 ```

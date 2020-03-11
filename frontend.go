@@ -8,9 +8,9 @@ import (
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/frontend/gateway/client"
-	"github.com/openllb/hlb/ast"
+	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
-	"github.com/openllb/hlb/report"
+	"github.com/openllb/hlb/parser"
 )
 
 const (
@@ -46,21 +46,21 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		return nil, err
 	}
 
-	root, err := report.SemanticCheck(file)
+	err = checker.Check(file)
 	if err != nil {
 		return nil, err
 	}
 
-	var params []*ast.Field
+	var params []*parser.Field
 
-	ast.Inspect(root, func(node ast.Node) bool {
+	parser.Inspect(file, func(node parser.Node) bool {
 		switch n := node.(type) {
-		case *ast.FuncDecl:
+		case *parser.FuncDecl:
 			if n.Name.Name == target {
 				params = n.Params.List
 				return false
 			}
-		case *ast.AliasDecl:
+		case *parser.AliasDecl:
 			if n.Ident.Name == target {
 				params = n.Func.Params.List
 				return false
@@ -69,22 +69,22 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		return true
 	})
 
-	call := &ast.CallStmt{
-		Func: &ast.Ident{Name: target},
+	call := &parser.CallStmt{
+		Func: parser.NewIdentExpr(target),
 	}
 
 	var inputs map[string]llb.State
 	for _, param := range params {
 		name := param.Name.Name
-		switch param.Type.Type() {
-		case ast.Str:
+		switch param.Type.Primary() {
+		case parser.Str:
 			v, ok := opts[name]
 			if !ok {
 				return nil, fmt.Errorf("expected param %q", name)
 			}
 
-			call.Args = append(call.Args, ast.NewStringExpr(v))
-		case ast.Int:
+			call.Args = append(call.Args, parser.NewStringExpr(v))
+		case parser.Int:
 			v, ok := opts[name]
 			if !ok {
 				return nil, fmt.Errorf("expected param %q", name)
@@ -95,8 +95,8 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 				return nil, err
 			}
 
-			call.Args = append(call.Args, ast.NewDecimalExpr(i))
-		case ast.Bool:
+			call.Args = append(call.Args, parser.NewDecimalExpr(i))
+		case parser.Bool:
 			v, ok := opts[name]
 			if !ok {
 				return nil, fmt.Errorf("expected param %q", name)
@@ -107,8 +107,8 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 				return nil, err
 			}
 
-			call.Args = append(call.Args, ast.NewBoolExpr(b))
-		case ast.Filesystem:
+			call.Args = append(call.Args, parser.NewBoolExpr(b))
+		case parser.Filesystem:
 			if inputs == nil {
 				inputs, err = c.Inputs(ctx)
 				if err != nil {
@@ -121,10 +121,10 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 				return nil, fmt.Errorf("expected input %q", name)
 			}
 
-			call.Args = append(call.Args, ast.NewIdentExpr(param.Name.Name))
+			call.Args = append(call.Args, parser.NewIdentExpr(param.Name.Name))
 
-			root.Scope.Insert(&ast.Object{
-				Kind:  ast.ExprKind,
+			file.Scope.Insert(&parser.Object{
+				Kind:  parser.ExprKind,
 				Ident: param.Name,
 				Node:  param,
 				Data:  st,
@@ -132,7 +132,12 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		}
 	}
 
-	st, _, err := codegen.Generate(call, root)
+	cg, err := codegen.New()
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := cg.Generate(ctx, call, file)
 	if err != nil {
 		return nil, err
 	}

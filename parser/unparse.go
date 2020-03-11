@@ -1,4 +1,4 @@
-package ast
+package parser
 
 import (
 	"fmt"
@@ -8,23 +8,15 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
-func (ast *AST) String() string {
-	var files []string
-	for _, file := range ast.Files {
-		files = append(files, file.String())
-	}
-	return strings.Join(files, "\n\n")
-}
-
-func (f *File) String() string {
+func (m *Module) String() string {
 	doc := ""
-	if f.Doc.NumComments() > 0 {
-		doc = fmt.Sprintf("%s\n", f.Doc)
+	if m.Doc.NumComments() > 0 {
+		doc = fmt.Sprintf("%s\n", m.Doc)
 	}
 
 	hasNewline := false
 
-	for _, decl := range f.Decls {
+	for _, decl := range m.Decls {
 		if decl.Pos == (lexer.Position{}) {
 			hasNewline = true
 			break
@@ -42,7 +34,7 @@ func (f *File) String() string {
 	var decls []string
 	var prevDecl string
 
-	for _, decl := range f.Decls {
+	for _, decl := range m.Decls {
 		str := decl.String()
 
 		// Skip consecutive new lines.
@@ -85,8 +77,18 @@ func (f *File) String() string {
 	}
 }
 
+func (b *Bad) String() string {
+	return b.Lexeme
+}
+
 func (d *Decl) String() string {
 	switch {
+	case d.Bad != nil:
+		return d.Bad.String()
+	case d.Import != nil:
+		return d.Import.String()
+	case d.Export != nil:
+		return d.Export.String()
 	case d.Func != nil:
 		return d.Func.String()
 	case d.Newline != nil:
@@ -95,6 +97,20 @@ func (d *Decl) String() string {
 		return d.Doc.String()
 	}
 	panic("unknown decl")
+}
+
+func (d *ImportDecl) String() string {
+	switch {
+	case d.Import != nil:
+		return fmt.Sprintf("import %s from %s", d.Ident, d.Import)
+	case d.LocalImport != nil:
+		return fmt.Sprintf("import %s %s", d.Ident, strconv.Quote(*d.LocalImport))
+	}
+	panic("unknown import decl")
+}
+
+func (d *ExportDecl) String() string {
+	return fmt.Sprintf("export %s", d.Ident)
 }
 
 func (d *FuncDecl) String() string {
@@ -140,20 +156,28 @@ func (v *Variadic) String() string {
 	return v.Keyword
 }
 
+func (t *Type) String() string {
+	return string(t.ObjType)
+}
+
 func (e *Expr) String() string {
 	switch {
+	case e.Bad != nil:
+		return e.Bad.String()
+	case e.Selector != nil:
+		return e.Selector.String()
 	case e.Ident != nil:
 		return e.Ident.String()
 	case e.BasicLit != nil:
 		return e.BasicLit.String()
-	case e.BlockLit != nil:
-		return e.BlockLit.String()
+	case e.FuncLit != nil:
+		return e.FuncLit.String()
 	}
 	panic("unknown expr")
 }
 
-func (t *Type) String() string {
-	return string(t.ObjType)
+func (s *Selector) String() string {
+	return fmt.Sprintf("%s.%s", s.Ident, s.Select)
 }
 
 func (i *Ident) String() string {
@@ -186,12 +210,14 @@ func (l *NumericLit) String() string {
 	panic("unknown numeric lit")
 }
 
-func (l *BlockLit) String() string {
+func (l *FuncLit) String() string {
 	return fmt.Sprintf("%s %s", l.Type, l.Body)
 }
 
 func (s *Stmt) String() string {
 	switch {
+	case s.Bad != nil:
+		return s.Bad.String()
 	case s.Call != nil:
 		return s.Call.String()
 	case s.Newline != nil:
@@ -213,7 +239,7 @@ func (s *CallStmt) String() string {
 	}
 
 	withOpt := ""
-	if s.WithOpt != nil && (s.WithOpt.Ident != nil || (s.WithOpt.Ident == nil && s.WithOpt.BlockLit.NumStmts() > 0)) {
+	if s.WithOpt != nil && (s.WithOpt.Ident != nil || (s.WithOpt.Ident == nil && s.WithOpt.FuncLit.NumStmts() > 0)) {
 		withOpt = fmt.Sprintf(" %s", s.WithOpt)
 	}
 
@@ -235,11 +261,7 @@ func (s *CallStmt) String() string {
 }
 
 func (d *AliasDecl) String() string {
-	local := ""
-	if d.Local != nil {
-		local = "local "
-	}
-	return fmt.Sprintf("%s %s%s", d.As, local, d.Ident)
+	return fmt.Sprintf("%s %s", d.As, d.Ident)
 }
 
 func (a *As) String() string {
@@ -250,8 +272,8 @@ func (w *WithOpt) String() string {
 	switch {
 	case w.Ident != nil:
 		return fmt.Sprintf("%s %s", w.With, w.Ident)
-	case w.BlockLit != nil:
-		return fmt.Sprintf("%s %s", w.With, w.BlockLit)
+	case w.FuncLit != nil:
+		return fmt.Sprintf("%s %s", w.With, w.FuncLit)
 	}
 	panic("unknown with opt")
 }
