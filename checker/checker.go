@@ -32,6 +32,11 @@ func (c *checker) Check(mod *parser.Module) error {
 	// check for duplicate declarations.
 	parser.Inspect(mod, func(node parser.Node) bool {
 		switch n := node.(type) {
+		case *parser.Decl:
+			if n.Bad != nil {
+				c.errs = append(c.errs, ErrBadParse{n})
+				return false
+			}
 		case *parser.ImportDecl:
 			if n.Ident != nil {
 				skip := c.registerDecl(mod.Scope, n.Ident, n)
@@ -278,6 +283,11 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 	foundSource := false
 
 	for _, stmt := range block.NonEmptyStmts() {
+		if stmt.Bad != nil {
+			c.errs = append(c.errs, ErrBadParse{stmt})
+			continue
+		}
+
 		call := stmt.Call
 		if call.Func == nil || (call.Func.Ident != nil && call.Func.Ident.Name == "breakpoint") {
 			continue
@@ -483,6 +493,10 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parser.Expr) error {
 	var err error
 	switch {
+	case expr.Bad != nil:
+		err = ErrBadParse{expr}
+	case expr.Selector != nil:
+		// Do nothing for now.
 	case expr.Ident != nil:
 		err = c.checkIdentArg(scope, typ, expr.Ident)
 	case expr.BasicLit != nil:

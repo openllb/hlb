@@ -652,7 +652,7 @@ func (s *BlockStmt) NonEmptyStmts() []*Stmt {
 	}
 	var stmts []*Stmt
 	for _, stmt := range s.List {
-		if stmt.Bad != nil || stmt.Newline != nil || stmt.Doc != nil {
+		if stmt.Newline != nil || stmt.Doc != nil {
 			continue
 		}
 		stmts = append(stmts, stmt)

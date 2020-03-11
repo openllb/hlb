@@ -99,24 +99,19 @@ type vendorResolver struct {
 
 func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
 	res, err := resolveLocal(ctx, scope, decl, r.modulePath)
+	if err != nil {
+		return res, err
+	}
+
+	rc, err := res.Open(ModuleFilename)
 	if err == nil {
-		return res, nil
+		return res, rc.Close()
 	}
 	if !os.IsNotExist(err) {
 		return res, err
 	}
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return res, err
-	}
-
-	filename, err := filepath.Rel(wd, decl.Pos.Filename)
-	if err != nil {
-		return res, err
-	}
-
-	return res, fmt.Errorf("missing module %q from lock, run `hlb mod lock --target %s %s` to lock module", decl.Ident, decl.Ident, filename)
+	return res, fmt.Errorf("missing module %q from vendor, run `hlb mod vendor --target %s %s` to vendor module", decl.Ident, decl.Ident, decl.Pos.Filename)
 }
 
 func resolveLocal(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl, modulePath string) (Resolved, error) {
@@ -262,7 +257,6 @@ func (r *remoteResolved) Open(filename string) (io.ReadCloser, error) {
 		Path: filename,
 	})
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -270,7 +264,6 @@ func (r *remoteResolved) Open(filename string) (io.ReadCloser, error) {
 		Filename: filename,
 	})
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -294,9 +287,15 @@ type tidyResolver struct {
 
 func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
 	res, err := resolveLocal(ctx, scope, decl, r.remote.modulePath)
-	if err == nil {
-		return res, nil
+	if err != nil {
+		return res, err
 	}
+
+	rc, err := res.Open(ModuleFilename)
+	if err == nil {
+		return res, rc.Close()
+	}
+
 	if !os.IsNotExist(err) {
 		return res, err
 	}
@@ -328,8 +327,13 @@ func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 	}
 
 	res, err := resolveLocal(ctx, scope, decl, r.remote.modulePath)
+	if err != nil {
+		return res, err
+	}
+
+	rc, err := res.Open(ModuleFilename)
 	if err == nil {
-		return res, nil
+		return res, rc.Close()
 	}
 	if !os.IsNotExist(err) {
 		return res, err

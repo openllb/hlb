@@ -19,10 +19,7 @@ import (
 // If tidy mode is enabled, vertices with digests that already exist in the
 // modules directory are skipped, and unused modules are pruned.
 func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod *parser.Module, targets []string, tidy bool) error {
-	root, err := filepath.Abs(ModulesPath)
-	if err != nil {
-		return err
-	}
+	root := ModulesPath
 
 	var mu sync.Mutex
 	markedPaths := make(map[string]struct{})
@@ -46,7 +43,7 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 	g, ctx := errgroup.WithContext(ctx)
 
 	ready := make(chan struct{})
-	err = ResolveGraph(ctx, resolver, res, mod, func(decl *parser.ImportDecl, dgst digest.Digest, parentMod *parser.Module, importMod *parser.Module) error {
+	err := ResolveGraph(ctx, resolver, res, mod, func(decl *parser.ImportDecl, dgst digest.Digest, parentMod *parser.Module, importMod *parser.Module) error {
 		g.Go(func() error {
 			<-ready
 
@@ -82,7 +79,7 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 			if tidy {
 				// Mark path for used imports.
 				mu.Lock()
-				markedPaths[filepath.Dir(vp)] = struct{}{}
+				markedPaths[vp] = struct{}{}
 				mu.Unlock()
 
 				_, err := os.Stat(vp)
@@ -130,18 +127,13 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 	}
 
 	if tidy {
-		wd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-
 		matches, err := filepath.Glob(filepath.Join(ModulesPath, "*/*/*"))
 		if err != nil {
 			return err
 		}
 
 		for _, match := range matches {
-			if _, ok := markedPaths[filepath.Join(wd, match)]; !ok {
+			if _, ok := markedPaths[match]; !ok {
 				err = os.RemoveAll(match)
 				if err != nil {
 					return err

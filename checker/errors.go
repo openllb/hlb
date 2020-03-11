@@ -157,6 +157,14 @@ func (e ErrImportNotExist) Error() string {
 	return fmt.Sprintf("%s no such file %s", FormatPos(e.Import.Position()), e.Filename)
 }
 
+type ErrBadParse struct {
+	Node parser.Node
+}
+
+func (e ErrBadParse) Error() string {
+	return fmt.Sprintf("%s unable to parse", FormatPos(e.Node.Position()))
+}
+
 type ErrCodeGen struct {
 	Node parser.Node
 	Err  error
