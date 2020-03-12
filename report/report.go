@@ -10,7 +10,6 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
-	"github.com/openllb/hlb/parser"
 )
 
 var (
@@ -83,14 +82,6 @@ func flatMap(arrays ...[]string) []string {
 	return flat
 }
 
-func keys(m map[string][]*parser.Field) []string {
-	var keys []string
-	for key := range m {
-		keys = append(keys, key)
-	}
-	return keys
-}
-
 type Error struct {
 	Groups []AnnotationGroup
 }
@@ -101,7 +92,7 @@ func (e Error) Error() string {
 		lines = append(lines, group.String())
 	}
 
-	return fmt.Sprintf("%s", strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n")
 }
 
 type AnnotationGroup struct {

@@ -476,8 +476,7 @@ func findStaticBreakpoints(mod *parser.Module) []*Breakpoint {
 	var breakpoints []*Breakpoint
 
 	parser.Inspect(mod, func(node parser.Node) bool {
-		switch n := node.(type) {
-		case *parser.FuncDecl:
+		if n, ok := node.(*parser.FuncDecl); ok {
 			for _, stmt := range n.Body.NonEmptyStmts() {
 				fun := stmt.Call.Func
 				if fun.Ident != nil && fun.Ident.Name == "breakpoint" {

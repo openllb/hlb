@@ -1,23 +1,18 @@
 package report
 
-import (
-	"fmt"
-	"strings"
-)
+// type testCase struct {
+// 	name     string
+// 	input    string
+// 	expected string
+// }
 
-type testCase struct {
-	name     string
-	input    string
-	expected string
-}
-
-func cleanup(value string) string {
-	result := strings.TrimSpace(value)
-	result = fmt.Sprintf(" %s\n", result)
-	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
-	result = strings.ReplaceAll(result, "|\n", "| \n")
-	return result
-}
+// func cleanup(value string) string {
+// 	result := strings.TrimSpace(value)
+// 	result = fmt.Sprintf(" %s\n", result)
+// 	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
+// 	result = strings.ReplaceAll(result, "|\n", "| \n")
+// 	return result
+// }
 
 // func TestSyntaxError(t *testing.T) {
 // 	for _, tc := range []testCase{
@@ -53,7 +48,7 @@ func cleanup(value string) string {
 // 			`,
 // 		},
 // 		{
-// 			"fs without identifer",
+// 			"fs without identifier",
 // 			"fs",
 // 			`
 // 			 --> <stdin>:1:6: syntax error

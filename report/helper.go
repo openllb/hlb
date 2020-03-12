@@ -102,25 +102,7 @@ func getSegment(ib *IndexedBuffer, token lexer.Token) ([]byte, error) {
 	return segment, nil
 }
 
-// func getSignature(color aurora.Aurora, value string, pos int) (string, string) {
-// 	args, ok := Signatures[value]
-// 	if !ok {
-// 		return "", ""
-// 	}
-
-// 	if pos >= len(args) {
-// 		return "", ""
-// 	}
-
-// 	var coloredArgs []string
-// 	for _, arg := range args {
-// 		coloredArgs = append(coloredArgs, color.Sprintf(color.Yellow("<%s>"), arg))
-// 	}
-
-// 	return fmt.Sprintf("%s%s %s", color.Green("must match arguments for "), value, strings.Join(coloredArgs, " ")), coloredArgs[pos]
-// }
-
-func getSuggestion(color aurora.Aurora, keywords []string, value string) (string, bool) {
+func getSuggestion(color aurora.Aurora, keywords []string, value string) (string, bool) { //nolint:unparam
 	min := -1
 	index := -1
 
@@ -142,42 +124,6 @@ func getSuggestion(color aurora.Aurora, keywords []string, value string) (string
 	}
 
 	return fmt.Sprintf("%s%s%s", color.Red(`, did you mean `), keywords[index], color.Red(`?`)), value == keywords[index]
-}
-
-func getKeyword(lex *lexer.PeekingLexer, n int, keywords []string) (lexer.Token, int, error) {
-	m := n - 1
-	token, err := lex.Peek(m)
-	if err != nil {
-		return token, m, err
-	}
-
-	numBlockEnds := 0
-	numTokens := 0
-
-	if token.Value == "}" {
-		numBlockEnds++
-		numTokens--
-	}
-
-	for (!Contains(keywords, token.Value) && lex.Cursor()+m > 1) || numBlockEnds > 0 {
-		m--
-		token, err = lex.Peek(m)
-		if err != nil {
-			return token, m, err
-		}
-
-		if token.Value == "}" {
-			numBlockEnds++
-		} else if token.Value == "{" {
-			numBlockEnds--
-		}
-
-		if numBlockEnds == 0 {
-			numTokens++
-		}
-	}
-
-	return token, numTokens, nil
 }
 
 func helpValidKeywords(color aurora.Aurora, keywords []string, subject string) string {
@@ -213,15 +159,16 @@ func isSymbol(token lexer.Token, types ...string) bool {
 }
 
 func humanize(token lexer.Token) string {
-	if isSymbol(token, "Type") {
+	switch {
+	case isSymbol(token, "Type"):
 		return "reserved keyword"
-	} else if isSymbol(token, "String") {
+	case isSymbol(token, "String"):
 		return strconv.Quote(token.Value)
-	} else if isSymbol(token, "Newline") {
+	case isSymbol(token, "Newline"):
 		return "newline"
-	} else if isSymbol(token, "Comment") {
+	case isSymbol(token, "Comment"):
 		return "comment"
-	} else if token.EOF() {
+	case token.EOF():
 		return "end of file"
 	}
 	return token.String()

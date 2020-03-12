@@ -65,7 +65,10 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 	ib := report.NewIndexedBuffer()
 	r = io.TeeReader(r, ib)
 
-	lex, err := parser.Parser.Lexer().Lex(&parser.NamedReader{r, name})
+	lex, err := parser.Parser.Lexer().Lex(&parser.NamedReader{
+		Reader: r,
+		Value:  name,
+	})
 	if err != nil {
 		return nil, ib, err
 	}

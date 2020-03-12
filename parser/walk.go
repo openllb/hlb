@@ -104,8 +104,7 @@ func Walk(node Node, v Visitor) {
 			Walk(n.Select, v)
 		}
 	case *BasicLit:
-		switch {
-		case n.Numeric != nil:
+		if n.Numeric != nil {
 			Walk(n.Numeric, v)
 		}
 	case *FuncLit:

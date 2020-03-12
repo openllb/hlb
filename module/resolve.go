@@ -52,7 +52,7 @@ type Resolved interface {
 // NewResolver returns a resolver based on whether the modules path exists in
 // the current working directory.
 func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error) {
-	root, err := filepath.Abs(ModulesPath)
+	_, err := filepath.Abs(ModulesPath)
 	if err != nil {
 		return nil, err
 	}
@@ -364,9 +364,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 	)
 
 	parser.Inspect(mod, func(node parser.Node) bool {
-		switch n := node.(type) {
-		case *parser.ImportDecl:
-
+		if n, ok := node.(*parser.ImportDecl); ok {
 			g.Go(func() error {
 				var (
 					importRes Resolved
@@ -393,7 +391,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					if !os.IsNotExist(err) {
 						return err
 					}
-					return checker.ErrImportNotExist{n, filename}
+					return checker.ErrImportNotExist{Import: n, Filename: filename}
 				}
 				defer rc.Close()
 

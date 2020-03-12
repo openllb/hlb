@@ -74,8 +74,7 @@ func (c *checker) Check(mod *parser.Module) error {
 			// identifiers will also collide with any other declarations, so we must
 			// check if there are any duplicate declarations there.
 			parser.Inspect(fun, func(node parser.Node) bool {
-				switch n := node.(type) {
-				case *parser.CallStmt:
+				if n, ok := node.(*parser.CallStmt); ok {
 					alias := n.Alias
 					if alias == nil {
 						return true
@@ -120,8 +119,7 @@ func (c *checker) Check(mod *parser.Module) error {
 		case *parser.ImportDecl:
 			imp := n
 
-			switch {
-			case n.Import != nil:
+			if n.Import != nil {
 				err := c.checkFuncLitArg(mod.Scope, parser.Filesystem, imp.Import)
 				if err != nil {
 					c.errs = append(c.errs, err)
@@ -185,10 +183,8 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 			call = n
 		case *parser.Selector:
 			obj := mod.Scope.Lookup(n.Ident.Name)
-			switch obj.Kind {
-			case parser.DeclKind:
-				switch obj.Node.(type) {
-				case *parser.ImportDecl:
+			if obj.Kind == parser.DeclKind {
+				if _, ok := obj.Node.(*parser.ImportDecl); ok {
 					scope := obj.Data.(*parser.Scope)
 
 					// Check call signature against the imported module's scope since it was
@@ -604,7 +600,7 @@ func extendSignatureWithVariadic(fields []*parser.Field, args []*parser.Expr) []
 	if len(params) > 0 && params[len(params)-1].Variadic != nil {
 		variadicParam := params[len(params)-1]
 		params = params[:len(params)-1]
-		for i, _ := range args[len(params):] {
+		for i := range args[len(params):] {
 			params = append(params, parser.NewField(variadicParam.Type.Primary(), fmt.Sprintf("%s[%d]", variadicParam.Name, i), false))
 		}
 	}

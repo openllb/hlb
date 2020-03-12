@@ -22,9 +22,9 @@ type BuiltinData struct {
 }
 
 type ParsedFunc struct {
-	Name   string
+	Name     string
 	IsSource bool
-	Params []*parser.Field
+	Params   []*parser.Field
 }
 
 func GenerateBuiltins(r io.Reader) ([]byte, error) {
@@ -47,8 +47,8 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 
 		typ := fun.Type.ObjType
 		funcsByType[typ] = append(funcsByType[typ], ParsedFunc{
-			Name:   fun.Name.Name,
-			Params: fun.Params.List,
+			Name:     fun.Name.Name,
+			Params:   fun.Params.List,
 			IsSource: isSource,
 		})
 	}

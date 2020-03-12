@@ -48,7 +48,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	case parser.Str:
 		return cg.EmitStringBlock(ctx, fun.Scope, fun.Body.NonEmptyStmts())
 	default:
-		return nil, checker.ErrInvalidTarget{fun.Name}
+		return nil, checker.ErrInvalidTarget{Ident: fun.Name}
 	}
 }
 
