@@ -48,11 +48,12 @@ func (m *Module) String() string {
 		}
 
 		if hasNewline && len(prevDecl) > 0 && prevDecl[len(prevDecl)-1] != '\n' {
-			if strings.HasPrefix(str, "#") {
+			switch {
+			case strings.HasPrefix(str, "#"):
 				str = fmt.Sprintf(" %s", str)
-			} else if len(str) == 1 {
+			case len(str) == 1:
 				str = fmt.Sprintf("\n%s", str)
-			} else {
+			default:
 				str = fmt.Sprintf("\n\n%s", str)
 			}
 		}
@@ -251,7 +252,7 @@ func (s *CallStmt) String() string {
 	end := ""
 	if s.StmtEnd != nil {
 		if s.StmtEnd.Newline != nil {
-			end = fmt.Sprintf("%s", s.StmtEnd)
+			end = s.StmtEnd.String()
 		} else if s.StmtEnd.Comment != nil {
 			end = fmt.Sprintf(" %s", s.StmtEnd)
 		}

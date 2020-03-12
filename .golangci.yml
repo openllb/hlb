@@ -15,8 +15,10 @@ linters:
     - typecheck
     - unconvert
     - unparam
-    - unused
     - varcheck
+
 
 issues:
   exclude-use-default: false
+  exclude:
+    - structtag

@@ -65,19 +65,19 @@ func (cg *CodeGen) Generate(ctx context.Context, call *parser.CallStmt, mod *par
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
 			if n.Type.ObjType != parser.Filesystem {
-				return st, checker.ErrInvalidTarget{call.Func.Ident}
+				return st, checker.ErrInvalidTarget{Ident: call.Func.Ident}
 			}
 
 			st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, call, noopAliasCallback)
 		case *parser.AliasDecl:
 			if n.Func.Type.ObjType != parser.Filesystem {
-				return st, checker.ErrInvalidTarget{call.Func.Ident}
+				return st, checker.ErrInvalidTarget{Ident: call.Func.Ident}
 			}
 
 			st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, call)
 		}
 	default:
-		return st, checker.ErrInvalidTarget{call.Func.Ident}
+		return st, checker.ErrInvalidTarget{Ident: call.Func.Ident}
 	}
 
 	return st, err
@@ -143,7 +143,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 	if st, ok := v.(llb.State); ok && st.Output() != nil {
 		err = st.Validate()
 		if err != nil {
-			return nil, checker.ErrCodeGen{sourceStmt, err}
+			return nil, checker.ErrCodeGen{Node: sourceStmt, Err: err}
 		}
 	}
 
@@ -177,7 +177,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		if st, ok := v.(llb.State); ok && st.Output() != nil {
 			err = st.Validate()
 			if err != nil {
-				return nil, checker.ErrCodeGen{sourceStmt, err}
+				return nil, checker.ErrCodeGen{Node: sourceStmt, Err: err}
 			}
 		}
 
@@ -360,7 +360,7 @@ func (cg *CodeGen) EmitFilesystemSourceStmt(ctx context.Context, scope *parser.S
 		tmpSt := llb.Local("", opts...)
 		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
 		if err != nil {
-			return tmpSt, checker.ErrCodeGen{call, err}
+			return tmpSt, checker.ErrCodeGen{Node: call, Err: err}
 		}
 
 		// Next append the path so we have the path + options serialized hash input.
@@ -706,8 +706,7 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 
 func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "resolve":
@@ -732,8 +731,7 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 
 func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "checksum":
@@ -768,8 +766,7 @@ func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op 
 
 func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "keepGitDir":
@@ -794,8 +791,7 @@ func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op s
 
 func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "includePatterns":
@@ -839,8 +835,7 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 
 func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "frontendInput":
@@ -877,8 +872,7 @@ func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope,
 
 func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "createParents":
@@ -919,8 +913,7 @@ func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op
 
 func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "chown":
@@ -955,8 +948,7 @@ func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, o
 
 func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "allowNotFound":
@@ -987,8 +979,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 	cp := &llb.CopyInfo{}
 
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "followSymlinks":
@@ -1061,8 +1052,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 
 func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			iopts, err := cg.EmitWithOption(ctx, scope, stmt.Call, stmt.Call.WithOpt, ac)
 			if err != nil {
@@ -1214,8 +1204,7 @@ type sshSocketOpt struct {
 func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	var sopt *sshSocketOpt
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "target":
@@ -1291,8 +1280,7 @@ type secretOpt struct {
 func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	var sopt *secretOpt
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "id":
@@ -1351,8 +1339,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 
 func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
-		switch {
-		case stmt.Call != nil:
+		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "readonly":

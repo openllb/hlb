@@ -151,6 +151,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 	for _, typ := range []string{"fs"} {
 		funcs := funcsByType[typ]
 		for _, fun := range funcs {
+			fun := fun
 			sort.SliceStable(fun.Options, func(i, j int) bool {
 				return fun.Options[i].Name < fun.Options[j].Name
 			})

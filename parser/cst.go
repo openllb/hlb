@@ -157,7 +157,7 @@ type FuncDecl struct {
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 
-// Method represents the recieving type of the method function.
+// Method represents the receiving type of the method function.
 type Method struct {
 	Pos        lexer.Position
 	OpenParen  *OpenParen  `@@`
@@ -737,8 +737,7 @@ func (b *CloseBrace) Position() lexer.Position { return b.Pos }
 func (b *CloseBrace) End() lexer.Position      { return shiftPosition(b.Pos, 1, 0) }
 
 // Helper functions.
-
-func shiftPosition(pos lexer.Position, offset int, line int) lexer.Position {
+func shiftPosition(pos lexer.Position, offset int, line int) lexer.Position { //nolint:unparam
 	pos.Offset += offset
 	pos.Column += offset
 	pos.Line += line

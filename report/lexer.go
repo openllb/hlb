@@ -47,7 +47,7 @@ func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 	return Error{Groups: []AnnotationGroup{group}}, nil
 }
 
-func errLiteral(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
+func errLiteral(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
 	segment, err := getSegment(ib, token)
 	if err != nil {
 		return group, err
@@ -66,7 +66,7 @@ func errLiteral(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer,
 	}, nil
 }
 
-func errToken(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
+func errToken(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
 	segment, err := getSegment(ib, token)
 	if err != nil {
 		return group, err

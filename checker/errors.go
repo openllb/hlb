@@ -149,7 +149,7 @@ func (e ErrIdentUndefined) Error() string {
 }
 
 type ErrImportNotExist struct {
-	Import     *parser.ImportDecl
+	Import   *parser.ImportDecl
 	Filename string
 }
 

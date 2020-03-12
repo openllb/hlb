@@ -40,7 +40,7 @@ option::run goCacheMounts() {
 }
 
 fs goLint() {
-	image "golang:1.12-alpine"
+	image "golang:1.14-alpine"
 	run "apk add -U git gcc libc-dev"
 	run "sh /golangci/install.sh -b /usr/bin v1.23.8" with option {
 		mount fs {
@@ -59,7 +59,7 @@ fs goLint() {
 }
 
 fs goBuild(string package) {
-	image "golang:1.12-alpine"
+	image "golang:1.14-alpine"
 	run "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"

@@ -5,7 +5,7 @@ import "sort"
 // Scope maintains the set of named language entities declared in the scope
 // and a link to the immediately surrounding (outer) scope.
 type Scope struct {
-	Node Node
+	Node    Node
 	Outer   *Scope
 	Objects map[string]*Object
 }
@@ -13,7 +13,7 @@ type Scope struct {
 // NewScope creates a new scope linking to an outer scope.
 func NewScope(node Node, outer *Scope) *Scope {
 	return &Scope{
-		Node: node,
+		Node:    node,
 		Outer:   outer,
 		Objects: make(map[string]*Object),
 	}
@@ -80,9 +80,9 @@ const (
 
 // Object represents a named language entity such as a function, or variable.
 type Object struct {
-	Kind  ObjKind
-	Ident *Ident
-	Node  Node
-	Data  interface{}
+	Kind     ObjKind
+	Ident    *Ident
+	Node     Node
+	Data     interface{}
 	Exported bool
 }

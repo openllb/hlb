@@ -80,8 +80,8 @@ var moduleTreeCommand = &cli.Command{
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:    "long",
-			Usage:   "print the full module digests",
+			Name:  "long",
+			Usage: "print the full module digests",
 		},
 	},
 	Action: func(c *cli.Context) error {
@@ -131,8 +131,7 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 
 	hasImports := false
 	parser.Inspect(mod, func(node parser.Node) bool {
-		switch node.(type) {
-		case *parser.ImportDecl:
+		if _, ok := node.(*parser.ImportDecl); ok {
 			hasImports = true
 			return false
 		}
@@ -168,7 +167,7 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 	}
 
 	alg := "*"
-	i := strings.Index(string(name), ":")
+	i := strings.Index(name, ":")
 	if i > 0 {
 		alg = name[:i]
 		name = name[i+1:]
