@@ -101,17 +101,41 @@ func (d *Decl) String() string {
 }
 
 func (d *ImportDecl) String() string {
+	var value string
 	switch {
-	case d.Import != nil:
-		return fmt.Sprintf("import %s from %s", d.Ident, d.Import)
-	case d.LocalImport != nil:
-		return fmt.Sprintf("import %s %s", d.Ident, strconv.Quote(*d.LocalImport))
+	case d.ImportFunc != nil:
+		value = d.ImportFunc.String()
+	case d.ImportPath != nil:
+		value = d.ImportPath.String()
+	default:
+		panic("unknown import decl")
 	}
-	panic("unknown import decl")
+
+	return fmt.Sprintf("%s %s %s", d.Import, d.Ident, value)
+}
+
+func (i *Import) String() string {
+	return i.Keyword
+}
+
+func (i *ImportFunc) String() string {
+	return fmt.Sprintf("%s %s", i.From, i.Func)
+}
+
+func (f *From) String() string {
+	return f.Keyword
+}
+
+func (ip *ImportPath) String() string {
+	return strconv.Quote(ip.Path)
 }
 
 func (d *ExportDecl) String() string {
-	return fmt.Sprintf("export %s", d.Ident)
+	return fmt.Sprintf("%s %s", d.Export, d.Ident)
+}
+
+func (e *Export) String() string {
+	return e.Keyword
 }
 
 func (d *FuncDecl) String() string {

@@ -119,8 +119,8 @@ func (c *checker) Check(mod *parser.Module) error {
 		case *parser.ImportDecl:
 			imp := n
 
-			if n.Import != nil {
-				err := c.checkFuncLitArg(mod.Scope, parser.Filesystem, imp.Import)
+			if n.ImportFunc != nil {
+				err := c.checkFuncLitArg(mod.Scope, parser.Filesystem, imp.ImportFunc.Func)
 				if err != nil {
 					c.errs = append(c.errs, err)
 				}

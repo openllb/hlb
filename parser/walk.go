@@ -39,8 +39,15 @@ func Walk(node Node, v Visitor) {
 		if n.Ident != nil {
 			Walk(n.Ident, v)
 		}
-		if n.Import != nil {
-			Walk(n.Import, v)
+		if n.ImportFunc != nil {
+			Walk(n.ImportFunc, v)
+		}
+		if n.ImportPath != nil {
+			Walk(n.ImportPath, v)
+		}
+	case *ImportFunc:
+		if n.Func != nil {
+			Walk(n.Func, v)
 		}
 	case *ExportDecl:
 		if n.Ident != nil {

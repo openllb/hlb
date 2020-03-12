@@ -98,7 +98,7 @@ type vendorResolver struct {
 }
 
 func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	res, err := resolveLocal(ctx, scope, decl, r.modulePath)
+	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.modulePath)
 	if err != nil {
 		return res, err
 	}
@@ -114,13 +114,13 @@ func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 	return res, fmt.Errorf("missing module %q from vendor, run `hlb mod vendor --target %s %s` to vendor module", decl.Ident, decl.Ident, decl.Pos.Filename)
 }
 
-func resolveLocal(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl, modulePath string) (Resolved, error) {
+func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, modulePath string) (Resolved, error) {
 	cg, err := codegen.New()
 	if err != nil {
 		return nil, err
 	}
 
-	st, err := cg.GenerateImport(ctx, scope, decl.Import)
+	st, err := cg.GenerateImport(ctx, scope, lit)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, err
 	}
 
-	st, err := cg.GenerateImport(ctx, scope, decl.Import)
+	st, err := cg.GenerateImport(ctx, scope, decl.ImportFunc.Func)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +286,7 @@ type tidyResolver struct {
 }
 
 func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	res, err := resolveLocal(ctx, scope, decl, r.remote.modulePath)
+	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.remote.modulePath)
 	if err != nil {
 		return res, err
 	}
@@ -326,7 +326,7 @@ func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		}
 	}
 
-	res, err := resolveLocal(ctx, scope, decl, r.remote.modulePath)
+	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.remote.modulePath)
 	if err != nil {
 		return res, err
 	}
@@ -373,7 +373,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				)
 
 				switch {
-				case n.Import != nil:
+				case n.ImportFunc != nil:
 					importRes, err = resolver.Resolve(ctx, mod.Scope, n)
 					if err != nil {
 						return err
@@ -381,9 +381,9 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					defer importRes.Close()
 
 					filename = ModuleFilename
-				case n.LocalImport != nil:
+				case n.ImportPath != nil:
 					importRes = res
-					filename = *n.LocalImport
+					filename = n.ImportPath.Path
 				}
 
 				rc, err := importRes.Open(filename)

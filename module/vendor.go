@@ -99,10 +99,10 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 
 			var filename string
 			switch {
-			case decl.Import != nil:
+			case decl.ImportFunc != nil:
 				filename = ModuleFilename
-			case decl.LocalImport != nil:
-				filename = *decl.LocalImport
+			case decl.ImportPath != nil:
+				filename = decl.ImportPath.Path
 			}
 
 			f, err := os.Create(filepath.Join(vp, filename))
