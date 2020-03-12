@@ -46,13 +46,13 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 
 		var value string
 		switch {
-		case decl.Import != nil:
+		case decl.ImportFunc != nil:
 			value = filepath.Join(prefix, ModuleFilename)
-		case decl.LocalImport != nil:
+		case decl.ImportPath != nil:
 			if prefix == "" {
-				value = *decl.LocalImport
+				value = decl.ImportPath.Path
 			} else {
-				value = filepath.Join(prefix, *decl.LocalImport)
+				value = filepath.Join(prefix, decl.ImportPath.Path)
 			}
 		}
 

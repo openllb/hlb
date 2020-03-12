@@ -15,7 +15,8 @@ var (
 	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
 	        whitespace = [\r\t ]+
 
-		Keyword  = \b(with|as|variadic|import|export)\b
+		Keyword  = \b(with|as|import|export|from)\b
+		Modifier = \b(variadic)\b
 		Type     = \b(string|int|bool|fs|option)(::[a-z][a-z]*)?\b
 		Numeric  = \b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b
 		Decimal  = \b(0|[1-9][0-9]*)\b
@@ -116,31 +117,79 @@ func (d *Decl) End() lexer.Position {
 
 // ImportDecl represents an import declaration.
 type ImportDecl struct {
-	Pos         lexer.Position
-	Ident       *Ident   `"import" @@`
-	Import      *FuncLit `( "from" @@`
-	LocalImport *string  `| @String )`
+	Pos        lexer.Position
+	Import     *Import     `@@`
+	Ident      *Ident      `@@`
+	ImportFunc *ImportFunc `( @@`
+	ImportPath *ImportPath `| @@ )`
 }
 
 func (d *ImportDecl) Position() lexer.Position { return d.Pos }
 func (d *ImportDecl) End() lexer.Position {
 	switch {
-	case d.Import != nil:
-		return d.Import.End()
-	case d.LocalImport != nil:
-		return shiftPosition(d.Pos, len(d.String()), 0)
+	case d.ImportFunc != nil:
+		return d.ImportFunc.End()
+	case d.ImportPath != nil:
+		return d.ImportPath.End()
 	}
 	panic("unknown import decl")
 }
 
+// Import represents the keyword "import".
+type Import struct {
+	Pos     lexer.Position
+	Keyword string `@"import"`
+}
+
+func (i *Import) Position() lexer.Position { return i.Pos }
+func (i *Import) End() lexer.Position      { return shiftPosition(i.Pos, len(i.Keyword), 0) }
+
+// Import represents the function for a remote import.
+type ImportFunc struct {
+	Pos  lexer.Position
+	From *From    `@@`
+	Func *FuncLit `@@`
+}
+
+func (i *ImportFunc) Position() lexer.Position { return i.Pos }
+func (i *ImportFunc) End() lexer.Position      { return i.Func.End() }
+
+// From represents the keyword "from".
+type From struct {
+	Pos     lexer.Position
+	Keyword string `@"from"`
+}
+
+func (f *From) Position() lexer.Position { return f.Pos }
+func (f *From) End() lexer.Position      { return shiftPosition(f.Pos, len(f.Keyword), 0) }
+
+// ImportPath represents the relative path to a local import.
+type ImportPath struct {
+	Pos  lexer.Position
+	Path string `@String`
+}
+
+func (i *ImportPath) Position() lexer.Position { return i.Pos }
+func (i *ImportPath) End() lexer.Position      { return shiftPosition(i.Pos, len(i.Path), 0) }
+
 // ExportDecl represents an export declaration.
 type ExportDecl struct {
-	Pos   lexer.Position
-	Ident *Ident `"export" @@`
+	Pos    lexer.Position
+	Export *Export `@@`
+	Ident  *Ident  `@@`
 }
 
 func (d *ExportDecl) Position() lexer.Position { return d.Pos }
 func (d *ExportDecl) End() lexer.Position      { return d.Ident.End() }
+
+// Export represents the keyword "export".
+type Export struct {
+	Pos     lexer.Position
+	Keyword string `@"export"`
+}
+
+func (e *Export) Position() lexer.Position { return e.Pos }
+func (e *Export) End() lexer.Position      { return shiftPosition(e.Pos, len(e.Keyword), 0) }
 
 // FuncDecl represents a function declaration.
 type FuncDecl struct {
