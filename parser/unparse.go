@@ -62,6 +62,7 @@ func (m *Module) String() string {
 		prevDecl = str
 	}
 
+	var sep string
 	if hasNewline {
 		// Strip trailing newlines
 		for i := len(decls) - 1; i > 0; i-- {
@@ -71,11 +72,11 @@ func (m *Module) String() string {
 				break
 			}
 		}
-
-		return fmt.Sprintf("%s%s", doc, strings.Join(decls, ""))
 	} else {
-		return fmt.Sprintf("%s%s", doc, strings.Join(decls, " "))
+		sep = " "
 	}
+
+	return fmt.Sprintf("%s%s", doc, strings.Join(decls, sep))
 }
 
 func (b *Bad) String() string {

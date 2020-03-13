@@ -1,24 +1,15 @@
+import go "./go.hlb"
+
 fs default() {
 	crossHLB
 }
 
 fs crossHLB() {
-	crossBinaries "github.com/openllb/hlb/cmd/hlb"
+	go.crossBinaries src "github.com/openllb/hlb/cmd/hlb"
 }
 
-fs crossBuild(string package) {
-	image "dockercore/golang-cross:1.12.5" with option { resolve; }
-	env "GOPATH" "/root/go"
-	env "GO111MODULE" "on"
-	dir "/go/src/hlb"
-	run "/cross/build" package with option {
-		goCacheMounts
-		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
-			sourcePath "/scripts"
-			readonly
-		}
-		mount fs { scratch; } "/root/go/bin" as crossBinaries
-	}
+fs lint() {
+	go.lint src
 }
 
 fs src() {
@@ -26,56 +17,3 @@ fs src() {
 		excludePatterns ".git" "build"
 	}
 }
-
-option::run goCacheMounts() {
-	mount src "/go/src/hlb" with option {
-		readonly
-	}
-	mount fs { scratch; } "/root/.cache/go-build" with option {
-		cache "hlb/go-build" "private"
-	}
-	mount fs { scratch; } "/go/pkg/mod" with option {
-		cache "hlb/go-mod" "private"
-	}
-}
-
-fs goLint() {
-	image "golang:1.14-alpine"
-	run "apk add -U git gcc libc-dev"
-	run "sh /golangci/install.sh -b /usr/bin v1.23.8" with option {
-		mount fs {
-			http "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh"
-		} "/golangci"
-	}
-	env "GO111MODULE" "on"
-	env "PATH" "/usr/bin:/bin:/usr/local/go/bin"
-	dir "/go/src/hlb"
-	run "go get" with option {
-		goCacheMounts
-	}
-	run "/usr/bin/golangci-lint run" with option {
-		goCacheMounts
-	}
-}
-
-fs goBuild(string package) {
-	image "golang:1.14-alpine"
-	run "apk add -U git gcc libc-dev"
-	env "GO111MODULE" "on"
-	dir "/go/src/hlb"
-	breakpoint
-	run string {
-		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
-	} with option {
-		goCacheMounts
-		mount fs { scratch; } "/out" as goBinary
-	}
-}
-
-fs hlbFrontend() {
-	scratch
-	copy fs { goBinary "./cmd/frontend"; } "/binary" "/run"
-	copy src "/source.hlb" "/"
-	copy src "/signature.hlb" "/"
-}
-

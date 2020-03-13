@@ -130,11 +130,7 @@ func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit,
 		return nil, err
 	}
 
-	vp, err := VendorPath(modulePath, dgst)
-	if err != nil {
-		return nil, err
-	}
-
+	vp := VendorPath(modulePath, dgst)
 	return &localResolved{dgst, vp}, nil
 }
 
@@ -345,9 +341,9 @@ func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 // VendorPath returns a modules path based on the digest of marshalling the
 // LLB. This digest is stable even when the underlying remote sources change
 // contents, for example `alpine:latest` may be pushed to.
-func VendorPath(root string, dgst digest.Digest) (string, error) {
+func VendorPath(root string, dgst digest.Digest) string {
 	encoded := dgst.Encoded()
-	return filepath.Join(root, dgst.Algorithm().String(), encoded[:2], encoded), nil
+	return filepath.Join(root, dgst.Algorithm().String(), encoded[:2], encoded)
 }
 
 // Visitor is a callback invoked for every import when traversing the import
