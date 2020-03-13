@@ -54,7 +54,7 @@ type Node interface {
 // represents a module.
 //
 // Initially, the Parser will fill in this struct as a parse tree / concrete
-// syntax tree, but a second pass from the Analyzer will type check and fill in
+// syntax tree, but a second pass from the Checker will type check and fill in
 // fields without parser struct tags like scopes and doc linking.
 type Module struct {
 	Pos   lexer.Position
@@ -338,25 +338,12 @@ func (t *Type) Equals(typ ObjType) bool {
 type ObjType string
 
 const (
-	None           ObjType = ""
-	Str            ObjType = "string"
-	Int            ObjType = "int"
-	Bool           ObjType = "bool"
-	Filesystem     ObjType = "fs"
-	Option         ObjType = "option"
-	OptionImage    ObjType = "option::image"
-	OptionHTTP     ObjType = "option::http"
-	OptionGit      ObjType = "option::git"
-	OptionLocal    ObjType = "option::local"
-	OptionGenerate ObjType = "option::generate"
-	OptionRun      ObjType = "option::run"
-	OptionSSH      ObjType = "option::ssh"
-	OptionSecret   ObjType = "option::secret"
-	OptionMount    ObjType = "option::mount"
-	OptionMkdir    ObjType = "option::mkdir"
-	OptionMkfile   ObjType = "option::mkfile"
-	OptionRm       ObjType = "option::rm"
-	OptionCopy     ObjType = "option::copy"
+	None       ObjType = ""
+	Str        ObjType = "string"
+	Int        ObjType = "int"
+	Bool       ObjType = "bool"
+	Filesystem ObjType = "fs"
+	Option     ObjType = "option"
 )
 
 // Ident represents an identifier.

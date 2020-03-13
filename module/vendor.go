@@ -69,10 +69,7 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 				}
 			}
 
-			vp, err := VendorPath(root, dgst)
-			if err != nil {
-				return err
-			}
+			vp := VendorPath(root, dgst)
 
 			// If tidy mode is enabled, then we mark imported modules during graph
 			// traversal, and then sweep unused vendored modules.
@@ -92,7 +89,7 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 				}
 			}
 
-			err = os.MkdirAll(vp, 0700)
+			err := os.MkdirAll(vp, 0700)
 			if err != nil {
 				return err
 			}
