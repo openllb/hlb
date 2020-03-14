@@ -322,65 +322,64 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 			panic("implementation error")
 		}
 
-		lookupByType := builtin.Lookup.ByType[typ]
-		if !foundSource {
-			// If the function is not a builtin, retrieve it from the scope and then
-			// type check it.
-			_, ok := lookupByType.Func[name]
-			if !ok {
-				obj := scope.Lookup(name)
-				if obj == nil {
-					return ErrFirstSource{call}
-				}
+		// If the function is not a builtin, retrieve it from the scope and then
+		// type check it.
+		funcLookup, ok := builtin.Lookup.ByType[typ].Func[name]
+		if ok {
+			// If any other statement after the first is a source statement, then error.
+			//
+			// Consider the following:
+			//
+			// ```hlb
+			// fs default() {
+			//     image "alpine"
+			//     image "busybox"
+			// }
+			// ```
+			//
+			// Redeclaring a new source makes the previous instructions orphaned from
+			// the graph.
+			if foundSource && funcLookup.IsSource {
+				return ErrOnlyFirstSource{call}
+			}
+		} else {
+			obj := scope.Lookup(name)
+			if obj == nil {
+				return ErrIdentNotDefined{Ident: call.Func.Ident}
+			}
 
-				// The retrieved object may be either a function declaration or a field
-				// in the current scope's function parameters.
-				var callType *parser.Type
-				switch obj.Kind {
-				case parser.DeclKind:
-					switch n := obj.Node.(type) {
-					case *parser.FuncDecl:
-						callType = n.Type
-					case *parser.AliasDecl:
-						callType = n.Func.Type
+			// The retrieved object may be either a function declaration or a field
+			// in the current scope's function parameters.
+			var callType *parser.Type
+			switch obj.Kind {
+			case parser.DeclKind:
+				switch n := obj.Node.(type) {
+				case *parser.FuncDecl:
+					callType = n.Type
+					// if we already have a source and this function is not a method
+					// so it will be returning an invalid second source
+					if foundSource && n.Method == nil && callType.ObjType == typ {
+						return ErrOnlyFirstSource{CallStmt: call}
 					}
-				case parser.FieldKind:
-					field, ok := obj.Node.(*parser.Field)
-					if ok {
-						callType = field.Type
-					}
+				case *parser.AliasDecl:
+					callType = n.Func.Type
 				}
-
-				err := c.checkType(call, typ, callType)
-				if err != nil {
-					return err
+			case parser.FieldKind:
+				field, ok := obj.Node.(*parser.Field)
+				if ok {
+					callType = field.Type
 				}
 			}
-			foundSource = true
 
-			err := c.checkCallStmt(scope, typ, call)
+			err := c.checkType(call, typ, callType)
 			if err != nil {
+				if !foundSource {
+					return ErrFirstSource{CallStmt: call}
+				}
 				return err
 			}
-			continue
 		}
-
-		// If any other statement after the first is a source statement, then error.
-		//
-		// Consider the following:
-		//
-		// ```hlb
-		// fs default() {
-		//     image "alpine"
-		//     image "busybox"
-		// }
-		// ```
-		//
-		// Redeclaring a new source makes the previous instructions orphaned from
-		// the graph.
-		if lookupByType.Func[name].IsSource {
-			return ErrOnlyFirstSource{call}
-		}
+		foundSource = true
 
 		err := c.checkCallStmt(scope, typ, call)
 		if err != nil {
