@@ -37,7 +37,7 @@ jobs:
       run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
 
     - name: GoLint
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t goLint ./source.hlb
+      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./source.hlb
 
     - name: Crosscompile
       run: ./build/hlb --addr docker-container://buildkitd run --log-output plain --download build/dist ./source.hlb
