@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/docker/buildx/util/progress"
+	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
@@ -45,8 +46,8 @@ var runCommand = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "log-output",
-			Usage: "set type of log output (tty, plain, json, raw)",
-			Value: "tty",
+			Usage: "set type of log output (auto, tty, plain, json, raw)",
+			Value: "auto",
 		},
 		&cli.StringFlag{
 			Name:    "push",
@@ -102,6 +103,16 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 	}
 
 	var progressOpts []solver.ProgressOption
+	if opts.LogOutput == "" || opts.LogOutput == "auto" {
+		// assume plain output, will upgrade if we detect tty
+		opts.LogOutput = "plain"
+		if fdAble, ok := opts.Output.(interface{ Fd() uintptr }); ok {
+			if isatty.IsTerminal(fdAble.Fd()) {
+				opts.LogOutput = "tty"
+			}
+		}
+	}
+
 	switch opts.LogOutput {
 	case "tty":
 		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputTTY))
