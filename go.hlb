@@ -4,25 +4,31 @@ export crossBinaries
 
 export lint
 
-fs build(fs src, string package) {
+string versionCmd() {
+	format "git describe --match 'v[0-9]*' --tags --dirty='.dirty' --always | sed 's/^v//'"
+}
+
+fs build(fs src, string package, string verPackage) {
 	image "golang:1.14-alpine"
 	run "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
 	run string {
-		format "/usr/local/go/bin/go build -o /out/binary -ldflags '-linkmode external -extldflags -static' -a %s" package
+		format "v=$(%s) && /usr/local/go/bin/go build -o /out/binary -ldflags \"-linkmode external -extldflags -static -X %s.Version=$v\" -a %s" string { versionCmd; }  package verPackage
 	} with option {
 		cacheMounts src
 		mount fs { scratch; } "/out" as binary
 	}
 }
 
-fs crossBuild(fs src, string package) {
+fs crossBuild(fs src, string package, string verPackage) {
 	image "dockercore/golang-cross:1.12.5" with option { resolve; }
 	env "GOPATH" "/root/go"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	run "/cross/build" package with option {
+	run string {
+		format "v=$(%s) && LDFLAGS=\"-X %s.Version=$v\" /cross/build %q" string { versionCmd; } verPackage package 
+	} with option {
 		cacheMounts src
 		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
 			sourcePath "/scripts"

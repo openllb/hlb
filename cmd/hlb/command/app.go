@@ -30,6 +30,7 @@ func App() *cli.App {
 	}
 
 	app.Commands = []*cli.Command{
+		versionCommand,
 		runCommand,
 		formatCommand,
 		moduleCommand,
