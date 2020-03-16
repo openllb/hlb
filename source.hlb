@@ -5,7 +5,7 @@ fs default() {
 }
 
 fs crossHLB() {
-	go.crossBinaries src "github.com/openllb/hlb/cmd/hlb"
+	go.crossBinaries src "github.com/openllb/hlb/cmd/hlb" "github.com/openllb/hlb"
 }
 
 fs lint() {
@@ -14,6 +14,6 @@ fs lint() {
 
 fs src() {
 	local "." with option {
-		excludePatterns ".git" "build"
+		excludePatterns "build"
 	}
 }
