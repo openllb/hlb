@@ -57,7 +57,10 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		return st, nil, err
 	}
 
-	res := module.NewLocalResolved(mod)
+	res, err := module.NewLocalResolved(mod)
+	if err != nil {
+		return st, nil, err
+	}
 	defer res.Close()
 
 	err = module.ResolveGraph(ctx, resolver, res, mod, nil)

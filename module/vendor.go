@@ -37,13 +37,16 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 		}
 	}
 
-	res := NewLocalResolved(mod)
+	res, err := NewLocalResolved(mod)
+	if err != nil {
+		return err
+	}
 	defer res.Close()
 
 	g, ctx := errgroup.WithContext(ctx)
 
 	ready := make(chan struct{})
-	err := ResolveGraph(ctx, resolver, res, mod, func(decl *parser.ImportDecl, dgst digest.Digest, parentMod *parser.Module, importMod *parser.Module) error {
+	err = ResolveGraph(ctx, resolver, res, mod, func(decl *parser.ImportDecl, dgst digest.Digest, parentMod *parser.Module, importMod *parser.Module) error {
 		g.Go(func() error {
 			<-ready
 

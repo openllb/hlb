@@ -22,7 +22,10 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		return nil, err
 	}
 
-	res := NewLocalResolved(mod)
+	res, err := NewLocalResolved(mod)
+	if err != nil {
+		return nil, err
+	}
 	defer res.Close()
 
 	var (
