@@ -36,6 +36,10 @@ jobs:
     - name: Start BuildkitD
       run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
 
+    - name: BuildkitD Wait
+      # waiting for buildkitd to report 1 worker (2 lines, 1 for column titles, one for the worker details)
+      run: while true; do lineCount=$(docker exec buildkitd buildctl debug workers | wc -l); if [ $lineCount -gt 1 ]; then break; fi; sleep 1; done
+
     - name: GoLint
       run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./source.hlb
 
