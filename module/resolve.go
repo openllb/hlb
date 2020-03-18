@@ -139,8 +139,23 @@ type localResolved struct {
 	root string
 }
 
-func NewLocalResolved(mod *parser.Module) Resolved {
-	return &localResolved{"", filepath.Dir(mod.Pos.Filename)}
+func NewLocalResolved(mod *parser.Module) (Resolved, error) {
+	var root string
+
+	// If the module was parsed from stdin, participle will not be able to fill
+	// in the filename the lexemes were parsed from. Then we should use the
+	// working directory as our relative root.
+	if mod.Pos.Filename != "" && mod.Pos.Filename != "/dev/stdin" {
+		root = filepath.Dir(mod.Pos.Filename)
+	} else {
+		var err error
+		root, err = os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &localResolved{"", root}, nil
 }
 
 func (r *localResolved) Digest() digest.Digest {
