@@ -1,7 +1,8 @@
+# hlb
+
 [![GoDoc](https://img.shields.io/static/v1?label=godoc&message=reference&color=blue)](https://pkg.go.dev/github.com/openllb/hlb)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-
-# hlb
+[![Test](https://github.com/openllb/hlb/workflows/Test/badge.svg)](https://github.com/openllb/hlb/actions?query=workflow%3ATest)
 
 `hlb` is a high-level build language for [BuildKit](https://github.com/moby/buildkit/).
 
