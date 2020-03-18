@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/alecthomas/participle/lexer"
 	"github.com/docker/buildx/util/progress"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
@@ -40,6 +41,15 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	err = checker.Check(mod)
 	if err != nil {
 		return st, nil, err
+	}
+
+	obj := mod.Scope.Lookup(target)
+	if obj == nil {
+		name := lexer.NameOfReader(r)
+		if name == "" {
+			name = "<stdin>"
+		}
+		return st, nil, fmt.Errorf("target %q is not defined in %s", target, name)
 	}
 
 	resolver, err := module.NewResolver(cln, mw)
