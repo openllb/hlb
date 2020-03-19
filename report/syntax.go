@@ -24,7 +24,7 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 		)
 
 		expected, unexpected := uerr.Expected, uerr.Unexpected
-		panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
+		// panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
 		switch expected {
 		case "":
 			if !Contains(Types, unexpected.Value) {
