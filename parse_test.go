@@ -58,7 +58,7 @@ var (
 				allowNotFound
 				allowWildcard
 			}
-			copy fs { from bar; } "src" "dst" with option {
+			copy fs { bar; } "src" "dst" with option {
 				followSymlinks
 				contentsOnly
 				unpack
