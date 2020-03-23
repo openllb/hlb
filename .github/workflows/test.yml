@@ -33,6 +33,9 @@ jobs:
         go build -o build/docgen ./cmd/docgen
         go build -o build/builtingen ./cmd/builtingen
 
+    - name: Go Tests
+      run: go test -v ./...
+      
     - name: Start BuildkitD
       run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
 

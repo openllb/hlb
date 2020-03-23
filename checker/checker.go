@@ -358,7 +358,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 					callType = n.Type
 					// if we already have a source and this function is not a method
 					// so it will be returning an invalid second source
-					if foundSource && n.Method == nil && callType.ObjType == typ {
+					if foundSource && n.Method == nil && callType.ObjType == typ && callType.Primary() != parser.Option {
 						return ErrOnlyFirstSource{CallStmt: call}
 					}
 				case *parser.AliasDecl:
