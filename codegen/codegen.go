@@ -18,8 +18,9 @@ import (
 )
 
 type CodeGen struct {
-	Debug  Debugger
-	Locals map[string]string
+	Debug   Debugger
+	Locals  map[string]string
+	Secrets map[string]string
 }
 
 type CodeGenOption func(*CodeGen) error
@@ -33,8 +34,9 @@ func WithDebugger(dbgr Debugger) CodeGenOption {
 
 func New(opts ...CodeGenOption) (*CodeGen, error) {
 	cg := &CodeGen{
-		Debug:  NewNoopDebugger(),
-		Locals: make(map[string]string),
+		Debug:   NewNoopDebugger(),
+		Locals:  make(map[string]string),
+		Secrets: make(map[string]string),
 	}
 	for _, opt := range opts {
 		err := opt(cg)
@@ -1158,12 +1160,22 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
 			case "secret":
-				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				input, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
-				var secretOpts []llb.SecretOption
+				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
+				if err != nil {
+					return opts, err
+				}
+
+				id := string(digest.FromString(input))
+				cg.Secrets[id] = input
+
+				secretOpts := []llb.SecretOption{
+					llb.SecretID(id),
+				}
 				for _, iopt := range iopts {
 					opt := iopt.(llb.SecretOption)
 					secretOpts = append(secretOpts, opt)
