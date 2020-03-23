@@ -157,6 +157,9 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 	for id, path := range info.Locals {
 		solveOpts = append(solveOpts, solver.WithLocal(id, path))
 	}
+	for id, path := range info.Secrets {
+		solveOpts = append(solveOpts, solver.WithSecret(id, path))
+	}
 
 	if opts.Download != "" {
 		solveOpts = append(solveOpts, solver.WithDownload(opts.Download))

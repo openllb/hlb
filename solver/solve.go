@@ -13,6 +13,7 @@ import (
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth/authprovider"
+	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/errgroup"
@@ -27,6 +28,7 @@ type SolveInfo struct {
 	OutputLocal        string
 	OutputLocalTarball bool
 	Locals             map[string]string
+	Secrets            map[string]string
 }
 
 func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
@@ -62,6 +64,13 @@ func WithDownloadTarball(w io.WriteCloser) SolveOption {
 func WithLocal(id, path string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.Locals[id] = path
+		return nil
+	}
+}
+
+func WithSecret(id, path string) SolveOption {
+	return func(info *SolveInfo) error {
+		info.Secrets[id] = path
 		return nil
 	}
 }
@@ -102,7 +111,8 @@ func Solve(ctx context.Context, c *client.Client, pw progress.Writer, st llb.Sta
 
 func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.BuildFunc, opts ...SolveOption) error {
 	info := &SolveInfo{
-		Locals: make(map[string]string),
+		Locals:  make(map[string]string),
+		Secrets: make(map[string]string),
 	}
 	for _, opt := range opts {
 		err := opt(info)
@@ -123,6 +133,21 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 			return err
 		}
 		attachable = append(attachable, sp)
+	}
+
+	if len(info.Secrets) > 0 {
+		sources := make([]secretsprovider.FileSource, 0, len(info.Secrets))
+		for id, path := range info.Secrets {
+			fs := secretsprovider.FileSource{}
+			fs.ID = id
+			fs.FilePath = path
+			sources = append(sources, fs)
+		}
+		store, err := secretsprovider.NewFileStore(sources)
+		if err != nil {
+			return err
+		}
+		attachable = append(attachable, secretsprovider.NewSecretProvider(store))
 	}
 
 	wrapWriter := func(wc io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
