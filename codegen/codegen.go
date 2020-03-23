@@ -425,6 +425,12 @@ func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, pare
 		switch obj.Kind {
 		case parser.ExprKind:
 			return obj.Data.([]interface{}), nil
+		case parser.DeclKind:
+			if n, ok := obj.Node.(*parser.FuncDecl); ok {
+				return cg.EmitOptions(ctx, scope, parent.Func.Ident.Name, n.Body.NonEmptyStmts(), ac)
+			} else {
+				panic("unknown decl type")
+			}
 		default:
 			panic("unknown with option kind")
 		}
