@@ -36,7 +36,7 @@ type Target struct {
 	Output        io.WriteCloser
 }
 
-func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, targets []Target, r io.Reader) (SolveRequest, error) {
+func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, targets []Target, r io.Reader) (solver.Request, error) {
 	mod, ib, err := Parse(r, DefaultParseOpts()...)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		return nil, err
 	}
 
-	result := NullSolveRequest()
+	request := solver.NewEmptyRequest()
 
 	for _, target := range targets {
 		var commonSolveOpts []solver.SolveOption
@@ -121,8 +121,8 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 				solveOpts = append(solveOpts, solver.WithSecret(id, path))
 			}
 
-			result = result.Peer(
-				NewSolveRequest(st, append(commonSolveOpts, solveOpts...)...),
+			request = request.Peer(
+				solver.NewRequest(st, append(commonSolveOpts, solveOpts...)...),
 			)
 
 			return nil
@@ -136,8 +136,8 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 			pw := mw.WithPrefix("codegen", false)
 			defer close(pw.Status())
 
-			progress.Write(pw, fmt.Sprintf("compiling %s", mod.Pos.Filename), gen)
+			progress.Write(pw, fmt.Sprintf("compiling target %s", target.Name), gen)
 		}
 	}
-	return result, err
+	return request, err
 }

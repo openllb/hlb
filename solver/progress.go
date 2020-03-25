@@ -30,6 +30,45 @@ func WithLogOutput(logOutput LogOutput) ProgressOption {
 	}
 }
 
+// NewProgress returns a Progress that presents all the progress on multiple
+// solves to the terminal stdout.
+//
+// Calling (*Progress).WithPrefix creates a progress writer for a callback
+// function, giving each solve its independent progress writer (which is
+// eventually closed by the solve).
+//
+// When all work has been completed, calling (*Progress).Release will start
+// the process for closing out the progress UI. Note that because of the
+// refresh rate of the interactive UI, we need to also call (*Progress).Wait
+// to ensure it has exited cleanly.
+//
+// Example usage without error handling:
+// ```go
+// p, _ := NewProgress(ctx)
+//
+// p.WithPrefix("work", func(ctx context.Context, pw progress.Writer) error {
+// 	defer p.Release()
+//	return workFunc(ctx, pw)
+// })
+//
+// return p.Wait()
+// ```
+//
+// If your work function also needs to dynamically spawn progress writers, then
+// you can call (*Progress).Go to create a goroutine sharing the same errgroup.
+// Then you can share the underlying multiwriter by calling
+// (*Progress).MultiWriter().
+//
+// ```go
+// p, _ := progress.NewProgress(ctx)
+//
+// p.Go(func() {
+// 	defer p.Release()
+// 	return workFunc(ctx, p.MultiWriter())
+// })
+//
+// return p.Wait()
+// ```
 func NewProgress(ctx context.Context, opts ...ProgressOption) (*Progress, error) {
 	info := &ProgressInfo{}
 	for _, opt := range opts {

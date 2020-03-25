@@ -161,9 +161,9 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return solveReq.Solve(ctx, cln, nil)
 	}
 
-	p.WithPrefix("solve", func(ctx context.Context, pw progress.Writer) error {
+	p.Go(func() error {
 		defer p.Release()
-		return solveReq.Solve(ctx, cln, pw)
+		return solveReq.Solve(ctx, cln, p.MultiWriter())
 	})
 
 	return p.Wait()
