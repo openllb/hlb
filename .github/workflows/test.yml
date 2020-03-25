@@ -47,6 +47,6 @@ jobs:
       run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./source.hlb
 
     - name: Crosscompile
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain --download build/dist ./source.hlb
+      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t default,download=build/dist ./source.hlb
 
 

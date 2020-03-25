@@ -12,6 +12,7 @@ import (
 
 type compileTestCase struct {
 	name    string
+	targets []string
 	input   string
 	errType interface{}
 }
@@ -19,6 +20,7 @@ type compileTestCase struct {
 func TestCompile(t *testing.T) {
 	for _, tc := range []compileTestCase{{
 		"empty",
+		[]string{"default"},
 		`
 		fs default() {
 			scratch
@@ -27,6 +29,7 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"image",
+		[]string{"default"},
 		`
 		fs default() {
 			image "busybox:latest"
@@ -35,6 +38,7 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"second source from function",
+		[]string{"default"},
 		`
 		fs default() {
 			scratch
@@ -47,6 +51,7 @@ func TestCompile(t *testing.T) {
 		checker.ErrOnlyFirstSource{},
 	}, {
 		"single named option",
+		[]string{"default"},
 		`
 		option::run myopt() {
 			dir "/tmp"
@@ -59,6 +64,7 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"combine named option",
+		[]string{"default"},
 		`
 		option::run myopt() {
 			dir "/tmp"
@@ -72,16 +78,38 @@ func TestCompile(t *testing.T) {
 		}
 		`,
 		nil,
+	}, {
+		"multiple targets",
+		[]string{"foo", "bar"},
+		`
+		fs foo() {
+			image "busybox:latest"
+			run "echo hello"
+		}
+		fs bar() {
+			image "busybox:latest"
+			run "echo bar"
+		}
+		`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctx := context.Background()
 			p, err := solver.NewProgress(ctx, solver.WithLogOutput(solver.LogOutputPlain))
 			require.NoError(t, err)
+
 			mw := p.MultiWriter()
 			in := strings.NewReader(cleanup(tc.input))
-			_, _, err = Compile(ctx, nil, mw, "default", in)
+
+			var targets []Target
+			for _, target := range tc.targets {
+				targets = append(targets, Target{Name: target})
+			}
+
+			_, err = Compile(ctx, nil, mw, targets, in)
 			if tc.errType == nil {
 				require.NoError(t, err)
 			} else {

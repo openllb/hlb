@@ -2,9 +2,11 @@ package command
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/mattn/go-isatty"
@@ -21,38 +23,20 @@ var runCommand = &cli.Command{
 	Usage:     "compiles and runs a hlb program",
 	ArgsUsage: "<*.hlb>",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
+		&cli.StringSliceFlag{
 			Name:    "target",
 			Aliases: []string{"t"},
 			Usage:   "specify target filesystem to solve",
-			Value:   "default",
+			Value:   cli.NewStringSlice("default"),
 		},
 		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "jump into a source level debugger for hlb",
 		},
 		&cli.StringFlag{
-			Name:    "download",
-			Aliases: []string{"d"},
-			Usage:   "downloads the solved hlb filesystem to a directory",
-		},
-		&cli.BoolFlag{
-			Name:  "tarball",
-			Usage: "downloads the solved hlb filesystem as a tarball and writes to stdout",
-		},
-		&cli.StringFlag{
-			Name:  "docker-tarball",
-			Usage: "specify a image name for downloading the solved hlb as a docker image tarball and writes to stdout",
-		},
-		&cli.StringFlag{
 			Name:  "log-output",
 			Usage: "set type of log output (auto, tty, plain, json, raw)",
 			Value: "auto",
-		},
-		&cli.StringFlag{
-			Name:    "push",
-			Aliases: []string{"p"},
-			Usage:   "push the solved hlb filesystem to a docker registry",
 		},
 	},
 	Action: func(c *cli.Context) error {
@@ -69,34 +53,26 @@ var runCommand = &cli.Command{
 		}
 
 		return Run(ctx, cln, rc, RunOptions{
-			Debug:         c.Bool("debug"),
-			DockerTarball: c.String("docker-tarball"),
-			Download:      c.String("download"),
-			Target:        c.String("target"),
-			LLB:           c.Bool("llb"),
-			LogOutput:     c.String("log-output"),
-			Output:        os.Stdout,
-			Push:          c.String("push"),
-			Tarball:       c.Bool("tarball"),
+			Debug:     c.Bool("debug"),
+			Targets:   c.StringSlice("target"),
+			LLB:       c.Bool("llb"),
+			LogOutput: c.String("log-output"),
+			Output:    os.Stdout,
 		})
 	},
 }
 
 type RunOptions struct {
-	Debug         bool
-	DockerTarball string
-	Download      string
-	Target        string
-	LLB           bool
-	LogOutput     string
-	Output        io.WriteCloser
-	Push          string
-	Tarball       bool
+	Debug     bool
+	Targets   []string
+	LLB       bool
+	LogOutput string
+	Output    io.WriteCloser
 }
 
 func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOptions) error {
-	if opts.Target == "" {
-		opts.Target = "default"
+	if len(opts.Targets) == 0 {
+		opts.Targets = []string{"default"}
 	}
 	if opts.Output == nil {
 		opts.Output = os.Stdout
@@ -140,7 +116,35 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		mw = p.MultiWriter()
 	}
 
-	st, info, err := hlb.Compile(ctx, cln, mw, opts.Target, rc)
+	targets := []hlb.Target{}
+	for _, target := range opts.Targets {
+		r := csv.NewReader(strings.NewReader(target))
+		fields, err := r.Read()
+		if err != nil {
+			return err
+		}
+		t := hlb.Target{
+			Name:   fields[0],
+			Output: opts.Output,
+		}
+		for _, field := range fields[1:] {
+			switch {
+			case strings.HasPrefix(field, "download="):
+				t.Download = strings.TrimPrefix(field, "download=")
+			case field == "tarball":
+				t.Tarball = true
+			case strings.HasPrefix(field, "dockerTarball="):
+				t.DockerTarball = strings.TrimPrefix(field, "dockerTarball=")
+			case strings.HasPrefix(field, "push="):
+				t.Push = strings.TrimPrefix(field, "push=")
+			default:
+				return fmt.Errorf("Unknown target option %q for target %q", field, t.Name)
+			}
+		}
+		targets = append(targets, t)
+	}
+
+	solveReq, err := hlb.Compile(ctx, cln, mw, targets, rc)
 	if err != nil {
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
@@ -153,34 +157,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return nil
 	}
 
-	var solveOpts []solver.SolveOption
-	for id, path := range info.Locals {
-		solveOpts = append(solveOpts, solver.WithLocal(id, path))
-	}
-	for id, path := range info.Secrets {
-		solveOpts = append(solveOpts, solver.WithSecret(id, path))
-	}
-
-	if opts.Download != "" {
-		solveOpts = append(solveOpts, solver.WithDownload(opts.Download))
-	}
-	if opts.Tarball {
-		solveOpts = append(solveOpts, solver.WithDownloadTarball(opts.Output))
-	}
-	if opts.DockerTarball != "" {
-		solveOpts = append(solveOpts, solver.WithDownloadDockerTarball(opts.DockerTarball, opts.Output))
-	}
-	if opts.Push != "" {
-		solveOpts = append(solveOpts, solver.WithPushImage(opts.Push))
-	}
-
 	if p == nil {
-		return solver.Solve(ctx, cln, nil, st, solveOpts...)
+		return solveReq.Solve(ctx, cln, nil)
 	}
 
-	p.WithPrefix("solve", func(ctx context.Context, pw progress.Writer) error {
+	p.Go(func() error {
 		defer p.Release()
-		return solver.Solve(ctx, cln, pw, st, solveOpts...)
+		return solveReq.Solve(ctx, cln, p.MultiWriter())
 	})
 
 	return p.Wait()
