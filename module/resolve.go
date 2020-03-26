@@ -195,11 +195,6 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, err
 	}
 
-	var solveOpts []solver.SolveOption
-	for id, path := range cg.Locals {
-		solveOpts = append(solveOpts, solver.WithLocal(id, path))
-	}
-
 	var pw progress.Writer
 	if r.mw != nil {
 		pw = r.mw.WithPrefix(fmt.Sprintf("import %s", decl.Ident), true)
@@ -236,7 +231,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 			<-closed
 
 			return gateway.NewResult(), nil
-		}, solveOpts...)
+		}, cg.SolveOptions()...)
 	})
 
 	<-resolved

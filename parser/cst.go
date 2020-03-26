@@ -203,6 +203,21 @@ type FuncDecl struct {
 	Body   *BlockStmt `( @@ )?`
 }
 
+func NewFuncDecl(typ ObjType, name string, method bool, params []*Field, stmts ...*Stmt) *Decl {
+	fun := &FuncDecl{
+		Type:   NewType(typ),
+		Name:   NewIdent(name),
+		Params: NewFieldList(params...),
+		Body:   NewBlockStmt(stmts...),
+	}
+
+	if method {
+		fun.Method = NewMethod(typ)
+	}
+
+	return &Decl{Func: fun}
+}
+
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 
@@ -214,6 +229,10 @@ type Method struct {
 	CloseParen *CloseParen `@@`
 }
 
+func NewMethod(typ ObjType) *Method {
+	return &Method{Type: NewType(typ)}
+}
+
 func (m *Method) Position() lexer.Position { return m.Pos }
 func (m *Method) End() lexer.Position      { return m.CloseParen.End() }
 
@@ -223,6 +242,10 @@ type FieldList struct {
 	OpenParen  *OpenParen  `@@`
 	List       []*Field    `( ( Newline )? @@ ( "," ( Newline )?  @@ )* ( "," Newline )? )?`
 	CloseParen *CloseParen `@@`
+}
+
+func NewFieldList(params ...*Field) *FieldList {
+	return &FieldList{List: params}
 }
 
 func (f *FieldList) Position() lexer.Position { return f.OpenParen.Pos }
@@ -302,12 +325,12 @@ type Type struct {
 	ObjType ObjType `@Type`
 }
 
-func (t *Type) Position() lexer.Position { return t.Pos }
-func (t *Type) End() lexer.Position      { return shiftPosition(t.Pos, len(string(t.ObjType)), 0) }
-
 func NewType(typ ObjType) *Type {
 	return &Type{ObjType: typ}
 }
+
+func (t *Type) Position() lexer.Position { return t.Pos }
+func (t *Type) End() lexer.Position      { return shiftPosition(t.Pos, len(string(t.ObjType)), 0) }
 
 func (t *Type) Primary() ObjType {
 	parts := typeParts(t.ObjType)
@@ -352,9 +375,6 @@ type Ident struct {
 	Name string `@Ident`
 }
 
-func (i *Ident) Position() lexer.Position { return i.Pos }
-func (i *Ident) End() lexer.Position      { return shiftPosition(i.Pos, len(i.Name), 0) }
-
 func NewIdent(name string) *Ident {
 	return &Ident{Name: name}
 }
@@ -364,6 +384,9 @@ func NewIdentExpr(name string) *Expr {
 		Ident: NewIdent(name),
 	}
 }
+
+func (i *Ident) Position() lexer.Position { return i.Pos }
+func (i *Ident) End() lexer.Position      { return shiftPosition(i.Pos, len(i.Name), 0) }
 
 // Selector represents an identifier followed by a selector.
 type Selector struct {
@@ -495,16 +518,6 @@ type FuncLit struct {
 	Body *BlockStmt `@@`
 }
 
-func (l *FuncLit) Position() lexer.Position { return l.Pos }
-func (l *FuncLit) End() lexer.Position      { return l.Body.End() }
-
-func (l *FuncLit) NumStmts() int {
-	if l == nil {
-		return 0
-	}
-	return l.Body.NumStmts()
-}
-
 func NewFuncLit(typ ObjType, stmts ...*Stmt) *FuncLit {
 	return &FuncLit{
 		Type: NewType(typ),
@@ -518,6 +531,16 @@ func NewFuncLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
 	return &Expr{
 		FuncLit: NewFuncLit(typ, stmts...),
 	}
+}
+
+func (l *FuncLit) Position() lexer.Position { return l.Pos }
+func (l *FuncLit) End() lexer.Position      { return l.Body.End() }
+
+func (l *FuncLit) NumStmts() int {
+	if l == nil {
+		return 0
+	}
+	return l.Body.NumStmts()
 }
 
 // Stmt represents a statement node.
@@ -557,9 +580,6 @@ type CallStmt struct {
 	StmtEnd *StmtEnd   `@@`
 }
 
-func (s *CallStmt) Position() lexer.Position { return s.Pos }
-func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
-
 func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, alias *AliasDecl) *Stmt {
 	return &Stmt{
 		Call: &CallStmt{
@@ -571,24 +591,15 @@ func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, alias *AliasDecl) 
 	}
 }
 
+func (s *CallStmt) Position() lexer.Position { return s.Pos }
+func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
+
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
 	Pos     lexer.Position
 	With    *With    `@@`
 	Ident   *Ident   `( @@`
 	FuncLit *FuncLit `| @@ )`
-}
-
-func (w *WithOpt) Position() lexer.Position { return w.Pos }
-func (w *WithOpt) End() lexer.Position {
-	switch {
-	case w.Ident != nil:
-		return w.Ident.End()
-	case w.FuncLit != nil:
-		return w.FuncLit.End()
-	default:
-		return shiftPosition(w.Pos, 1, 0)
-	}
 }
 
 func NewWithIdent(name string) *WithOpt {
@@ -602,6 +613,18 @@ func NewWithFuncLit(stmts ...*Stmt) *WithOpt {
 	return &WithOpt{
 		With:    &With{Keyword: "with"},
 		FuncLit: NewFuncLit(Option, stmts...),
+	}
+}
+
+func (w *WithOpt) Position() lexer.Position { return w.Pos }
+func (w *WithOpt) End() lexer.Position {
+	switch {
+	case w.Ident != nil:
+		return w.Ident.End()
+	case w.FuncLit != nil:
+		return w.FuncLit.End()
+	default:
+		return shiftPosition(w.Pos, 1, 0)
 	}
 }
 
@@ -663,6 +686,10 @@ type BlockStmt struct {
 	OpenBrace  *OpenBrace  `@@`
 	List       []*Stmt     `( @@ )*`
 	CloseBrace *CloseBrace `@@`
+}
+
+func NewBlockStmt(stmts ...*Stmt) *BlockStmt {
+	return &BlockStmt{List: stmts}
 }
 
 func (s *BlockStmt) Position() lexer.Position { return s.Pos }

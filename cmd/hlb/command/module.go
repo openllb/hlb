@@ -148,7 +148,7 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 		return err
 	}
 
-	p.Go(func() error {
+	p.Go(func(ctx context.Context) error {
 		defer p.Release()
 		return module.Vendor(ctx, cln, p.MultiWriter(), mod, opts.Targets, opts.Tidy)
 	})
@@ -238,7 +238,7 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 			return err
 		}
 
-		p.Go(func() error {
+		p.Go(func(ctx context.Context) error {
 			defer p.Release()
 
 			var err error

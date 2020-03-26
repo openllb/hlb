@@ -22,13 +22,15 @@ import (
 type SolveOption func(*SolveInfo) error
 
 type SolveInfo struct {
-	OutputDockerRef    string
-	OutputWriter       io.WriteCloser
-	OutputPushImage    string
-	OutputLocal        string
-	OutputLocalTarball bool
-	Locals             map[string]string
-	Secrets            map[string]string
+	OutputDockerRef       string
+	OutputWriter          io.WriteCloser
+	OutputPushImage       string
+	OutputLocal           string
+	OutputLocalTarball    bool
+	OutputLocalOCITarball bool
+	Locals                map[string]string
+	Secrets               map[string]string
+	Waiters               []<-chan struct{}
 }
 
 func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
@@ -61,6 +63,14 @@ func WithDownloadTarball(w io.WriteCloser) SolveOption {
 	}
 }
 
+func WithDownloadOCITarball(w io.WriteCloser) SolveOption {
+	return func(info *SolveInfo) error {
+		info.OutputLocalOCITarball = true
+		info.OutputWriter = w
+		return nil
+	}
+}
+
 func WithLocal(id, path string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.Locals[id] = path
@@ -71,6 +81,13 @@ func WithLocal(id, path string) SolveOption {
 func WithSecret(id, path string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.Secrets[id] = path
+		return nil
+	}
+}
+
+func WithWaiter(wait <-chan struct{}) SolveOption {
+	return func(info *SolveInfo) error {
+		info.Waiters = append(info.Waiters, wait)
 		return nil
 	}
 }
@@ -195,6 +212,13 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 		})
 	}
 
+	if info.OutputLocalOCITarball {
+		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
+			Type:   client.ExporterOCI,
+			Output: wrapWriter(info.OutputWriter),
+		})
+	}
+
 	for id, path := range info.Locals {
 		solveOpt.LocalDirs[id] = path
 	}
@@ -211,6 +235,14 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 		_, err := c.Build(ctx, solveOpt, "", f, statusCh)
 		return err
 	})
+
+	for _, waiter := range info.Waiters {
+		waiter := waiter
+		g.Go(func() error {
+			<-waiter
+			return nil
+		})
+	}
 
 	return g.Wait()
 }

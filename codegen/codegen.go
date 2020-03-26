@@ -3,10 +3,14 @@ package codegen
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"time"
 
+	"github.com/docker/buildx/util/progress"
+	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/flags"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
@@ -15,12 +19,15 @@ import (
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/solver"
 )
 
 type CodeGen struct {
-	Debug   Debugger
-	Locals  map[string]string
-	Secrets map[string]string
+	Debug     Debugger
+	request   solver.Request
+	mw        *progress.MultiWriter
+	dockerCli *command.DockerCli
+	solveOpts []solver.SolveOption
 }
 
 type CodeGenOption func(*CodeGen) error
@@ -32,11 +39,16 @@ func WithDebugger(dbgr Debugger) CodeGenOption {
 	}
 }
 
+func WithMultiWriter(mw *progress.MultiWriter) CodeGenOption {
+	return func(i *CodeGen) error {
+		i.mw = mw
+		return nil
+	}
+}
+
 func New(opts ...CodeGenOption) (*CodeGen, error) {
 	cg := &CodeGen{
-		Debug:   NewNoopDebugger(),
-		Locals:  make(map[string]string),
-		Secrets: make(map[string]string),
+		Debug: NewNoopDebugger(),
 	}
 	for _, opt := range opts {
 		err := opt(cg)
@@ -48,46 +60,64 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 	return cg, nil
 }
 
-func (cg *CodeGen) Generate(ctx context.Context, call *parser.CallStmt, mod *parser.Module) (llb.State, error) {
-	st := llb.Scratch()
+func (cg *CodeGen) SolveOptions() []solver.SolveOption {
+	return cg.solveOpts
+}
 
-	obj := mod.Scope.Lookup(call.Func.Ident.Name)
-	if obj == nil {
-		return st, fmt.Errorf("unknown target %q", call.Func.Ident.Name)
-	}
+func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*parser.CallStmt) (solver.Request, error) {
+	cg.request = solver.NewEmptyRequest()
 
-	// Yield to the debugger before compiling anything.
-	err := cg.Debug(ctx, mod.Scope, mod, nil)
-	if err != nil {
-		return st, err
-	}
+	for _, target := range targets {
+		// Reset solve options for this target.
+		// If we need to paralellize compilation then we can revisit this.
+		cg.solveOpts = []solver.SolveOption{}
 
-	switch obj.Kind {
-	case parser.DeclKind:
-		switch n := obj.Node.(type) {
-		case *parser.FuncDecl:
-			if n.Type.ObjType != parser.Filesystem {
-				return st, checker.ErrInvalidTarget{Ident: call.Func.Ident}
-			}
-
-			st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, call, noopAliasCallback)
-		case *parser.AliasDecl:
-			if n.Func.Type.ObjType != parser.Filesystem {
-				return st, checker.ErrInvalidTarget{Ident: call.Func.Ident}
-			}
-
-			st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, call)
+		obj := mod.Scope.Lookup(target.Func.Ident.Name)
+		if obj == nil {
+			return cg.request, fmt.Errorf("unknown target %q", target.Func.Ident.Name)
 		}
-	default:
-		return st, checker.ErrInvalidTarget{Ident: call.Func.Ident}
+
+		// Yield to the debugger before compiling anything.
+		err := cg.Debug(ctx, mod.Scope, mod, nil)
+		if err != nil {
+			return cg.request, err
+		}
+
+		var st llb.State
+		switch obj.Kind {
+		case parser.DeclKind:
+			switch n := obj.Node.(type) {
+			case *parser.FuncDecl:
+				if n.Type.ObjType != parser.Filesystem {
+					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
+				}
+
+				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback)
+				if err != nil {
+					return cg.request, nil
+				}
+			case *parser.AliasDecl:
+				if n.Func.Type.ObjType != parser.Filesystem {
+					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
+				}
+
+				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target)
+				if err != nil {
+					return cg.request, nil
+				}
+			}
+		default:
+			return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
+		}
+
+		cg.request = cg.request.Peer(solver.NewRequest(st, cg.solveOpts...))
 	}
 
-	return st, err
+	return cg.request, nil
 }
 
 func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
-	st, err := cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
-	return st, err
+	return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
 }
 
 type aliasCallback func(*parser.CallStmt, interface{})
@@ -369,7 +399,7 @@ func (cg *CodeGen) EmitFilesystemSourceStmt(ctx context.Context, scope *parser.S
 		hashInput = append(hashInput, []byte(path)...)
 
 		id := string(digest.FromBytes(hashInput))
-		cg.Locals[id] = path
+		cg.solveOpts = append(cg.solveOpts, solver.WithLocal(id, path))
 
 		return llb.Local(id, opts...), nil
 	case "generate":
@@ -674,6 +704,21 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				llb.Copy(input, src, dest, opts...),
 			)
 		}
+	case "output":
+		var opts []solver.SolveOption
+		for _, iopt := range iopts {
+			opt := iopt.(solver.SolveOption)
+			opts = append(opts, opt)
+		}
+
+		so = func(st llb.State) llb.State {
+			for _, opt := range opts {
+				solveOpts := make([]solver.SolveOption, len(cg.solveOpts))
+				copy(solveOpts, cg.solveOpts)
+				cg.request = cg.request.Peer(solver.NewRequest(st, append(solveOpts, opt)...))
+			}
+			return st
+		}
 	}
 
 	return so, nil
@@ -707,6 +752,8 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 		return cg.EmitRmOptions(ctx, scope, op, stmts)
 	case "copy":
 		return cg.EmitCopyOptions(ctx, scope, op, stmts)
+	case "output":
+		return cg.EmitOutputOptions(ctx, scope, op, stmts)
 	default:
 		panic("call stmt does not support options")
 	}
@@ -1058,6 +1105,113 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 	return
 }
 
+func (cg *CodeGen) EmitOutputOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+	for _, stmt := range stmts {
+		if stmt.Call != nil {
+			args := stmt.Call.Args
+			switch stmt.Call.Func.Ident.Name {
+			case "dockerPush":
+				ref, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				opts = append(opts, solver.WithPushImage(ref))
+			case "dockerLoad":
+				ref, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				if cg.mw == nil {
+					return opts, fmt.Errorf("progress.MultiWriter must be provided for dockerLoad")
+				}
+
+				if cg.dockerCli == nil {
+					cg.dockerCli, err = command.NewDockerCli()
+					if err != nil {
+						return opts, err
+					}
+
+					err = cg.dockerCli.Initialize(flags.NewClientOptions())
+					if err != nil {
+						return opts, err
+					}
+				}
+
+				r, w := io.Pipe()
+				done := make(chan struct{})
+				cg.solveOpts = append(cg.solveOpts, solver.WithWaiter(done))
+
+				go func() {
+					defer close(done)
+
+					resp, err := cg.dockerCli.Client().ImageLoad(ctx, r, true)
+					if err != nil {
+						r.CloseWithError(err)
+						return
+					}
+					defer resp.Body.Close()
+
+					pw := cg.mw.WithPrefix("", false)
+					progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
+				}()
+
+				opts = append(opts, solver.WithDownloadDockerTarball(ref, w))
+			case "download":
+				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				opts = append(opts, solver.WithDownload(localPath))
+			case "downloadTarball":
+				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				f, err := os.Open(localPath)
+				if err != nil {
+					return opts, err
+				}
+
+				opts = append(opts, solver.WithDownloadTarball(f))
+			case "downloadOCITarball":
+				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				f, err := os.Open(localPath)
+				if err != nil {
+					return opts, err
+				}
+
+				opts = append(opts, solver.WithDownloadOCITarball(f))
+			case "downloadDockerTarball":
+				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				f, err := os.Open(localPath)
+				if err != nil {
+					return opts, err
+				}
+
+				ref, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
+				if err != nil {
+					return opts, err
+				}
+
+				opts = append(opts, solver.WithDownloadDockerTarball(ref, f))
+			}
+		}
+	}
+	return
+}
+
 func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
@@ -1165,13 +1319,13 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					return opts, err
 				}
 
-				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
+				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
 
 				id := string(digest.FromString(input))
-				cg.Secrets[id] = input
+				cg.solveOpts = append(cg.solveOpts, solver.WithSecret(id, path))
 
 				secretOpts := []llb.SecretOption{
 					llb.SecretID(id),
@@ -1181,7 +1335,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					secretOpts = append(secretOpts, opt)
 				}
 
-				opts = append(opts, llb.AddSecret(target, secretOpts...))
+				opts = append(opts, llb.AddSecret(path, secretOpts...))
 			case "mount":
 				input, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
 				if err != nil {

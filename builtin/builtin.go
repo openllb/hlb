@@ -20,82 +20,82 @@ type FuncLookup struct {
 var (
 	Lookup = BuiltinLookup{
 		ByType: map[parser.ObjType]LookupByType{
-			parser.Filesystem: {
+			parser.Filesystem: LookupByType{
 				Func: map[string]FuncLookup{
-					"scratch": {
+					"scratch": FuncLookup{
 						IsSource: true,
 						Params:   []*parser.Field{},
 					},
-					"image": {
+					"image": FuncLookup{
 						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "ref", false),
 						},
 					},
-					"http": {
+					"http": FuncLookup{
 						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "url", false),
 						},
 					},
-					"git": {
+					"git": FuncLookup{
 						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "remote", false),
 							parser.NewField(parser.Str, "ref", false),
 						},
 					},
-					"local": {
+					"local": FuncLookup{
 						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"generate": {
+					"generate": FuncLookup{
 						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Filesystem, "frontend", false),
 						},
 					},
-					"shell": {
+					"shell": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "arg", true),
 						},
 					},
-					"run": {
+					"run": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "arg", true),
 						},
 					},
-					"env": {
+					"env": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 							parser.NewField(parser.Str, "value", false),
 						},
 					},
-					"dir": {
+					"dir": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"user": {
+					"user": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "name", false),
 						},
 					},
-					"mkdir": {
+					"mkdir": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 							parser.NewField(parser.Int, "filemode", false),
 						},
 					},
-					"mkfile": {
+					"mkfile": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
@@ -103,13 +103,13 @@ var (
 							parser.NewField(parser.Str, "content", false),
 						},
 					},
-					"rm": {
+					"rm": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"copy": {
+					"copy": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Filesystem, "input", false),
@@ -117,38 +117,42 @@ var (
 							parser.NewField(parser.Str, "dst", false),
 						},
 					},
-				},
-			},
-			"option::copy": {
-				Func: map[string]FuncLookup{
-					"followSymlinks": {
-						IsSource: false,
-						Params:   []*parser.Field{},
-					},
-					"contentsOnly": {
-						IsSource: false,
-						Params:   []*parser.Field{},
-					},
-					"unpack": {
-						IsSource: false,
-						Params:   []*parser.Field{},
-					},
-					"createDestPath": {
+					"output": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
 				},
 			},
-			"option::generate": {
+			"option::copy": LookupByType{
 				Func: map[string]FuncLookup{
-					"frontendInput": {
+					"followSymlinks": FuncLookup{
+						IsSource: false,
+						Params:   []*parser.Field{},
+					},
+					"contentsOnly": FuncLookup{
+						IsSource: false,
+						Params:   []*parser.Field{},
+					},
+					"unpack": FuncLookup{
+						IsSource: false,
+						Params:   []*parser.Field{},
+					},
+					"createDestPath": FuncLookup{
+						IsSource: false,
+						Params:   []*parser.Field{},
+					},
+				},
+			},
+			"option::generate": LookupByType{
+				Func: map[string]FuncLookup{
+					"frontendInput": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 							parser.NewField(parser.Filesystem, "value", false),
 						},
 					},
-					"frontendOpt": {
+					"frontendOpt": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
@@ -157,29 +161,29 @@ var (
 					},
 				},
 			},
-			"option::git": {
+			"option::git": LookupByType{
 				Func: map[string]FuncLookup{
-					"keepGitDir": {
+					"keepGitDir": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
 				},
 			},
-			"option::http": {
+			"option::http": LookupByType{
 				Func: map[string]FuncLookup{
-					"checksum": {
+					"checksum": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "digest", false),
 						},
 					},
-					"chmod": {
+					"chmod": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
 						},
 					},
-					"filename": {
+					"filename": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "name", false),
@@ -187,29 +191,29 @@ var (
 					},
 				},
 			},
-			"option::image": {
+			"option::image": LookupByType{
 				Func: map[string]FuncLookup{
-					"resolve": {
+					"resolve": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
 				},
 			},
-			"option::local": {
+			"option::local": LookupByType{
 				Func: map[string]FuncLookup{
-					"includePatterns": {
+					"includePatterns": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "pattern", true),
 						},
 					},
-					"excludePatterns": {
+					"excludePatterns": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "pattern", true),
 						},
 					},
-					"followPaths": {
+					"followPaths": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", true),
@@ -217,19 +221,19 @@ var (
 					},
 				},
 			},
-			"option::mkdir": {
+			"option::mkdir": LookupByType{
 				Func: map[string]FuncLookup{
-					"createParents": {
+					"createParents": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
-					"chown": {
+					"chown": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "owner", false),
 						},
 					},
-					"createdTime": {
+					"createdTime": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "created", false),
@@ -237,15 +241,15 @@ var (
 					},
 				},
 			},
-			"option::mkfile": {
+			"option::mkfile": LookupByType{
 				Func: map[string]FuncLookup{
-					"chown": {
+					"chown": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "owner", false),
 						},
 					},
-					"createdTime": {
+					"createdTime": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "created", false),
@@ -253,23 +257,23 @@ var (
 					},
 				},
 			},
-			"option::mount": {
+			"option::mount": LookupByType{
 				Func: map[string]FuncLookup{
-					"readonly": {
+					"readonly": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
-					"tmpfs": {
+					"tmpfs": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
-					"sourcePath": {
+					"sourcePath": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"cache": {
+					"cache": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "cacheid", false),
@@ -278,74 +282,115 @@ var (
 					},
 				},
 			},
-			"option::rm": {
+			"option::output": LookupByType{
 				Func: map[string]FuncLookup{
-					"allowNotFound": {
+					"dockerPush": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "ref", false),
+						},
+					},
+					"dockerLoad": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "ref", false),
+						},
+					},
+					"download": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+						},
+					},
+					"downloadTarball": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+						},
+					},
+					"downloadOCITarball": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+						},
+					},
+					"downloadDockerTarball": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+							parser.NewField(parser.Str, "ref", false),
+						},
+					},
+				},
+			},
+			"option::rm": LookupByType{
+				Func: map[string]FuncLookup{
+					"allowNotFound": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
-					"allowWildcards": {
+					"allowWildcards": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
 				},
 			},
-			"option::run": {
+			"option::run": LookupByType{
 				Func: map[string]FuncLookup{
-					"readonlyRootfs": {
+					"readonlyRootfs": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
-					"env": {
+					"env": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 							parser.NewField(parser.Str, "value", false),
 						},
 					},
-					"dir": {
+					"dir": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"user": {
+					"user": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "name", false),
 						},
 					},
-					"network": {
+					"network": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "networkmode", false),
 						},
 					},
-					"security": {
+					"security": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "securitymode", false),
 						},
 					},
-					"host": {
+					"host": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "hostname", false),
 							parser.NewField(parser.Str, "address", false),
 						},
 					},
-					"ssh": {
+					"ssh": FuncLookup{
 						IsSource: false,
 						Params:   []*parser.Field{},
 					},
-					"secret": {
+					"secret": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "localPath", false),
 							parser.NewField(parser.Str, "mountPoint", false),
 						},
 					},
-					"mount": {
+					"mount": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Filesystem, "input", false),
@@ -354,21 +399,21 @@ var (
 					},
 				},
 			},
-			"option::secret": {
+			"option::secret": LookupByType{
 				Func: map[string]FuncLookup{
-					"uid": {
+					"uid": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 					},
-					"gid": {
+					"gid": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 					},
-					"mode": {
+					"mode": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
@@ -376,33 +421,33 @@ var (
 					},
 				},
 			},
-			"option::ssh": {
+			"option::ssh": LookupByType{
 				Func: map[string]FuncLookup{
-					"target": {
+					"target": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "mountPoint", false),
 						},
 					},
-					"localPath": {
+					"localPath": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"uid": {
+					"uid": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 					},
-					"gid": {
+					"gid": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 					},
-					"mode": {
+					"mode": FuncLookup{
 						IsSource: false,
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
@@ -410,9 +455,9 @@ var (
 					},
 				},
 			},
-			parser.Str: {
+			parser.Str: LookupByType{
 				Func: map[string]FuncLookup{
-					"format": {
+					"format": FuncLookup{
 						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "formatString", false),
