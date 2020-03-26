@@ -41,19 +41,19 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 	}
 	defer f.Close()
 
-	file, _, err := Parse(f)
+	mod, _, err := Parse(f)
 	if err != nil {
 		return nil, err
 	}
 
-	err = checker.Check(file)
+	err = checker.Check(mod)
 	if err != nil {
 		return nil, err
 	}
 
 	var params []*parser.Field
 
-	parser.Inspect(file, func(node parser.Node) bool {
+	parser.Inspect(mod, func(node parser.Node) bool {
 		switch n := node.(type) {
 		case *parser.FuncDecl:
 			if n.Name.Name == target {
@@ -123,7 +123,7 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 
 			call.Args = append(call.Args, parser.NewIdentExpr(param.Name.Name))
 
-			file.Scope.Insert(&parser.Object{
+			mod.Scope.Insert(&parser.Object{
 				Kind:  parser.ExprKind,
 				Ident: param.Name,
 				Node:  param,
@@ -132,22 +132,24 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		}
 	}
 
-	cg, err := codegen.New()
+	cg, err := codegen.New(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	st, err := cg.Generate(ctx, call, file)
+	_, err = cg.Generate(ctx, mod, []*parser.CallStmt{call})
 	if err != nil {
 		return nil, err
 	}
 
-	def, err := st.Marshal(llb.LinuxAmd64)
-	if err != nil {
-		return nil, err
-	}
+	return nil, nil
 
-	return c.Solve(ctx, client.SolveRequest{
-		Definition: def.ToPB(),
-	})
+	// def, err := st.Marshal(llb.LinuxAmd64)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return c.Solve(ctx, client.SolveRequest{
+	// 	Definition: def.ToPB(),
+	// })
 }

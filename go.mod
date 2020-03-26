@@ -5,6 +5,8 @@ go 1.12
 require (
 	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
 	github.com/docker/buildx v0.3.1
+	github.com/docker/cli v1.14.0-0.20190523191156-ab688a9a79a1
+	github.com/docker/docker v1.14.0-0.20190410063227-3998dffb806f3887f804b813069f59bc14a7f3c1
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kr/pretty v0.2.0 // indirect
@@ -33,6 +35,8 @@ replace github.com/hashicorp/go-immutable-radix => github.com/tonistiigi/go-immu
 replace github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
 
 replace github.com/containerd/containerd => github.com/containerd/containerd v1.3.1-0.20200306194444-3868dd754064
+
+replace github.com/gogo/googleapis => github.com/gogo/googleapis v1.3.2
 
 replace github.com/docker/cli => github.com/docker/cli v0.0.0-20190523191156-ab688a9a79a1
 

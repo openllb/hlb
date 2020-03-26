@@ -115,7 +115,7 @@ func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 }
 
 func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, modulePath string) (Resolved, error) {
-	cg, err := codegen.New()
+	cg, err := codegen.New(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ type remoteResolver struct {
 }
 
 func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	cg, err := codegen.New()
+	cg, err := codegen.New(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -195,10 +195,10 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, err
 	}
 
-	var solveOpts []solver.SolveOption
-	for id, path := range cg.Locals {
-		solveOpts = append(solveOpts, solver.WithLocal(id, path))
-	}
+	// var solveOpts []solver.SolveOption
+	// for id, path := range cg.Locals {
+	// 	solveOpts = append(solveOpts, solver.WithLocal(id, path))
+	// }
 
 	var pw progress.Writer
 	if r.mw != nil {
@@ -236,7 +236,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 			<-closed
 
 			return gateway.NewResult(), nil
-		}, solveOpts...)
+		})
 	})
 
 	<-resolved

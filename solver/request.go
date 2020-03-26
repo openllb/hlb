@@ -28,14 +28,6 @@ type Request interface {
 	Peer(p Request) Request
 }
 
-// NewRequest returns a single solve request.
-func NewRequest(st llb.State, opts ...SolveOption) Request {
-	return &singleRequest{
-		st:   st,
-		opts: opts,
-	}
-}
-
 // NewEmptyRequest returns an empty request, which can be used as the root of
 // a solve request tree.
 func NewEmptyRequest() Request {
@@ -61,8 +53,20 @@ type singleRequest struct {
 	opts []SolveOption
 }
 
+// NewRequest returns a single solve request.
+func NewRequest(st llb.State, opts ...SolveOption) Request {
+	return &singleRequest{
+		st:   st,
+		opts: opts,
+	}
+}
+
 func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
-	pw := mw.WithPrefix("", false)
+	var pw progress.Writer
+	if mw != nil {
+		pw = mw.WithPrefix("", false)
+	}
+
 	return Solve(ctx, cln, pw, r.st, r.opts...)
 }
 

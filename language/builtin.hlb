@@ -400,6 +400,59 @@ option::copy unpack()
 # @return an option to create the parent directories of the destination.
 option::copy createDestPath()
 
+# Outputs the filesystem to external sources. If no options are
+# defined, this is a no-op.
+#
+# @return the filesystem unchanged.
+fs (fs) output()
+
+# Pushes the filesystem to a registry following the distribution
+# spec: https://github.com/opencontainers/distribution-spec/
+#
+# @param ref a distribution reference. if not fully qualified, it will be
+# expanded the same as the docker CLI.
+# @return an option to push the filesystem to a registry.
+option::output dockerPush(string ref)
+
+# Loads the filesystem as a Docker image to the docker client found in your
+# environment.
+#
+# @param ref the name of the Docker image.
+# @return an option to load a filesystem to the docker client found in your
+# environment.
+option::output dockerLoad(string ref)
+
+# Downloads the filesystem to a local path.
+#
+# @param localPath the destination filepath for the filesystem contents.
+# @return an option to download a filesystem to the local system.
+option::output download(string localPath)
+
+# Downloads the filesystem as a tarball to a local path.
+#
+# @param localPath the destination filepath for the tarball.
+# @return an option to download a filesystem to the local system as a tarball.
+option::output downloadTarball(string localPath)
+
+# Downloads the filesystem as a OCI filesystem bundle to a local path.
+# See: https://github.com/opencontainers/runtime-spec/blob/master/bundle.md
+#
+# @param localPath the destination filepath for the tarball.
+# @return an option to download a filesystem to the local system as a OCI
+# filesystem bundle.
+option::output downloadOCITarball(string localPath)
+
+# Downloads the filesystem as a Docker image tarball to a local path.
+# The tarball is able to be loaded into a docker engine via `docker load`.
+# See: https://docs.docker.com/engine/reference/commandline/save/
+# and https://docs.docker.com/engine/reference/commandline/load/
+#
+# @param localPath the destination filepath for the tarball.
+# @param ref the name of the Docker image.
+# @return an option to download a filesystem to the local system as a Docker
+# image tarball.
+option::output downloadDockerTarball(string localPath, string ref)
+
 # A format specifier that is interpolated with values.
 #
 # @param formatString the format specifier.

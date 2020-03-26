@@ -62,7 +62,7 @@ func WithLogOutput(logOutput LogOutput) ProgressOption {
 // ```go
 // p, _ := progress.NewProgress(ctx)
 //
-// p.Go(func() {
+// p.Go(func(ctx context.Context) error {
 // 	defer p.Release()
 // 	return workFunc(ctx, p.MultiWriter())
 // })
@@ -135,8 +135,10 @@ func (p *Progress) MultiWriter() *progress.MultiWriter {
 	return p.mw
 }
 
-func (p *Progress) Go(fn func() error) {
-	p.g.Go(fn)
+func (p *Progress) Go(fn func(ctx context.Context) error) {
+	p.g.Go(func() error {
+		return fn(p.ctx)
+	})
 }
 
 func (p *Progress) WithPrefix(pfx string, fn func(ctx context.Context, pw progress.Writer) error) {

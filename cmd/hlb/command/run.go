@@ -67,7 +67,7 @@ type RunOptions struct {
 	Targets   []string
 	LLB       bool
 	LogOutput string
-	Output    io.WriteCloser
+	Output    io.Writer
 }
 
 func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOptions) error {
@@ -125,18 +125,19 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		}
 		t := hlb.Target{
 			Name:   fields[0],
-			Output: opts.Output,
 		}
 		for _, field := range fields[1:] {
 			switch {
+			case strings.HasPrefix(field, "dockerPush="):
+				t.DockerPushRef = strings.TrimPrefix(field, "dockerPush=")
+			case strings.HasPrefix(field, "dockerLoad="):
+				t.DockerLoadRef = strings.TrimPrefix(field, "dockerLoad=")
 			case strings.HasPrefix(field, "download="):
-				t.Download = strings.TrimPrefix(field, "download=")
-			case field == "tarball":
-				t.Tarball = true
-			case strings.HasPrefix(field, "dockerTarball="):
-				t.DockerTarball = strings.TrimPrefix(field, "dockerTarball=")
-			case strings.HasPrefix(field, "push="):
-				t.Push = strings.TrimPrefix(field, "push=")
+				t.DownloadPath = strings.TrimPrefix(field, "download=")
+			case strings.HasPrefix(field, "downloadTarball="):
+				t.TarballPath = strings.TrimPrefix(field, "downloadTarball=")
+			case strings.HasPrefix(field, "downloadOCITarball="):
+				t.OCITarballPath = strings.TrimPrefix(field, "downloadOCITarball=")
 			default:
 				return fmt.Errorf("Unknown target option %q for target %q", field, t.Name)
 			}
@@ -161,7 +162,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return solveReq.Solve(ctx, cln, nil)
 	}
 
-	p.Go(func() error {
+	p.Go(func(ctx context.Context) error {
 		defer p.Release()
 		return solveReq.Solve(ctx, cln, p.MultiWriter())
 	})
