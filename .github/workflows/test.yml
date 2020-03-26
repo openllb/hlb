@@ -29,7 +29,6 @@ jobs:
     - name: Compile
       run: |
         go build -o build/hlb ./cmd/hlb
-        go build -o build/frontend ./cmd/frontend
         go build -o build/docgen ./cmd/docgen
         go build -o build/builtingen ./cmd/builtingen
 

@@ -6,7 +6,6 @@ require (
 	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
 	github.com/docker/buildx v0.3.1
 	github.com/docker/cli v1.14.0-0.20190523191156-ab688a9a79a1
-	github.com/docker/docker v1.14.0-0.20190410063227-3998dffb806f3887f804b813069f59bc14a7f3c1
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kr/pretty v0.2.0 // indirect
@@ -24,6 +23,7 @@ require (
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.28.0 // indirect
+	gotest.tools/v3 v3.0.2 // indirect
 )
 
 replace github.com/alecthomas/participle => github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc
