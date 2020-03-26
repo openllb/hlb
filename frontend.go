@@ -132,7 +132,7 @@ func Frontend(ctx context.Context, c client.Client) (*client.Result, error) {
 		}
 	}
 
-	cg, err := codegen.New(nil)
+	cg, err := codegen.New()
 	if err != nil {
 		return nil, err
 	}

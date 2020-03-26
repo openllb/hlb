@@ -121,13 +121,11 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		callTargets = append(callTargets, parser.NewCallStmt(targetOverride, nil, nil, nil).Call)
 	}
 
-	var (
-		request solver.Request
-		opts    []codegen.CodeGenOption
-	)
+	opts := []codegen.CodeGenOption{codegen.WithMultiWriter(mw)}
+	var request solver.Request
 
 	gen := func() error {
-		cg, err := codegen.New(mw, opts...)
+		cg, err := codegen.New(opts...)
 		if err != nil {
 			return err
 		}

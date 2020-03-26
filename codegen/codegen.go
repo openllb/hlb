@@ -28,8 +28,6 @@ type CodeGen struct {
 	mw        *progress.MultiWriter
 	dockerCli *command.DockerCli
 	solveOpts []solver.SolveOption
-	locals    map[string]string
-	secrets   map[string]string
 }
 
 type CodeGenOption func(*CodeGen) error
@@ -41,10 +39,16 @@ func WithDebugger(dbgr Debugger) CodeGenOption {
 	}
 }
 
-func New(mw *progress.MultiWriter, opts ...CodeGenOption) (*CodeGen, error) {
+func WithMultiWriter(mw *progress.MultiWriter) CodeGenOption {
+	return func(i *CodeGen) error {
+		i.mw = mw
+		return nil
+	}
+}
+
+func New(opts ...CodeGenOption) (*CodeGen, error) {
 	cg := &CodeGen{
 		Debug: NewNoopDebugger(),
-		mw:    mw,
 	}
 	for _, opt := range opts {
 		err := opt(cg)

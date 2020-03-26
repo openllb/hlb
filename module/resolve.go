@@ -115,7 +115,7 @@ func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 }
 
 func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, modulePath string) (Resolved, error) {
-	cg, err := codegen.New(nil)
+	cg, err := codegen.New()
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ type remoteResolver struct {
 }
 
 func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	cg, err := codegen.New(nil)
+	cg, err := codegen.New()
 	if err != nil {
 		return nil, err
 	}
