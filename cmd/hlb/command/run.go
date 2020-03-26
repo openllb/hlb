@@ -124,7 +124,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 			return err
 		}
 		t := hlb.Target{
-			Name:   fields[0],
+			Name: fields[0],
 		}
 		for _, field := range fields[1:] {
 			switch {

@@ -203,7 +203,7 @@ type FuncDecl struct {
 	Body   *BlockStmt `( @@ )?`
 }
 
-func NewFuncDecl(typ ObjType, name string, method bool, params []*Field, stmts ...*Stmt) *Decl{
+func NewFuncDecl(typ ObjType, name string, method bool, params []*Field, stmts ...*Stmt) *Decl {
 	fun := &FuncDecl{
 		Type:   NewType(typ),
 		Name:   NewIdent(name),

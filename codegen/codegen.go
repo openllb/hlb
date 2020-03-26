@@ -89,12 +89,18 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 				}
 
 				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback)
+				if err != nil {
+					return cg.request, nil
+				}
 			case *parser.AliasDecl:
 				if n.Func.Type.ObjType != parser.Filesystem {
 					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
 				}
 
 				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target)
+				if err != nil {
+					return cg.request, nil
+				}
 			}
 		default:
 			return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}

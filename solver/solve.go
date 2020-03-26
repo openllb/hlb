@@ -237,6 +237,7 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 	})
 
 	for _, waiter := range info.Waiters {
+		waiter := waiter
 		g.Go(func() error {
 			<-waiter
 			return nil
