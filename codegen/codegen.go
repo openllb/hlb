@@ -60,6 +60,10 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 	return cg, nil
 }
 
+func (cg *CodeGen) SolveOptions() []solver.SolveOption {
+	return cg.solveOpts
+}
+
 func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*parser.CallStmt) (solver.Request, error) {
 	cg.request = solver.NewEmptyRequest()
 
