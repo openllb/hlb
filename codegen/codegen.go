@@ -120,9 +120,9 @@ func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit 
 	return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
 }
 
-type aliasCallback func(*parser.CallStmt, interface{})
+type aliasCallback func(*parser.CallStmt, interface{}) bool
 
-func noopAliasCallback(_ *parser.CallStmt, _ interface{}) {}
+func noopAliasCallback(_ *parser.CallStmt, _ interface{}) bool { return true }
 
 func isBreakpoint(call *parser.CallStmt) bool {
 	return call.Func.Ident != nil && call.Func.Ident.Name == "breakpoint"
@@ -181,7 +181,10 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 
 	if sourceStmt.Alias != nil {
 		// Source statements may be aliased.
-		ac(sourceStmt, v)
+		cont := ac(sourceStmt, v)
+		if !cont {
+			return v, nil
+		}
 	}
 
 	for _, stmt := range stmts[index+1:] {
@@ -215,7 +218,10 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 
 		if call.Alias != nil {
 			// Chain statements may be aliased.
-			ac(call, v)
+			cont := ac(call, v)
+			if !cont {
+				break
+			}
 		}
 	}
 
@@ -555,7 +561,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				for _, target := range targets {
 					// Mounts are unique by its mountpoint, and its vertex representing the
 					// mount after execing can be aliased.
-					ac(calls[target], exec.GetMount(target))
+					cont := ac(calls[target], exec.GetMount(target))
+					if !cont {
+						break
+					}
 				}
 			}
 

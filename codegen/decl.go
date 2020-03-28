@@ -78,10 +78,12 @@ func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, 
 
 func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (interface{}, error) {
 	var v interface{}
-	_, err := cg.EmitFuncDecl(ctx, scope, alias.Func, call, "", func(aliasCall *parser.CallStmt, aliasValue interface{}) {
+	_, err := cg.EmitFuncDecl(ctx, scope, alias.Func, call, "", func(aliasCall *parser.CallStmt, aliasValue interface{}) bool {
 		if alias.Call == aliasCall {
 			v = aliasValue
+			return false
 		}
+		return true
 	})
 	if err != nil {
 		return nil, err
