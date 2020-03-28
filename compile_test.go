@@ -43,9 +43,9 @@ func TestCompile(t *testing.T) {
 		fs default() {
 			scratch
 			nothing fs { scratch; }
-		  }
+		}
 		fs nothing(fs repo) {
-		  scratch
+			scratch
 		}
 		`,
 		checker.ErrOnlyFirstSource{},
@@ -73,7 +73,7 @@ func TestCompile(t *testing.T) {
 			image "busybox:latest"
 			run "pwd" with option {
 				dir "/etc"
-				myopt 
+				myopt
 			}
 		}
 		`,
@@ -89,6 +89,17 @@ func TestCompile(t *testing.T) {
 		fs bar() {
 			image "busybox:latest"
 			run "echo bar"
+		}
+		`,
+		nil,
+	}, {
+		"cp from alias",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkfile "/foo" 0o644 "foo" as this
+			copy this "/foo" "/bar"
 		}
 		`,
 		nil,
