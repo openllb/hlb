@@ -271,13 +271,6 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 		return c.checkOptionBlockStmt(scope, typ, block)
 	}
 
-	// Non-option blocks must specify a source statement.
-	if block.NumStmts() == 0 {
-		return ErrNoSource{block}
-	}
-
-	foundSource := false
-
 	for _, stmt := range block.NonEmptyStmts() {
 		if stmt.Bad != nil {
 			c.errs = append(c.errs, ErrBadParse{stmt})
@@ -324,25 +317,8 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 
 		// If the function is not a builtin, retrieve it from the scope and then
 		// type check it.
-		funcLookup, ok := builtin.Lookup.ByType[typ].Func[name]
-		if ok {
-			// If any other statement after the first is a source statement, then error.
-			//
-			// Consider the following:
-			//
-			// ```hlb
-			// fs default() {
-			//     image "alpine"
-			//     image "busybox"
-			// }
-			// ```
-			//
-			// Redeclaring a new source makes the previous instructions orphaned from
-			// the graph.
-			if foundSource && funcLookup.IsSource {
-				return ErrOnlyFirstSource{call}
-			}
-		} else {
+		_, ok := builtin.Lookup.ByType[typ].Func[name]
+		if !ok {
 			obj := scope.Lookup(name)
 			if obj == nil {
 				return ErrIdentNotDefined{Ident: call.Func.Ident}
@@ -356,11 +332,6 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 				switch n := obj.Node.(type) {
 				case *parser.FuncDecl:
 					callType = n.Type
-					// if we already have a source and this function is not a method
-					// so it will be returning an invalid second source
-					if foundSource && n.Method == nil && callType.ObjType == typ && callType.Primary() != parser.Option {
-						return ErrOnlyFirstSource{CallStmt: call}
-					}
 				case *parser.AliasDecl:
 					callType = n.Func.Type
 				}
@@ -373,13 +344,9 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 
 			err := c.checkType(call, typ, callType)
 			if err != nil {
-				if !foundSource {
-					return ErrFirstSource{CallStmt: call}
-				}
 				return err
 			}
 		}
-		foundSource = true
 
 		err := c.checkCallStmt(scope, typ, call)
 		if err != nil {
