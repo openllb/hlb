@@ -81,40 +81,39 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		}
 		names = append(names, target.Name)
 
-		var outputOptions []*parser.Stmt
+		outputs := []*parser.Stmt{
+			parser.NewCallStmt(target.Name, nil, nil, nil),
+		}
 
 		if target.DockerPushRef != "" {
-			outputOptions = append(outputOptions, parser.NewCallStmt("dockerPush", []*parser.Expr{
+			outputs = append(outputs, parser.NewCallStmt("dockerPush", []*parser.Expr{
 				parser.NewStringExpr(target.DockerPushRef),
 			}, nil, nil))
 		}
 		if target.DockerLoadRef != "" {
-			outputOptions = append(outputOptions, parser.NewCallStmt("dockerLoad", []*parser.Expr{
+			outputs = append(outputs, parser.NewCallStmt("dockerLoad", []*parser.Expr{
 				parser.NewStringExpr(target.DockerLoadRef),
 			}, nil, nil))
 		}
 		if target.DownloadPath != "" {
-			outputOptions = append(outputOptions, parser.NewCallStmt("download", []*parser.Expr{
+			outputs = append(outputs, parser.NewCallStmt("download", []*parser.Expr{
 				parser.NewStringExpr(target.DownloadPath),
 			}, nil, nil))
 		}
 		if target.TarballPath != "" {
-			outputOptions = append(outputOptions, parser.NewCallStmt("downloadTarball", []*parser.Expr{
+			outputs = append(outputs, parser.NewCallStmt("downloadTarball", []*parser.Expr{
 				parser.NewStringExpr(target.TarballPath),
 			}, nil, nil))
 		}
 		if target.OCITarballPath != "" {
-			outputOptions = append(outputOptions, parser.NewCallStmt("downloadOCITarball", []*parser.Expr{
+			outputs = append(outputs, parser.NewCallStmt("downloadOCITarball", []*parser.Expr{
 				parser.NewStringExpr(target.OCITarballPath),
 			}, nil, nil))
 		}
 
 		// Generate a target override to plumb the outputs specified from the CLI.
 		targetOverride := digest.FromString(target.Name).String()
-		decl := parser.NewFuncDecl(parser.Filesystem, targetOverride, false, nil,
-			parser.NewCallStmt(target.Name, nil, nil, nil),
-			parser.NewCallStmt("output", nil, parser.NewWithFuncLit(outputOptions...), nil),
-		)
+		decl := parser.NewFuncDecl(parser.Filesystem, targetOverride, false, nil, outputs...)
 		checker.InitScope(mod, decl.Func)
 
 		mod.Decls = append(mod.Decls, decl)

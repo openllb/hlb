@@ -6,9 +6,7 @@ fs default() {
 
 fs crossHLB() {
 	go.crossBinaries src "github.com/openllb/hlb/cmd/hlb" "github.com/openllb/hlb"
-	output with option {
-		download "./build/dist"
-	}
+	download "./build/dist"
 }
 
 fs lint() {
