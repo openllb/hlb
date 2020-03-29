@@ -41,44 +41,12 @@ func (e ErrDuplicateFields) Error() string {
 	return fmt.Sprintf("%s duplicate fields named %s", FormatPos(e.Fields[0].Pos), e.Fields[0].Name)
 }
 
-type ErrNoSource struct {
-	BlockStmt *parser.BlockStmt
-}
-
-func (e ErrNoSource) Error() string {
-	return fmt.Sprintf("%s fs block statement must be non-empty", FormatPos(e.BlockStmt.Pos))
-}
-
-type ErrFirstSource struct {
-	CallStmt *parser.CallStmt
-}
-
-func (e ErrFirstSource) Error() string {
-	return fmt.Sprintf("%s first statement must be source", FormatPos(e.CallStmt.Pos))
-}
-
-type ErrOnlyFirstSource struct {
-	CallStmt *parser.CallStmt
-}
-
-func (e ErrOnlyFirstSource) Error() string {
-	return fmt.Sprintf("%s only first statement must be source", FormatPos(e.CallStmt.Pos))
-}
-
 type ErrInvalidFunc struct {
 	CallStmt *parser.CallStmt
 }
 
 func (e ErrInvalidFunc) Error() string {
 	return fmt.Sprintf("%s invalid func %s", FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
-}
-
-type ErrFuncSource struct {
-	CallStmt *parser.CallStmt
-}
-
-func (e ErrFuncSource) Error() string {
-	return fmt.Sprintf("%s func %s must be used as a fs source", FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
 }
 
 type ErrNumArgs struct {

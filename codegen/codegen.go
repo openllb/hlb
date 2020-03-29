@@ -16,7 +16,6 @@ import (
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
-	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -129,8 +128,6 @@ func isBreakpoint(call *parser.CallStmt) bool {
 }
 
 func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback) (interface{}, error) {
-	index := 0
-
 	var v interface{}
 	switch typ {
 	case parser.Filesystem:
@@ -139,55 +136,8 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		v = ""
 	}
 
-	for i, stmt := range stmts {
-		if isBreakpoint(stmt.Call) {
-			err := cg.Debug(ctx, scope, stmt.Call, v)
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-
-		index = i
-		break
-	}
-
-	// Before executing a source call statement.
-	sourceStmt := stmts[index].Call
-	err := cg.Debug(ctx, scope, sourceStmt, v)
-	if err != nil {
-		return nil, err
-	}
-
-	var name string
-	switch {
-	case sourceStmt.Func.Ident != nil:
-		name = sourceStmt.Func.Ident.Name
-	case sourceStmt.Func.Selector != nil:
-		name = sourceStmt.Func.Selector.Ident.Name
-	}
-
-	v, err = cg.EmitSourceStmt(ctx, scope, typ, sourceStmt, name, ac)
-	if err != nil {
-		return nil, err
-	}
-
-	if st, ok := v.(llb.State); ok && st.Output() != nil {
-		err = st.Validate()
-		if err != nil {
-			return nil, checker.ErrCodeGen{Node: sourceStmt, Err: err}
-		}
-	}
-
-	if sourceStmt.Alias != nil {
-		// Source statements may be aliased.
-		cont := ac(sourceStmt, v)
-		if !cont {
-			return v, nil
-		}
-	}
-
-	for _, stmt := range stmts[index+1:] {
+	var err error
+	for _, stmt := range stmts {
 		call := stmt.Call
 		if isBreakpoint(call) {
 			err = cg.Debug(ctx, scope, call, v)
@@ -212,7 +162,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		if st, ok := v.(llb.State); ok && st.Output() != nil {
 			err = st.Validate()
 			if err != nil {
-				return nil, checker.ErrCodeGen{Node: sourceStmt, Err: err}
+				return nil, checker.ErrCodeGen{Node: stmt, Err: err}
 			}
 		}
 
@@ -252,7 +202,69 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 }
 
 func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt) (func(string) string, error) {
-	panic("unimplemented")
+	args := call.Args
+	name := call.Func.Ident.Name
+	switch name {
+	case "value":
+		val, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		return func(_ string) string {
+			return val
+		}, err
+	case "format":
+		formatStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		var as []interface{}
+		for _, arg := range args[1:] {
+			a, err := cg.EmitStringExpr(ctx, scope, call, arg)
+			if err != nil {
+				return nil, err
+			}
+			as = append(as, a)
+		}
+
+		return func(_ string) string {
+			return fmt.Sprintf(formatStr, as...)
+		}, nil
+	default:
+		// must be a named reference
+		obj := scope.Lookup(name)
+		if obj == nil {
+			panic(name)
+		}
+
+		var v interface{}
+		var err error
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, "", noopAliasCallback)
+		case *parser.AliasDecl:
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call)
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
+			switch m := importObj.Node.(type) {
+			case *parser.FuncDecl:
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, "", noopAliasCallback)
+			case *parser.AliasDecl:
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call)
+			default:
+				panic("unknown obj type")
+			}
+		case *parser.Field:
+			v = obj.Data
+		default:
+			panic("unknown obj type")
+		}
+		if err != nil {
+			return nil, err
+		}
+		return func(_ string) string {
+			return v.(string)
+		}, nil
+	}
 }
 
 func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback) (llb.State, error) {
@@ -283,173 +295,6 @@ func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *pa
 		return cg.EmitOptions(ctx, scope, op, lit.Body.NonEmptyStmts(), ac)
 	}
 	return nil, nil
-}
-
-func (cg *CodeGen) EmitSourceStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, name string, ac aliasCallback) (interface{}, error) {
-	_, ok := builtin.Lookup.ByType[typ].Func[name]
-	if ok {
-		switch typ {
-		case parser.Filesystem:
-			return cg.EmitFilesystemSourceStmt(ctx, scope, call, ac)
-		case parser.Str:
-			return cg.EmitStringSourceStmt(ctx, scope, call, ac)
-		default:
-			panic("unimplemented")
-		}
-	} else {
-		obj := scope.Lookup(name)
-		if obj == nil {
-			panic(name)
-		}
-
-		switch n := obj.Node.(type) {
-		case *parser.FuncDecl:
-			return cg.EmitFuncDecl(ctx, scope, n, call, "", noopAliasCallback)
-		case *parser.AliasDecl:
-			return cg.EmitAliasDecl(ctx, scope, n, call)
-		case *parser.ImportDecl:
-			importScope := obj.Data.(*parser.Scope)
-			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
-			switch m := importObj.Node.(type) {
-			case *parser.FuncDecl:
-				return cg.EmitFuncDecl(ctx, scope, m, call, "", noopAliasCallback)
-			case *parser.AliasDecl:
-				return cg.EmitAliasDecl(ctx, scope, m, call)
-			default:
-				panic("unknown obj type")
-			}
-		case *parser.Field:
-			return obj.Data, nil
-		default:
-			panic("unknown obj type")
-		}
-	}
-}
-
-func (cg *CodeGen) EmitFilesystemSourceStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback) (st llb.State, err error) {
-	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
-	if err != nil {
-		return st, err
-	}
-
-	args := call.Args
-	switch call.Func.Ident.Name {
-	case "scratch":
-		return llb.Scratch(), nil
-	case "image":
-		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		if err != nil {
-			return st, err
-		}
-
-		var opts []llb.ImageOption
-		for _, iopt := range iopts {
-			opt := iopt.(llb.ImageOption)
-			opts = append(opts, opt)
-		}
-
-		return llb.Image(ref, opts...), nil
-	case "http":
-		url, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		if err != nil {
-			return st, err
-		}
-
-		var opts []llb.HTTPOption
-		for _, iopt := range iopts {
-			opt := iopt.(llb.HTTPOption)
-			opts = append(opts, opt)
-		}
-
-		return llb.HTTP(url, opts...), nil
-	case "git":
-		remote, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		if err != nil {
-			return st, err
-		}
-		ref, err := cg.EmitStringExpr(ctx, scope, call, args[1])
-		if err != nil {
-			return st, err
-		}
-
-		var opts []llb.GitOption
-		for _, iopt := range iopts {
-			opt := iopt.(llb.GitOption)
-			opts = append(opts, opt)
-		}
-
-		return llb.Git(remote, ref, opts...), nil
-	case "local":
-		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		if err != nil {
-			return st, err
-		}
-
-		var opts []llb.LocalOption
-		for _, iopt := range iopts {
-			opt := iopt.(llb.LocalOption)
-			opts = append(opts, opt)
-		}
-
-		// Get a consistent hash for this local (path + options) so we don't
-		// transport the same content multiple times when referenced repeatedly.
-
-		// First get serialized bytes for this llb.Local state.
-		tmpSt := llb.Local("", opts...)
-		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
-		if err != nil {
-			return tmpSt, checker.ErrCodeGen{Node: call, Err: err}
-		}
-
-		// Next append the path so we have the path + options serialized hash input.
-		hashInput = append(hashInput, []byte(path)...)
-
-		id := string(digest.FromBytes(hashInput))
-		cg.solveOpts = append(cg.solveOpts, solver.WithLocal(id, path))
-
-		return llb.Local(id, opts...), nil
-	case "generate":
-		frontend, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
-		if err != nil {
-			return st, err
-		}
-
-		opts := []llb.FrontendOption{llb.IgnoreCache}
-		for _, iopt := range iopts {
-			opt := iopt.(llb.FrontendOption)
-			opts = append(opts, opt)
-		}
-
-		return llb.Frontend(frontend, opts...), nil
-	default:
-		panic("unknown fs source stmt")
-	}
-}
-
-func (cg *CodeGen) EmitStringSourceStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback) (string, error) {
-	args := call.Args
-	switch call.Func.Ident.Name {
-	case "value":
-		return cg.EmitStringExpr(ctx, scope, call, args[0])
-	case "format":
-		formatStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		if err != nil {
-			return "", err
-		}
-
-		var as []interface{}
-		for _, arg := range args[1:] {
-			a, err := cg.EmitStringExpr(ctx, scope, call, arg)
-			if err != nil {
-				return "", err
-			}
-			as = append(as, a)
-		}
-
-		return fmt.Sprintf(formatStr, as...), nil
-	default:
-		panic("unknown string source stmt")
-	}
 }
 
 func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, parent *parser.CallStmt, with *parser.WithOpt, ac aliasCallback) ([]interface{}, error) {
@@ -486,7 +331,113 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		return so, err
 	}
 
-	switch call.Func.Ident.Name {
+	var name string
+	switch {
+	case call.Func.Ident != nil:
+		name = call.Func.Ident.Name
+	case call.Func.Selector != nil:
+		name = call.Func.Selector.Ident.Name
+	}
+
+	switch name {
+	case "scratch":
+		so = func(_ llb.State) llb.State {
+			return llb.Scratch()
+		}
+	case "image":
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		var opts []llb.ImageOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.ImageOption)
+			opts = append(opts, opt)
+		}
+
+		so = func(_ llb.State) llb.State {
+			return llb.Image(ref, opts...)
+		}
+	case "http":
+		url, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		var opts []llb.HTTPOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.HTTPOption)
+			opts = append(opts, opt)
+		}
+
+		so = func(_ llb.State) llb.State {
+			return llb.HTTP(url, opts...)
+		}
+	case "git":
+		remote, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[1])
+		if err != nil {
+			return so, err
+		}
+
+		var opts []llb.GitOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.GitOption)
+			opts = append(opts, opt)
+		}
+		so = func(_ llb.State) llb.State {
+			return llb.Git(remote, ref, opts...)
+		}
+	case "local":
+		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		var opts []llb.LocalOption
+		for _, iopt := range iopts {
+			opt := iopt.(llb.LocalOption)
+			opts = append(opts, opt)
+		}
+
+		// Get a consistent hash for this local (path + options) so we don't
+		// transport the same content multiple times when referenced repeatedly.
+
+		// First get serialized bytes for this llb.Local state.
+		tmpSt := llb.Local("", opts...)
+		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
+		if err != nil {
+			return so, checker.ErrCodeGen{Node: call, Err: err}
+		}
+
+		// Next append the path so we have the path + options serialized hash input.
+		hashInput = append(hashInput, []byte(path)...)
+
+		id := string(digest.FromBytes(hashInput))
+		cg.solveOpts = append(cg.solveOpts, solver.WithLocal(id, path))
+
+		so = func(_ llb.State) llb.State {
+			return llb.Local(id, opts...)
+		}
+	case "generate":
+		frontend, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
+		if err != nil {
+			return so, err
+		}
+
+		opts := []llb.FrontendOption{llb.IgnoreCache}
+		for _, iopt := range iopts {
+			opt := iopt.(llb.FrontendOption)
+			opts = append(opts, opt)
+		}
+
+		so = func(_ llb.State) llb.State {
+			return llb.Frontend(frontend, opts...)
+		}
 	case "run":
 		var shlex string
 		if len(args) == 1 {
@@ -727,6 +678,42 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				cg.request = cg.request.Peer(solver.NewRequest(st, append(solveOpts, opt)...))
 			}
 			return st
+		}
+	default:
+		// must be a named reference
+		obj := scope.Lookup(name)
+		if obj == nil {
+			panic(name)
+		}
+
+		var v interface{}
+		var err error
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, "", ac)
+		case *parser.AliasDecl:
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call)
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
+			switch m := importObj.Node.(type) {
+			case *parser.FuncDecl:
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, "", ac)
+			case *parser.AliasDecl:
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call)
+			default:
+				panic("unknown obj type")
+			}
+		case *parser.Field:
+			v = obj.Data
+		default:
+			panic("unknown obj type")
+		}
+		if err != nil {
+			return so, err
+		}
+		so = func(_ llb.State) llb.State {
+			return v.(llb.State)
 		}
 	}
 

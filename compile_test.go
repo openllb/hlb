@@ -48,7 +48,7 @@ func TestCompile(t *testing.T) {
 			scratch
 		}
 		`,
-		checker.ErrOnlyFirstSource{},
+		nil,
 	}, {
 		"single named option",
 		[]string{"default"},
@@ -100,6 +100,32 @@ func TestCompile(t *testing.T) {
 			scratch
 			mkfile "/foo" 0o644 "foo" as this
 			copy this "/foo" "/bar"
+		}
+		`,
+		nil,
+	}, {
+		"many sources",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+			image "busybox"
+		}
+		`,
+		nil,
+	}, {
+		"compose fs",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine" as this
+			myfunc this
+			image "busybox"
+		}
+		fs myfunc(fs base) {
+			base
+			mkfile "/foo" 0o644 "contents"
+			run "echo hi"
 		}
 		`,
 		nil,
