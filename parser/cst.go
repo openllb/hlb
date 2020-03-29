@@ -60,7 +60,7 @@ type Module struct {
 	Pos   lexer.Position
 	Scope *Scope
 	Doc   *CommentGroup
-	Decls []*Decl `( @@ )*`
+	Decls []*Decl `parser:"( @@ )*"`
 }
 
 func (m *Module) Position() lexer.Position { return m.Pos }
@@ -78,7 +78,7 @@ func (m *Module) End() lexer.Position {
 // Bad represents a parsed lexeme containing errors.
 type Bad struct {
 	Pos    lexer.Position
-	Lexeme string `@Bad`
+	Lexeme string `parser:"@Bad"`
 }
 
 func (b *Bad) Position() lexer.Position { return b.Pos }
@@ -87,12 +87,12 @@ func (b *Bad) End() lexer.Position      { return shiftPosition(b.Pos, len(b.Lexe
 // Decl represents a declaration node.
 type Decl struct {
 	Pos     lexer.Position
-	Bad     *Bad          `( @@`
-	Import  *ImportDecl   `| @@`
-	Export  *ExportDecl   `| @@`
-	Func    *FuncDecl     `| @@`
-	Newline *Newline      `| @@`
-	Doc     *CommentGroup `| @@ )`
+	Bad     *Bad          `parser:"( @@"`
+	Import  *ImportDecl   `parser:"| @@"`
+	Export  *ExportDecl   `parser:"| @@"`
+	Func    *FuncDecl     `parser:"| @@"`
+	Newline *Newline      `parser:"| @@"`
+	Doc     *CommentGroup `parser:"| @@ )"`
 }
 
 func (d *Decl) Position() lexer.Position { return d.Pos }
@@ -118,10 +118,10 @@ func (d *Decl) End() lexer.Position {
 // ImportDecl represents an import declaration.
 type ImportDecl struct {
 	Pos        lexer.Position
-	Import     *Import     `@@`
-	Ident      *Ident      `@@`
-	ImportFunc *ImportFunc `( @@`
-	ImportPath *ImportPath `| @@ )`
+	Import     *Import     `parser:"@@"`
+	Ident      *Ident      `parser:"@@"`
+	ImportFunc *ImportFunc `parser:"( @@"`
+	ImportPath *ImportPath `parser:"| @@ )"`
 }
 
 func (d *ImportDecl) Position() lexer.Position { return d.Pos }
@@ -138,7 +138,7 @@ func (d *ImportDecl) End() lexer.Position {
 // Import represents the keyword "import".
 type Import struct {
 	Pos     lexer.Position
-	Keyword string `@"import"`
+	Keyword string `parser:"@\"import\""`
 }
 
 func (i *Import) Position() lexer.Position { return i.Pos }
@@ -147,8 +147,8 @@ func (i *Import) End() lexer.Position      { return shiftPosition(i.Pos, len(i.K
 // Import represents the function for a remote import.
 type ImportFunc struct {
 	Pos  lexer.Position
-	From *From    `@@`
-	Func *FuncLit `@@`
+	From *From    `parser:"@@"`
+	Func *FuncLit `parser:"@@"`
 }
 
 func (i *ImportFunc) Position() lexer.Position { return i.Pos }
@@ -157,7 +157,7 @@ func (i *ImportFunc) End() lexer.Position      { return i.Func.End() }
 // From represents the keyword "from".
 type From struct {
 	Pos     lexer.Position
-	Keyword string `@"from"`
+	Keyword string `parser:"@\"from\""`
 }
 
 func (f *From) Position() lexer.Position { return f.Pos }
@@ -166,7 +166,7 @@ func (f *From) End() lexer.Position      { return shiftPosition(f.Pos, len(f.Key
 // ImportPath represents the relative path to a local import.
 type ImportPath struct {
 	Pos  lexer.Position
-	Path string `@String`
+	Path string `parser:"@String"`
 }
 
 func (i *ImportPath) Position() lexer.Position { return i.Pos }
@@ -175,8 +175,8 @@ func (i *ImportPath) End() lexer.Position      { return shiftPosition(i.Pos, len
 // ExportDecl represents an export declaration.
 type ExportDecl struct {
 	Pos    lexer.Position
-	Export *Export `@@`
-	Ident  *Ident  `@@`
+	Export *Export `parser:"@@"`
+	Ident  *Ident  `parser:"@@"`
 }
 
 func (d *ExportDecl) Position() lexer.Position { return d.Pos }
@@ -185,7 +185,7 @@ func (d *ExportDecl) End() lexer.Position      { return d.Ident.End() }
 // Export represents the keyword "export".
 type Export struct {
 	Pos     lexer.Position
-	Keyword string `@"export"`
+	Keyword string `parser:"@\"export\""`
 }
 
 func (e *Export) Position() lexer.Position { return e.Pos }
@@ -196,11 +196,11 @@ type FuncDecl struct {
 	Pos    lexer.Position
 	Scope  *Scope
 	Doc    *CommentGroup
-	Type   *Type      `@@`
-	Method *Method    `( @@ )?`
-	Name   *Ident     `@@`
-	Params *FieldList `@@`
-	Body   *BlockStmt `( @@ )?`
+	Type   *Type      `parser:"@@"`
+	Method *Method    `parser:"( @@ )?"`
+	Name   *Ident     `parser:"@@"`
+	Params *FieldList `parser:"@@"`
+	Body   *BlockStmt `parser:"( @@ )?"`
 }
 
 func NewFuncDecl(typ ObjType, name string, method bool, params []*Field, stmts ...*Stmt) *Decl {
@@ -224,9 +224,9 @@ func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 // Method represents the receiving type of the method function.
 type Method struct {
 	Pos        lexer.Position
-	OpenParen  *OpenParen  `@@`
-	Type       *Type       `@@`
-	CloseParen *CloseParen `@@`
+	OpenParen  *OpenParen  `parser:"@@"`
+	Type       *Type       `parser:"@@"`
+	CloseParen *CloseParen `parser:"@@"`
 }
 
 func NewMethod(typ ObjType) *Method {
@@ -239,9 +239,9 @@ func (m *Method) End() lexer.Position      { return m.CloseParen.End() }
 // FieldList represents a list of Fields, enclosed by parentheses.
 type FieldList struct {
 	Pos        lexer.Position
-	OpenParen  *OpenParen  `@@`
-	List       []*Field    `( ( Newline )? @@ ( "," ( Newline )?  @@ )* ( "," Newline )? )?`
-	CloseParen *CloseParen `@@`
+	OpenParen  *OpenParen  `parser:"@@"`
+	List       []*Field    `parser:"( ( Newline )? @@ ( \",\" ( Newline )?  @@ )* ( \",\" Newline )? )?"`
+	CloseParen *CloseParen `parser:"@@"`
 }
 
 func NewFieldList(params ...*Field) *FieldList {
@@ -262,9 +262,9 @@ func (f *FieldList) NumFields() int {
 // Field represents a parameter declaration in a signature.
 type Field struct {
 	Pos      lexer.Position
-	Variadic *Variadic `( @@ )?`
-	Type     *Type     `@@`
-	Name     *Ident    `@@`
+	Variadic *Variadic `parser:"( @@ )?"`
+	Type     *Type     `parser:"@@"`
+	Name     *Ident    `parser:"@@"`
 }
 
 func NewField(typ ObjType, name string, variadic bool) *Field {
@@ -285,7 +285,7 @@ func (f *Field) End() lexer.Position      { return f.Name.End() }
 // modify the last field of a FieldList.
 type Variadic struct {
 	Pos     lexer.Position
-	Keyword string `@"variadic"`
+	Keyword string `parser:"@\"variadic\""`
 }
 
 func (v *Variadic) Position() lexer.Position { return v.Pos }
@@ -294,11 +294,11 @@ func (v *Variadic) End() lexer.Position      { return shiftPosition(v.Pos, len(v
 // Expr represents an expression node.
 type Expr struct {
 	Pos      lexer.Position
-	Bad      *Bad      `( @@`
-	Selector *Selector `| @Selector`
-	Ident    *Ident    `| @@`
-	BasicLit *BasicLit `| @@`
-	FuncLit  *FuncLit  `| @@ )`
+	Bad      *Bad      `parser:"( @@"`
+	Selector *Selector `parser:"| @Selector"`
+	Ident    *Ident    `parser:"| @@"`
+	BasicLit *BasicLit `parser:"| @@"`
+	FuncLit  *FuncLit  `parser:"| @@ )"`
 }
 
 func (e *Expr) Position() lexer.Position { return e.Pos }
@@ -322,7 +322,7 @@ func (e *Expr) End() lexer.Position {
 // Type represents an object type.
 type Type struct {
 	Pos     lexer.Position
-	ObjType ObjType `@Type`
+	ObjType ObjType `parser:"@Type"`
 }
 
 func NewType(typ ObjType) *Type {
@@ -372,7 +372,7 @@ const (
 // Ident represents an identifier.
 type Ident struct {
 	Pos  lexer.Position
-	Name string `@Ident`
+	Name string `parser:"@Ident"`
 }
 
 func NewIdent(name string) *Ident {
@@ -415,10 +415,10 @@ func (s *Selector) Capture(tokens []string) error {
 // BasicLit represents a literal of basic type.
 type BasicLit struct {
 	Pos     lexer.Position
-	Str     *string     `( @String`
-	Decimal *int        `| @Decimal`
-	Numeric *NumericLit `| @Numeric`
-	Bool    *bool       `| @Bool )`
+	Str     *string     `parser:"( @String"`
+	Decimal *int        `parser:"| @Decimal"`
+	Numeric *NumericLit `parser:"| @Numeric"`
+	Bool    *bool       `parser:"| @Bool )"`
 }
 
 func (l *BasicLit) Position() lexer.Position { return l.Pos }
@@ -514,8 +514,8 @@ func NewBoolExpr(v bool) *Expr {
 // missing then it's assumed to be a fs block literal.
 type FuncLit struct {
 	Pos  lexer.Position
-	Type *Type      `@@`
-	Body *BlockStmt `@@`
+	Type *Type      `parser:"@@"`
+	Body *BlockStmt `parser:"@@"`
 }
 
 func NewFuncLit(typ ObjType, stmts ...*Stmt) *FuncLit {
@@ -546,10 +546,10 @@ func (l *FuncLit) NumStmts() int {
 // Stmt represents a statement node.
 type Stmt struct {
 	Pos     lexer.Position
-	Bad     *Bad          `( @@`
-	Call    *CallStmt     `| @@`
-	Newline *Newline      `| @@`
-	Doc     *CommentGroup `| @@ )`
+	Bad     *Bad          `parser:"( @@"`
+	Call    *CallStmt     `parser:"| @@"`
+	Newline *Newline      `parser:"| @@"`
+	Doc     *CommentGroup `parser:"| @@ )"`
 }
 
 func (s *Stmt) Position() lexer.Position { return s.Pos }
@@ -573,11 +573,11 @@ func (s *Stmt) End() lexer.Position {
 type CallStmt struct {
 	Pos     lexer.Position
 	Doc     *CommentGroup
-	Func    *Expr      `@@`
-	Args    []*Expr    `( @@ )*`
-	WithOpt *WithOpt   `( @@ )?`
-	Alias   *AliasDecl `( @@ )?`
-	StmtEnd *StmtEnd   `@@`
+	Func    *Expr      `parser:"@@"`
+	Args    []*Expr    `parser:"( @@ )*"`
+	WithOpt *WithOpt   `parser:"( @@ )?"`
+	Alias   *AliasDecl `parser:"( @@ )?"`
+	StmtEnd *StmtEnd   `parser:"@@"`
 }
 
 func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, alias *AliasDecl) *Stmt {
@@ -597,9 +597,9 @@ func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
 	Pos     lexer.Position
-	With    *With    `@@`
-	Ident   *Ident   `( @@`
-	FuncLit *FuncLit `| @@ )`
+	With    *With    `parser:"@@"`
+	Ident   *Ident   `parser:"( @@"`
+	FuncLit *FuncLit `parser:"| @@ )"`
 }
 
 func NewWithIdent(name string) *WithOpt {
@@ -631,7 +631,7 @@ func (w *WithOpt) End() lexer.Position {
 // With represents the keyword "with".
 type With struct {
 	Pos     lexer.Position
-	Keyword string `@"with"`
+	Keyword string `parser:"@\"with\""`
 }
 
 func (w *With) Position() lexer.Position { return w.Pos }
@@ -640,8 +640,8 @@ func (w *With) End() lexer.Position      { return shiftPosition(w.Pos, len(w.Key
 // AliasDecl represents a declaration of an alias for a CallStmt.
 type AliasDecl struct {
 	Pos   lexer.Position
-	As    *As    `@@`
-	Ident *Ident `@@`
+	As    *As    `parser:"@@"`
+	Ident *Ident `parser:"@@"`
 	Func  *FuncDecl
 	Call  *CallStmt
 }
@@ -652,7 +652,7 @@ func (d *AliasDecl) End() lexer.Position      { return d.Ident.End() }
 // As represents the keyword "as".
 type As struct {
 	Pos     lexer.Position
-	Keyword string `@"as"`
+	Keyword string `parser:"@\"as\""`
 }
 
 func (a *As) Position() lexer.Position { return a.Pos }
@@ -661,9 +661,9 @@ func (a *As) End() lexer.Position      { return shiftPosition(a.Pos, len(a.Keywo
 // StmtEnd represents the end of a statement.
 type StmtEnd struct {
 	Pos       lexer.Position
-	Semicolon *string  `( @";"`
-	Newline   *Newline `| @@`
-	Comment   *Comment `| @@ )`
+	Semicolon *string  `parser:"( @\";\""`
+	Newline   *Newline `parser:"| @@"`
+	Comment   *Comment `parser:"| @@ )"`
 }
 
 func (e *StmtEnd) Position() lexer.Position { return e.Pos }
@@ -683,9 +683,9 @@ func (e *StmtEnd) End() lexer.Position {
 // BlockStmt represents a braced statement list.
 type BlockStmt struct {
 	Pos        lexer.Position
-	OpenBrace  *OpenBrace  `@@`
-	List       []*Stmt     `( @@ )*`
-	CloseBrace *CloseBrace `@@`
+	OpenBrace  *OpenBrace  `parser:"@@"`
+	List       []*Stmt     `parser:"( @@ )*"`
+	CloseBrace *CloseBrace `parser:"@@"`
 }
 
 func NewBlockStmt(stmts ...*Stmt) *BlockStmt {
@@ -727,7 +727,7 @@ func (s *BlockStmt) NonEmptyStmts() []*Stmt {
 // empty lines between.
 type CommentGroup struct {
 	Pos  lexer.Position
-	List []*Comment `( @@ )+`
+	List []*Comment `parser:"( @@ )+"`
 }
 
 func (g *CommentGroup) Position() lexer.Position { return g.Pos }
@@ -749,7 +749,7 @@ func (g *CommentGroup) NumComments() int {
 // Comment represents a single comment.
 type Comment struct {
 	Pos  lexer.Position
-	Text string `@Comment`
+	Text string `parser:"@Comment"`
 }
 
 func (c *Comment) Position() lexer.Position { return c.Pos }
@@ -757,7 +757,7 @@ func (c *Comment) End() lexer.Position      { return shiftPosition(c.Pos, len(c.
 
 type Newline struct {
 	Pos  lexer.Position
-	Text string `@Newline`
+	Text string `parser:"@Newline"`
 }
 
 func (n *Newline) Position() lexer.Position { return n.Pos }
@@ -766,7 +766,7 @@ func (n *Newline) End() lexer.Position      { return shiftPosition(n.Pos, len(n.
 // OpenParen represents the "(" parenthese.
 type OpenParen struct {
 	Pos   lexer.Position
-	Paren string `@"("`
+	Paren string `parser:"@\"(\""`
 }
 
 func (p *OpenParen) Position() lexer.Position { return p.Pos }
@@ -775,7 +775,7 @@ func (p *OpenParen) End() lexer.Position      { return shiftPosition(p.Pos, 1, 0
 // CloseParent represents the ")" parenthese.
 type CloseParen struct {
 	Pos   lexer.Position
-	Paren string `@")"`
+	Paren string `parser:"@\")\""`
 }
 
 func (p *CloseParen) Position() lexer.Position { return p.Pos }
@@ -784,7 +784,7 @@ func (p *CloseParen) End() lexer.Position      { return shiftPosition(p.Pos, 1, 
 // OpenBrace represents the "{" brace.
 type OpenBrace struct {
 	Pos   lexer.Position
-	Brace string `@"{"`
+	Brace string `parser:"@\"{\""`
 }
 
 func (b *OpenBrace) Position() lexer.Position { return b.Pos }
@@ -793,7 +793,7 @@ func (b *OpenBrace) End() lexer.Position      { return shiftPosition(b.Pos, 1, 0
 // CloseBrace represents the "}" brace.
 type CloseBrace struct {
 	Pos   lexer.Position
-	Brace string `@"}"`
+	Brace string `parser:"@\"}\""`
 }
 
 func (b *CloseBrace) Position() lexer.Position { return b.Pos }
