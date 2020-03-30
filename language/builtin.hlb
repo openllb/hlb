@@ -107,7 +107,7 @@ option::generate frontendOpt(string key, string value)
 #
 # @param arg the list of args used to prefix `run` statements.
 # @return the filesystem with a new default shell.
-fs (fs) shell(variadic string arg)
+fs shell(variadic string arg)
 
 # Executes an command in the current filesystem.
 #
@@ -120,7 +120,7 @@ fs (fs) shell(variadic string arg)
 #
 # @param arg a command to execute.
 # @return the filesystem after the command has executed.
-fs (fs) run(variadic string arg)
+fs run(variadic string arg)
 
 # Sets the rootfs as read-only for the duration of the run command.
 #
@@ -296,26 +296,26 @@ option::mount cache(string cacheid, string sharingmode)
 # @param key the environment key.
 # @param value the environment value.
 # @return a filesystem with an environment key pair set.
-fs (fs) env(string key, string value)
+fs env(string key, string value)
 
 # Sets the working directory for all subsequent calls in this filesystem block.
 #
 # @param path the new working directory.
 # @return a filesystem with a new working directory.
-fs (fs) dir(string path)
+fs dir(string path)
 
 # Sets the current user for all subsequent calls in this filesystem block.
 #
 # @param name the name of the user.
 # @return a filesystem with a new current user.
-fs (fs) user(string name)
+fs user(string name)
 
 # Creates a directory in the current filesystem.
 #
 # @param path the path of the directory.
 # @param filemode the permissions of the directory.
 # @return a filesystem with a new directory.
-fs (fs) mkdir(string path, int filemode)
+fs mkdir(string path, int filemode)
 
 # Create the parent directories if they don't exist already.
 #
@@ -340,7 +340,7 @@ option::mkdir createdTime(string created)
 # @param filemode the permissions of the file.
 # @param content the contents of the file.
 # @return a filesystem with a new file.
-fs (fs) mkfile(string path, int filemode, string content)
+fs mkfile(string path, int filemode, string content)
 
 # Change the owner of the file.
 #
@@ -358,7 +358,7 @@ option::mkfile createdTime(string created)
 #
 # @param path the path of the file to remove.
 # @return a filesystem with a file removed.
-fs (fs) rm(string path)
+fs rm(string path)
 
 # Allows the file to not be found.
 #
@@ -376,7 +376,7 @@ option::rm allowWildcards()
 # @param src the path from the input filesystem.
 # @param dst the path in the current filesystem.
 # @return a filesystem with a file copied from the input filesystem.
-fs (fs) copy(fs input, string src, string dst)
+fs copy(fs input, string src, string dst)
 
 # Follow symlinks in the input filesystem and copy the symlink targets too.
 #
@@ -400,19 +400,13 @@ option::copy unpack()
 # @return an option to create the parent directories of the destination.
 option::copy createDestPath()
 
-# Outputs the filesystem to external sources. If no options are
-# defined, this is a no-op.
-#
-# @return the filesystem unchanged.
-fs (fs) output()
-
 # Pushes the filesystem to a registry following the distribution
 # spec: https://github.com/opencontainers/distribution-spec/
 #
 # @param ref a distribution reference. if not fully qualified, it will be
 # expanded the same as the docker CLI.
 # @return an option to push the filesystem to a registry.
-option::output dockerPush(string ref)
+fs dockerPush(string ref)
 
 # Loads the filesystem as a Docker image to the docker client found in your
 # environment.
@@ -420,19 +414,19 @@ option::output dockerPush(string ref)
 # @param ref the name of the Docker image.
 # @return an option to load a filesystem to the docker client found in your
 # environment.
-option::output dockerLoad(string ref)
+fs dockerLoad(string ref)
 
 # Downloads the filesystem to a local path.
 #
 # @param localPath the destination filepath for the filesystem contents.
 # @return an option to download a filesystem to the local system.
-option::output download(string localPath)
+fs download(string localPath)
 
 # Downloads the filesystem as a tarball to a local path.
 #
 # @param localPath the destination filepath for the tarball.
 # @return an option to download a filesystem to the local system as a tarball.
-option::output downloadTarball(string localPath)
+fs downloadTarball(string localPath)
 
 # Downloads the filesystem as a OCI filesystem bundle to a local path.
 # See: https://github.com/opencontainers/runtime-spec/blob/master/bundle.md
@@ -440,7 +434,7 @@ option::output downloadTarball(string localPath)
 # @param localPath the destination filepath for the tarball.
 # @return an option to download a filesystem to the local system as a OCI
 # filesystem bundle.
-option::output downloadOCITarball(string localPath)
+fs downloadOCITarball(string localPath)
 
 # Downloads the filesystem as a Docker image tarball to a local path.
 # The tarball is able to be loaded into a docker engine via `docker load`.
@@ -451,7 +445,7 @@ option::output downloadOCITarball(string localPath)
 # @param ref the name of the Docker image.
 # @return an option to download a filesystem to the local system as a Docker
 # image tarball.
-option::output downloadDockerTarball(string localPath, string ref)
+fs downloadDockerTarball(string localPath, string ref)
 
 # A format specifier that is interpolated with values.
 #

@@ -113,7 +113,7 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 
 		// Generate a target override to plumb the outputs specified from the CLI.
 		targetOverride := digest.FromString(target.Name).String()
-		decl := parser.NewFuncDecl(parser.Filesystem, targetOverride, false, nil, outputs...)
+		decl := parser.NewFuncDecl(parser.Filesystem, targetOverride, nil, outputs...)
 		checker.InitScope(mod, decl.Func)
 
 		mod.Decls = append(mod.Decls, decl)

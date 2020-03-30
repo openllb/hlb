@@ -22,9 +22,8 @@ type BuiltinData struct {
 }
 
 type ParsedFunc struct {
-	Name     string
-	IsSource bool
-	Params   []*parser.Field
+	Name   string
+	Params []*parser.Field
 }
 
 func GenerateBuiltins(r io.Reader) ([]byte, error) {
@@ -40,16 +39,10 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 			continue
 		}
 
-		isSource := false
-		if fun.Method == nil && fun.Type.Primary() != parser.Option {
-			isSource = true
-		}
-
 		typ := fun.Type.ObjType
 		funcsByType[typ] = append(funcsByType[typ], ParsedFunc{
-			Name:     fun.Name.Name,
-			Params:   fun.Params.List,
-			IsSource: isSource,
+			Name:   fun.Name.Name,
+			Params: fun.Params.List,
 		})
 	}
 
@@ -107,7 +100,6 @@ type LookupByType struct {
 }
 
 type FuncLookup struct {
-	IsSource bool
 	Params []*parser.Field
 }
 
@@ -117,7 +109,6 @@ var (
 			{{range $typ, $funcs := .FuncsByType}}{{objType $typ}}: LookupByType{
 				Func: map[string]FuncLookup{
 					{{range $i, $func := $funcs}}"{{$func.Name}}": FuncLookup{
-						IsSource: {{$func.IsSource}},
 						Params: []*parser.Field{
 							{{range $i, $param := $func.Params}}parser.NewField({{objType $param.Type.ObjType}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
 							{{end}}

@@ -16,15 +16,13 @@ type Documentation struct {
 }
 
 type Builtin struct {
-	Type    string
-	Funcs   []*Func
-	Methods []*Func
+	Type  string
+	Funcs []*Func
 }
 
 type Func struct {
 	Doc     string
 	Type    string
-	Method  bool
 	Name    string
 	Params  []Field
 	Options []*Func
@@ -119,7 +117,6 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 
 		funcDoc := &Func{
 			Type:   typ,
-			Method: fun.Method != nil,
 			Name:   name,
 			Params: fields,
 		}
@@ -165,13 +162,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 			Type: typ,
 		}
 
-		for _, fun := range funcs {
-			if fun.Method {
-				builtin.Methods = append(builtin.Methods, fun)
-			} else {
-				builtin.Funcs = append(builtin.Funcs, fun)
-			}
-		}
+		builtin.Funcs = append(builtin.Funcs, funcs...)
 
 		doc.Builtins = append(doc.Builtins, builtin)
 	}
