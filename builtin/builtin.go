@@ -58,45 +58,45 @@ var (
 						},
 					},
 					"shell": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "arg", true),
 						},
 					},
 					"run": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "arg", true),
 						},
 					},
 					"env": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 							parser.NewField(parser.Str, "value", false),
 						},
 					},
 					"dir": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
 					"user": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "name", false),
 						},
 					},
 					"mkdir": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 							parser.NewField(parser.Int, "filemode", false),
 						},
 					},
 					"mkfile": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 							parser.NewField(parser.Int, "filemode", false),
@@ -104,13 +104,13 @@ var (
 						},
 					},
 					"rm": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
 					"copy": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Filesystem, "input", false),
 							parser.NewField(parser.Str, "src", false),
@@ -118,37 +118,37 @@ var (
 						},
 					},
 					"dockerPush": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "ref", false),
 						},
 					},
 					"dockerLoad": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "ref", false),
 						},
 					},
 					"download": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "localPath", false),
 						},
 					},
 					"downloadTarball": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "localPath", false),
 						},
 					},
 					"downloadOCITarball": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "localPath", false),
 						},
 					},
 					"downloadDockerTarball": FuncLookup{
-						IsSource: false,
+						IsSource: true,
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "localPath", false),
 							parser.NewField(parser.Str, "ref", false),
