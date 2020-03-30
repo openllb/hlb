@@ -117,9 +117,42 @@ var (
 							parser.NewField(parser.Str, "dst", false),
 						},
 					},
-					"output": FuncLookup{
+					"dockerPush": FuncLookup{
 						IsSource: false,
-						Params:   []*parser.Field{},
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "ref", false),
+						},
+					},
+					"dockerLoad": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "ref", false),
+						},
+					},
+					"download": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+						},
+					},
+					"downloadTarball": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+						},
+					},
+					"downloadOCITarball": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+						},
+					},
+					"downloadDockerTarball": FuncLookup{
+						IsSource: false,
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "localPath", false),
+							parser.NewField(parser.Str, "ref", false),
+						},
 					},
 				},
 			},
@@ -278,47 +311,6 @@ var (
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "cacheid", false),
 							parser.NewField(parser.Str, "sharingmode", false),
-						},
-					},
-				},
-			},
-			"option::output": LookupByType{
-				Func: map[string]FuncLookup{
-					"dockerPush": FuncLookup{
-						IsSource: false,
-						Params: []*parser.Field{
-							parser.NewField(parser.Str, "ref", false),
-						},
-					},
-					"dockerLoad": FuncLookup{
-						IsSource: false,
-						Params: []*parser.Field{
-							parser.NewField(parser.Str, "ref", false),
-						},
-					},
-					"download": FuncLookup{
-						IsSource: false,
-						Params: []*parser.Field{
-							parser.NewField(parser.Str, "localPath", false),
-						},
-					},
-					"downloadTarball": FuncLookup{
-						IsSource: false,
-						Params: []*parser.Field{
-							parser.NewField(parser.Str, "localPath", false),
-						},
-					},
-					"downloadOCITarball": FuncLookup{
-						IsSource: false,
-						Params: []*parser.Field{
-							parser.NewField(parser.Str, "localPath", false),
-						},
-					},
-					"downloadDockerTarball": FuncLookup{
-						IsSource: false,
-						Params: []*parser.Field{
-							parser.NewField(parser.Str, "localPath", false),
-							parser.NewField(parser.Str, "ref", false),
 						},
 					},
 				},

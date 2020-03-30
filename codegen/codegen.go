@@ -664,19 +664,148 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				llb.Copy(input, src, dest, opts...),
 			)
 		}
-	case "output":
-		var opts []solver.SolveOption
-		for _, iopt := range iopts {
-			opt := iopt.(solver.SolveOption)
-			opts = append(opts, opt)
+	case "dockerPush":
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+		so = func(st llb.State) llb.State {
+			solveOpts := append(cg.solveOpts, solver.WithPushImage(ref))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				solveOpts = append(solveOpts, opt)
+			}
+			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+			return st
+		}
+	case "dockerLoad":
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+		if cg.mw == nil {
+			return so, fmt.Errorf("progress.MultiWriter must be provided for dockerLoad")
+		}
+
+		if cg.dockerCli == nil {
+			cg.dockerCli, err = command.NewDockerCli()
+			if err != nil {
+				return so, err
+			}
+
+			err = cg.dockerCli.Initialize(flags.NewClientOptions())
+			if err != nil {
+				return so, err
+			}
+		}
+
+		r, w := io.Pipe()
+		done := make(chan struct{})
+		cg.solveOpts = append(cg.solveOpts, solver.WithWaiter(done))
+
+		go func() {
+			defer close(done)
+
+			resp, err := cg.dockerCli.Client().ImageLoad(ctx, r, true)
+			if err != nil {
+				r.CloseWithError(err)
+				return
+			}
+			defer resp.Body.Close()
+
+			pw := cg.mw.WithPrefix("", false)
+			progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
+		}()
+
+		so = func(st llb.State) llb.State {
+			solveOpts := append(cg.solveOpts, solver.WithDownloadDockerTarball(ref, w))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				solveOpts = append(solveOpts, opt)
+			}
+			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+			return st
+		}
+
+	case "download":
+		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
 		}
 
 		so = func(st llb.State) llb.State {
-			for _, opt := range opts {
-				solveOpts := make([]solver.SolveOption, len(cg.solveOpts))
-				copy(solveOpts, cg.solveOpts)
-				cg.request = cg.request.Peer(solver.NewRequest(st, append(solveOpts, opt)...))
+			solveOpts := append(cg.solveOpts, solver.WithDownload(localPath))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				solveOpts = append(solveOpts, opt)
 			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+			return st
+		}
+	case "downloadTarball":
+		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		f, err := os.Open(localPath)
+		if err != nil {
+			return so, err
+		}
+
+		so = func(st llb.State) llb.State {
+			solveOpts := append(cg.solveOpts, solver.WithDownloadTarball(f))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				solveOpts = append(solveOpts, opt)
+			}
+			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+			return st
+		}
+	case "downloadOCITarball":
+		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		f, err := os.Open(localPath)
+		if err != nil {
+			return so, err
+		}
+
+		so = func(st llb.State) llb.State {
+			solveOpts := append(cg.solveOpts, solver.WithDownloadOCITarball(f))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				solveOpts = append(solveOpts, opt)
+			}
+			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+			return st
+		}
+	case "downloadDockerTarball":
+		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		f, err := os.Open(localPath)
+		if err != nil {
+			return so, err
+		}
+
+		ref, err := cg.EmitStringExpr(ctx, scope, call, args[1])
+		if err != nil {
+			return so, err
+		}
+
+		so = func(st llb.State) llb.State {
+			solveOpts := append(cg.solveOpts, solver.WithDownloadDockerTarball(ref, f))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				solveOpts = append(solveOpts, opt)
+			}
+			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
 			return st
 		}
 	default:
@@ -748,8 +877,6 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 		return cg.EmitRmOptions(ctx, scope, op, stmts)
 	case "copy":
 		return cg.EmitCopyOptions(ctx, scope, op, stmts)
-	case "output":
-		return cg.EmitOutputOptions(ctx, scope, op, stmts)
 	default:
 		panic("call stmt does not support options")
 	}
@@ -1098,113 +1225,6 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 	}
 
 	opts = append([]interface{}{cp}, opts...)
-	return
-}
-
-func (cg *CodeGen) EmitOutputOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
-	for _, stmt := range stmts {
-		if stmt.Call != nil {
-			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
-			case "dockerPush":
-				ref, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-
-				opts = append(opts, solver.WithPushImage(ref))
-			case "dockerLoad":
-				ref, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-
-				if cg.mw == nil {
-					return opts, fmt.Errorf("progress.MultiWriter must be provided for dockerLoad")
-				}
-
-				if cg.dockerCli == nil {
-					cg.dockerCli, err = command.NewDockerCli()
-					if err != nil {
-						return opts, err
-					}
-
-					err = cg.dockerCli.Initialize(flags.NewClientOptions())
-					if err != nil {
-						return opts, err
-					}
-				}
-
-				r, w := io.Pipe()
-				done := make(chan struct{})
-				cg.solveOpts = append(cg.solveOpts, solver.WithWaiter(done))
-
-				go func() {
-					defer close(done)
-
-					resp, err := cg.dockerCli.Client().ImageLoad(ctx, r, true)
-					if err != nil {
-						r.CloseWithError(err)
-						return
-					}
-					defer resp.Body.Close()
-
-					pw := cg.mw.WithPrefix("", false)
-					progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
-				}()
-
-				opts = append(opts, solver.WithDownloadDockerTarball(ref, w))
-			case "download":
-				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-
-				opts = append(opts, solver.WithDownload(localPath))
-			case "downloadTarball":
-				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-
-				f, err := os.Open(localPath)
-				if err != nil {
-					return opts, err
-				}
-
-				opts = append(opts, solver.WithDownloadTarball(f))
-			case "downloadOCITarball":
-				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-
-				f, err := os.Open(localPath)
-				if err != nil {
-					return opts, err
-				}
-
-				opts = append(opts, solver.WithDownloadOCITarball(f))
-			case "downloadDockerTarball":
-				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-
-				f, err := os.Open(localPath)
-				if err != nil {
-					return opts, err
-				}
-
-				ref, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
-				if err != nil {
-					return opts, err
-				}
-
-				opts = append(opts, solver.WithDownloadDockerTarball(ref, f))
-			}
-		}
-	}
 	return
 }
 
