@@ -57,9 +57,6 @@ func Walk(node Node, v Visitor) {
 		if n.Type != nil {
 			Walk(n.Type, v)
 		}
-		if n.Method != nil {
-			Walk(n.Method, v)
-		}
 		if n.Name != nil {
 			Walk(n.Name, v)
 		}
@@ -76,8 +73,6 @@ func Walk(node Node, v Visitor) {
 		if n.Ident != nil {
 			Walk(n.Ident, v)
 		}
-	case *Method:
-		Walk(n.Type, v)
 	case *FieldList:
 		walkFieldList(n.List, v)
 	case *Field:

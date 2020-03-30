@@ -140,11 +140,6 @@ func (e *Export) String() string {
 }
 
 func (d *FuncDecl) String() string {
-	method := ""
-	if d.Method != nil {
-		method = fmt.Sprintf(" %s", d.Method)
-	}
-
 	params := "()"
 	if d.Params != nil {
 		params = d.Params.String()
@@ -155,11 +150,7 @@ func (d *FuncDecl) String() string {
 		body = fmt.Sprintf(" %s", d.Body)
 	}
 
-	return fmt.Sprintf("%s%s %s%s%s", d.Type, method, d.Name, params, body)
-}
-
-func (m *Method) String() string {
-	return fmt.Sprintf("(%s)", m.Type)
+	return fmt.Sprintf("%s %s%s%s", d.Type, d.Name, params, body)
 }
 
 func (f *FieldList) String() string {

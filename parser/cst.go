@@ -197,13 +197,12 @@ type FuncDecl struct {
 	Scope  *Scope
 	Doc    *CommentGroup
 	Type   *Type      `parser:"@@"`
-	Method *Method    `parser:"( @@ )?"`
 	Name   *Ident     `parser:"@@"`
 	Params *FieldList `parser:"@@"`
 	Body   *BlockStmt `parser:"( @@ )?"`
 }
 
-func NewFuncDecl(typ ObjType, name string, method bool, params []*Field, stmts ...*Stmt) *Decl {
+func NewFuncDecl(typ ObjType, name string, params []*Field, stmts ...*Stmt) *Decl {
 	fun := &FuncDecl{
 		Type:   NewType(typ),
 		Name:   NewIdent(name),
@@ -211,30 +210,11 @@ func NewFuncDecl(typ ObjType, name string, method bool, params []*Field, stmts .
 		Body:   NewBlockStmt(stmts...),
 	}
 
-	if method {
-		fun.Method = NewMethod(typ)
-	}
-
 	return &Decl{Func: fun}
 }
 
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
-
-// Method represents the receiving type of the method function.
-type Method struct {
-	Pos        lexer.Position
-	OpenParen  *OpenParen  `parser:"@@"`
-	Type       *Type       `parser:"@@"`
-	CloseParen *CloseParen `parser:"@@"`
-}
-
-func NewMethod(typ ObjType) *Method {
-	return &Method{Type: NewType(typ)}
-}
-
-func (m *Method) Position() lexer.Position { return m.Pos }
-func (m *Method) End() lexer.Position      { return m.CloseParen.End() }
 
 // FieldList represents a list of Fields, enclosed by parentheses.
 type FieldList struct {
