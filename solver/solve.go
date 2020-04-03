@@ -3,8 +3,6 @@ package solver
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"os"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
@@ -12,9 +10,6 @@ import (
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
-	"github.com/moby/buildkit/session/auth/authprovider"
-	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/errgroup"
 )
@@ -23,21 +18,17 @@ type SolveOption func(*SolveInfo) error
 
 type SolveInfo struct {
 	OutputDockerRef       string
-	OutputWriter          io.WriteCloser
 	OutputPushImage       string
 	OutputLocal           string
 	OutputLocalTarball    bool
 	OutputLocalOCITarball bool
-	Locals                map[string]string
-	Secrets               map[string]string
 	Waiters               []<-chan struct{}
 	ImageSpec             *specs.Image
 }
 
-func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
+func WithDownloadDockerTarball(ref string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputDockerRef = ref
-		info.OutputWriter = w
 		return nil
 	}
 }
@@ -56,32 +47,16 @@ func WithDownload(dest string) SolveOption {
 	}
 }
 
-func WithDownloadTarball(w io.WriteCloser) SolveOption {
+func WithDownloadTarball() SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputLocalTarball = true
-		info.OutputWriter = w
 		return nil
 	}
 }
 
-func WithDownloadOCITarball(w io.WriteCloser) SolveOption {
+func WithDownloadOCITarball() SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputLocalOCITarball = true
-		info.OutputWriter = w
-		return nil
-	}
-}
-
-func WithLocal(id, path string) SolveOption {
-	return func(info *SolveInfo) error {
-		info.Locals[id] = path
-		return nil
-	}
-}
-
-func WithSecret(id, path string) SolveOption {
-	return func(info *SolveInfo) error {
-		info.Secrets[id] = path
 		return nil
 	}
 }
@@ -100,11 +75,8 @@ func WithImageSpec(cfg *specs.Image) SolveOption {
 	}
 }
 
-func Solve(ctx context.Context, c *client.Client, pw progress.Writer, def *llb.Definition, opts ...SolveOption) error {
-	info := &SolveInfo{
-		Locals:  make(map[string]string),
-		Secrets: make(map[string]string),
-	}
+func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progress.Writer, def *llb.Definition, opts ...SolveOption) error {
+	info := &SolveInfo{}
 	for _, opt := range opts {
 		err := opt(info)
 		if err != nil {
@@ -112,7 +84,7 @@ func Solve(ctx context.Context, c *client.Client, pw progress.Writer, def *llb.D
 		}
 	}
 
-	return Build(ctx, c, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+	return Build(ctx, c, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 		res, err := c.Solve(ctx, gateway.SolveRequest{
 			Definition: def.ToPB(),
 		})
@@ -132,11 +104,8 @@ func Solve(ctx context.Context, c *client.Client, pw progress.Writer, def *llb.D
 	}, opts...)
 }
 
-func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.BuildFunc, opts ...SolveOption) error {
-	info := &SolveInfo{
-		Locals:  make(map[string]string),
-		Secrets: make(map[string]string),
-	}
+func Build(ctx context.Context, c *client.Client, s *session.Session, pw progress.Writer, f gateway.BuildFunc, opts ...SolveOption) error {
+	info := &SolveInfo{}
 	for _, opt := range opts {
 		err := opt(info)
 		if err != nil {
@@ -144,44 +113,9 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 		}
 	}
 
-	attachable := []session.Attachable{authprovider.NewDockerAuthProvider(os.Stderr)}
-
-	if _, set := os.LookupEnv("SSH_AUTH_SOCK"); set {
-		cfg := sshprovider.AgentConfig{
-			ID: "default",
-		}
-
-		sp, err := sshprovider.NewSSHAgentProvider([]sshprovider.AgentConfig{cfg})
-		if err != nil {
-			return err
-		}
-		attachable = append(attachable, sp)
-	}
-
-	if len(info.Secrets) > 0 {
-		sources := make([]secretsprovider.FileSource, 0, len(info.Secrets))
-		for id, path := range info.Secrets {
-			fs := secretsprovider.FileSource{}
-			fs.ID = id
-			fs.FilePath = path
-			sources = append(sources, fs)
-		}
-		store, err := secretsprovider.NewFileStore(sources)
-		if err != nil {
-			return err
-		}
-		attachable = append(attachable, secretsprovider.NewSecretProvider(store))
-	}
-
-	wrapWriter := func(wc io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
-		return func(m map[string]string) (io.WriteCloser, error) {
-			return wc, nil
-		}
-	}
-
 	solveOpt := client.SolveOpt{
-		Session:   attachable,
-		LocalDirs: make(map[string]string),
+		SharedSession:         s,
+		SessionPreInitialized: s != nil,
 	}
 
 	if info.OutputDockerRef != "" {
@@ -190,7 +124,6 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 			Attrs: map[string]string{
 				"name": info.OutputDockerRef,
 			},
-			Output: wrapWriter(info.OutputWriter),
 		})
 	}
 
@@ -213,20 +146,14 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 
 	if info.OutputLocalTarball {
 		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
-			Type:   client.ExporterTar,
-			Output: wrapWriter(info.OutputWriter),
+			Type: client.ExporterTar,
 		})
 	}
 
 	if info.OutputLocalOCITarball {
 		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
-			Type:   client.ExporterOCI,
-			Output: wrapWriter(info.OutputWriter),
+			Type: client.ExporterOCI,
 		})
-	}
-
-	for id, path := range info.Locals {
-		solveOpt.LocalDirs[id] = path
 	}
 
 	g, ctx := errgroup.WithContext(ctx)

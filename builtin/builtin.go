@@ -45,9 +45,9 @@ var (
 							parser.NewField(parser.Str, "path", false),
 						},
 					},
-					"generate": FuncLookup{
+					"frontend": FuncLookup{
 						Params: []*parser.Field{
-							parser.NewField(parser.Filesystem, "frontend", false),
+							parser.NewField(parser.Str, "source", false),
 						},
 					},
 					"shell": FuncLookup{
@@ -150,15 +150,15 @@ var (
 					},
 				},
 			},
-			"option::generate": LookupByType{
+			"option::frontend": LookupByType{
 				Func: map[string]FuncLookup{
-					"frontendInput": FuncLookup{
+					"input": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 							parser.NewField(parser.Filesystem, "value", false),
 						},
 					},
-					"frontendOpt": FuncLookup{
+					"opt": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 							parser.NewField(parser.Str, "value", false),
@@ -360,9 +360,9 @@ var (
 							parser.NewField(parser.Str, "mountPoint", false),
 						},
 					},
-					"localPath": FuncLookup{
+					"localPaths": FuncLookup{
 						Params: []*parser.Field{
-							parser.NewField(parser.Str, "path", false),
+							parser.NewField(parser.Str, "path", true),
 						},
 					},
 					"uid": FuncLookup{
