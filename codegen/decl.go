@@ -131,11 +131,11 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		case parser.Filesystem:
 			var v llb.State
-			v, err = cg.EmitFilesystemExpr(ctx, scope, nil, args[i], ac)
+			v, err = cg.EmitFilesystemExpr(ctx, scope, args[i], ac)
 			data = v
 		case parser.Option:
 			var v []interface{}
-			v, err = cg.EmitOptionExpr(ctx, scope, call, op, args[i])
+			v, err = cg.EmitOptionExpr(ctx, scope, op, args[i])
 			data = v
 		}
 		if err != nil {

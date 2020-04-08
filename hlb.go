@@ -111,12 +111,16 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 			}, nil, nil))
 		}
 
-		// Generate a target override to plumb the outputs specified from the CLI.
-		targetOverride := digest.FromString(target.Name).String()
-		decl := parser.NewFuncDecl(parser.Filesystem, targetOverride, nil, outputs...)
-		checker.InitScope(mod, decl.Func)
+		targetOverride := target.Name
+		if len(outputs) > 1 {
+			// Generate a target override to plumb the outputs specified from the CLI.
+			targetOverride = digest.FromString(target.Name).String()
+			decl := parser.NewFuncDecl(parser.Filesystem, targetOverride, nil, outputs...)
+			checker.InitScope(mod, decl.Func)
 
-		mod.Decls = append(mod.Decls, decl)
+			mod.Decls = append(mod.Decls, decl)
+		}
+
 		callTargets = append(callTargets, parser.NewCallStmt(targetOverride, nil, nil, nil).Call)
 	}
 

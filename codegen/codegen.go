@@ -93,7 +93,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 
 				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback)
 				if err != nil {
-					return cg.request, nil
+					return cg.request, err
 				}
 			case *parser.AliasDecl:
 				if n.Func.Type.ObjType != parser.Filesystem {
@@ -102,7 +102,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 
 				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target)
 				if err != nil {
-					return cg.request, nil
+					return cg.request, err
 				}
 			}
 		default:
@@ -424,7 +424,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return llb.Local(id, opts...)
 		}
 	case "generate":
-		frontend, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
+		frontend, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 		if err != nil {
 			return so, err
 		}
@@ -638,7 +638,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			)
 		}
 	case "copy":
-		input, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
+		input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 		if err != nil {
 			return so, err
 		}
@@ -896,7 +896,7 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 					opts = append(opts, imagemetaresolver.WithDefault)
 				}
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -931,7 +931,7 @@ func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op 
 				}
 				opts = append(opts, llb.Filename(filename))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -956,7 +956,7 @@ func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op s
 					opts = append(opts, llb.KeepGitDir())
 				}
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1000,7 +1000,7 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 				}
 				opts = append(opts, llb.FollowPaths(paths))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1021,7 +1021,7 @@ func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope,
 				if err != nil {
 					return opts, err
 				}
-				value, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[1], ac)
+				value, err := cg.EmitFilesystemExpr(ctx, scope, args[1], ac)
 				if err != nil {
 					return opts, err
 				}
@@ -1037,7 +1037,7 @@ func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope,
 				}
 				opts = append(opts, llb.WithFrontendOpt(key, value))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1078,7 +1078,7 @@ func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1113,7 +1113,7 @@ func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, o
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1142,7 +1142,7 @@ func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op st
 				}
 				opts = append(opts, llb.WithAllowWildcard(v))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1215,7 +1215,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1353,7 +1353,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddSecret(path, secretOpts...))
 			case "mount":
-				input, err := cg.EmitFilesystemExpr(ctx, scope, nil, args[0], ac)
+				input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 				if err != nil {
 					return opts, err
 				}
@@ -1371,7 +1371,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddMount(target, input, mountOpts...))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1438,7 +1438,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 				}
 				sopt.mode = os.FileMode(mode)
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1505,7 +1505,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 				}
 				sopt.mode = os.FileMode(mode)
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
@@ -1577,7 +1577,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 
 				opts = append(opts, llb.AsPersistentCacheDir(id, sharing))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
+				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
 					return opts, err
 				}
