@@ -96,7 +96,7 @@ func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, a
 	return v, nil
 }
 
-func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (llb.State, error) {
+func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback) (llb.State, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -104,9 +104,9 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitFilesystemFuncDecl(ctx, scope, n, call, noopAliasCallback)
+				return cg.EmitFilesystemFuncDecl(ctx, scope, n, nil, noopAliasCallback)
 			case *parser.AliasDecl:
-				return cg.EmitFilesystemAliasDecl(ctx, scope, n, call)
+				return cg.EmitFilesystemAliasDecl(ctx, scope, n, nil)
 			default:
 				panic("unknown decl object")
 			}
@@ -128,7 +128,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	}
 }
 
-func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, op string, expr *parser.Expr) ([]interface{}, error) {
+func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, op string, expr *parser.Expr) ([]interface{}, error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -136,7 +136,7 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitOptionFuncDecl(ctx, scope, n, call, op)
+				return cg.EmitOptionFuncDecl(ctx, scope, n, nil, op)
 			default:
 				panic("unknown option decl kind")
 			}
