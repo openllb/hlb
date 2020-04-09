@@ -1330,18 +1330,18 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
 			case "secret":
-				input, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
 
-				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
+				mountPoint, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
 					return opts, err
 				}
 
-				id := string(digest.FromString(input))
-				cg.solveOpts = append(cg.solveOpts, solver.WithSecret(id, path))
+				id := string(digest.FromString(localPath))
+				cg.solveOpts = append(cg.solveOpts, solver.WithSecret(id, localPath))
 
 				secretOpts := []llb.SecretOption{
 					llb.SecretID(id),
@@ -1351,7 +1351,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					secretOpts = append(secretOpts, opt)
 				}
 
-				opts = append(opts, llb.AddSecret(path, secretOpts...))
+				opts = append(opts, llb.AddSecret(mountPoint, secretOpts...))
 			case "mount":
 				input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 				if err != nil {
