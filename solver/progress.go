@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/docker/buildx/util/progress"
+	"github.com/palantir/stacktrace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -74,7 +75,7 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (*Progress, error)
 	for _, opt := range opts {
 		err := opt(info)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 	}
 

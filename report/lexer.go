@@ -7,23 +7,24 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
+	"github.com/palantir/stacktrace"
 )
 
 func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
 	lerr, ok := err.(*lexer.Error)
 	if !ok {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	r := bytes.NewReader(ib.buf.Bytes())
 	_, err = r.Seek(int64(lerr.Token().Pos.Offset), io.SeekStart)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	ch, _, err := r.ReadRune()
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	token := lexer.Token{
@@ -40,7 +41,7 @@ func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 		group, err = errToken(color, ib, lex, token)
 	}
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	group.Color = color
@@ -50,7 +51,7 @@ func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 func errLiteral(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
 	segment, err := getSegment(ib, token)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -69,7 +70,7 @@ func errLiteral(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, t
 func errToken(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
 	segment, err := getSegment(ib, token)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{

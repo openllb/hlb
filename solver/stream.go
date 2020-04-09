@@ -8,6 +8,7 @@ import (
 
 	"github.com/moby/buildkit/client"
 	digest "github.com/opencontainers/go-digest"
+	"github.com/palantir/stacktrace"
 )
 
 func StreamSolveStatus(ctx context.Context, logOutput LogOutput, w io.Writer, ch chan *client.SolveStatus) error {
@@ -21,7 +22,7 @@ func StreamSolveStatus(ctx context.Context, logOutput LogOutput, w io.Writer, ch
 			if ok {
 				err := t.printSolveStatus(ss)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 			} else {
 				done = true
@@ -53,7 +54,7 @@ func (t *trace) printSolveStatus(s *client.SolveStatus) error {
 	case LogOutputJSON:
 		dt, err := json.Marshal(s)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		fmt.Fprint(t.w, string(dt))

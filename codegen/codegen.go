@@ -19,6 +19,7 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
+	"github.com/palantir/stacktrace"
 )
 
 type CodeGen struct {
@@ -52,7 +53,7 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 	for _, opt := range opts {
 		err := opt(cg)
 		if err != nil {
-			return cg, err
+			return cg, stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -79,7 +80,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 		// Yield to the debugger before compiling anything.
 		err := cg.Debug(ctx, mod.Scope, mod, nil)
 		if err != nil {
-			return cg.request, err
+			return cg.request, stacktrace.Propagate(err, "")
 		}
 
 		var st llb.State
@@ -93,7 +94,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 
 				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback)
 				if err != nil {
-					return cg.request, err
+					return cg.request, stacktrace.Propagate(err, "")
 				}
 			case *parser.AliasDecl:
 				if n.Func.Type.ObjType != parser.Filesystem {
@@ -102,7 +103,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 
 				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target)
 				if err != nil {
-					return cg.request, err
+					return cg.request, stacktrace.Propagate(err, "")
 				}
 			}
 		default:
@@ -142,7 +143,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		if isBreakpoint(call) {
 			err = cg.Debug(ctx, scope, call, v)
 			if err != nil {
-				return nil, err
+				return nil, stacktrace.Propagate(err, "")
 			}
 			continue
 		}
@@ -150,12 +151,12 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		// Before executing the next call statement.
 		err = cg.Debug(ctx, scope, call, v)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 
 		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, ac)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		v = chain(v)
 
@@ -183,7 +184,7 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 	case parser.Filesystem:
 		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		return func(v interface{}) interface{} {
 			return chain(v.(llb.State))
@@ -191,7 +192,7 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 	case parser.Str:
 		chain, err := cg.EmitStringChainStmt(ctx, scope, call)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		return func(v interface{}) interface{} {
 			return chain(v.(string))
@@ -213,14 +214,14 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 	case "format":
 		formatStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 
 		var as []interface{}
 		for _, arg := range args[1:] {
 			a, err := cg.EmitStringExpr(ctx, scope, call, arg)
 			if err != nil {
-				return nil, err
+				return nil, stacktrace.Propagate(err, "")
 			}
 			as = append(as, a)
 		}
@@ -259,7 +260,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			panic("unknown obj type")
 		}
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		return func(_ string) string {
 			return v.(string)
@@ -270,7 +271,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback) (llb.State, error) {
 	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, stmts, ac)
 	if err != nil {
-		return llb.Scratch(), err
+		return llb.Scratch(), stacktrace.Propagate(err, "")
 	}
 	return v.(llb.State), nil
 }
@@ -278,7 +279,7 @@ func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope,
 func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt) (string, error) {
 	v, err := cg.EmitBlock(ctx, scope, parser.Str, stmts, noopAliasCallback)
 	if err != nil {
-		return "", err
+		return "", stacktrace.Propagate(err, "")
 	}
 	return v.(string), nil
 }
@@ -328,7 +329,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	args := call.Args
 	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
-		return so, err
+		return so, stacktrace.Propagate(err, "")
 	}
 
 	var name string
@@ -347,7 +348,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "image":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.ImageOption
@@ -362,7 +363,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "http":
 		url, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.HTTPOption
@@ -377,11 +378,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "git":
 		remote, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.GitOption
@@ -395,7 +396,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "local":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.LocalOption
@@ -426,7 +427,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "generate":
 		frontend, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		opts := []llb.FrontendOption{llb.IgnoreCache}
@@ -443,12 +444,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		if len(args) == 1 {
 			commandStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 			if err != nil {
-				return so, err
+				return so, stacktrace.Propagate(err, "")
 			}
 
 			parts, err := shellquote.Split(commandStr)
 			if err != nil {
-				return so, err
+				return so, stacktrace.Propagate(err, "")
 			}
 
 			if len(parts) == 1 {
@@ -461,7 +462,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			for _, arg := range args {
 				runArg, err := cg.EmitStringExpr(ctx, scope, call, arg)
 				if err != nil {
-					return so, err
+					return so, stacktrace.Propagate(err, "")
 				}
 				runArgs = append(runArgs, runArg)
 			}
@@ -493,7 +494,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 					target, err := cg.EmitStringExpr(ctx, scope, call, stmt.Call.Args[1])
 					if err != nil {
-						return so, err
+						return so, stacktrace.Propagate(err, "")
 					}
 
 					calls[target] = stmt.Call
@@ -524,12 +525,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "env":
 		key, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		value, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -538,7 +539,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "dir":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -547,7 +548,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "user":
 		name, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -558,7 +559,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		for _, arg := range args {
 			stArg, err := cg.EmitStringExpr(ctx, scope, call, arg)
 			if err != nil {
-				return so, err
+				return so, stacktrace.Propagate(err, "")
 			}
 			stArgs = append(stArgs, stArg)
 		}
@@ -569,17 +570,17 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "mkdir":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		mode, err := cg.EmitIntExpr(ctx, scope, args[1])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.MkdirOption
@@ -596,17 +597,17 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "mkfile":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		mode, err := cg.EmitIntExpr(ctx, scope, args[1])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		content, err := cg.EmitStringExpr(ctx, scope, call, args[2])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.MkfileOption
@@ -623,7 +624,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "rm":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.RmOption
@@ -640,17 +641,17 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "copy":
 		input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		src, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		dest, err := cg.EmitStringExpr(ctx, scope, call, args[2])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		var opts []llb.CopyOption
@@ -667,7 +668,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "dockerPush":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 		so = func(st llb.State) llb.State {
 			solveOpts := append(cg.solveOpts, solver.WithPushImage(ref))
@@ -681,7 +682,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "dockerLoad":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 		if cg.mw == nil {
 			return so, fmt.Errorf("progress.MultiWriter must be provided for dockerLoad")
@@ -690,12 +691,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		if cg.dockerCli == nil {
 			cg.dockerCli, err = command.NewDockerCli()
 			if err != nil {
-				return so, err
+				return so, stacktrace.Propagate(err, "")
 			}
 
 			err = cg.dockerCli.Initialize(flags.NewClientOptions())
 			if err != nil {
-				return so, err
+				return so, stacktrace.Propagate(err, "")
 			}
 		}
 
@@ -730,7 +731,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "download":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -746,12 +747,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "downloadTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		f, err := os.Open(localPath)
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -766,12 +767,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "downloadOCITarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		f, err := os.Open(localPath)
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -786,17 +787,17 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	case "downloadDockerTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		f, err := os.Open(localPath)
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[1])
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 
 		so = func(st llb.State) llb.State {
@@ -839,7 +840,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			panic("unknown obj type")
 		}
 		if err != nil {
-			return so, err
+			return so, stacktrace.Propagate(err, "")
 		}
 		so = func(_ llb.State) llb.State {
 			return v.(llb.State)
@@ -890,7 +891,7 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 			case "resolve":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if v {
 					opts = append(opts, imagemetaresolver.WithDefault)
@@ -898,7 +899,7 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -915,25 +916,25 @@ func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op 
 			case "checksum":
 				dgst, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.Checksum(digest.Digest(dgst)))
 			case "chmod":
 				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.Chmod(os.FileMode(mode)))
 			case "filename":
 				filename, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.Filename(filename))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -950,7 +951,7 @@ func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op s
 			case "keepGitDir":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if v {
 					opts = append(opts, llb.KeepGitDir())
@@ -958,7 +959,7 @@ func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op s
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -977,7 +978,7 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 				for i, arg := range args {
 					patterns[i], err = cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
 					if err != nil {
-						return opts, err
+						return opts, stacktrace.Propagate(err, "")
 					}
 				}
 				opts = append(opts, llb.IncludePatterns(patterns))
@@ -986,7 +987,7 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 				for i, arg := range args {
 					patterns[i], err = cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
 					if err != nil {
-						return opts, err
+						return opts, stacktrace.Propagate(err, "")
 					}
 				}
 				opts = append(opts, llb.ExcludePatterns(patterns))
@@ -995,14 +996,14 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 				for i, arg := range args {
 					paths[i], err = cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
 					if err != nil {
-						return opts, err
+						return opts, stacktrace.Propagate(err, "")
 					}
 				}
 				opts = append(opts, llb.FollowPaths(paths))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1019,27 +1020,27 @@ func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope,
 			case "frontendInput":
 				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				value, err := cg.EmitFilesystemExpr(ctx, scope, args[1], ac)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithFrontendInput(key, value))
 			case "frontendOpt":
 				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				value, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithFrontendOpt(key, value))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1056,31 +1057,31 @@ func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op
 			case "createParents":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithParents(v))
 			case "chown":
 				owner, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithUser(owner))
 			case "createdTime":
 				v, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				t, err := time.Parse(time.RFC3339, v)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1097,25 +1098,25 @@ func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, o
 			case "chown":
 				owner, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithUser(owner))
 			case "createdTime":
 				v, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				t, err := time.Parse(time.RFC3339, v)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1132,19 +1133,19 @@ func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op st
 			case "allowNotFound":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithAllowNotFound(v))
 			case "allowWildcard":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithAllowWildcard(v))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1163,61 +1164,61 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 			case "followSymlinks":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				cp.FollowSymlinks = v
 			case "contentsOnly":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				cp.CopyDirContentsOnly = v
 			case "unpack":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				cp.AttemptUnpack = v
 			case "createDestPath":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				cp.CreateDestPath = v
 			case "allowWildcards":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				cp.AllowWildcard = v
 			case "allowEmptyWildcard":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				cp.AllowEmptyWildcard = v
 			case "chown":
 				owner, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.WithUser(owner))
 			case "createdTime":
 				v, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				t, err := time.Parse(time.RFC3339, v)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1234,14 +1235,14 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			args := stmt.Call.Args
 			iopts, err := cg.EmitWithOption(ctx, scope, stmt.Call, stmt.Call.WithOpt, ac)
 			if err != nil {
-				return opts, err
+				return opts, stacktrace.Propagate(err, "")
 			}
 
 			switch stmt.Call.Func.Ident.Name {
 			case "readonlyRootfs":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if v {
 					opts = append(opts, llb.ReadonlyRootFS())
@@ -1249,33 +1250,33 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			case "env":
 				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				value, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				opts = append(opts, llb.AddEnv(key, value))
 			case "dir":
 				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				opts = append(opts, llb.Dir(path))
 			case "user":
 				name, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				opts = append(opts, llb.User(name))
 			case "network":
 				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				var netMode pb.NetMode
@@ -1294,7 +1295,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			case "security":
 				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				var securityMode pb.SecurityMode
@@ -1311,12 +1312,12 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			case "host":
 				host, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				address, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				ip := net.ParseIP(address)
 
@@ -1332,12 +1333,12 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			case "secret":
 				localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				mountPoint, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				id := string(digest.FromString(localPath))
@@ -1355,12 +1356,12 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			case "mount":
 				input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				var mountOpts []llb.MountOption
@@ -1373,7 +1374,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1398,7 +1399,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 			case "target":
 				target, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &sshSocketOpt{}
@@ -1407,13 +1408,13 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 			case "id":
 				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.SSHID(id))
 			case "uid":
 				uid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &sshSocketOpt{}
@@ -1422,7 +1423,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 			case "gid":
 				gid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &sshSocketOpt{}
@@ -1431,7 +1432,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 			case "mode":
 				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &sshSocketOpt{}
@@ -1440,7 +1441,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1474,13 +1475,13 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 			case "id":
 				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.SecretID(id))
 			case "uid":
 				uid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &secretOpt{}
@@ -1489,7 +1490,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 			case "gid":
 				gid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &secretOpt{}
@@ -1498,7 +1499,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 			case "mode":
 				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if sopt == nil {
 					sopt = &secretOpt{}
@@ -1507,7 +1508,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}
@@ -1533,7 +1534,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 			case "readonly":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if v {
 					opts = append(opts, llb.MountOption(llb.Readonly))
@@ -1541,7 +1542,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 			case "tmpfs":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				if v {
 					opts = append(opts, llb.Tmpfs())
@@ -1549,18 +1550,18 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 			case "sourcePath":
 				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, llb.SourcePath(path))
 			case "cache":
 				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 
 				var sharing llb.CacheMountSharingMode
@@ -1579,7 +1580,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
-					return opts, err
+					return opts, stacktrace.Propagate(err, "")
 				}
 				opts = append(opts, iopts...)
 			}

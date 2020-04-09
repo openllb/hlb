@@ -8,6 +8,7 @@ import (
 	_ "github.com/moby/buildkit/client/connhelper/dockercontainer"
 	_ "github.com/moby/buildkit/client/connhelper/kubepod"
 	"github.com/moby/buildkit/util/appdefaults"
+	"github.com/palantir/stacktrace"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -48,19 +49,19 @@ func collectReaders(c *cli.Context) (rs []io.Reader, cleanup func() error, err e
 		for _, arg := range c.Args().Slice() {
 			info, err := os.Stat(arg)
 			if err != nil {
-				return nil, cleanup, err
+				return nil, cleanup, stacktrace.Propagate(err, "")
 			}
 
 			if info.IsDir() {
 				drcs, err := readDir(arg)
 				if err != nil {
-					return nil, cleanup, err
+					return nil, cleanup, stacktrace.Propagate(err, "")
 				}
 				rcs = append(rcs, drcs...)
 			} else {
 				f, err := os.Open(arg)
 				if err != nil {
-					return nil, cleanup, err
+					return nil, cleanup, stacktrace.Propagate(err, "")
 				}
 
 				rcs = append(rcs, f)
@@ -76,7 +77,7 @@ func collectReaders(c *cli.Context) (rs []io.Reader, cleanup func() error, err e
 		for _, rc := range rcs {
 			err := rc.Close()
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 		}
 		return nil
@@ -96,14 +97,14 @@ func readDir(dir string) ([]io.ReadCloser, error) {
 
 		f, err := os.Open(path)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		rcs = append(rcs, f)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	return rcs, nil

@@ -8,6 +8,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/report"
+	"github.com/palantir/stacktrace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,7 +22,7 @@ func ParseMultiple(rs []io.Reader, opts ...ParseOption) ([]*parser.Module, map[s
 		g.Go(func() error {
 			mod, ib, err := Parse(r, opts...)
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 
 			mods[i] = mod
@@ -32,7 +33,7 @@ func ParseMultiple(rs []io.Reader, opts ...ParseOption) ([]*parser.Module, map[s
 
 	err := g.Wait()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, stacktrace.Propagate(err, "")
 	}
 
 	ibs := make(map[string]*report.IndexedBuffer)
@@ -53,7 +54,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 	for _, opt := range opts {
 		err := opt(&info)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -70,7 +71,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 		Value:  name,
 	})
 	if err != nil {
-		return nil, ib, err
+		return nil, ib, stacktrace.Propagate(err, "")
 	}
 
 	mod := &parser.Module{}
@@ -78,7 +79,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 	if err != nil {
 		nerr, err := report.NewLexerError(info.Color, ib, peeker, err)
 		if err != nil {
-			return mod, ib, err
+			return mod, ib, stacktrace.Propagate(err, "")
 		}
 
 		parser.Parser.ParseFromLexer(peeker, mod)
@@ -89,7 +90,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 	if err != nil {
 		nerr, err := report.NewSyntaxError(info.Color, ib, peeker, err)
 		if err != nil {
-			return mod, ib, err
+			return mod, ib, stacktrace.Propagate(err, "")
 		}
 
 		return mod, ib, nerr

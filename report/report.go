@@ -10,6 +10,7 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
+	"github.com/palantir/stacktrace"
 )
 
 var (
@@ -212,7 +213,7 @@ func (ib *IndexedBuffer) Write(p []byte) (n int, err error) {
 	}
 	ib.offset += n
 
-	return n, err
+	return n, stacktrace.Propagate(err, "")
 }
 
 func (ib *IndexedBuffer) Segment(offset int) ([]byte, error) {
@@ -281,13 +282,13 @@ func (ib *IndexedBuffer) read(start, end int) ([]byte, error) {
 
 	_, err := r.Seek(int64(start), io.SeekStart)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	line := make([]byte, end-start)
 	n, err := r.Read(line)
 	if err != nil && err != io.EOF {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	return line[:n], nil

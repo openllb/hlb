@@ -5,6 +5,7 @@ import (
 
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 )
 
 func Check(mod *parser.Module) error {
@@ -344,13 +345,13 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 
 			err := c.checkType(call, typ, callType)
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 		}
 
 		err := c.checkCallStmt(scope, typ, call)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -360,7 +361,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 func (c *checker) checkCallStmt(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) error {
 	params, err := c.checkCallSignature(scope, typ, call)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	return c.checkCallArgs(scope, call, params)
@@ -427,7 +428,7 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 		typ := params[i].Type.ObjType
 		err := c.checkExpr(scope, typ, arg)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -445,7 +446,7 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 			panic("unknown with opt type")
 		}
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -468,7 +469,7 @@ func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parse
 	default:
 		panic("unknown field type")
 	}
-	return err
+	return stacktrace.Propagate(err, "")
 }
 
 func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *parser.Ident) error {
@@ -500,7 +501,7 @@ func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *
 			panic("unknown arg type")
 		}
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	default:
 		panic("unknown ident type")
@@ -531,7 +532,7 @@ func (c *checker) checkBasicLitArg(typ parser.ObjType, lit *parser.BasicLit) err
 func (c *checker) checkFuncLitArg(scope *parser.Scope, typ parser.ObjType, lit *parser.FuncLit) error {
 	err := c.checkType(lit, typ, lit.Type)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	return c.checkBlockStmt(scope, typ, lit.Body)
@@ -546,7 +547,7 @@ func (c *checker) checkOptionBlockStmt(scope *parser.Scope, typ parser.ObjType, 
 
 		err := c.checkCallStmt(scope, typ, call)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 	return nil

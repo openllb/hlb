@@ -8,6 +8,7 @@ import (
 
 	"github.com/openllb/doxygen-parser/doxygen"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 )
 
 // Documentation contains all the builtin functions defined for HLB.
@@ -38,7 +39,7 @@ type Field struct {
 func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 	file, err := parser.Parse(r)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	var (
@@ -68,7 +69,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 
 			group, err = doxygen.Parse(strings.NewReader(strings.Join(commentBlock, "")))
 			if err != nil {
-				return nil, err
+				return nil, stacktrace.Propagate(err, "")
 			}
 		}
 

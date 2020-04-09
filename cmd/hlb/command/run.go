@@ -15,6 +15,7 @@ import (
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/solver"
+	"github.com/palantir/stacktrace"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -42,14 +43,14 @@ var runCommand = &cli.Command{
 	Action: func(c *cli.Context) error {
 		rc, err := ModuleReadCloser(c.Args().Slice())
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 		defer rc.Close()
 
 		ctx := appcontext.Context()
 		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		return Run(ctx, cln, rc, RunOptions{
@@ -111,7 +112,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		var err error
 		p, err = solver.NewProgress(ctx, progressOpts...)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 		mw = p.MultiWriter()
 	}
@@ -121,7 +122,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		r := csv.NewReader(strings.NewReader(target))
 		fields, err := r.Read()
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 		t := hlb.Target{
 			Name: fields[0],
@@ -151,7 +152,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		if err == codegen.ErrDebugExit {
 			return nil
 		}
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	if opts.Debug {
@@ -175,7 +176,7 @@ func ModuleReadCloser(args []string) (io.ReadCloser, error) {
 	if len(args) == 0 {
 		fi, err := os.Stdin.Stat()
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 
 		if fi.Mode()&os.ModeNamedPipe == 0 {
@@ -186,7 +187,7 @@ func ModuleReadCloser(args []string) (io.ReadCloser, error) {
 	} else {
 		f, err := os.Open(args[0])
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		rc = f
 	}

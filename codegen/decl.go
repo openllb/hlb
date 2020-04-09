@@ -7,6 +7,7 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 )
 
 func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string, ac aliasCallback) (interface{}, error) {
@@ -21,7 +22,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 
 	err := cg.ParameterizedScope(ctx, scope, call, op, fun, args, ac)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	var v interface{}
@@ -37,7 +38,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	// Before executing a function.
 	err = cg.Debug(ctx, fun.Scope, fun, v)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	switch fun.Type.Primary() {
@@ -55,7 +56,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (llb.State, error) {
 	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, "", ac)
 	if err != nil {
-		return llb.Scratch(), err
+		return llb.Scratch(), stacktrace.Propagate(err, "")
 	}
 	return v.(llb.State), nil
 }
@@ -63,7 +64,7 @@ func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Sco
 func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string) ([]interface{}, error) {
 	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, op, noopAliasCallback)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 	return v.([]interface{}), nil
 }
@@ -71,7 +72,7 @@ func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, 
 func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (string, error) {
 	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, "", ac)
 	if err != nil {
-		return "", err
+		return "", stacktrace.Propagate(err, "")
 	}
 	return v.(string), nil
 }
@@ -86,7 +87,7 @@ func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias
 		return true
 	})
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	return v, nil
@@ -95,7 +96,7 @@ func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias
 func (cg *CodeGen) EmitFilesystemAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (llb.State, error) {
 	v, err := cg.EmitAliasDecl(ctx, scope, alias, call)
 	if err != nil {
-		return llb.Scratch(), err
+		return llb.Scratch(), stacktrace.Propagate(err, "")
 	}
 	return v.(llb.State), nil
 }
@@ -103,7 +104,7 @@ func (cg *CodeGen) EmitFilesystemAliasDecl(ctx context.Context, scope *parser.Sc
 func (cg *CodeGen) EmitStringAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (string, error) {
 	v, err := cg.EmitAliasDecl(ctx, scope, alias, call)
 	if err != nil {
-		return "", err
+		return "", stacktrace.Propagate(err, "")
 	}
 	return v.(string), nil
 }
@@ -139,7 +140,7 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		}
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		fun.Scope.Insert(&parser.Object{

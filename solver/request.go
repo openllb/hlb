@@ -6,6 +6,7 @@ import (
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/palantir/stacktrace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -116,7 +117,7 @@ func (r *sequentialRequest) Solve(ctx context.Context, cln *client.Client, mw *p
 	for _, req := range r.reqs {
 		err := req.Solve(ctx, cln, mw)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 	return nil

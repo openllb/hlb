@@ -10,6 +10,7 @@ import (
 	"github.com/moby/buildkit/client"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 	"github.com/xlab/treeprint"
 )
 
@@ -19,12 +20,12 @@ import (
 func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod *parser.Module, long bool) (treeprint.Tree, error) {
 	resolver, err := NewResolver(cln, mw)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	res, err := NewLocalResolved(mod)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 	defer res.Close()
 
@@ -67,5 +68,5 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 
 		return nil
 	})
-	return tree, err
+	return tree, stacktrace.Propagate(err, "")
 }

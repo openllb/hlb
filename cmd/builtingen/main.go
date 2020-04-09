@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/openllb/hlb/gen"
+	"github.com/palantir/stacktrace"
 )
 
 func main() {
@@ -24,13 +25,13 @@ func main() {
 func run(src, dest string) error {
 	f, err := os.Open(src)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 	defer f.Close()
 
 	dt, err := gen.GenerateBuiltins(f)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	return ioutil.WriteFile(dest, dt, 0644)

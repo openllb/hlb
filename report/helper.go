@@ -8,12 +8,13 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 )
 
 func searchToken(lex *lexer.PeekingLexer, tokenOffset int) (lexer.Token, int, error) {
 	cursorOffset, err := binarySearchLexer(lex, 0, lex.Length(), tokenOffset)
 	if err != nil {
-		return lexer.Token{}, 0, err
+		return lexer.Token{}, 0, stacktrace.Propagate(err, "")
 	}
 
 	if cursorOffset < 0 {
@@ -22,7 +23,7 @@ func searchToken(lex *lexer.PeekingLexer, tokenOffset int) (lexer.Token, int, er
 
 	n := cursorOffset - lex.Cursor()
 	token, err := lex.Peek(n)
-	return token, n, err
+	return token, n, stacktrace.Propagate(err, "")
 }
 
 func binarySearchLexer(lex *lexer.PeekingLexer, l, r, x int) (int, error) {
@@ -31,7 +32,7 @@ func binarySearchLexer(lex *lexer.PeekingLexer, l, r, x int) (int, error) {
 
 		token, err := lex.Peek(mid - lex.Cursor())
 		if err != nil {
-			return 0, err
+			return 0, stacktrace.Propagate(err, "")
 		}
 
 		if token.Pos.Offset == x {
@@ -58,7 +59,7 @@ func findMatchingStart(lex *lexer.PeekingLexer, start, end string, n int) (lexer
 		var err error
 		token, err = lex.Peek(n)
 		if err != nil {
-			return token, n, err
+			return token, n, stacktrace.Propagate(err, "")
 		}
 
 		if token.Value == end {
@@ -92,7 +93,7 @@ func getSegment(ib *IndexedBuffer, token lexer.Token) ([]byte, error) {
 
 	segment, err := ib.Segment(token.Pos.Offset)
 	if err != nil {
-		return segment, err
+		return segment, stacktrace.Propagate(err, "")
 	}
 
 	if isSymbol(token, "Newline") {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 )
 
 func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr) (string, error) {
@@ -90,7 +91,7 @@ func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, a
 		var err error
 		v, err = cg.EmitBoolExpr(ctx, scope, args[0])
 		if err != nil {
-			return v, err
+			return v, stacktrace.Propagate(err, "")
 		}
 	}
 	return v, nil
@@ -120,7 +121,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	case expr.FuncLit != nil:
 		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, "", ac)
 		if err != nil {
-			return llb.Scratch(), err
+			return llb.Scratch(), stacktrace.Propagate(err, "")
 		}
 		return v.(llb.State), nil
 	default:
@@ -150,7 +151,7 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, op s
 	case expr.FuncLit != nil:
 		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, op, noopAliasCallback)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		return v.([]interface{}), nil
 	default:

@@ -23,6 +23,7 @@ import (
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/report"
 	"github.com/openllb/hlb/solver"
+	"github.com/palantir/stacktrace"
 )
 
 var (
@@ -104,7 +105,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 			if showList && !cont {
 				err := printList(color, ibs, w, s.node)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 			}
 
@@ -126,7 +127,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 
 				command, err := r.ReadString('\n')
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 
 				command = strings.Replace(command, "\n", "", -1)
@@ -137,7 +138,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 
 				args, err := shellquote.Split(command)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 
 				switch args[0] {
@@ -313,7 +314,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 					if showList {
 						err = printList(color, ibs, w, s.node)
 						if err != nil {
-							return err
+							return stacktrace.Propagate(err, "")
 						}
 					} else {
 						fmt.Fprintf(w, "Program has not started yet\n")
@@ -376,7 +377,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 
 		err := debug(history[historyIndex])
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		if reverseStep {
@@ -386,7 +387,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 			for historyIndex < len(history) {
 				err = debug(history[historyIndex])
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 
 				if reverseStep {
@@ -439,7 +440,7 @@ func printList(color aurora.Aurora, ibs map[string]*report.IndexedBuffer, w io.W
 	for i := start; i < end; i++ {
 		line, err := ib.Line(i)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		ln := fmt.Sprintf("%d", i+1)
@@ -503,7 +504,7 @@ func (nopWriteCloser) Close() error { return nil }
 func debugExec(ctx context.Context, st llb.State, r io.Reader, ref, entrypoint string, args ...string) error {
 	err := dockerLoad(ctx, r).Run()
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 	defer func() {
 		dockerRemove(ctx, ref).Run()
@@ -549,12 +550,12 @@ func dockerRun(ctx context.Context, st llb.State, tty bool, ref, entrypoint stri
 func printGraph(ctx context.Context, st llb.State, sh string) error {
 	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	ops, err := loadLLB(def)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	r, w := io.Pipe()
@@ -567,7 +568,7 @@ func printGraph(ctx context.Context, st llb.State, sh string) error {
 
 	if sh == "" {
 		_, err = io.Copy(os.Stderr, r)
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", sh)
@@ -589,7 +590,7 @@ func loadLLB(def *llb.Definition) ([]llbOp, error) {
 	for _, dt := range def.Def {
 		var op pb.Op
 		if err := (&op).Unmarshal(dt); err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		dgst := digest.FromBytes(dt)
 		ent := llbOp{Op: op, Digest: dgst, OpMetadata: def.Metadata[dgst]}

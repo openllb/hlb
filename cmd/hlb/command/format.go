@@ -8,6 +8,7 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb"
+	"github.com/palantir/stacktrace"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -26,7 +27,7 @@ var formatCommand = &cli.Command{
 	Action: func(c *cli.Context) error {
 		rs, cleanup, err := collectReaders(c)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 		defer cleanup()
 
@@ -43,7 +44,7 @@ type FormatOptions struct {
 func Format(rs []io.Reader, opts FormatOptions) error {
 	files, _, err := hlb.ParseMultiple(rs, hlb.DefaultParseOpts()...)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	if opts.Write {
@@ -54,12 +55,12 @@ func Format(rs []io.Reader, opts FormatOptions) error {
 			}
 			info, err := os.Stat(filename)
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 
 			err = ioutil.WriteFile(filename, []byte(f.String()), info.Mode())
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 		}
 	} else {

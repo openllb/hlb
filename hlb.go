@@ -18,6 +18,7 @@ import (
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/report"
 	"github.com/openllb/hlb/solver"
+	"github.com/palantir/stacktrace"
 )
 
 func DefaultParseOpts() []ParseOption {
@@ -40,7 +41,7 @@ type Target struct {
 func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, targets []Target, r io.Reader) (solver.Request, error) {
 	mod, ib, err := Parse(r, DefaultParseOpts()...)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 	ibs := map[string]*report.IndexedBuffer{
 		mod.Pos.Filename: ib,
@@ -48,23 +49,23 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 
 	err = checker.Check(mod)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	resolver, err := module.NewResolver(cln, mw)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	res, err := module.NewLocalResolved(mod)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 	defer res.Close()
 
 	err = module.ResolveGraph(ctx, resolver, res, mod, nil)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	var names []string
@@ -130,11 +131,11 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	gen := func() error {
 		cg, err := codegen.New(opts...)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		request, err = cg.Generate(ctx, mod, callTargets)
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	if mw == nil {
@@ -148,5 +149,5 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		progress.Write(pw, fmt.Sprintf("compiling %s", names), gen)
 	}
 
-	return request, err
+	return request, stacktrace.Propagate(err, "")
 }

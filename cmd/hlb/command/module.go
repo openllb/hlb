@@ -15,6 +15,7 @@ import (
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
+	"github.com/palantir/stacktrace"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
 )
@@ -45,7 +46,7 @@ var moduleVendorCommand = &cli.Command{
 		ctx := appcontext.Context()
 		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		return Vendor(ctx, cln, VendorOptions{
@@ -64,7 +65,7 @@ var moduleTidyCommand = &cli.Command{
 		ctx := appcontext.Context()
 		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		return Vendor(ctx, cln, VendorOptions{
@@ -88,7 +89,7 @@ var moduleTreeCommand = &cli.Command{
 		ctx := appcontext.Context()
 		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		return Tree(ctx, cln, TreeOptions{
@@ -108,12 +109,12 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 	rc, err := ModuleReadCloser(opts.Args)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		rc, err = findVendoredModule(err, opts.Args[0])
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	} else {
 		defer rc.Close()
@@ -121,12 +122,12 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 
 	mod, _, err := hlb.Parse(rc, hlb.DefaultParseOpts()...)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	err = checker.Check(mod)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	hasImports := false
@@ -145,7 +146,7 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 
 	p, err := solver.NewProgress(ctx)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	p.Go(func(ctx context.Context) error {
@@ -159,7 +160,7 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 	exist, err := module.ModulesPathExist()
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	if !exist {
@@ -175,7 +176,7 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 
 	matches, err := filepath.Glob(filepath.Join(module.ModulesPath, fmt.Sprintf("%s/*/*", alg)))
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	var matchedModules []string
@@ -207,35 +208,35 @@ type TreeOptions struct {
 func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 	rc, err := ModuleReadCloser(opts.Args)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 	defer rc.Close()
 
 	mod, _, err := hlb.Parse(rc, hlb.DefaultParseOpts()...)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	err = checker.Check(mod)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	exist, err := module.ModulesPathExist()
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	var tree treeprint.Tree
 	if exist {
 		tree, err = module.NewTree(ctx, cln, nil, mod, opts.Long)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	} else {
 		p, err := solver.NewProgress(ctx)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		p.Go(func(ctx context.Context) error {
@@ -243,12 +244,12 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 
 			var err error
 			tree, err = module.NewTree(ctx, cln, p.MultiWriter(), mod, opts.Long)
-			return err
+			return stacktrace.Propagate(err, "")
 		})
 
 		err = p.Wait()
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 

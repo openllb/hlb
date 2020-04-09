@@ -6,12 +6,13 @@ import (
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
+	"github.com/palantir/stacktrace"
 )
 
 func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
 	perr, ok := err.(participle.Error)
 	if !ok {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	var groups []AnnotationGroup
@@ -47,7 +48,7 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 			group, err = errBlockEnd(color, ib, lex, unexpected)
 		}
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 
 		groups = append(groups, group)
@@ -56,12 +57,12 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 	if len(groups) == 0 {
 		token, err := lex.Peek(0)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 
 		group, err := errDefault(color, ib, lex, perr, token)
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 		groups = append(groups, group)
 	}
@@ -76,7 +77,7 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 func errFunc(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
 	segment, err := getSegment(ib, token)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	suggestion, _ := getSuggestion(color, Types, token.Value)
@@ -103,12 +104,12 @@ func errFunc(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, toke
 func errFuncName(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	startSegment, startToken, n, err := getSegmentAndToken(ib, lex, unexpected)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	endToken, err := lex.Peek(n + 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	if isSymbol(endToken, "Type") {
@@ -117,7 +118,7 @@ func errFuncName(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 
 	endSegment, err := getSegment(ib, endToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -146,7 +147,7 @@ func errFuncName(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 func errKeyword(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
 	segment, err := getSegment(ib, token)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -167,17 +168,17 @@ func errKeyword(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, t
 func errSignatureStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startToken, err := lex.Peek(n - 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -205,17 +206,17 @@ func errSignatureStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.Peekin
 func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startToken, m, err := findMatchingStart(lex, "(", ")", n)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	token, err := lex.Peek(m + 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	expected := "Type"
@@ -224,7 +225,7 @@ func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingL
 		m++
 		token, err = lex.Peek(m)
 		if err != nil {
-			return group, err
+			return group, stacktrace.Propagate(err, "")
 		}
 
 		if (expected == "," && token.Value != ",") || (expected != "," && !isSymbol(token, expected)) {
@@ -250,7 +251,7 @@ func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingL
 
 	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -283,22 +284,22 @@ func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingL
 func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
 	startToken, err := lex.Peek(n - 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	endToken, err := lex.Peek(n)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	endSegment, err := getSegment(ib, endToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	suggestion, _ := getSuggestion(color, Types, endToken.Value)
@@ -329,17 +330,17 @@ func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer,
 func errArgIdent(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
 	startToken, err := lex.Peek(n - 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	endToken, err := lex.Peek(n)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	if isSymbol(endToken, "Type") {
@@ -348,7 +349,7 @@ func errArgIdent(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 
 	endSegment, err := getSegment(ib, endToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -380,12 +381,12 @@ func errArgIdent(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 func errArgDelim(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
 	token, err := lex.Peek(n - 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	segment, err := getSegment(ib, token)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -407,17 +408,17 @@ func errArgDelim(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 func errBlockStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startToken, err := lex.Peek(n - 1)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -446,17 +447,17 @@ func errBlockStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startToken, _, err := findMatchingStart(lex, "{", "}", n)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	startSegment, err := getSegment(ib, startToken)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{
@@ -485,7 +486,7 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 func errDefault(_ aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, perr participle.Error, unexpected lexer.Token) (group AnnotationGroup, err error) {
 	segment, token, _, err := getSegmentAndToken(ib, lex, unexpected)
 	if err != nil {
-		return group, err
+		return group, stacktrace.Propagate(err, "")
 	}
 
 	return AnnotationGroup{

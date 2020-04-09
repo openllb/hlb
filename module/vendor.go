@@ -10,6 +10,7 @@ import (
 	"github.com/moby/buildkit/client"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -39,7 +40,7 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 
 	res, err := NewLocalResolved(mod)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 	defer res.Close()
 
@@ -88,13 +89,13 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 					return nil
 				}
 				if !os.IsNotExist(err) {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 			}
 
 			err := os.MkdirAll(vp, 0700)
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 
 			var filename string
@@ -107,36 +108,36 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 
 			f, err := os.Create(filepath.Join(vp, filename))
 			if err != nil {
-				return err
+				return stacktrace.Propagate(err, "")
 			}
 			defer f.Close()
 
 			_, err = f.WriteString(importMod.String())
-			return err
+			return stacktrace.Propagate(err, "")
 		})
 		return nil
 	})
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	close(ready)
 	err = g.Wait()
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	if tidy {
 		matches, err := filepath.Glob(filepath.Join(ModulesPath, "*/*/*"))
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 
 		for _, match := range matches {
 			if _, ok := markedPaths[match]; !ok {
 				err = os.RemoveAll(match)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 			}
 		}

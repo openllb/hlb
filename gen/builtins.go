@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/openllb/hlb/parser"
+	"github.com/palantir/stacktrace"
 )
 
 type BuiltinData struct {
@@ -29,7 +30,7 @@ type ParsedFunc struct {
 func GenerateBuiltins(r io.Reader) ([]byte, error) {
 	file, err := parser.Parse(r)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	funcsByType := make(map[parser.ObjType][]ParsedFunc)
@@ -54,7 +55,7 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 	var buf bytes.Buffer
 	err = referenceTmpl.Execute(&buf, &data)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	src, err := format.Source(buf.Bytes())

@@ -17,6 +17,7 @@ require (
 	github.com/opencontainers/selinux v1.4.0 // indirect
 	github.com/openllb/doxygen-parser v0.0.0-20200128221307-2aa2d8be1c35
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
+	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/xlab/treeprint v1.0.0

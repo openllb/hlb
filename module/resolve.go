@@ -18,6 +18,7 @@ import (
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
+	"github.com/palantir/stacktrace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -54,12 +55,12 @@ type Resolved interface {
 func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error) {
 	_, err := filepath.Abs(ModulesPath)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	root, exist, err := modulesPathExist()
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	if !exist {
@@ -73,13 +74,13 @@ func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error)
 // working directory.
 func ModulesPathExist() (bool, error) {
 	_, exist, err := modulesPathExist()
-	return exist, err
+	return exist, stacktrace.Propagate(err, "")
 }
 
 func modulesPathExist() (string, bool, error) {
 	root, err := filepath.Abs(ModulesPath)
 	if err != nil {
-		return root, false, err
+		return root, false, stacktrace.Propagate(err, "")
 	}
 
 	_, err = os.Stat(root)
@@ -87,7 +88,7 @@ func modulesPathExist() (string, bool, error) {
 		if os.IsNotExist(err) {
 			return root, false, nil
 		}
-		return root, false, err
+		return root, false, stacktrace.Propagate(err, "")
 	}
 
 	return root, true, nil
@@ -100,7 +101,7 @@ type vendorResolver struct {
 func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
 	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.modulePath)
 	if err != nil {
-		return res, err
+		return res, stacktrace.Propagate(err, "")
 	}
 
 	rc, err := res.Open(ModuleFilename)
@@ -108,7 +109,7 @@ func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return res, rc.Close()
 	}
 	if !os.IsNotExist(err) {
-		return res, err
+		return res, stacktrace.Propagate(err, "")
 	}
 
 	return res, fmt.Errorf("missing module %q from vendor, run `hlb mod vendor --target %s %s` to vendor module", decl.Ident, decl.Ident, decl.Pos.Filename)
@@ -117,17 +118,17 @@ func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, modulePath string) (Resolved, error) {
 	cg, err := codegen.New()
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	st, err := cg.GenerateImport(ctx, scope, lit)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	vp := VendorPath(modulePath, dgst)
@@ -151,7 +152,7 @@ func NewLocalResolved(mod *parser.Module) (Resolved, error) {
 		var err error
 		root, err = os.Getwd()
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -177,22 +178,22 @@ type remoteResolver struct {
 func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
 	cg, err := codegen.New()
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	st, err := cg.GenerateImport(ctx, scope, decl.ImportFunc.Func)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	var pw progress.Writer
@@ -219,12 +220,12 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 				Definition: def.ToPB(),
 			})
 			if err != nil {
-				return nil, err
+				return nil, stacktrace.Propagate(err, "")
 			}
 
 			ref, err = res.SingleRef()
 			if err != nil {
-				return nil, err
+				return nil, stacktrace.Propagate(err, "")
 			}
 
 			close(resolved)
@@ -263,14 +264,14 @@ func (r *remoteResolved) Open(filename string) (io.ReadCloser, error) {
 		Path: filename,
 	})
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	data, err := r.ref.ReadFile(r.ctx, gateway.ReadRequest{
 		Filename: filename,
 	})
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "")
 	}
 
 	return &noopCloser{bytes.NewReader(data)}, nil
@@ -294,7 +295,7 @@ type tidyResolver struct {
 func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
 	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.remote.modulePath)
 	if err != nil {
-		return res, err
+		return res, stacktrace.Propagate(err, "")
 	}
 
 	rc, err := res.Open(ModuleFilename)
@@ -303,7 +304,7 @@ func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *p
 	}
 
 	if !os.IsNotExist(err) {
-		return res, err
+		return res, stacktrace.Propagate(err, "")
 	}
 
 	return r.remote.Resolve(ctx, scope, decl)
@@ -334,7 +335,7 @@ func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 
 	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.remote.modulePath)
 	if err != nil {
-		return res, err
+		return res, stacktrace.Propagate(err, "")
 	}
 
 	rc, err := res.Open(ModuleFilename)
@@ -342,7 +343,7 @@ func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return res, rc.Close()
 	}
 	if !os.IsNotExist(err) {
-		return res, err
+		return res, stacktrace.Propagate(err, "")
 	}
 
 	return r.remote.Resolve(ctx, scope, decl)
@@ -382,7 +383,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				case n.ImportFunc != nil:
 					importRes, err = resolver.Resolve(ctx, mod.Scope, n)
 					if err != nil {
-						return err
+						return stacktrace.Propagate(err, "")
 					}
 					defer importRes.Close()
 
@@ -395,7 +396,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				rc, err := importRes.Open(filename)
 				if err != nil {
 					if !os.IsNotExist(err) {
-						return err
+						return stacktrace.Propagate(err, "")
 					}
 					return checker.ErrImportNotExist{Import: n, Filename: filename}
 				}
@@ -403,24 +404,24 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 
 				importMod, err := parser.Parse(rc)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 
 				err = checker.Check(importMod)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 
 				if visitor != nil {
 					err = visitor(n, importRes.Digest(), mod, importMod)
 					if err != nil {
-						return err
+						return stacktrace.Propagate(err, "")
 					}
 				}
 
 				err = ResolveGraph(ctx, resolver, importRes, importMod, visitor)
 				if err != nil {
-					return err
+					return stacktrace.Propagate(err, "")
 				}
 
 				mu.Lock()
@@ -435,7 +436,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 
 	err := g.Wait()
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	// Register imported modules in the scope of the module that imported it.

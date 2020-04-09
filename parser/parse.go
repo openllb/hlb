@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/alecthomas/participle/lexer"
+	"github.com/palantir/stacktrace"
 )
 
 func Parse(r io.Reader) (*Module, error) {
@@ -15,17 +16,17 @@ func Parse(r io.Reader) (*Module, error) {
 	mod := &Module{}
 	lex, err := Parser.Lexer().Lex(&NamedReader{r, name})
 	if err != nil {
-		return mod, err
+		return mod, stacktrace.Propagate(err, "")
 	}
 
 	peeker, err := lexer.Upgrade(lex)
 	if err != nil {
-		return mod, err
+		return mod, stacktrace.Propagate(err, "")
 	}
 
 	err = Parser.ParseFromLexer(peeker, mod)
 	if err != nil {
-		return mod, err
+		return mod, stacktrace.Propagate(err, "")
 	}
 	AssignDocStrings(mod)
 

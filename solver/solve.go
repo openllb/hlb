@@ -16,6 +16,7 @@ import (
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/palantir/stacktrace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -95,7 +96,7 @@ func WithWaiter(wait <-chan struct{}) SolveOption {
 func Solve(ctx context.Context, c *client.Client, pw progress.Writer, st llb.State, opts ...SolveOption) error {
 	def, err := st.Marshal(llb.LinuxAmd64)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "")
 	}
 
 	return Build(ctx, c, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
@@ -103,7 +104,7 @@ func Solve(ctx context.Context, c *client.Client, pw progress.Writer, st llb.Sta
 			Definition: def.ToPB(),
 		})
 		if err != nil {
-			return nil, err
+			return nil, stacktrace.Propagate(err, "")
 		}
 
 		if _, ok := res.Metadata[exptypes.ExporterImageConfigKey]; !ok {
@@ -117,7 +118,7 @@ func Solve(ctx context.Context, c *client.Client, pw progress.Writer, st llb.Sta
 
 			config, err := json.Marshal(img)
 			if err != nil {
-				return nil, err
+				return nil, stacktrace.Propagate(err, "")
 			}
 
 			res.AddMeta(exptypes.ExporterImageConfigKey, config)
@@ -134,7 +135,7 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 	for _, opt := range opts {
 		err := opt(info)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 	}
 
@@ -147,7 +148,7 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 
 		sp, err := sshprovider.NewSSHAgentProvider([]sshprovider.AgentConfig{cfg})
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 		attachable = append(attachable, sp)
 	}
@@ -162,7 +163,7 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 		}
 		store, err := secretsprovider.NewFileStore(sources)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "")
 		}
 		attachable = append(attachable, secretsprovider.NewSecretProvider(store))
 	}
@@ -233,7 +234,7 @@ func Build(ctx context.Context, c *client.Client, pw progress.Writer, f gateway.
 
 	g.Go(func() error {
 		_, err := c.Build(ctx, solveOpt, "", f, statusCh)
-		return err
+		return stacktrace.Propagate(err, "")
 	})
 
 	for _, waiter := range info.Waiters {

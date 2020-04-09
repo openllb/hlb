@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/regex"
+	"github.com/palantir/stacktrace"
 )
 
 var (
@@ -439,7 +440,7 @@ func (l *NumericLit) Capture(tokens []string) error {
 	num, err := strconv.ParseInt(n, base, 64)
 	l.Value = num
 	l.Base = base
-	return err
+	return stacktrace.Propagate(err, "")
 }
 
 // ObjType returns the type of the basic literal.
