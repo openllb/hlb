@@ -2,11 +2,11 @@ package codegen
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
+	"github.com/pkg/errors"
 )
 
 func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, op string, ac aliasCallback) (interface{}, error) {
@@ -16,7 +16,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	}
 
 	if len(args) != len(fun.Params.List) {
-		return nil, fmt.Errorf("%s expected args %s, found %s", fun.Name, fun.Params.List, args)
+		return nil, errors.WithStack(errors.Errorf("%s expected args %s, found %s", fun.Name, fun.Params.List, args))
 	}
 
 	err := cg.ParameterizedScope(ctx, scope, call, op, fun, args, ac)
@@ -131,15 +131,15 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		case parser.Filesystem:
 			var v llb.State
-			v, err = cg.EmitFilesystemExpr(ctx, scope, args[i], ac)
+			v, err = cg.EmitFilesystemExpr(ctx, scope, nil, args[i], ac)
 			data = v
 		case parser.Option:
 			var v []interface{}
-			v, err = cg.EmitOptionExpr(ctx, scope, op, args[i])
+			v, err = cg.EmitOptionExpr(ctx, scope, nil, op, args[i])
 			data = v
 		}
 		if err != nil {
-			return err
+			return ErrCodeGen{Node: call, Err: err}
 		}
 
 		fun.Scope.Insert(&parser.Object{

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/docker/buildx/util/progress"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/logrusorgru/aurora"
 	"github.com/moby/buildkit/client"
@@ -255,9 +254,11 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 						continue
 					}
 
-					p.WithPrefix("solve", func(ctx context.Context, pw progress.Writer) error {
-						defer p.Release()
+					mw := p.MultiWriter()
+					pw := mw.WithPrefix("solve", false)
 
+					p.Go(func(ctx context.Context) error {
+						defer p.Release()
 						return solver.Solve(ctx, c, pw, st, solver.WithDownloadDockerTarball(ref, wc))
 					})
 

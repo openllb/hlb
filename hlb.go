@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/docker/buildx/util/progress"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
 	digest "github.com/opencontainers/go-digest"
@@ -37,7 +36,7 @@ type Target struct {
 	OCITarballPath string
 }
 
-func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, targets []Target, r io.Reader) (solver.Request, error) {
+func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets []Target, r io.Reader) (solver.Request, error) {
 	mod, ib, err := Parse(r, DefaultParseOpts()...)
 	if err != nil {
 		return nil, err
@@ -51,6 +50,7 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		return nil, err
 	}
 
+	mw := p.MultiWriter()
 	resolver, err := module.NewResolver(cln, mw)
 	if err != nil {
 		return nil, err
@@ -124,29 +124,32 @@ func Compile(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 		callTargets = append(callTargets, parser.NewCallStmt(targetOverride, nil, nil, nil).Call)
 	}
 
-	opts := []codegen.CodeGenOption{codegen.WithMultiWriter(mw)}
+	var opts []codegen.CodeGenOption
+	if mw != nil {
+		opts = append(opts, codegen.WithMultiWriter(mw))
+	} else {
+		r := bufio.NewReader(os.Stdin)
+		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r, ibs)))
+	}
+
 	var request solver.Request
 
-	gen := func() error {
+	done := make(chan struct{})
+	p.Write("codegen", fmt.Sprintf("compiling %s", names), func(ctx context.Context) error {
+		defer close(done)
+
 		cg, err := codegen.New(opts...)
 		if err != nil {
 			return err
 		}
 
 		request, err = cg.Generate(ctx, mod, callTargets)
-		return err
-	}
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 
-	if mw == nil {
-		r := bufio.NewReader(os.Stdin)
-		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r, ibs)))
-		err = gen()
-	} else {
-		pw := mw.WithPrefix("codegen", false)
-		defer close(pw.Status())
-
-		progress.Write(pw, fmt.Sprintf("compiling %s", names), gen)
-	}
-
-	return request, err
+	<-done
+	return request, nil
 }
