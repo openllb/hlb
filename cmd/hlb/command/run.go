@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/docker/buildx/util/progress"
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/appcontext"
@@ -102,18 +101,15 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return fmt.Errorf("unrecognized log-output %q", opts.LogOutput)
 	}
 
-	var (
-		p  *solver.Progress
-		mw *progress.MultiWriter
-	)
-
-	if !opts.Debug {
+	var p solver.Progress
+	if opts.Debug {
+		p = solver.NewDebugProgress(ctx)
+	} else {
 		var err error
 		p, err = solver.NewProgress(ctx, progressOpts...)
 		if err != nil {
 			return err
 		}
-		mw = p.MultiWriter()
 	}
 
 	targets := []hlb.Target{}
@@ -145,7 +141,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		targets = append(targets, t)
 	}
 
-	solveReq, err := hlb.Compile(ctx, cln, mw, targets, rc)
+	solveReq, err := hlb.Compile(ctx, cln, p, targets, rc)
 	if err != nil {
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
@@ -156,10 +152,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 
 	if opts.Debug {
 		return nil
-	}
-
-	if p == nil {
-		return solveReq.Solve(ctx, cln, nil)
 	}
 
 	p.Go(func(ctx context.Context) error {

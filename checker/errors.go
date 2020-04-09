@@ -132,12 +132,3 @@ type ErrBadParse struct {
 func (e ErrBadParse) Error() string {
 	return fmt.Sprintf("%s unable to parse", FormatPos(e.Node.Position()))
 }
-
-type ErrCodeGen struct {
-	Node parser.Node
-	Err  error
-}
-
-func (e ErrCodeGen) Error() string {
-	return fmt.Sprintf("%s %s", FormatPos(e.Node.Position()), e.Err)
-}

@@ -2,9 +2,15 @@ package solver
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/docker/buildx/util/progress"
+	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/identity"
+	digest "github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -28,6 +34,18 @@ func WithLogOutput(logOutput LogOutput) ProgressOption {
 		info.LogOutput = logOutput
 		return nil
 	}
+}
+
+type Progress interface {
+	MultiWriter() *progress.MultiWriter
+
+	Write(pfx, name string, fn func(ctx context.Context) error)
+
+	Go(func(ctx context.Context) error)
+
+	Release()
+
+	Wait() error
 }
 
 // NewProgress returns a Progress that presents all the progress on multiple
@@ -69,7 +87,7 @@ func WithLogOutput(logOutput LogOutput) ProgressOption {
 //
 // return p.Wait()
 // ```
-func NewProgress(ctx context.Context, opts ...ProgressOption) (*Progress, error) {
+func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) {
 	info := &ProgressInfo{}
 	for _, opt := range opts {
 		err := opt(info)
@@ -121,27 +139,27 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (*Progress, error)
 		return nil
 	})
 
-	return &Progress{mw, ctx, g, done}, nil
+	return &progressUI{mw, ctx, g, done}, nil
 }
 
-type Progress struct {
+type progressUI struct {
 	mw   *progress.MultiWriter
 	ctx  context.Context
 	g    *errgroup.Group
 	done chan struct{}
 }
 
-func (p *Progress) MultiWriter() *progress.MultiWriter {
+func (p *progressUI) MultiWriter() *progress.MultiWriter {
 	return p.mw
 }
 
-func (p *Progress) Go(fn func(ctx context.Context) error) {
+func (p *progressUI) Go(fn func(ctx context.Context) error) {
 	p.g.Go(func() error {
 		return fn(p.ctx)
 	})
 }
 
-func (p *Progress) WithPrefix(pfx string, fn func(ctx context.Context, pw progress.Writer) error) {
+func (p *progressUI) Write(pfx, name string, fn func(ctx context.Context) error) {
 	pw := p.mw.WithPrefix(pfx, false)
 	p.g.Go(func() error {
 		<-pw.Done()
@@ -149,14 +167,122 @@ func (p *Progress) WithPrefix(pfx string, fn func(ctx context.Context, pw progre
 	})
 
 	p.g.Go(func() error {
-		return fn(p.ctx, pw)
+		defer close(pw.Status())
+		return write(pw, name, func() error {
+			return fn(p.ctx)
+		})
 	})
 }
 
-func (p *Progress) Release() {
+type stackTracer interface {
+	StackTrace() errors.StackTrace
+}
+
+func write(pw progress.Writer, name string, fn func() error) error {
+	status := pw.Status()
+	dgst := digest.FromBytes([]byte(identity.NewID()))
+	tm := time.Now()
+
+	vtx := client.Vertex{
+		Digest:  dgst,
+		Name:    name,
+		Started: &tm,
+	}
+
+	status <- &client.SolveStatus{
+		Vertexes: []*client.Vertex{&vtx},
+	}
+
+	err := fn()
+
+	tm2 := time.Now()
+	vtx2 := vtx
+	vtx2.Completed = &tm2
+
+	// On the interactive progress UI, the vertex Error will not be printed
+	// anywhere. So we add it to the vertex logs instead.
+	var logs []*client.VertexLog
+
+	if err != nil {
+		vtx2.Error = err.Error()
+
+		// Extract stack trace from pkg/errors.
+		if tracer, ok := errors.Cause(err).(stackTracer); ok {
+			for _, f := range tracer.StackTrace() {
+				logs = append(logs, &client.VertexLog{
+					Vertex:    dgst,
+					Data:      []byte(fmt.Sprintf("%+s:%d\n", f, f)),
+					Timestamp: tm2,
+				})
+			}
+		}
+
+		// Add a line for root cause at the end.
+		logs = append(logs, &client.VertexLog{
+			Vertex:    dgst,
+			Data:      []byte(fmt.Sprintf("Caused by: %s", err)),
+			Timestamp: tm2,
+		})
+	}
+
+	status <- &client.SolveStatus{
+		Vertexes: []*client.Vertex{&vtx2},
+		Logs:     logs,
+	}
+
+	return nil
+}
+
+func (p *progressUI) Release() {
 	close(p.done)
 }
 
-func (p *Progress) Wait() error {
+func (p *progressUI) Wait() error {
+	return p.g.Wait()
+}
+
+func NewDebugProgress(ctx context.Context) Progress {
+	g, ctx := errgroup.WithContext(ctx)
+
+	done := make(chan struct{})
+	g.Go(func() error {
+		<-done
+		return nil
+	})
+
+	return &debugProgress{
+		ctx:  ctx,
+		g:    g,
+		done: done,
+	}
+}
+
+type debugProgress struct {
+	ctx  context.Context
+	g    *errgroup.Group
+	done chan struct{}
+}
+
+func (p *debugProgress) MultiWriter() *progress.MultiWriter {
+	return nil
+}
+
+func (p *debugProgress) Go(fn func(ctx context.Context) error) {
+	p.g.Go(func() error {
+		return fn(p.ctx)
+	})
+}
+
+func (p *debugProgress) Write(pfx, name string, fn func(ctx context.Context) error) {
+	p.g.Go(func() error {
+		return fn(p.ctx)
+	})
+}
+
+func (p *debugProgress) Release() {
+	close(p.done)
+}
+
+func (p *debugProgress) Wait() error {
 	return p.g.Wait()
 }
