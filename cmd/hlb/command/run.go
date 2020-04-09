@@ -154,13 +154,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return nil
 	}
 
-	// // If codegen encountered an error, then the error was captured by
-	// // solver.Progress so the request will be nil.
-	// if solveReq == nil {
-	// 	p.Release()
-	// 	return p.Wait()
-	// }
-
 	p.Go(func(ctx context.Context) error {
 		defer p.Release()
 		return solveReq.Solve(ctx, cln, p.MultiWriter())
