@@ -198,26 +198,32 @@ func write(pw progress.Writer, name string, fn func() error) error {
 	tm2 := time.Now()
 	vtx2 := vtx
 	vtx2.Completed = &tm2
+
+	// On the interactive progress UI, the vertex Error will not be printed
+	// anywhere. So we add it to the vertex logs instead.
+	var logs []*client.VertexLog
+
 	if err != nil {
 		vtx2.Error = err.Error()
-	}
 
-	var logs []*client.VertexLog
-	if tracer, ok := errors.Cause(err).(stackTracer); ok {
-		for _, f := range tracer.StackTrace() {
-			logs = append(logs, &client.VertexLog{
-				Vertex:    dgst,
-				Data:      []byte(fmt.Sprintf("%+s:%d\n", f, f)),
-				Timestamp: tm2,
-			})
+		// Extract stack trace from pkg/errors.
+		if tracer, ok := errors.Cause(err).(stackTracer); ok {
+			for _, f := range tracer.StackTrace() {
+				logs = append(logs, &client.VertexLog{
+					Vertex:    dgst,
+					Data:      []byte(fmt.Sprintf("%+s:%d\n", f, f)),
+					Timestamp: tm2,
+				})
+			}
 		}
-	}
 
-	logs = append(logs, &client.VertexLog{
-		Vertex:    dgst,
-		Data:      []byte(fmt.Sprintf("Caused by: %s", err)),
-		Timestamp: tm2,
-	})
+		// Add a line for root cause at the end.
+		logs = append(logs, &client.VertexLog{
+			Vertex:    dgst,
+			Data:      []byte(fmt.Sprintf("Caused by: %s", err)),
+			Timestamp: tm2,
+		})
+	}
 
 	status <- &client.SolveStatus{
 		Vertexes: []*client.Vertex{&vtx2},
