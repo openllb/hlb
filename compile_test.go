@@ -138,7 +138,6 @@ func TestCompile(t *testing.T) {
 			p, err := solver.NewProgress(ctx, solver.WithLogOutput(solver.LogOutputPlain))
 			require.NoError(t, err)
 
-			mw := p.MultiWriter()
 			in := strings.NewReader(cleanup(tc.input))
 
 			var targets []Target
@@ -146,7 +145,7 @@ func TestCompile(t *testing.T) {
 				targets = append(targets, Target{Name: target})
 			}
 
-			_, err = Compile(ctx, nil, mw, targets, in)
+			_, err = Compile(ctx, nil, p, targets, in)
 			if tc.errType == nil {
 				require.NoError(t, err)
 			} else {
