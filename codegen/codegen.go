@@ -240,7 +240,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, call, "", noopAliasCallback)
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, noopAliasCallback)
 		case *parser.AliasDecl:
 			v, err = cg.EmitAliasDecl(ctx, scope, n, call)
 		case *parser.ImportDecl:
@@ -248,7 +248,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, call, "", noopAliasCallback)
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, noopAliasCallback)
 			case *parser.AliasDecl:
 				v, err = cg.EmitAliasDecl(ctx, scope, m, call)
 			default:
@@ -820,7 +820,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, call, "", ac)
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac)
 		case *parser.AliasDecl:
 			v, err = cg.EmitAliasDecl(ctx, scope, n, call)
 		case *parser.ImportDecl:
@@ -828,7 +828,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, call, "", ac)
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac)
 			case *parser.AliasDecl:
 				v, err = cg.EmitAliasDecl(ctx, scope, m, call)
 			default:
@@ -879,7 +879,7 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 	case "copy":
 		return cg.EmitCopyOptions(ctx, scope, op, stmts)
 	default:
-		return nil, errors.Errorf("call stmt does not support options")
+		return nil, errors.Errorf("call stmt does not support options: %s", op)
 	}
 }
 

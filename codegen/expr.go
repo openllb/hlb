@@ -137,7 +137,7 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitOptionFuncDecl(ctx, scope, n, call, op)
+				return cg.EmitOptionFuncDecl(ctx, scope, n, call)
 			default:
 				return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
 			}
