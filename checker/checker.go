@@ -2,6 +2,7 @@ package checker
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/parser"
@@ -267,7 +268,7 @@ func (c *checker) checkFieldList(fields []*parser.Field) error {
 func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block *parser.BlockStmt) error {
 	// Option blocks may be empty and may refer to identifiers or function
 	// literals that don't have a sub-type, so we check them differently.
-	if typ == parser.Option {
+	if strings.HasPrefix(string(typ), string(parser.Option)) {
 		return c.checkOptionBlockStmt(scope, typ, block)
 	}
 
