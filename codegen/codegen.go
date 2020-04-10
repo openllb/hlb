@@ -6,14 +6,24 @@ import (
 	"io"
 	"net"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
 	shellquote "github.com/kballard/go-shellquote"
+	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
+	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	"github.com/moby/buildkit/identity"
+	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/session/auth/authprovider"
+	"github.com/moby/buildkit/session/filesync"
+	"github.com/moby/buildkit/session/secrets/secretsprovider"
+	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -21,6 +31,8 @@ import (
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
+	fstypes "github.com/tonistiigi/fsutil/types"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -30,8 +42,15 @@ var (
 type StateOption func(llb.State) (llb.State, error)
 
 type CodeGen struct {
-	Debug     Debugger
-	request   solver.Request
+	Debug   Debugger
+	request solver.Request
+	cln     *client.Client
+
+	localID         string
+	syncedDirByID   map[string]filesync.SyncedDir
+	fileSourceByID  map[string]secretsprovider.FileSource
+	agentConfigByID map[string]sshprovider.AgentConfig
+
 	mw        *progress.MultiWriter
 	dockerCli *command.DockerCli
 	solveOpts []solver.SolveOption
@@ -53,9 +72,20 @@ func WithMultiWriter(mw *progress.MultiWriter) CodeGenOption {
 	}
 }
 
+func WithClient(cln *client.Client) CodeGenOption {
+	return func(i *CodeGen) error {
+		i.cln = cln
+		return nil
+	}
+}
+
 func New(opts ...CodeGenOption) (*CodeGen, error) {
 	cg := &CodeGen{
-		Debug: NewNoopDebugger(),
+		Debug:           NewNoopDebugger(),
+		localID:         identity.NewID(),
+		syncedDirByID:   make(map[string]filesync.SyncedDir),
+		fileSourceByID:  make(map[string]secretsprovider.FileSource),
+		agentConfigByID: make(map[string]sshprovider.AgentConfig),
 	}
 	for _, opt := range opts {
 		err := opt(cg)
@@ -99,9 +129,8 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 	cg.request = solver.NewEmptyRequest()
 
 	for _, target := range targets {
-		// Reset solve options for this target.
-		// If we need to paralellize compilation then we can revisit this.
-		cg.solveOpts = []solver.SolveOption{}
+		// Reset codegen state for next target.
+		cg.reset()
 
 		obj := mod.Scope.Lookup(target.Func.Ident.Name)
 		if obj == nil {
@@ -151,10 +180,75 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 			return cg.request, err
 		}
 
-		cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return cg.request, err
+		}
+
+		cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 	}
 
 	return cg.request, nil
+}
+
+// Reset all the options and session attachables for the next target.
+// If we ever need to parallelize compilation we can revisit this.
+func (cg *CodeGen) reset() {
+	cg.solveOpts = []solver.SolveOption{}
+	cg.syncedDirByID = map[string]filesync.SyncedDir{}
+	cg.fileSourceByID = map[string]secretsprovider.FileSource{}
+	cg.agentConfigByID = map[string]sshprovider.AgentConfig{}
+}
+
+func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
+	// By default, forward docker authentication through the session.
+	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(os.Stderr)}
+
+	// Attach local directory providers to the session.
+	var syncedDirs []filesync.SyncedDir
+	for _, dir := range cg.syncedDirByID {
+		syncedDirs = append(syncedDirs, dir)
+	}
+	if len(syncedDirs) > 0 {
+		attachables = append(attachables, filesync.NewFSSyncProvider(syncedDirs))
+	}
+
+	// Attach ssh forwarding providers to the session.
+	var agentConfigs []sshprovider.AgentConfig
+	for _, cfg := range cg.agentConfigByID {
+		agentConfigs = append(agentConfigs, cfg)
+	}
+	if len(agentConfigs) > 0 {
+		sp, err := sshprovider.NewSSHAgentProvider(agentConfigs)
+		if err != nil {
+			return nil, err
+		}
+		attachables = append(attachables, sp)
+	}
+
+	// Attach secret providers to the session.
+	var fileSources []secretsprovider.FileSource
+	for _, cfg := range cg.fileSourceByID {
+		fileSources = append(fileSources, cfg)
+	}
+	if len(fileSources) > 0 {
+		fileStore, err := secretsprovider.NewFileStore(fileSources)
+		if err != nil {
+			return nil, err
+		}
+		attachables = append(attachables, secretsprovider.NewSecretProvider(fileStore))
+	}
+
+	s, err := session.NewSession(ctx, "hlb", "")
+	if err != nil {
+		return s, err
+	}
+
+	for _, a := range attachables {
+		s.Allow(a)
+	}
+
+	return s, nil
 }
 
 func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
@@ -444,45 +538,90 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		var opts []llb.LocalOption
+		opts := []llb.LocalOption{llb.SessionID(cg.localID)}
 		for _, iopt := range iopts {
 			opt := iopt.(llb.LocalOption)
 			opts = append(opts, opt)
 		}
 
-		// Get a consistent hash for this local (path + options) so we don't
-		// transport the same content multiple times when referenced repeatedly.
-
-		// First get serialized bytes for this llb.Local state.
-		tmpSt := llb.Local("", opts...)
-		_, hashInput, _, err := tmpSt.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
-		if err != nil {
-			return so, ErrCodeGen{Node: call, Err: err}
-		}
-
-		// Next append the path so we have the path + options serialized hash input.
-		hashInput = append(hashInput, []byte(path)...)
-
-		id := string(digest.FromBytes(hashInput))
-		cg.solveOpts = append(cg.solveOpts, solver.WithLocal(id, path))
-
-		so = func(_ llb.State) (llb.State, error) {
-			return llb.Local(id, opts...), nil
-		}
-	case "generate":
-		frontend, err := cg.EmitFilesystemExpr(ctx, scope, call, args[0], ac)
+		id, err := buildLocalID(ctx, path, opts...)
 		if err != nil {
 			return so, err
 		}
 
-		opts := []llb.FrontendOption{llb.IgnoreCache}
-		for _, iopt := range iopts {
-			opt := iopt.(llb.FrontendOption)
-			opts = append(opts, opt)
+		// Register paths as syncable directories for the session.
+		cg.syncedDirByID[id] = filesync.SyncedDir{
+			Name: id,
+			Dir:  path,
+			Map: func(_ string, st *fstypes.Stat) bool {
+				st.Uid = 0
+				st.Gid = 0
+				return true
+			},
 		}
 
 		so = func(_ llb.State) (llb.State, error) {
-			return llb.Frontend(frontend, opts...), nil
+			return llb.Local(id, opts...), nil
+		}
+	case "frontend":
+		source, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return so, err
+		}
+
+		var opts []gatewayOption
+		for _, iopt := range iopts {
+			opt := iopt.(gatewayOption)
+			opts = append(opts, opt)
+		}
+
+		so = func(st llb.State) (llb.State, error) {
+			return st.Async(func(ctx context.Context, _ llb.State) (llb.State, error) {
+				pw := cg.mw.WithPrefix("", false)
+
+				var st llb.State
+				s, err := cg.newSession(ctx)
+				if err != nil {
+					return st, err
+				}
+
+				g, ctx := errgroup.WithContext(ctx)
+
+				g.Go(func() error {
+					return s.Run(ctx, cg.cln.Dialer())
+				})
+
+				g.Go(func() error {
+					return solver.Build(ctx, cg.cln, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+						req := gateway.SolveRequest{
+							Frontend: "gateway.v0",
+							FrontendOpt: map[string]string{
+								"source": source,
+							},
+							FrontendInputs: make(map[string]*pb.Definition),
+						}
+
+						for _, opt := range opts {
+							opt(&req)
+						}
+
+						res, err := c.Solve(ctx, req)
+						if err != nil {
+							return res, err
+						}
+
+						ref, err := res.SingleRef()
+						if err != nil {
+							return res, err
+						}
+
+						st, err = ref.ToState()
+						return res, err
+					})
+				})
+
+				return st, g.Wait()
+			}), nil
 		}
 	case "run":
 		var shlex string
@@ -702,6 +841,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		if err != nil {
 			return so, err
 		}
+
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+
 		so = func(st llb.State) (llb.State, error) {
 			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
@@ -719,7 +864,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 			return st, nil
 		}
 	case "dockerLoad":
@@ -744,6 +889,13 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		r, w := io.Pipe()
+
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(w)))
+
 		done := make(chan struct{})
 		cg.solveOpts = append(cg.solveOpts, solver.WithWaiter(done))
 
@@ -767,7 +919,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			opts = append(opts, solver.WithDownloadDockerTarball(ref, w))
+			opts = append(opts, solver.WithDownloadDockerTarball(ref))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				opts = append(opts, opt)
@@ -778,15 +930,20 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 			return st, nil
 		}
-
 	case "download":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
+
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+		s.Allow(filesync.NewFSSyncTargetDir(localPath))
 
 		so = func(st llb.State) (llb.State, error) {
 			opts, err := cg.SolveOptions(ctx, st)
@@ -805,7 +962,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 			return st, nil
 		}
 	case "downloadTarball":
@@ -819,13 +976,19 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
+
 		so = func(st llb.State) (llb.State, error) {
 			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
 
-			opts = append(opts, solver.WithDownloadTarball(f))
+			opts = append(opts, solver.WithDownloadTarball())
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				opts = append(opts, opt)
@@ -836,7 +999,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 			return st, nil
 		}
 	case "downloadOCITarball":
@@ -850,13 +1013,19 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
+
 		so = func(st llb.State) (llb.State, error) {
 			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
 
-			opts = append(opts, solver.WithDownloadOCITarball(f))
+			opts = append(opts, solver.WithDownloadOCITarball())
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				opts = append(opts, opt)
@@ -867,16 +1036,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 			return st, nil
 		}
 	case "downloadDockerTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		if err != nil {
-			return so, err
-		}
-
-		f, err := os.Open(localPath)
 		if err != nil {
 			return so, err
 		}
@@ -886,13 +1050,24 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
+		f, err := os.Open(localPath)
+		if err != nil {
+			return so, err
+		}
+
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
+
 		so = func(st llb.State) (llb.State, error) {
 			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
 
-			opts = append(opts, solver.WithDownloadDockerTarball(ref, f))
+			opts = append(opts, solver.WithDownloadDockerTarball(ref))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				opts = append(opts, opt)
@@ -903,7 +1078,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
+			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
 			return st, nil
 		}
 	default:
@@ -957,8 +1132,8 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 		return cg.EmitGitOptions(ctx, scope, op, stmts)
 	case "local":
 		return cg.EmitLocalOptions(ctx, scope, op, stmts)
-	case "generate":
-		return cg.EmitGenerateOptions(ctx, scope, op, stmts, ac)
+	case "frontend":
+		return cg.EmitFrontendOptions(ctx, scope, op, stmts, ac)
 	case "run":
 		return cg.EmitExecOptions(ctx, scope, op, stmts, ac)
 	case "ssh":
@@ -1109,22 +1284,40 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 	return
 }
 
-func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+type gatewayOption func(r *gateway.SolveRequest)
+
+func withFrontendInput(key string, def *llb.Definition) gatewayOption {
+	return func(r *gateway.SolveRequest) {
+		r.FrontendInputs[key] = def.ToPB()
+	}
+}
+
+func withFrontendOpt(key, value string) gatewayOption {
+	return func(r *gateway.SolveRequest) {
+		r.FrontendOpt[key] = value
+	}
+}
+
+func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
-			case "frontendInput":
+			case "input":
 				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
 				}
-				value, err := cg.EmitFilesystemExpr(ctx, scope, stmt.Call, args[1], ac)
+				st, err := cg.EmitFilesystemExpr(ctx, scope, stmt.Call, args[1], ac)
 				if err != nil {
 					return opts, err
 				}
-				opts = append(opts, llb.WithFrontendInput(key, value))
-			case "frontendOpt":
+				def, err := st.Marshal(ctx, llb.LinuxAmd64)
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, withFrontendInput(key, def))
+			case "opt":
 				key, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
 					return opts, err
@@ -1133,7 +1326,7 @@ func (cg *CodeGen) EmitGenerateOptions(ctx context.Context, scope *parser.Scope,
 				if err != nil {
 					return opts, err
 				}
-				opts = append(opts, llb.WithFrontendOpt(key, value))
+				opts = append(opts, withFrontendOpt(key, value))
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
@@ -1421,9 +1614,25 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				opts = append(opts, llb.AddExtraHost(host, ip))
 			case "ssh":
 				var sshOpts []llb.SSHOption
+				var localPaths []string
 				for _, iopt := range iopts {
-					opt := iopt.(llb.SSHOption)
-					sshOpts = append(sshOpts, opt)
+					switch v := iopt.(type) {
+					case llb.SSHOption:
+						sshOpts = append(sshOpts, v)
+					case string:
+						localPaths = append(localPaths, v)
+					}
+				}
+
+				sort.Strings(localPaths)
+				id := string(digest.FromString(strings.Join(localPaths, "")))
+				sshOpts = append(sshOpts, llb.SSHID(id))
+
+				// Register paths as forwardable SSH agent sockets or PEM keys for the
+				// session.
+				cg.agentConfigByID[id] = sshprovider.AgentConfig{
+					ID:    id,
+					Paths: localPaths,
 				}
 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
@@ -1439,7 +1648,12 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				}
 
 				id := string(digest.FromString(localPath))
-				cg.solveOpts = append(cg.solveOpts, solver.WithSecret(id, localPath))
+
+				// Register path as an allowed file source for the session.
+				cg.fileSourceByID[id] = secretsprovider.FileSource{
+					ID:       id,
+					FilePath: localPath,
+				}
 
 				secretOpts := []llb.SecretOption{
 					llb.SecretID(id),
@@ -1488,7 +1702,9 @@ type sshSocketOpt struct {
 }
 
 func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
-	var sopt *sshSocketOpt
+	sopt := &sshSocketOpt{
+		mode: 0600,
+	}
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
@@ -1502,12 +1718,6 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 					sopt = &sshSocketOpt{}
 				}
 				sopt.target = target
-			case "id":
-				id, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
-				if err != nil {
-					return opts, err
-				}
-				opts = append(opts, llb.SSHID(id))
 			case "uid":
 				uid, err := cg.EmitIntExpr(ctx, scope, args[0])
 				if err != nil {
@@ -1535,6 +1745,14 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 					sopt = &sshSocketOpt{}
 				}
 				sopt.mode = os.FileMode(mode)
+			case "localPaths":
+				for _, arg := range args {
+					localPath, err := cg.EmitStringExpr(ctx, scope, stmt.Call, arg)
+					if err != nil {
+						return opts, err
+					}
+					opts = append(opts, localPath)
+				}
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
@@ -1684,4 +1902,25 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 		}
 	}
 	return
+}
+
+// Get a consistent hash for this local (path + options) so we don't transport
+// the same content multiple times when referenced repeatedly.
+func buildLocalID(ctx context.Context, path string, opts ...llb.LocalOption) (string, error) {
+	// First get serialized bytes for this llb.Local state.
+	st := llb.Local("", opts...)
+	_, hashInput, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	if err != nil {
+		return "", err
+	}
+
+	// Next append the path so we have the path + options serialized hash input.
+	hashInput = append(hashInput, []byte(path)...)
+	return string(digest.FromBytes(hashInput)), nil
+}
+
+func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
+	return func(map[string]string) (io.WriteCloser, error) {
+		return w, nil
+	}
 }

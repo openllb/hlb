@@ -126,7 +126,7 @@ func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets
 
 	var opts []codegen.CodeGenOption
 	if mw != nil {
-		opts = append(opts, codegen.WithMultiWriter(mw))
+		opts = append(opts, codegen.WithMultiWriter(mw), codegen.WithClient(cln))
 	} else {
 		r := bufio.NewReader(os.Stdin)
 		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r, ibs)))

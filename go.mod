@@ -4,13 +4,13 @@ go 1.12
 
 require (
 	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
-	github.com/docker/buildx v0.3.1
+	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
 	github.com/docker/cli v1.14.0-0.20190523191156-ab688a9a79a1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
-	github.com/moby/buildkit v0.6.3
+	github.com/moby/buildkit v0.7.1-0.20200409032528-226a5db9ad3d
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/opencontainers/image-spec v1.0.1
 	github.com/opencontainers/selinux v1.4.0 // indirect
@@ -18,6 +18,7 @@ require (
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.4.0
+	github.com/tonistiigi/fsutil v0.0.0-20200326231323-c2c7d7b0e144
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/xlab/treeprint v1.0.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
@@ -25,8 +26,6 @@ require (
 )
 
 replace github.com/alecthomas/participle => github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc
-
-replace github.com/moby/buildkit => github.com/hinshun/buildkit v0.0.0-20200410014923-12ce66c4ffa8
 
 replace github.com/hashicorp/go-immutable-radix => github.com/tonistiigi/go-immutable-radix v0.0.0-20170803185627-826af9ccf0fe
 

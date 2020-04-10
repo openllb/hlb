@@ -219,7 +219,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 	}
 
 	g.Go(func() error {
-		return solver.Build(ctx, r.cln, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+		return solver.Build(ctx, r.cln, nil, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 			res, err := c.Solve(ctx, gateway.SolveRequest{
 				Definition: def.ToPB(),
 			})

@@ -6,6 +6,7 @@ import (
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/session"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -49,13 +50,15 @@ func (r *nullRequest) Peer(p Request) Request {
 }
 
 type singleRequest struct {
+	s    *session.Session
 	def  *llb.Definition
 	opts []SolveOption
 }
 
 // NewRequest returns a single solve request.
-func NewRequest(def *llb.Definition, opts ...SolveOption) Request {
+func NewRequest(s *session.Session, def *llb.Definition, opts ...SolveOption) Request {
 	return &singleRequest{
+		s:    s,
 		def:  def,
 		opts: opts,
 	}
@@ -67,7 +70,17 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 		pw = mw.WithPrefix("", false)
 	}
 
-	return Solve(ctx, cln, pw, r.def, r.opts...)
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return r.s.Run(ctx, cln.Dialer())
+	})
+
+	g.Go(func() error {
+		return Solve(ctx, cln, r.s, pw, r.def, r.opts...)
+	})
+
+	return g.Wait()
 }
 
 func (r *singleRequest) Next(n Request) Request {
