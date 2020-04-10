@@ -21,7 +21,6 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/report"
-	"github.com/openllb/hlb/solver"
 )
 
 var (
@@ -228,51 +227,6 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 					}
 
 					fmt.Fprintf(w, "Environment %s\n", st.Env())
-				case "exec":
-					st, ok := s.value.(llb.State)
-					if !ok {
-						fmt.Fprintf(w, "current step is not in a fs scope\n")
-						continue
-					}
-
-					if len(args) == 0 {
-						fmt.Fprintf(w, "no args\n")
-						continue
-					}
-
-					buf := &bytes.Buffer{}
-					wc := &nopWriteCloser{buf}
-
-					ref := "hlb-exec"
-
-					ch := make(chan *client.SolveStatus)
-					defer close(ch)
-
-					p, err := solver.NewProgress(ctx)
-					if err != nil {
-						fmt.Fprintf(w, "err: %s\n", err)
-						continue
-					}
-
-					mw := p.MultiWriter()
-					pw := mw.WithPrefix("solve", false)
-
-					p.Go(func(ctx context.Context) error {
-						defer p.Release()
-						return solver.Solve(ctx, c, pw, st, solver.WithDownloadDockerTarball(ref, wc))
-					})
-
-					err = p.Wait()
-					if err != nil {
-						fmt.Fprintf(w, "err: %s\n", err)
-						continue
-					}
-
-					err = debugExec(ctx, st, buf, ref, args[1], args[2:]...)
-					if err != nil {
-						fmt.Fprintf(w, "err: %s\n", err)
-						continue
-					}
 				case "exit":
 					return ErrDebugExit
 				case "funcs":
@@ -305,7 +259,6 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 					fmt.Fprintf(w, "reverse-step - single step backwards through program\n")
 					fmt.Fprintf(w, "restart - restart program from the start\n")
 					fmt.Fprintf(w, "# Filesystem\n")
-					fmt.Fprintf(w, "exec - executes a command in a container\n")
 					fmt.Fprintf(w, "dir - print working directory\n")
 					fmt.Fprintf(w, "env - print environment\n")
 					fmt.Fprintf(w, "network - print network mode\n")
@@ -493,58 +446,6 @@ func findStaticBreakpoints(mod *parser.Module) []*Breakpoint {
 	})
 
 	return breakpoints
-}
-
-type nopWriteCloser struct {
-	io.Writer
-}
-
-func (nopWriteCloser) Close() error { return nil }
-
-func debugExec(ctx context.Context, st llb.State, r io.Reader, ref, entrypoint string, args ...string) error {
-	err := dockerLoad(ctx, r).Run()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		dockerRemove(ctx, ref).Run()
-	}()
-
-	return dockerRun(ctx, st, true, ref, entrypoint, args...).Run()
-}
-
-func dockerLoad(ctx context.Context, r io.Reader) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "docker", "load")
-	cmd.Stdin = r
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	return cmd
-}
-
-func dockerRemove(ctx context.Context, ref string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, "docker", "rmi", ref)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-	return cmd
-}
-
-func dockerRun(ctx context.Context, st llb.State, tty bool, ref, entrypoint string, args ...string) *exec.Cmd {
-	var opts []string
-	for _, e := range st.Env() {
-		opts = append(opts, "--env", e)
-	}
-	opts = append(opts, "--workdir", st.GetDir())
-
-	if tty {
-		opts = append(opts, "-t")
-	}
-
-	args = append(append(append([]string{"run", "--rm", "-i", "--entrypoint", entrypoint}, opts...), ref), args...)
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
-	return cmd
 }
 
 func printGraph(ctx context.Context, st llb.State, sh string) error {

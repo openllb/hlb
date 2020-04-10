@@ -31,6 +31,7 @@ type SolveInfo struct {
 	Locals                map[string]string
 	Secrets               map[string]string
 	Waiters               []<-chan struct{}
+	ImageSpec             *specs.Image
 }
 
 func WithDownloadDockerTarball(ref string, w io.WriteCloser) SolveOption {
@@ -92,10 +93,23 @@ func WithWaiter(wait <-chan struct{}) SolveOption {
 	}
 }
 
-func Solve(ctx context.Context, c *client.Client, pw progress.Writer, st llb.State, opts ...SolveOption) error {
-	def, err := st.Marshal(llb.LinuxAmd64)
-	if err != nil {
-		return err
+func WithImageSpec(cfg *specs.Image) SolveOption {
+	return func(info *SolveInfo) error {
+		info.ImageSpec = cfg
+		return nil
+	}
+}
+
+func Solve(ctx context.Context, c *client.Client, pw progress.Writer, def *llb.Definition, opts ...SolveOption) error {
+	info := &SolveInfo{
+		Locals:  make(map[string]string),
+		Secrets: make(map[string]string),
+	}
+	for _, opt := range opts {
+		err := opt(info)
+		if err != nil {
+			return err
+		}
 	}
 
 	return Build(ctx, c, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
@@ -106,16 +120,8 @@ func Solve(ctx context.Context, c *client.Client, pw progress.Writer, st llb.Sta
 			return nil, err
 		}
 
-		if _, ok := res.Metadata[exptypes.ExporterImageConfigKey]; !ok {
-			img := specs.Image{
-				Config: specs.ImageConfig{
-					Env:        st.Env(),
-					Entrypoint: st.GetArgs(),
-					WorkingDir: st.GetDir(),
-				},
-			}
-
-			config, err := json.Marshal(img)
+		if _, ok := res.Metadata[exptypes.ExporterImageConfigKey]; !ok && info.ImageSpec != nil {
+			config, err := json.Marshal(info.ImageSpec)
 			if err != nil {
 				return nil, err
 			}

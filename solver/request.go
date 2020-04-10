@@ -49,14 +49,14 @@ func (r *nullRequest) Peer(p Request) Request {
 }
 
 type singleRequest struct {
-	st   llb.State
+	def  *llb.Definition
 	opts []SolveOption
 }
 
 // NewRequest returns a single solve request.
-func NewRequest(st llb.State, opts ...SolveOption) Request {
+func NewRequest(def *llb.Definition, opts ...SolveOption) Request {
 	return &singleRequest{
-		st:   st,
+		def:  def,
 		opts: opts,
 	}
 }
@@ -67,7 +67,7 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 		pw = mw.WithPrefix("", false)
 	}
 
-	return Solve(ctx, cln, pw, r.st, r.opts...)
+	return Solve(ctx, cln, pw, r.def, r.opts...)
 }
 
 func (r *singleRequest) Next(n Request) Request {

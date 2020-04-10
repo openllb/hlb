@@ -16,6 +16,7 @@ import (
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -66,8 +67,17 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 	return cg, nil
 }
 
-func (cg *CodeGen) SolveOptions() []solver.SolveOption {
-	return cg.solveOpts
+func (cg *CodeGen) SolveOptions(st llb.State) (opts []solver.SolveOption, err error) {
+	opts = append(opts, solver.WithImageSpec(&specs.Image{
+		Config: specs.ImageConfig{
+			Env:        st.Env(),
+			Entrypoint: st.GetArgs(),
+			WorkingDir: st.GetDir(),
+		},
+	}))
+
+	opts = append(opts, cg.solveOpts...)
+	return opts, nil
 }
 
 func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*parser.CallStmt) (solver.Request, error) {
@@ -116,7 +126,17 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 			return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
 		}
 
-		cg.request = cg.request.Peer(solver.NewRequest(st, cg.solveOpts...))
+		def, err := st.Marshal(llb.LinuxAmd64)
+		if err != nil {
+			return cg.request, err
+		}
+
+		opts, err := cg.SolveOptions(st)
+		if err != nil {
+			return cg.request, err
+		}
+
+		cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 	}
 
 	return cg.request, nil
@@ -681,12 +701,23 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 		so = func(st llb.State) (llb.State, error) {
-			solveOpts := append(cg.solveOpts, solver.WithPushImage(ref))
+			opts, err := cg.SolveOptions(st)
+			if err != nil {
+				return st, err
+			}
+
+			opts = append(opts, solver.WithPushImage(ref))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
-				solveOpts = append(solveOpts, opt)
+				opts = append(opts, opt)
 			}
-			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+
+			def, err := st.Marshal(llb.LinuxAmd64)
+			if err != nil {
+				return st, err
+			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 			return st, nil
 		}
 	case "dockerLoad":
@@ -729,12 +760,23 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}()
 
 		so = func(st llb.State) (llb.State, error) {
-			solveOpts := append(cg.solveOpts, solver.WithDownloadDockerTarball(ref, w))
+			opts, err := cg.SolveOptions(st)
+			if err != nil {
+				return st, err
+			}
+
+			opts = append(opts, solver.WithDownloadDockerTarball(ref, w))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
-				solveOpts = append(solveOpts, opt)
+				opts = append(opts, opt)
 			}
-			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+
+			def, err := st.Marshal(llb.LinuxAmd64)
+			if err != nil {
+				return st, err
+			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 			return st, nil
 		}
 
@@ -745,13 +787,23 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			solveOpts := append(cg.solveOpts, solver.WithDownload(localPath))
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				solveOpts = append(solveOpts, opt)
+			opts, err := cg.SolveOptions(st)
+			if err != nil {
+				return st, err
 			}
 
-			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+			opts = append(opts, solver.WithDownload(localPath))
+			for _, iopt := range iopts {
+				opt := iopt.(solver.SolveOption)
+				opts = append(opts, opt)
+			}
+
+			def, err := st.Marshal(llb.LinuxAmd64)
+			if err != nil {
+				return st, err
+			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 			return st, nil
 		}
 	case "downloadTarball":
@@ -766,12 +818,23 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			solveOpts := append(cg.solveOpts, solver.WithDownloadTarball(f))
+			opts, err := cg.SolveOptions(st)
+			if err != nil {
+				return st, err
+			}
+
+			opts = append(opts, solver.WithDownloadTarball(f))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
-				solveOpts = append(solveOpts, opt)
+				opts = append(opts, opt)
 			}
-			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+
+			def, err := st.Marshal(llb.LinuxAmd64)
+			if err != nil {
+				return st, err
+			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 			return st, nil
 		}
 	case "downloadOCITarball":
@@ -786,12 +849,23 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			solveOpts := append(cg.solveOpts, solver.WithDownloadOCITarball(f))
+			opts, err := cg.SolveOptions(st)
+			if err != nil {
+				return st, err
+			}
+
+			opts = append(opts, solver.WithDownloadOCITarball(f))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
-				solveOpts = append(solveOpts, opt)
+				opts = append(opts, opt)
 			}
-			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+
+			def, err := st.Marshal(llb.LinuxAmd64)
+			if err != nil {
+				return st, err
+			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 			return st, nil
 		}
 	case "downloadDockerTarball":
@@ -811,12 +885,23 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			solveOpts := append(cg.solveOpts, solver.WithDownloadDockerTarball(ref, f))
+			opts, err := cg.SolveOptions(st)
+			if err != nil {
+				return st, err
+			}
+
+			opts = append(opts, solver.WithDownloadDockerTarball(ref, f))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
-				solveOpts = append(solveOpts, opt)
+				opts = append(opts, opt)
 			}
-			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
+
+			def, err := st.Marshal(llb.LinuxAmd64)
+			if err != nil {
+				return st, err
+			}
+
+			cg.request = cg.request.Peer(solver.NewRequest(def, opts...))
 			return st, nil
 		}
 	default:
