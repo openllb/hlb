@@ -97,7 +97,7 @@ func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, a
 	return v, nil
 }
 
-func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (llb.State, error) {
+func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (st llb.State, err error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -105,9 +105,9 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitFilesystemFuncDecl(ctx, scope, n, call, noopAliasCallback)
+				return cg.EmitFilesystemFuncDecl(ctx, scope, n, nil, noopAliasCallback)
 			case *parser.AliasDecl:
-				return cg.EmitFilesystemAliasDecl(ctx, scope, n, call)
+				return cg.EmitFilesystemAliasDecl(ctx, scope, n, nil)
 			default:
 				return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown decl object")})
 			}
@@ -119,17 +119,13 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	case expr.BasicLit != nil:
 		return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("fs expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, "", ac)
-		if err != nil {
-			return llb.Scratch(), err
-		}
-		return v.(llb.State), nil
+		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac)
 	default:
-		return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
+		return st, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
 	}
 }
 
-func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, op string, expr *parser.Expr) ([]interface{}, error) {
+func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, op string, expr *parser.Expr) (opts []interface{}, err error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -139,22 +135,18 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call
 			case *parser.FuncDecl:
 				return cg.EmitOptionFuncDecl(ctx, scope, n, call)
 			default:
-				return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
+				return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
 			}
 		case parser.ExprKind:
 			return obj.Data.([]interface{}), nil
 		default:
-			return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
+			return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
 		}
 	case expr.BasicLit != nil:
 		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("option expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		v, err := cg.EmitFuncLit(ctx, scope, expr.FuncLit, op, noopAliasCallback)
-		if err != nil {
-			return nil, err
-		}
-		return v.([]interface{}), nil
+		return cg.EmitOptions(ctx, scope, op, expr.FuncLit.Body.NonEmptyStmts(), noopAliasCallback)
 	default:
-		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option expr")})
+		return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option expr")})
 	}
 }
