@@ -37,7 +37,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	// Before executing a function.
 	err = cg.Debug(ctx, fun.Scope, fun, v)
 	if err != nil {
-		return nil, err
+		return v, err
 	}
 
 	switch fun.Type.Primary() {
@@ -48,32 +48,29 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	case parser.Str:
 		return cg.EmitStringBlock(ctx, fun.Scope, fun.Body.NonEmptyStmts())
 	default:
-		return nil, checker.ErrInvalidTarget{Ident: fun.Name}
+		return v, checker.ErrInvalidTarget{Ident: fun.Name}
 	}
 }
 
 func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (llb.State, error) {
 	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, ac)
-	if err != nil {
-		return llb.Scratch(), err
-	}
-	return v.(llb.State), nil
+	return v.(llb.State), err
 }
 
 func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt) ([]interface{}, error) {
 	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, noopAliasCallback)
-	if err != nil {
+	if v == nil {
 		return nil, err
 	}
-	return v.([]interface{}), nil
+	return v.([]interface{}), err
 }
 
 func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, call *parser.CallStmt, ac aliasCallback) (string, error) {
 	v, err := cg.EmitFuncDecl(ctx, scope, fun, call, ac)
-	if err != nil {
+	if v == nil {
 		return "", err
 	}
-	return v.(string), nil
+	return v.(string), err
 }
 
 func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (interface{}, error) {
@@ -85,27 +82,26 @@ func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias
 		}
 		return true
 	})
-	if err != nil {
-		return nil, err
+	if err == ErrAliasReached {
+		err = nil
 	}
-
-	return v, nil
+	return v, err
 }
 
 func (cg *CodeGen) EmitFilesystemAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (llb.State, error) {
 	v, err := cg.EmitAliasDecl(ctx, scope, alias, call)
-	if err != nil {
+	if v == nil {
 		return llb.Scratch(), err
 	}
-	return v.(llb.State), nil
+	return v.(llb.State), err
 }
 
 func (cg *CodeGen) EmitStringAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, call *parser.CallStmt) (string, error) {
 	v, err := cg.EmitAliasDecl(ctx, scope, alias, call)
-	if err != nil {
+	if v == nil {
 		return "", err
 	}
-	return v.(string), nil
+	return v.(string), err
 }
 
 func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback) error {

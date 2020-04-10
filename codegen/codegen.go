@@ -22,6 +22,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	ErrAliasReached = errors.New("alias reached")
+)
+
+type StateOption func(llb.State) (llb.State, error)
+
 type CodeGen struct {
 	Debug     Debugger
 	request   solver.Request
@@ -143,7 +149,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		if isBreakpoint(call) {
 			err = cg.Debug(ctx, scope, call, v)
 			if err != nil {
-				return nil, err
+				return v, err
 			}
 			continue
 		}
@@ -151,27 +157,33 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		// Before executing the next call statement.
 		err = cg.Debug(ctx, scope, call, v)
 		if err != nil {
-			return nil, err
+			return v, err
 		}
 
 		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, ac)
 		if err != nil {
-			return nil, err
+			return v, err
 		}
-		v = chain(v)
 
-		if st, ok := v.(llb.State); ok && st.Output() != nil {
-			err = st.Validate()
-			if err != nil {
-				return nil, ErrCodeGen{Node: stmt, Err: err}
+		var cerr error
+		v, cerr = chain(v)
+		if cerr == nil || cerr == ErrAliasReached {
+			if st, ok := v.(llb.State); ok && st.Output() != nil {
+				err = st.Validate()
+				if err != nil {
+					return v, ErrCodeGen{Node: stmt, Err: err}
+				}
 			}
+		}
+		if cerr != nil {
+			return v, err
 		}
 
 		if call.Alias != nil {
 			// Chain statements may be aliased.
 			cont := ac(call, v)
 			if !cont {
-				break
+				return v, ErrAliasReached
 			}
 		}
 	}
@@ -179,14 +191,14 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 	return v, nil
 }
 
-func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (func(v interface{}) interface{}, error) {
+func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (func(v interface{}) (interface{}, error), error) {
 	switch typ {
 	case parser.Filesystem:
 		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac)
 		if err != nil {
 			return nil, err
 		}
-		return func(v interface{}) interface{} {
+		return func(v interface{}) (interface{}, error) {
 			return chain(v.(llb.State))
 		}, nil
 	case parser.Str:
@@ -194,7 +206,7 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 		if err != nil {
 			return nil, err
 		}
-		return func(v interface{}) interface{} {
+		return func(v interface{}) (interface{}, error) {
 			return chain(v.(string))
 		}, nil
 	default:
@@ -202,14 +214,14 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 	}
 }
 
-func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt) (func(string) string, error) {
+func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt) (func(string) (string, error), error) {
 	args := call.Args
 	name := call.Func.Ident.Name
 	switch name {
 	case "value":
 		val, err := cg.EmitStringExpr(ctx, scope, call, args[0])
-		return func(_ string) string {
-			return val
+		return func(_ string) (string, error) {
+			return val, nil
 		}, err
 	case "format":
 		formatStr, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -226,8 +238,8 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			as = append(as, a)
 		}
 
-		return func(_ string) string {
-			return fmt.Sprintf(formatStr, as...)
+		return func(_ string) (string, error) {
+			return fmt.Sprintf(formatStr, as...), nil
 		}, nil
 	default:
 		// Must be a named reference.
@@ -262,26 +274,23 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		if err != nil {
 			return nil, err
 		}
-		return func(_ string) string {
-			return v.(string)
+		return func(_ string) (string, error) {
+			return v.(string), nil
 		}, nil
 	}
 }
 
 func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback) (llb.State, error) {
 	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, stmts, ac)
-	if err != nil {
-		return llb.Scratch(), err
-	}
-	return v.(llb.State), nil
+	return v.(llb.State), err
 }
 
 func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt) (string, error) {
 	v, err := cg.EmitBlock(ctx, scope, parser.Str, stmts, noopAliasCallback)
-	if err != nil {
+	if v == nil {
 		return "", err
 	}
-	return v.(string), nil
+	return v.(string), err
 }
 
 func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, op string, ac aliasCallback) (interface{}, error) {
@@ -294,13 +303,14 @@ func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *pa
 		return cg.EmitStringBlock(ctx, scope, lit.Body.NonEmptyStmts())
 	case parser.Option:
 		return cg.EmitOptions(ctx, scope, op, lit.Body.NonEmptyStmts(), ac)
+	default:
+		return nil, errors.WithStack(ErrCodeGen{lit, errors.Errorf("unknown func lit")})
 	}
-	return nil, nil
 }
 
-func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, parent *parser.CallStmt, with *parser.WithOpt, ac aliasCallback) ([]interface{}, error) {
+func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, parent *parser.CallStmt, with *parser.WithOpt, ac aliasCallback) (opts []interface{}, err error) {
 	if with == nil {
-		return nil, nil
+		return
 	}
 
 	switch {
@@ -313,19 +323,19 @@ func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, pare
 			if n, ok := obj.Node.(*parser.FuncDecl); ok {
 				return cg.EmitOptions(ctx, scope, parent.Func.Ident.Name, n.Body.NonEmptyStmts(), ac)
 			} else {
-				return nil, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown decl type")})
+				return opts, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown decl type")})
 			}
 		default:
-			return nil, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown with option kind")})
+			return opts, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown with option kind")})
 		}
 	case with.FuncLit != nil:
 		return cg.EmitOptions(ctx, scope, parent.Func.Ident.Name, with.FuncLit.Body.NonEmptyStmts(), ac)
 	default:
-		return nil, errors.WithStack(ErrCodeGen{with, errors.Errorf("unknown with option")})
+		return opts, errors.WithStack(ErrCodeGen{with, errors.Errorf("unknown with option")})
 	}
 }
 
-func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (so llb.StateOption, err error) {
+func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (so StateOption, err error) {
 	args := call.Args
 	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
@@ -342,8 +352,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 	switch name {
 	case "scratch":
-		so = func(_ llb.State) llb.State {
-			return llb.Scratch()
+		so = func(_ llb.State) (llb.State, error) {
+			return llb.Scratch(), nil
 		}
 	case "image":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -357,8 +367,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(_ llb.State) llb.State {
-			return llb.Image(ref, opts...)
+		so = func(_ llb.State) (llb.State, error) {
+			return llb.Image(ref, opts...), nil
 		}
 	case "http":
 		url, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -372,8 +382,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(_ llb.State) llb.State {
-			return llb.HTTP(url, opts...)
+		so = func(_ llb.State) (llb.State, error) {
+			return llb.HTTP(url, opts...), nil
 		}
 	case "git":
 		remote, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -390,8 +400,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opt := iopt.(llb.GitOption)
 			opts = append(opts, opt)
 		}
-		so = func(_ llb.State) llb.State {
-			return llb.Git(remote, ref, opts...)
+		so = func(_ llb.State) (llb.State, error) {
+			return llb.Git(remote, ref, opts...), nil
 		}
 	case "local":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -421,8 +431,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		id := string(digest.FromBytes(hashInput))
 		cg.solveOpts = append(cg.solveOpts, solver.WithLocal(id, path))
 
-		so = func(_ llb.State) llb.State {
-			return llb.Local(id, opts...)
+		so = func(_ llb.State) (llb.State, error) {
+			return llb.Local(id, opts...), nil
 		}
 	case "generate":
 		frontend, err := cg.EmitFilesystemExpr(ctx, scope, call, args[0], ac)
@@ -436,8 +446,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(_ llb.State) llb.State {
-			return llb.Frontend(frontend, opts...)
+		so = func(_ llb.State) (llb.State, error) {
+			return llb.Frontend(frontend, opts...), nil
 		}
 	case "run":
 		var shlex string
@@ -506,7 +516,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		opts = append(opts, llb.Shlex(shlex))
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			exec := st.Run(opts...)
 
 			if len(targets) > 0 {
@@ -515,12 +525,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 					// mount after execing can be aliased.
 					cont := ac(calls[target], exec.GetMount(target))
 					if !cont {
-						break
+						return exec.Root(), ErrAliasReached
 					}
 				}
 			}
 
-			return exec.Root()
+			return exec.Root(), nil
 		}
 	case "env":
 		key, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -533,8 +543,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
-			return st.AddEnv(key, value)
+		so = func(st llb.State) (llb.State, error) {
+			return st.AddEnv(key, value), nil
 		}
 	case "dir":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -542,8 +552,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
-			return st.Dir(path)
+		so = func(st llb.State) (llb.State, error) {
+			return st.Dir(path), nil
 		}
 	case "user":
 		name, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -551,8 +561,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
-			return st.User(name)
+		so = func(st llb.State) (llb.State, error) {
+			return st.User(name), nil
 		}
 	case "entrypoint":
 		var stArgs []string
@@ -564,8 +574,8 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			stArgs = append(stArgs, stArg)
 		}
 
-		so = func(st llb.State) llb.State {
-			return st.Args(stArgs...)
+		so = func(st llb.State) (llb.State, error) {
+			return st.Args(stArgs...), nil
 		}
 	case "mkdir":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -589,10 +599,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Mkdir(path, os.FileMode(mode), opts...),
-			)
+			), nil
 		}
 	case "mkfile":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -616,10 +626,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Mkfile(path, os.FileMode(mode), []byte(content), opts...),
-			)
+			), nil
 		}
 	case "rm":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -633,10 +643,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Rm(path, opts...),
-			)
+			), nil
 		}
 	case "copy":
 		input, err := cg.EmitFilesystemExpr(ctx, scope, call, args[0], ac)
@@ -660,24 +670,24 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			opts = append(opts, opt)
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Copy(input, src, dest, opts...),
-			)
+			), nil
 		}
 	case "dockerPush":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			solveOpts := append(cg.solveOpts, solver.WithPushImage(ref))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				solveOpts = append(solveOpts, opt)
 			}
 			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
-			return st
+			return st, nil
 		}
 	case "dockerLoad":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -718,14 +728,14 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
 		}()
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			solveOpts := append(cg.solveOpts, solver.WithDownloadDockerTarball(ref, w))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				solveOpts = append(solveOpts, opt)
 			}
 			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
-			return st
+			return st, nil
 		}
 
 	case "download":
@@ -734,7 +744,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			solveOpts := append(cg.solveOpts, solver.WithDownload(localPath))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
@@ -742,7 +752,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			}
 
 			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
-			return st
+			return st, nil
 		}
 	case "downloadTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -755,14 +765,14 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			solveOpts := append(cg.solveOpts, solver.WithDownloadTarball(f))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				solveOpts = append(solveOpts, opt)
 			}
 			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
-			return st
+			return st, nil
 		}
 	case "downloadOCITarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -775,14 +785,14 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			solveOpts := append(cg.solveOpts, solver.WithDownloadOCITarball(f))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				solveOpts = append(solveOpts, opt)
 			}
 			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
-			return st
+			return st, nil
 		}
 	case "downloadDockerTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -800,14 +810,14 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		so = func(st llb.State) llb.State {
+		so = func(st llb.State) (llb.State, error) {
 			solveOpts := append(cg.solveOpts, solver.WithDownloadDockerTarball(ref, f))
 			for _, iopt := range iopts {
 				opt := iopt.(solver.SolveOption)
 				solveOpts = append(solveOpts, opt)
 			}
 			cg.request = cg.request.Peer(solver.NewRequest(st, solveOpts...))
-			return st
+			return st, nil
 		}
 	default:
 		// Must be a named reference.
@@ -842,15 +852,15 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		if err != nil {
 			return so, err
 		}
-		so = func(_ llb.State) llb.State {
-			return v.(llb.State)
+		so = func(_ llb.State) (llb.State, error) {
+			return v.(llb.State), nil
 		}
 	}
 
 	return so, nil
 }
 
-func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) ([]interface{}, error) {
+func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	switch op {
 	case "image":
 		return cg.EmitImageOptions(ctx, scope, op, stmts)
@@ -879,7 +889,7 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 	case "copy":
 		return cg.EmitCopyOptions(ctx, scope, op, stmts)
 	default:
-		return nil, errors.Errorf("call stmt does not support options: %s", op)
+		return opts, errors.Errorf("call stmt does not support options: %s", op)
 	}
 }
 
