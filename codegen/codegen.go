@@ -152,7 +152,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
 				}
 
-				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback)
+				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback, nil)
 				if err != nil {
 					return cg.request, err
 				}
@@ -161,7 +161,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
 				}
 
-				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target)
+				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target, nil)
 				if err != nil {
 					return cg.request, err
 				}
@@ -252,7 +252,7 @@ func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
 }
 
 func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
-	return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
+	return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil, nil)
 }
 
 type aliasCallback func(*parser.CallStmt, interface{}) bool
@@ -263,13 +263,17 @@ func isBreakpoint(call *parser.CallStmt) bool {
 	return call.Func.Ident != nil && call.Func.Ident.Name == "breakpoint"
 }
 
-func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback) (interface{}, error) {
-	var v interface{}
+func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (interface{}, error) {
+	var v = chainStart
 	switch typ {
 	case parser.Filesystem:
-		v = llb.Scratch()
+		if _, ok := v.(llb.State); v == nil || !ok {
+			v = llb.Scratch()
+		}
 	case parser.Str:
-		v = ""
+		if _, ok := v.(string); v == nil || !ok {
+			v = ""
+		}
 	}
 
 	var err error
@@ -289,7 +293,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 			return v, err
 		}
 
-		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, ac)
+		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, ac, v)
 		if err != nil {
 			return v, err
 		}
@@ -320,10 +324,10 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 	return v, nil
 }
 
-func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (func(v interface{}) (interface{}, error), error) {
+func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (func(v interface{}) (interface{}, error), error) {
 	switch typ {
 	case parser.Filesystem:
-		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac)
+		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac, chainStart)
 		if err != nil {
 			return nil, err
 		}
@@ -331,7 +335,7 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 			return chain(v.(llb.State))
 		}, nil
 	case parser.Str:
-		chain, err := cg.EmitStringChainStmt(ctx, scope, call)
+		chain, err := cg.EmitStringChainStmt(ctx, scope, call, chainStart)
 		if err != nil {
 			return nil, err
 		}
@@ -343,7 +347,7 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 	}
 }
 
-func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt) (func(string) (string, error), error) {
+func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, chainStart interface{}) (func(string) (string, error), error) {
 	args := call.Args
 	name := call.Func.Ident.Name
 	switch name {
@@ -381,17 +385,17 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, call, noopAliasCallback)
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, noopAliasCallback, chainStart)
 		case *parser.AliasDecl:
-			v, err = cg.EmitAliasDecl(ctx, scope, n, call)
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, call, noopAliasCallback)
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, noopAliasCallback, chainStart)
 			case *parser.AliasDecl:
-				v, err = cg.EmitAliasDecl(ctx, scope, m, call)
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
 			default:
 				return nil, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
 			}
@@ -409,13 +413,13 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 	}
 }
 
-func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback) (llb.State, error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, stmts, ac)
+func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (llb.State, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, stmts, ac, chainStart)
 	return v.(llb.State), err
 }
 
-func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt) (string, error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Str, stmts, noopAliasCallback)
+func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, chainStart interface{}) (string, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Str, stmts, noopAliasCallback, chainStart)
 	if v == nil {
 		return "", err
 	}
@@ -427,9 +431,9 @@ func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *pa
 	case parser.Int, parser.Bool:
 		panic("unimplemented")
 	case parser.Filesystem:
-		return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), ac)
+		return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), ac, nil)
 	case parser.Str:
-		return cg.EmitStringBlock(ctx, scope, lit.Body.NonEmptyStmts())
+		return cg.EmitStringBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
 	case parser.Option:
 		return cg.EmitOptions(ctx, scope, op, lit.Body.NonEmptyStmts(), ac)
 	default:
@@ -464,7 +468,7 @@ func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, pare
 	}
 }
 
-func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback) (so StateOption, err error) {
+func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
 	args := call.Args
 	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
@@ -810,7 +814,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			), nil
 		}
 	case "copy":
-		input, err := cg.EmitFilesystemExpr(ctx, scope, call, args[0], ac)
+		input, err := cg.EmitFilesystemExpr(ctx, scope, call, args[0], ac, nil)
 		if err != nil {
 			return so, err
 		}
@@ -1092,17 +1096,17 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac)
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
 		case *parser.AliasDecl:
-			v, err = cg.EmitAliasDecl(ctx, scope, n, call)
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac)
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac, chainStart)
 			case *parser.AliasDecl:
-				v, err = cg.EmitAliasDecl(ctx, scope, m, call)
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
 			default:
 				return so, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
 			}
@@ -1308,7 +1312,7 @@ func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope,
 				if err != nil {
 					return opts, err
 				}
-				st, err := cg.EmitFilesystemExpr(ctx, scope, stmt.Call, args[1], ac)
+				st, err := cg.EmitFilesystemExpr(ctx, scope, stmt.Call, args[1], ac, nil)
 				if err != nil {
 					return opts, err
 				}
@@ -1667,7 +1671,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddSecret(mountPoint, secretOpts...))
 			case "mount":
-				input, err := cg.EmitFilesystemExpr(ctx, scope, stmt.Call, args[0], ac)
+				input, err := cg.EmitFilesystemExpr(ctx, scope, stmt.Call, args[0], ac, nil)
 				if err != nil {
 					return opts, err
 				}
