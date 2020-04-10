@@ -125,7 +125,7 @@ func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit,
 		return nil, err
 	}
 
-	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
+	dgst, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
 	if err != nil {
 		return nil, err
 	}
@@ -185,12 +185,12 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, err
 	}
 
-	dgst, _, _, err := st.Output().Vertex().Marshal(&llb.Constraints{})
+	dgst, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
 	if err != nil {
 		return nil, err
 	}
 
-	def, err := st.Marshal(llb.LinuxAmd64)
+	def, err := st.Marshal(ctx, llb.LinuxAmd64)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 
 	var ref gateway.Reference
 
-	opts, err := cg.SolveOptions(st)
+	opts, err := cg.SolveOptions(ctx, st)
 	if err != nil {
 		return nil, err
 	}

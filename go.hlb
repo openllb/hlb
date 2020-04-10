@@ -9,7 +9,7 @@ string versionCmd() {
 }
 
 fs build(fs src, string package, string verPackage) {
-	image "golang:1.14-alpine"
+	image "golang:1.13.10-alpine"
 	run "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
@@ -22,7 +22,7 @@ fs build(fs src, string package, string verPackage) {
 }
 
 fs crossBuild(fs src, string package, string verPackage) {
-	image "dockercore/golang-cross:1.12.5" with option { resolve; }
+	image "dockercore/golang-cross:1.13.10" with option { resolve; }
 	env "GOPATH" "/root/go"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
@@ -39,7 +39,7 @@ fs crossBuild(fs src, string package, string verPackage) {
 }
 
 fs lint(fs src) {
-	image "golang:1.14-alpine"
+	image "golang:1.13.10-alpine"
 	run "apk add -U git gcc libc-dev"
 	run "sh /golangci/install.sh -b /usr/bin v1.23.8" with option {
 		mount fs {
