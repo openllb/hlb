@@ -67,12 +67,27 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 	return cg, nil
 }
 
-func (cg *CodeGen) SolveOptions(st llb.State) (opts []solver.SolveOption, err error) {
+func (cg *CodeGen) SolveOptions(ctx context.Context, st llb.State) (opts []solver.SolveOption, err error) {
+	env, err := st.Env(ctx)
+	if err != nil {
+		return opts, err
+	}
+
+	args, err := st.GetArgs(ctx)
+	if err != nil {
+		return opts, err
+	}
+
+	dir, err := st.GetDir(ctx)
+	if err != nil {
+		return opts, err
+	}
+
 	opts = append(opts, solver.WithImageSpec(&specs.Image{
 		Config: specs.ImageConfig{
-			Env:        st.Env(),
-			Entrypoint: st.GetArgs(),
-			WorkingDir: st.GetDir(),
+			Env:        env,
+			Entrypoint: args,
+			WorkingDir: dir,
 		},
 	}))
 
@@ -126,12 +141,12 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 			return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
 		}
 
-		def, err := st.Marshal(llb.LinuxAmd64)
+		def, err := st.Marshal(ctx, llb.LinuxAmd64)
 		if err != nil {
 			return cg.request, err
 		}
 
-		opts, err := cg.SolveOptions(st)
+		opts, err := cg.SolveOptions(ctx, st)
 		if err != nil {
 			return cg.request, err
 		}
@@ -189,7 +204,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		v, cerr = chain(v)
 		if cerr == nil || cerr == ErrAliasReached {
 			if st, ok := v.(llb.State); ok && st.Output() != nil {
-				err = st.Validate()
+				err = st.Validate(ctx)
 				if err != nil {
 					return v, ErrCodeGen{Node: stmt, Err: err}
 				}
@@ -440,7 +455,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 		// First get serialized bytes for this llb.Local state.
 		tmpSt := llb.Local("", opts...)
-		_, hashInput, _, err := tmpSt.Output().Vertex().Marshal(&llb.Constraints{})
+		_, hashInput, _, err := tmpSt.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
 		if err != nil {
 			return so, ErrCodeGen{Node: call, Err: err}
 		}
@@ -584,19 +599,6 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		so = func(st llb.State) (llb.State, error) {
 			return st.User(name), nil
 		}
-	case "entrypoint":
-		var stArgs []string
-		for _, arg := range args {
-			stArg, err := cg.EmitStringExpr(ctx, scope, call, arg)
-			if err != nil {
-				return so, err
-			}
-			stArgs = append(stArgs, stArg)
-		}
-
-		so = func(st llb.State) (llb.State, error) {
-			return st.Args(stArgs...), nil
-		}
 	case "mkdir":
 		path, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
@@ -701,7 +703,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(st)
+			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
@@ -712,7 +714,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				opts = append(opts, opt)
 			}
 
-			def, err := st.Marshal(llb.LinuxAmd64)
+			def, err := st.Marshal(ctx, llb.LinuxAmd64)
 			if err != nil {
 				return st, err
 			}
@@ -760,7 +762,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}()
 
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(st)
+			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
@@ -771,7 +773,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				opts = append(opts, opt)
 			}
 
-			def, err := st.Marshal(llb.LinuxAmd64)
+			def, err := st.Marshal(ctx, llb.LinuxAmd64)
 			if err != nil {
 				return st, err
 			}
@@ -787,7 +789,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(st)
+			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
@@ -798,7 +800,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				opts = append(opts, opt)
 			}
 
-			def, err := st.Marshal(llb.LinuxAmd64)
+			def, err := st.Marshal(ctx, llb.LinuxAmd64)
 			if err != nil {
 				return st, err
 			}
@@ -818,7 +820,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(st)
+			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
@@ -829,7 +831,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				opts = append(opts, opt)
 			}
 
-			def, err := st.Marshal(llb.LinuxAmd64)
+			def, err := st.Marshal(ctx, llb.LinuxAmd64)
 			if err != nil {
 				return st, err
 			}
@@ -849,7 +851,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(st)
+			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
@@ -860,7 +862,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				opts = append(opts, opt)
 			}
 
-			def, err := st.Marshal(llb.LinuxAmd64)
+			def, err := st.Marshal(ctx, llb.LinuxAmd64)
 			if err != nil {
 				return st, err
 			}
@@ -885,7 +887,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(st)
+			opts, err := cg.SolveOptions(ctx, st)
 			if err != nil {
 				return st, err
 			}
@@ -896,7 +898,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 				opts = append(opts, opt)
 			}
 
-			def, err := st.Marshal(llb.LinuxAmd64)
+			def, err := st.Marshal(ctx, llb.LinuxAmd64)
 			if err != nil {
 				return st, err
 			}

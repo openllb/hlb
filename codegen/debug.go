@@ -201,7 +201,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 						continue
 					}
 
-					fmt.Fprintf(w, "Working directory %q\n", st.GetDir())
+					dir, err := st.GetDir(ctx)
+					if err != nil {
+						fmt.Fprintf(w, "err: %s\n", err)
+						continue
+					}
+
+					fmt.Fprintf(w, "Working directory %q\n", dir)
 				case "dot":
 					st, ok := s.value.(llb.State)
 					if !ok {
@@ -226,7 +232,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 						continue
 					}
 
-					fmt.Fprintf(w, "Environment %s\n", st.Env())
+					env, err := st.Env(ctx)
+					if err != nil {
+						fmt.Fprintf(w, "err: %s\n", err)
+						continue
+					}
+
+					fmt.Fprintf(w, "Environment %s\n", env)
 				case "exit":
 					return ErrDebugExit
 				case "funcs":
@@ -290,7 +302,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 						continue
 					}
 
-					fmt.Fprintf(w, "Network %s\n", st.GetNetwork())
+					network, err := st.GetNetwork(ctx)
+					if err != nil {
+						fmt.Fprintf(w, "err: %s\n", err)
+						continue
+					}
+
+					fmt.Fprintf(w, "Network %s\n", network)
 				case "print":
 					fmt.Fprintf(w, "print\n")
 				case "restart", "r":
@@ -311,7 +329,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 						continue
 					}
 
-					fmt.Fprintf(w, "Security %s\n", st.GetSecurity())
+					security, err := st.GetSecurity(ctx)
+					if err != nil {
+						fmt.Fprintf(w, "err: %s\n", err)
+						continue
+					}
+
+					fmt.Fprintf(w, "Security %s\n", security)
 				case "step", "s":
 					return nil
 				case "stepout":
@@ -449,7 +473,7 @@ func findStaticBreakpoints(mod *parser.Module) []*Breakpoint {
 }
 
 func printGraph(ctx context.Context, st llb.State, sh string) error {
-	def, err := st.Marshal(llb.LinuxAmd64)
+	def, err := st.Marshal(ctx, llb.LinuxAmd64)
 	if err != nil {
 		return err
 	}
