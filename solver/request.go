@@ -49,18 +49,21 @@ func (r *nullRequest) Peer(p Request) Request {
 	return p
 }
 
+type LazyRequest struct {
+	Def       *llb.Definition
+	SolveOptions []SolveOption
+}
+
 type singleRequest struct {
 	s    *session.Session
-	def  *llb.Definition
-	opts []SolveOption
+	lazy *LazyRequest
 }
 
 // NewRequest returns a single solve request.
-func NewRequest(s *session.Session, def *llb.Definition, opts ...SolveOption) Request {
+func NewRequest(s *session.Session, lazy *LazyRequest) Request {
 	return &singleRequest{
 		s:    s,
-		def:  def,
-		opts: opts,
+		lazy: lazy,
 	}
 }
 
@@ -77,7 +80,7 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 	})
 
 	g.Go(func() error {
-		return Solve(ctx, cln, r.s, pw, r.def, r.opts...)
+		return Solve(ctx, cln, r.s, pw, r.lazy.Def, r.lazy.SolveOptions...)
 	})
 
 	return g.Wait()

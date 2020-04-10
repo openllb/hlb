@@ -1,4 +1,5 @@
-package codegen
+package
+codegen
 
 import (
 	"context"
@@ -38,15 +39,12 @@ const (
 )
 
 func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output) error {
-	opts, err := cg.SolveOptions(ctx, st)
-	if err != nil {
-		return err
-	}
-
 	s, err := cg.newSession(ctx)
 	if err != nil {
 		return err
 	}
+
+	var opts []solver.SolveOption
 
 	switch output.Type {
 	case OutputDockerPush:
@@ -111,11 +109,17 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 		}
 	}
 
-	def, err := st.Marshal(ctx, llb.LinuxAmd64)
+	lazy, err := cg.buildRequest(ctx, st, opts...)
 	if err != nil {
 		return err
 	}
 
-	cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
+	cg.request = cg.request.Peer(solver.NewRequest(s, lazy))
 	return nil
+}
+
+func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
+	return func(map[string]string) (io.WriteCloser, error) {
+		return w, nil
+	}
 }

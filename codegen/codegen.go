@@ -3,7 +3,6 @@ package codegen
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"sort"
@@ -15,17 +14,13 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/client/llb/imagemetaresolver"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/identity"
-	"github.com/moby/buildkit/session"
-	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -44,6 +39,7 @@ type CodeGen struct {
 	Debug   Debugger
 	request solver.Request
 	cln     *client.Client
+	g       *errgroup.Group
 
 	localID         string
 	syncedDirByID   map[string]filesync.SyncedDir
@@ -96,36 +92,9 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 	return cg, nil
 }
 
-func (cg *CodeGen) SolveOptions(ctx context.Context, st llb.State) (opts []solver.SolveOption, err error) {
-	env, err := st.Env(ctx)
-	if err != nil {
-		return opts, err
-	}
-
-	args, err := st.GetArgs(ctx)
-	if err != nil {
-		return opts, err
-	}
-
-	dir, err := st.GetDir(ctx)
-	if err != nil {
-		return opts, err
-	}
-
-	opts = append(opts, solver.WithImageSpec(&specs.Image{
-		Config: specs.ImageConfig{
-			Env:        env,
-			Entrypoint: args,
-			WorkingDir: dir,
-		},
-	}))
-
-	opts = append(opts, cg.solveOpts...)
-	return opts, nil
-}
-
 func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (solver.Request, error) {
 	cg.request = solver.NewEmptyRequest()
+	cg.g, ctx = errgroup.WithContext(ctx)
 
 	for _, target := range targets {
 		// Reset codegen state for next target.
@@ -171,93 +140,34 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 			return cg.request, checker.ErrInvalidTarget{Node: obj.Node, Target: target.Name}
 		}
 
-		def, err := st.Marshal(ctx, llb.LinuxAmd64)
-		if err != nil {
-			return cg.request, err
-		}
-
-		opts, err := cg.SolveOptions(ctx, st)
-		if err != nil {
-			return cg.request, err
-		}
-
 		s, err := cg.newSession(ctx)
 		if err != nil {
 			return cg.request, err
 		}
 
-		cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
+		lazy, err := cg.buildRequest(ctx, st)
+		if err != nil {
+			return cg.request, err
+		}
+
+		cg.request = cg.request.Peer(solver.NewRequest(s, lazy))
 
 		for _, output := range target.Outputs {
 			cg.outputRequest(ctx, st, output)
 		}
 	}
 
-	return cg.request, nil
+	return cg.request, cg.g.Wait()
 }
 
-// Reset all the options and session attachables for the next target.
-// If we ever need to parallelize compilation we can revisit this.
-func (cg *CodeGen) reset() {
-	cg.solveOpts = []solver.SolveOption{}
-	cg.syncedDirByID = map[string]filesync.SyncedDir{}
-	cg.fileSourceByID = map[string]secretsprovider.FileSource{}
-	cg.agentConfigByID = map[string]sshprovider.AgentConfig{}
-}
-
-func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
-	// By default, forward docker authentication through the session.
-	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(os.Stderr)}
-
-	// Attach local directory providers to the session.
-	var syncedDirs []filesync.SyncedDir
-	for _, dir := range cg.syncedDirByID {
-		syncedDirs = append(syncedDirs, dir)
-	}
-	if len(syncedDirs) > 0 {
-		attachables = append(attachables, filesync.NewFSSyncProvider(syncedDirs))
-	}
-
-	// Attach ssh forwarding providers to the session.
-	var agentConfigs []sshprovider.AgentConfig
-	for _, cfg := range cg.agentConfigByID {
-		agentConfigs = append(agentConfigs, cfg)
-	}
-	if len(agentConfigs) > 0 {
-		sp, err := sshprovider.NewSSHAgentProvider(agentConfigs)
-		if err != nil {
-			return nil, err
-		}
-		attachables = append(attachables, sp)
-	}
-
-	// Attach secret providers to the session.
-	var fileSources []secretsprovider.FileSource
-	for _, cfg := range cg.fileSourceByID {
-		fileSources = append(fileSources, cfg)
-	}
-	if len(fileSources) > 0 {
-		fileStore, err := secretsprovider.NewFileStore(fileSources)
-		if err != nil {
-			return nil, err
-		}
-		attachables = append(attachables, secretsprovider.NewSecretProvider(fileStore))
-	}
-
-	s, err := session.NewSession(ctx, "hlb", "")
+func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (st llb.State, snapshot *Snapshot, err error) {
+	st, err = cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil, nil)
 	if err != nil {
-		return s, err
+		return
 	}
 
-	for _, a := range attachables {
-		s.Allow(a)
-	}
-
-	return s, nil
-}
-
-func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
-	return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil, nil)
+	snapshot, err = cg.Snapshot()
+	return
 }
 
 type aliasCallback func(*parser.CallStmt, interface{}) bool
@@ -307,10 +217,13 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		v, cerr = chain(v)
 		if cerr == nil || cerr == ErrAliasReached {
 			if st, ok := v.(llb.State); ok && st.Output() != nil {
-				err = st.Validate(ctx)
-				if err != nil {
-					return v, ErrCodeGen{Node: stmt, Err: err}
-				}
+				cg.g.Go(func() error {
+					err = st.Validate(ctx)
+					if err != nil {
+						return ErrCodeGen{Node: stmt, Err: err}
+					}
+					return nil
+				})
 			}
 		}
 		if cerr != nil {
@@ -499,7 +412,21 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		var opts []llb.ImageOption
+		pw := cg.mw.WithPrefix("", false)
+
+		s, err := cg.newSession(ctx)
+		if err != nil {
+			return so, err
+		}
+
+		opts := []llb.ImageOption{
+			llb.ResolveDigest(true),
+			llb.WithMetaResolver(&gatewayResolver{
+				cln: cg.cln,
+				pw:  pw,
+				s:   s,
+			}),
+		}
 		for _, iopt := range iopts {
 			opt := iopt.(llb.ImageOption)
 			opts = append(opts, opt)
@@ -986,16 +913,9 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
-			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "resolve":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
-				if err != nil {
-					return opts, err
-				}
-				if v {
-					opts = append(opts, imagemetaresolver.WithDefault)
-				}
+				// Deprecated.
 			default:
 				iopts, err := cg.EmitOptionExpr(ctx, scope, stmt.Call, op, parser.NewIdentExpr(stmt.Call.Func.Ident.Name))
 				if err != nil {
@@ -1747,10 +1667,4 @@ func buildLocalID(ctx context.Context, path string, opts ...llb.LocalOption) (st
 	// Next append the path so we have the path + options serialized hash input.
 	hashInput = append(hashInput, []byte(path)...)
 	return string(digest.FromBytes(hashInput)), nil
-}
-
-func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {
-	return func(map[string]string) (io.WriteCloser, error) {
-		return w, nil
-	}
 }

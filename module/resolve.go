@@ -13,6 +13,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	"github.com/moby/buildkit/session"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -120,7 +121,7 @@ func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit,
 		return nil, err
 	}
 
-	st, err := cg.GenerateImport(ctx, scope, lit)
+	st, err := cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, err
 	}
 
-	st, err := cg.GenerateImport(ctx, scope, decl.ImportFunc.Func)
+	st, snapshot, err := cg.GenerateImport(ctx, scope, decl.ImportFunc.Func)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +194,15 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 	def, err := st.Marshal(ctx, llb.LinuxAmd64)
 	if err != nil {
 		return nil, err
+	}
+
+	s, err := session.NewSession(ctx, "hlb", "")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, a := range snapshot.Attachables {
+		s.Allow(a)
 	}
 
 	var pw progress.Writer
@@ -213,11 +223,6 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 
 	var ref gateway.Reference
 
-	opts, err := cg.SolveOptions(ctx, st)
-	if err != nil {
-		return nil, err
-	}
-
 	g.Go(func() error {
 		return solver.Build(ctx, r.cln, nil, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 			res, err := c.Solve(ctx, gateway.SolveRequest{
@@ -236,7 +241,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 			<-closed
 
 			return gateway.NewResult(), nil
-		}, opts...)
+		}, snapshot.SolveOptions...)
 	})
 
 	<-resolved

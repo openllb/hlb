@@ -22,7 +22,7 @@ fs build(fs src, string package, string verPackage) {
 }
 
 fs crossBuild(fs src, string package, string verPackage) {
-	image "dockercore/golang-cross:1.13.10" with option { resolve; }
+	image "dockercore/golang-cross:1.13.10"
 	env "GOPATH" "/root/go"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"

@@ -12,7 +12,7 @@ fs npmInstall(fs manifest) {
 }
 
 fs goBuild(fs context, string package, string binary) {
-	image "golang:1.12-alpine" with option { resolve; }
+	image "golang:1.12-alpine"
 	run "apk add -U git gcc libc-dev"
 	run string {
 		format "go build -o /out/%s -ldflags '-linkmode external -extldflags -static' -a %s" binary package
