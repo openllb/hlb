@@ -85,11 +85,12 @@ func (e ErrWrongArgType) Error() string {
 }
 
 type ErrInvalidTarget struct {
-	Ident *parser.Ident
+	Node   parser.Node
+	Target string
 }
 
 func (e ErrInvalidTarget) Error() string {
-	return fmt.Sprintf("%s invalid compile target %s", FormatPos(e.Ident.Position()), e.Ident)
+	return fmt.Sprintf("%s invalid compile target %s", FormatPos(e.Node.Position()), e.Target)
 }
 
 type ErrCallUnexported struct {
