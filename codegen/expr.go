@@ -16,9 +16,9 @@ func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, call
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitStringFuncDecl(ctx, scope, n, call, noopAliasCallback)
+				return cg.EmitStringFuncDecl(ctx, scope, n, call, noopAliasCallback, nil)
 			case *parser.AliasDecl:
-				return cg.EmitStringAliasDecl(ctx, scope, n, call)
+				return cg.EmitStringAliasDecl(ctx, scope, n, call, nil)
 			default:
 				return "", errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown decl object")})
 			}
@@ -30,7 +30,7 @@ func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, call
 	case expr.BasicLit != nil:
 		return *expr.BasicLit.Str, nil
 	case expr.FuncLit != nil:
-		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts())
+		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), nil)
 	default:
 		return "", errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown string expr")})
 	}
@@ -97,7 +97,7 @@ func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, a
 	return v, nil
 }
 
-func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback) (st llb.State, err error) {
+func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback, chainStart interface{}) (st llb.State, err error) {
 	switch {
 	case expr.Ident != nil:
 		obj := scope.Lookup(expr.Ident.Name)
@@ -105,9 +105,9 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitFilesystemFuncDecl(ctx, scope, n, nil, noopAliasCallback)
+				return cg.EmitFilesystemFuncDecl(ctx, scope, n, nil, noopAliasCallback, chainStart)
 			case *parser.AliasDecl:
-				return cg.EmitFilesystemAliasDecl(ctx, scope, n, nil)
+				return cg.EmitFilesystemAliasDecl(ctx, scope, n, nil, chainStart)
 			default:
 				return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown decl object")})
 			}
@@ -119,7 +119,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	case expr.BasicLit != nil:
 		return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("fs expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac)
+		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, chainStart)
 	default:
 		return st, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
 	}
