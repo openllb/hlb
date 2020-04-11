@@ -1563,6 +1563,8 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				}
 
 				opts = append(opts, llb.User(name))
+			case "ignoreCache":
+				opts = append(opts, llb.IgnoreCache)
 			case "network":
 				mode, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
 				if err != nil {
