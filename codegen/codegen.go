@@ -12,7 +12,6 @@ import (
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
-	"github.com/docker/cli/cli/flags"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
@@ -125,16 +124,16 @@ func (cg *CodeGen) SolveOptions(ctx context.Context, st llb.State) (opts []solve
 	return opts, nil
 }
 
-func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*parser.CallStmt) (solver.Request, error) {
+func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (solver.Request, error) {
 	cg.request = solver.NewEmptyRequest()
 
 	for _, target := range targets {
 		// Reset codegen state for next target.
 		cg.reset()
 
-		obj := mod.Scope.Lookup(target.Func.Ident.Name)
+		obj := mod.Scope.Lookup(target.Name)
 		if obj == nil {
-			return cg.request, fmt.Errorf("unknown target %q", target.Func.Ident.Name)
+			return cg.request, fmt.Errorf("unknown target %q", target)
 		}
 
 		// Yield to the debugger before compiling anything.
@@ -143,31 +142,33 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 			return cg.request, err
 		}
 
+		call := parser.NewCallStmt(target.Name, nil, nil, nil).Call
+
 		var st llb.State
 		switch obj.Kind {
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
 				if n.Type.ObjType != parser.Filesystem {
-					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
+					return cg.request, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, target, noopAliasCallback, nil)
+				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, call, noopAliasCallback, nil)
 				if err != nil {
 					return cg.request, err
 				}
 			case *parser.AliasDecl:
 				if n.Func.Type.ObjType != parser.Filesystem {
-					return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
+					return cg.request, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, target, nil)
+				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, call, nil)
 				if err != nil {
 					return cg.request, err
 				}
 			}
 		default:
-			return cg.request, checker.ErrInvalidTarget{Ident: target.Func.Ident}
+			return cg.request, checker.ErrInvalidTarget{Node: obj.Node, Target: target.Name}
 		}
 
 		def, err := st.Marshal(ctx, llb.LinuxAmd64)
@@ -186,6 +187,10 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []*
 		}
 
 		cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
+
+		for _, output := range target.Outputs {
+			cg.outputRequest(ctx, st, output)
+		}
 	}
 
 	return cg.request, nil
@@ -846,96 +851,18 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return so, err
-		}
-
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(ctx, st)
-			if err != nil {
-				return st, err
-			}
-
-			opts = append(opts, solver.WithPushImage(ref))
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				opts = append(opts, opt)
-			}
-
-			def, err := st.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return st, err
-			}
-
-			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-			return st, nil
+			err := cg.outputRequest(ctx, st, Output{Type: OutputDockerPush, Ref: ref})
+			return st, err
 		}
 	case "dockerLoad":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
 		if err != nil {
 			return so, err
 		}
-		if cg.mw == nil {
-			return so, errors.WithStack(errors.Errorf("progress.MultiWriter must be provided for dockerLoad"))
-		}
-
-		if cg.dockerCli == nil {
-			cg.dockerCli, err = command.NewDockerCli()
-			if err != nil {
-				return so, err
-			}
-
-			err = cg.dockerCli.Initialize(flags.NewClientOptions())
-			if err != nil {
-				return so, err
-			}
-		}
-
-		r, w := io.Pipe()
-
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return so, err
-		}
-		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(w)))
-
-		done := make(chan struct{})
-		cg.solveOpts = append(cg.solveOpts, solver.WithWaiter(done))
-
-		go func() {
-			defer close(done)
-
-			resp, err := cg.dockerCli.Client().ImageLoad(ctx, r, true)
-			if err != nil {
-				r.CloseWithError(err)
-				return
-			}
-			defer resp.Body.Close()
-
-			pw := cg.mw.WithPrefix("", false)
-			progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
-		}()
-
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(ctx, st)
-			if err != nil {
-				return st, err
-			}
-
-			opts = append(opts, solver.WithDownloadDockerTarball(ref))
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				opts = append(opts, opt)
-			}
-
-			def, err := st.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return st, err
-			}
-
-			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-			return st, nil
+			err := cg.outputRequest(ctx, st, Output{Type: OutputDockerLoad, Ref: ref})
+			return st, err
 		}
 	case "download":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -943,31 +870,9 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return so, err
-		}
-		s.Allow(filesync.NewFSSyncTargetDir(localPath))
-
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(ctx, st)
-			if err != nil {
-				return st, err
-			}
-
-			opts = append(opts, solver.WithDownload(localPath))
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				opts = append(opts, opt)
-			}
-
-			def, err := st.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return st, err
-			}
-
-			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-			return st, nil
+			err := cg.outputRequest(ctx, st, Output{Type: OutputDownload, LocalPath: localPath})
+			return st, err
 		}
 	case "downloadTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -975,36 +880,9 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		f, err := os.Open(localPath)
-		if err != nil {
-			return so, err
-		}
-
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return so, err
-		}
-		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
-
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(ctx, st)
-			if err != nil {
-				return st, err
-			}
-
-			opts = append(opts, solver.WithDownloadTarball())
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				opts = append(opts, opt)
-			}
-
-			def, err := st.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return st, err
-			}
-
-			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-			return st, nil
+			err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadTarball, LocalPath: localPath})
+			return st, err
 		}
 	case "downloadOCITarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -1012,36 +890,9 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		f, err := os.Open(localPath)
-		if err != nil {
-			return so, err
-		}
-
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return so, err
-		}
-		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
-
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(ctx, st)
-			if err != nil {
-				return st, err
-			}
-
-			opts = append(opts, solver.WithDownloadOCITarball())
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				opts = append(opts, opt)
-			}
-
-			def, err := st.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return st, err
-			}
-
-			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-			return st, nil
+			err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadOCITarball, LocalPath: localPath})
+			return st, err
 		}
 	case "downloadDockerTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -1054,36 +905,9 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return so, err
 		}
 
-		f, err := os.Open(localPath)
-		if err != nil {
-			return so, err
-		}
-
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return so, err
-		}
-		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
-
 		so = func(st llb.State) (llb.State, error) {
-			opts, err := cg.SolveOptions(ctx, st)
-			if err != nil {
-				return st, err
-			}
-
-			opts = append(opts, solver.WithDownloadDockerTarball(ref))
-			for _, iopt := range iopts {
-				opt := iopt.(solver.SolveOption)
-				opts = append(opts, opt)
-			}
-
-			def, err := st.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return st, err
-			}
-
-			cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-			return st, nil
+			err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadDockerTarball, LocalPath: localPath, Ref: ref})
+			return st, err
 		}
 	default:
 		// Must be a named reference.

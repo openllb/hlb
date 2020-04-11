@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/solver"
 	"github.com/stretchr/testify/require"
 )
@@ -140,9 +141,9 @@ func TestCompile(t *testing.T) {
 
 			in := strings.NewReader(cleanup(tc.input))
 
-			var targets []Target
+			var targets []codegen.Target
 			for _, target := range tc.targets {
-				targets = append(targets, Target{Name: target})
+				targets = append(targets, codegen.Target{Name: target})
 			}
 
 			_, err = Compile(ctx, nil, p, targets, in)

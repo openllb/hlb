@@ -50,7 +50,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	case parser.Str:
 		return cg.EmitStringBlock(ctx, fun.Scope, fun.Body.NonEmptyStmts(), v)
 	default:
-		return v, checker.ErrInvalidTarget{Ident: fun.Name}
+		return v, checker.ErrInvalidTarget{Node: fun}
 	}
 }
 
