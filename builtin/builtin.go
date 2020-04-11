@@ -317,6 +317,9 @@ var (
 							parser.NewField(parser.Str, "name", false),
 						},
 					},
+					"ignoreCache": FuncLookup{
+						Params: []*parser.Field{},
+					},
 					"network": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "networkmode", false),
