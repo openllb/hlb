@@ -130,6 +130,36 @@ func TestCompile(t *testing.T) {
 		}
 		`,
 		nil,
+	}, {
+		"empty variadic options",
+		[]string{"default"},
+		`
+		fs default() {
+			myfunc
+		}
+		fs myfunc(variadic option::run opts) {
+			image "busybox"
+			run "echo hi" with opts
+		}
+		`,
+		nil,
+	}, {
+		"variadic options",
+		[]string{"default"},
+		`
+		fs default() {
+			myfunc option::run {
+				ignoreCache
+			} option::run {
+				dir "/tmp"
+			}
+		}
+		fs myfunc(variadic option::run opts) {
+			image "busybox"
+			run "echo hi" with opts
+		}
+		`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

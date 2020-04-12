@@ -137,6 +137,9 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call
 			default:
 				return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
 			}
+		case parser.FieldKind:
+			// we will get here with a variadic argument that is used with zero values
+			return nil, nil
 		case parser.ExprKind:
 			return obj.Data.([]interface{}), nil
 		default:

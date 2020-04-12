@@ -568,7 +568,7 @@ func extendSignatureWithVariadic(fields []*parser.Field, args []*parser.Expr) []
 		variadicParam := params[len(params)-1]
 		params = params[:len(params)-1]
 		for i := range args[len(params):] {
-			params = append(params, parser.NewField(variadicParam.Type.Primary(), fmt.Sprintf("%s[%d]", variadicParam.Name, i), false))
+			params = append(params, parser.NewField(variadicParam.Type.ObjType, fmt.Sprintf("%s[%d]", variadicParam.Name, i), false))
 		}
 	}
 
