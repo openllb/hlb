@@ -15,7 +15,13 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 		args = call.Args
 	}
 
-	if len(args) != len(fun.Params.List) {
+	nonVariadicArgs := 0
+	for _, field := range fun.Params.List {
+		if field.Variadic == nil {
+			nonVariadicArgs++
+		}
+	}
+	if len(args) < nonVariadicArgs {
 		return nil, errors.WithStack(errors.Errorf("%s expected args %s, found %s", fun.Name, fun.Params.List, args))
 	}
 
@@ -133,7 +139,18 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		case parser.Option:
 			var v []interface{}
-			v, err = cg.EmitOptionExpr(ctx, scope, nil, string(field.Type.Secondary()), args[i])
+			if field.Variadic != nil {
+				for j := i; j < len(args); j++ {
+					var vv []interface{}
+					vv, err = cg.EmitOptionExpr(ctx, scope, nil, string(field.Type.Secondary()), args[j])
+					if err != nil {
+						break
+					}
+					v = append(v, vv...)
+				}
+			} else {
+				v, err = cg.EmitOptionExpr(ctx, scope, nil, string(field.Type.Secondary()), args[i])
+			}
 			data = v
 		}
 		if err != nil {
