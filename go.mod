@@ -21,8 +21,9 @@ require (
 	github.com/tonistiigi/fsutil v0.0.0-20200326231323-c2c7d7b0e144
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/xlab/treeprint v1.0.0
+	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	google.golang.org/grpc v1.28.0 // indirect
+	google.golang.org/grpc v1.28.0
 )
 
 replace github.com/alecthomas/participle => github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc

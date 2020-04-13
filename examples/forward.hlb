@@ -1,0 +1,36 @@
+fs default() {
+	image "alpine" with option { resolve; }
+	run "docker version" with option {
+		mount dockerCli "/usr/local/bin"
+		forward "unix:///run/docker.sock" "/run/docker.sock"
+	}
+}
+
+fs buildDockerCli() {
+	image "golang:alpine" with option { resolve; }
+	run "apk add -U git bash coreutils gcc musl-dev"
+	env "CGO_ENABLED" "0"
+	env "DISABLE_WARN_OUTSIDE_CONTAINER" "1"
+	run "./scripts/build/binary" with option {
+		dir "/go/src/github.com/docker/cli"
+		mount fs { git "https://github.com/docker/cli.git" "v19.03.8"; } "/go/src/github.com/docker/cli"
+		mount fs { scratch; } "/go/src/github.com/docker/cli/build" as dockerCli
+	}
+}
+
+fs nginx() {
+	image "alpine" with option { resolve; }
+	run "docker run --name nginx -d -p 8080:80 nginx" with option {
+		mount dockerCli "/usr/local/bin"
+		forward "unix:///run/docker.sock" "/run/docker.sock"
+	}
+}
+
+fs tcp() {
+	image "alpine" with option { resolve; }
+	run "apk add -U curl"
+	run "curl --unix-socket /nginx.sock http://localhost" with option {
+		ignoreCache
+		forward "tcp://localhost:8080" "/nginx.sock"
+	}
+}

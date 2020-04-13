@@ -22,7 +22,7 @@ type SolveInfo struct {
 	OutputLocal           string
 	OutputLocalTarball    bool
 	OutputLocalOCITarball bool
-	Waiters               []<-chan struct{}
+	Callbacks             []func() error
 	ImageSpec             *specs.Image
 }
 
@@ -61,9 +61,9 @@ func WithDownloadOCITarball() SolveOption {
 	}
 }
 
-func WithWaiter(wait <-chan struct{}) SolveOption {
+func WithCallback(fn func() error) SolveOption {
 	return func(info *SolveInfo) error {
-		info.Waiters = append(info.Waiters, wait)
+		info.Callbacks = append(info.Callbacks, fn)
 		return nil
 	}
 }
@@ -169,12 +169,16 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		return err
 	})
 
-	for _, waiter := range info.Waiters {
-		waiter := waiter
-		g.Go(func() error {
-			<-waiter
-			return nil
-		})
+	err := g.Wait()
+	if err != nil {
+		return err
+	}
+
+	g, ctx = errgroup.WithContext(ctx)
+
+	for _, fn := range info.Callbacks {
+		fn := fn
+		g.Go(fn)
 	}
 
 	return g.Wait()

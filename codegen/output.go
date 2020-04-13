@@ -73,7 +73,10 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(w)))
 
 		done := make(chan struct{})
-		opts = append(opts, solver.WithWaiter(done))
+		opts = append(opts, solver.WithCallback(func() error {
+			<-done
+			return nil
+		}))
 
 		go func() {
 			defer close(done)
