@@ -18,6 +18,17 @@ fs buildDockerCli() {
 	}
 }
 
+fs ssh() {
+	image "alpine"
+	run "apk add -U openssh-client"
+	mkdir "/root/.ssh" 0o700
+	run "ssh-keyscan github.com >> /root/.ssh/known_hosts"
+	run "ssh -q -T git@github.com || true" with option {
+		ignoreCache
+		ssh
+	}
+}
+
 fs nginx() {
 	image "alpine" with option { resolve; }
 	run "docker run --name nginx -d -p 8080:80 nginx" with option {
