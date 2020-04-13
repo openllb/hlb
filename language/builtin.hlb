@@ -186,6 +186,15 @@ option::run host(string hostname, string address)
 # @return an option to mount a SSH socket.
 option::run ssh()
 
+# Forwards traffic to/from a local source to a unix domain socket mounted for
+# the duration of the run command. The source must be a fully qualified URI
+# where the scheme must be either `unix://` or `tcp://`.
+#
+# @param src a fully qualified URI to forward traffic to/from.
+# @param dest a mountpoint for a unix domain socket that is forwarded to/from.
+# @return an option to forward traffic from a local source.
+option::run forward(string src, string dest)
+
 # Mounts a secure file for the duration of the run command. Secrets are
 # attached via a tmpfs mount, so all the data stays in volatile memory.
 #

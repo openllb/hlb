@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -22,12 +25,12 @@ import (
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/moby/buildkit/session/sshforward/sshprovider"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/sockprovider"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 	fstypes "github.com/tonistiigi/fsutil/types"
@@ -48,7 +51,7 @@ type CodeGen struct {
 	localID         string
 	syncedDirByID   map[string]filesync.SyncedDir
 	fileSourceByID  map[string]secretsprovider.FileSource
-	agentConfigByID map[string]sshprovider.AgentConfig
+	agentConfigByID map[string]sockprovider.AgentConfig
 
 	mw        *progress.MultiWriter
 	dockerCli *command.DockerCli
@@ -84,7 +87,7 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 		localID:         identity.NewID(),
 		syncedDirByID:   make(map[string]filesync.SyncedDir),
 		fileSourceByID:  make(map[string]secretsprovider.FileSource),
-		agentConfigByID: make(map[string]sshprovider.AgentConfig),
+		agentConfigByID: make(map[string]sockprovider.AgentConfig),
 	}
 	for _, opt := range opts {
 		err := opt(cg)
@@ -202,7 +205,7 @@ func (cg *CodeGen) reset() {
 	cg.solveOpts = []solver.SolveOption{}
 	cg.syncedDirByID = map[string]filesync.SyncedDir{}
 	cg.fileSourceByID = map[string]secretsprovider.FileSource{}
-	cg.agentConfigByID = map[string]sshprovider.AgentConfig{}
+	cg.agentConfigByID = map[string]sockprovider.AgentConfig{}
 }
 
 func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
@@ -219,12 +222,12 @@ func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
 	}
 
 	// Attach ssh forwarding providers to the session.
-	var agentConfigs []sshprovider.AgentConfig
+	var agentConfigs []sockprovider.AgentConfig
 	for _, cfg := range cg.agentConfigByID {
 		agentConfigs = append(agentConfigs, cfg)
 	}
 	if len(agentConfigs) > 0 {
-		sp, err := sshprovider.NewSSHAgentProvider(agentConfigs)
+		sp, err := sockprovider.New(agentConfigs)
 		if err != nil {
 			return nil, err
 		}
@@ -1455,14 +1458,93 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				}
 
 				sort.Strings(localPaths)
-				id := string(digest.FromString(strings.Join(localPaths, "")))
+				id := digest.FromString(strings.Join(localPaths, "")).String()
 				sshOpts = append(sshOpts, llb.SSHID(id))
 
 				// Register paths as forwardable SSH agent sockets or PEM keys for the
 				// session.
-				cg.agentConfigByID[id] = sshprovider.AgentConfig{
+				cg.agentConfigByID[id] = sockprovider.AgentConfig{
 					ID:    id,
+					SSH:   true,
 					Paths: localPaths,
+				}
+
+				opts = append(opts, llb.AddSSHSocket(sshOpts...))
+			case "forward":
+				src, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				dest, err := cg.EmitStringExpr(ctx, scope, stmt.Call, args[1])
+				if err != nil {
+					return opts, err
+				}
+
+				srcUri, err := url.Parse(src)
+				if err != nil {
+					return opts, err
+				}
+
+				var (
+					path string
+					id   string
+				)
+				switch srcUri.Scheme {
+				case "unix":
+					path = srcUri.Path
+					id = digest.FromString(path).String()
+				default:
+					conn, err := net.Dial(srcUri.Scheme, srcUri.Host)
+					if err != nil {
+						return opts, errors.Wrapf(err, "failed to dial %s", src)
+					}
+
+					dir, err := ioutil.TempDir("", "forward")
+					if err != nil {
+						return opts, errors.Wrap(err, "failed to create tmp dir for forwarding sock")
+					}
+
+					path = filepath.Join(dir, "proxy.sock")
+					id = digest.FromString(path).String()
+
+					l, err := net.Listen("unix", path)
+					if err != nil {
+						return opts, errors.Wrap(err, "failed to listen on forwarding sock")
+					}
+
+					g, _ := errgroup.WithContext(ctx)
+
+					cg.solveOpts = append(cg.solveOpts, solver.WithCallback(func() error {
+						defer os.RemoveAll(dir)
+
+						err := l.Close()
+						if err != nil {
+							return errors.Wrap(err, "failed to close listener")
+						}
+
+						return g.Wait()
+					}))
+
+					g.Go(func() error {
+						defer conn.Close()
+
+						// ErrNetClosing is hidden in an internal golang package:
+						// https://golang.org/src/internal/poll/fd.go
+						err := RunSockProxy(conn, l)
+						if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+							return err
+						}
+						return nil
+					})
+				}
+
+				sshOpts := []llb.SSHOption{llb.SSHID(id), llb.SSHSocketTarget(dest)}
+
+				cg.agentConfigByID[id] = sockprovider.AgentConfig{
+					ID:    id,
+					SSH:   false,
+					Paths: []string{path},
 				}
 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
@@ -1477,7 +1559,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					return opts, err
 				}
 
-				id := string(digest.FromString(localPath))
+				id := digest.FromString(localPath).String()
 
 				// Register path as an allowed file source for the session.
 				cg.fileSourceByID[id] = secretsprovider.FileSource{

@@ -1,0 +1,56 @@
+fs default() {
+	scratch
+	run "/usr/local/bin/docker" "version" with option {
+		ignoreCache
+		mountDocker
+	}
+}
+
+fs buildDockerCli() {
+	image "golang:alpine" with option { resolve; }
+	run "apk add -U git bash coreutils gcc musl-dev"
+	env "CGO_ENABLED" "0"
+	env "DISABLE_WARN_OUTSIDE_CONTAINER" "1"
+	run "./scripts/build/binary" with option {
+		dir "/go/src/github.com/docker/cli"
+		mount fs { git "https://github.com/docker/cli.git" "v19.03.8"; } "/go/src/github.com/docker/cli"
+		mount fs { scratch; } "/go/src/github.com/docker/cli/build" as dockerCli
+	}
+}
+
+option::run mountDocker() {
+	mount dockerCli "/usr/local/bin"
+	forward "unix:///run/docker.sock" "/var/run/docker.sock"
+}
+
+fs ssh() {
+	image "alpine"
+	run "apk add -U openssh-client"
+	mkdir "/root/.ssh" 0o700
+	run "ssh-keyscan github.com >> /root/.ssh/known_hosts"
+	run "ssh -q -T git@github.com || true" with option {
+		ignoreCache
+		ssh
+	}
+}
+
+fs nginx() {
+	image "busybox"
+	run "docker rm -f hlb-nginx || true" with option {
+		ignoreCache
+        	mountDocker
+	}
+	run "docker run --name hlb-nginx -d -p 8080:80 nginx" with option {
+		ignoreCache
+        	mountDocker
+	}
+}
+
+fs tcp() {
+	image "alpine" with option { resolve; }
+	run "apk add -U curl"
+	run "curl --unix-socket /nginx.sock http://localhost" with option {
+		ignoreCache
+		forward "tcp://localhost:8080" "/nginx.sock"
+	}
+}
