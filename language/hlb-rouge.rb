@@ -12,14 +12,14 @@ module Rouge
           rule /(#.*)/, Comment::Single
           rule /((\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b)|(\b(0|[1-9][0-9]*)\b)|(\b(true|false)\b))/, Name::Constant
           rule /(")/, Punctuation, :common__1
-          rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption\b)/, Keyword::Type
+          rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)/, Keyword::Type
           rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)(\()/ do
             groups Keyword, Punctuation
             push :params
           end
-          rule /(\))/, String
+          rule /(\))/, Generic::Error
           rule /(\{)/, Punctuation, :block
-          rule /(\})/, String
+          rule /(\})/, Generic::Error
           rule /(\n|\r|\r\n)/, String
           rule /./, String
       end
@@ -29,11 +29,11 @@ module Rouge
           rule /((\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b)|(\b(0|[1-9][0-9]*)\b)|(\b(true|false)\b))/, Name::Constant
           rule /(")/, Punctuation, :common__1
           rule /(\b(with|as|variadic)\b)/, Name::Builtin
-          rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption\b)([\t ]+)(\{)/ do
-            groups Keyword::Type, String, Punctuation
+          rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)(?:[\t ]+)(\{)/ do
+            groups Keyword::Type, Punctuation
             push :block
           end
-          rule /(\b((?!(scratch|image|resolve|http|checksum|chmod|filename|git|keepGitDir|local|includePatterns|excludePatterns|followPaths|generate|frontendInput|shell|run|readonlyRootfs|env|dir|user|network|security|host|ssh|secret|mount|target|localPath|uid|gid|mode|readonly|tmpfs|sourcePath|cache|mkdir|createParents|chown|createdTime|mkfile|rm|allowNotFound|allowWildcards|copy|followSymlinks|contentsOnly|unpack|createDestPath)\b)[a-zA-Z_][a-zA-Z0-9]*\b))/, Name::Variable
+          rule /(\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))/, Name::Variable
           rule /(\n|\r|\r\n)/, String
           rule /./, String
       end
@@ -44,7 +44,7 @@ module Rouge
       end
 
       state:params do
-          rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption\b)/, Keyword::Type
+          rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)/, Keyword::Type
           rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)/, Name::Variable
           rule /(\n|\r|\r\n)/, String
           rule /./, String

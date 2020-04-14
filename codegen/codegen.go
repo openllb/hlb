@@ -1328,7 +1328,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 					return opts, err
 				}
 				cp.CreateDestPath = v
-			case "allowWildcards":
+			case "allowWildcard":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err

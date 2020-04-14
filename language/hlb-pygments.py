@@ -15,34 +15,34 @@ class HlbLexer(RegexLexer):
         'root' : [
             (u'(#.*)', bygroups(Comment.Single)),
             (u'((\\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\\b)|(\\b(0|[1-9][0-9]*)\\b)|(\\b(true|false)\\b))', bygroups(Name.Constant)),
-            (u'(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption\\b)', bygroups(Keyword.Type)),
+            (u'(\")', bygroups(Punctuation), 'common__1'),
+            (u'(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\\b)', bygroups(Keyword.Type)),
             (u'(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)(\\()', bygroups(Keyword, Punctuation), 'params'),
+            (u'(\\))', bygroups(Generic.Error)),
             (u'(\\{)', bygroups(Punctuation), 'block'),
-            ('(\n|\r|\r\n)', Text),
-            ('.', Text),
-        ],
-        'string': [
-            (r'"', String, '#pop'),
-            (r'\\"', String),
-            (r'[^\\"]+', String)
-        ],
+            (u'(\\})', bygroups(Generic.Error)),
+            ('(\n|\r|\r\n)', String),
+            ('.', String),
+        ], 
         'block' : [
-            (u'(\\})', bygroups(Punctuation), '#pop'),
             (u'(#.*)', bygroups(Comment.Single)),
             (u'((\\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\\b)|(\\b(0|[1-9][0-9]*)\\b)|(\\b(true|false)\\b))', bygroups(Name.Constant)),
-            (r'"', String, 'string'),
+            (u'(\")', bygroups(Punctuation), 'common__1'),
             (u'(\\b(with|as|variadic)\\b)', bygroups(Name.Builtin)),
-            (u'(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption\\b)([\\t ]+)(\\{)', bygroups(Keyword.Type, Text, Punctuation), 'block'),
-            (u'(\\b((?!(scratch|image|resolve|http|checksum|chmod|filename|git|keepGitDir|local|includePatterns|excludePatterns|followPaths|generate|frontendInput|shell|run|readonlyRootfs|env|dir|user|network|security|host|ssh|secret|mount|target|localPath|uid|gid|mode|readonly|tmpfs|sourcePath|cache|mkdir|createParents|chown|createdTime|mkfile|rm|allowNotFound|allowWildcards|copy|followSymlinks|contentsOnly|unpack|createDestPath)\\b)[a-zA-Z_][a-zA-Z0-9]*\\b))', bygroups(Name.Variable)),
-            ('(\n|\r|\r\n)', Text),
-            ('.', Text),
+            (u'(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\\b)(?:[\\t ]+)(\\{)', bygroups(Keyword.Type, Punctuation), 'block'),
+            (u'(\\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\\b)[a-zA-Z_][a-zA-Z0-9]*\\b))', bygroups(Name.Variable)),
+            ('(\n|\r|\r\n)', String),
+            ('.', String),
+        ], 
+        'common__1' : [
+            ('(\n|\r|\r\n)', String),
+            ('.', String),
         ], 
         'params' : [
-            (u'(\\))', bygroups(Punctuation), '#pop'),
-            (u'(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption\\b)', bygroups(Keyword.Type)),
+            (u'(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\\b)', bygroups(Keyword.Type)),
             (u'(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)', bygroups(Name.Variable)),
-            ('(\n|\r|\r\n)', Text),
-            ('.', Text),
+            ('(\n|\r|\r\n)', String),
+            ('.', String),
         ]
     }
 

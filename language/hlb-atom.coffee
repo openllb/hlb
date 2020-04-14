@@ -16,7 +16,7 @@
         'include' : '#common'
       }
       {
-        'match' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption\\b)'
+        'match' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\\b)'
         'name' : 'entity.name.type.hlb'
       }
       {
@@ -80,15 +80,12 @@
         'name' : 'variable.language.hlb'
       }
       {
-        'begin' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption\\b)([\\t\\x{0020}]+)(\\{)'
+        'begin' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\\b)(?:[\\t\\x{0020}]+)(\\{)'
         'beginCaptures' : {
           '1' : {
             'name' : 'entity.name.type.hlb'
           }
           '2' : {
-            'name' : 'text.hlb'
-          }
-          '3' : {
             'name' : 'punctuation.hlb'
           }
         }
@@ -105,7 +102,7 @@
         }
       }
       {
-        'match' : '(\\b((?!(scratch|image|resolve|http|checksum|chmod|filename|git|keepGitDir|local|includePatterns|excludePatterns|followPaths|generate|frontendInput|shell|run|readonlyRootfs|env|dir|user|network|security|host|ssh|secret|mount|target|localPath|uid|gid|mode|readonly|tmpfs|sourcePath|cache|mkdir|createParents|chown|createdTime|mkfile|rm|allowNotFound|allowWildcards|copy|followSymlinks|contentsOnly|unpack|createDestPath)\\b)[a-zA-Z_][a-zA-Z0-9]*\\b))'
+        'match' : '(\\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\\b)[a-zA-Z_][a-zA-Z0-9]*\\b))'
         'name' : 'variable.hlb'
       }
     ]
@@ -144,7 +141,7 @@
   'params' : {
     'patterns' : [
       {
-        'match' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption\\b)'
+        'match' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\\b)'
         'name' : 'entity.name.type.hlb'
       }
       {
