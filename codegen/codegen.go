@@ -1849,6 +1849,10 @@ func (cg *CodeGen) LocalID(path string, opts ...llb.LocalOption) (string, error)
 		return "", err
 	}
 
+	// The terminal op of the graph def.Def[len(def.Def)-1] is an empty vertex with
+	// an input to the last vertex's digest. Since that vertex also has its digests
+	// of its inputs and so on, the digest of the terminal op is a merkle hash for
+	// the graph.
 	return digest.FromBytes(def.Def[len(def.Def)-1]).String(), nil
 }
 

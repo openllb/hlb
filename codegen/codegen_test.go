@@ -13,11 +13,9 @@ import (
 	"github.com/xlab/treeprint"
 )
 
-func Expect(st llb.State) solver.Request {
+func Expect(t *testing.T, st llb.State) solver.Request {
 	def, err := st.Marshal(context.Background(), llb.LinuxAmd64)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	return solver.Single(&solver.Params{
 		Def: def,
@@ -28,7 +26,7 @@ type testCase struct {
 	name    string
 	targets []string
 	input   string
-	fn      func(cg *CodeGen) (solver.Request, error)
+	fn      func(t *testing.T, cg *CodeGen) solver.Request
 }
 
 func cleanup(value string) string {
@@ -47,10 +45,10 @@ func TestCodeGen(t *testing.T) {
 			image "alpine"
 		}
 		`,
-		func(cg *CodeGen) (solver.Request, error) {
+		func(t *testing.T, cg *CodeGen) solver.Request {
 			return solver.Parallel(
-				Expect(llb.Image("alpine")),
-			), nil
+				Expect(t, llb.Image("alpine")),
+			)
 		},
 	}, {
 		"call function",
@@ -64,10 +62,10 @@ func TestCodeGen(t *testing.T) {
 			image ref
 		}
 		`,
-		func(cg *CodeGen) (solver.Request, error) {
+		func(t *testing.T, cg *CodeGen) solver.Request {
 			return solver.Parallel(
-				Expect(llb.Image("busybox")),
-			), nil
+				Expect(t, llb.Image("busybox")),
+			)
 		},
 	}, {
 		"local",
@@ -77,15 +75,13 @@ func TestCodeGen(t *testing.T) {
 			local "."
 		}
 		`,
-		func(cg *CodeGen) (solver.Request, error) {
+		func(t *testing.T, cg *CodeGen) solver.Request {
 			id, err := cg.LocalID(".")
-			if err != nil {
-				return nil, err
-			}
+			require.NoError(t, err)
 
 			return solver.Parallel(
-				Expect(llb.Local(id, llb.SessionID(cg.SessionID()))),
-			), nil
+				Expect(t, llb.Local(id, llb.SessionID(cg.SessionID()))),
+			)
 		},
 		// }, {
 		// 	"sequential group",
@@ -96,11 +92,11 @@ func TestCodeGen(t *testing.T) {
 		// 		image "busybox"
 		// 	}
 		// 	`,
-		// 	func(cg *CodeGen) (solver.Request, error) {
+		// 	func(t *testing.T, cg *CodeGen) solver.Request {
 		// 		return solver.Sequential(
-		// 			Expect(llb.Image("alpine")),
-		// 			Expect(llb.Image("busybox")),
-		// 		), nil
+		// 			Expect(t, llb.Image("alpine")),
+		// 			Expect(t, llb.Image("busybox")),
+		// 		)
 		// 	},
 		// }, {
 		// 	"parallel group",
@@ -114,11 +110,11 @@ func TestCodeGen(t *testing.T) {
 		// 		}
 		// 	}
 		// 	`,
-		// 	func(cg *CodeGen) (solver.Request, error) {
+		// 	func(t *testing.T, cg *CodeGen) solver.Request {
 		// 		return solver.Parallel(
-		// 			Expect(llb.Image("alpine")),
-		// 			Expect(llb.Image("busybox")),
-		// 		), nil
+		// 			Expect(t, llb.Image("alpine")),
+		// 			Expect(t, llb.Image("busybox")),
+		// 		)
 		// 	},
 	}} {
 		tc := tc
@@ -142,8 +138,7 @@ func TestCodeGen(t *testing.T) {
 			request, err := cg.Generate(context.Background(), mod, targets)
 			require.NoError(t, err)
 
-			testRequest, err := tc.fn(cg)
-			require.NoError(t, err)
+			testRequest := tc.fn(t, cg)
 
 			expected := treeprint.New()
 			testRequest.Tree(expected)
