@@ -37,15 +37,15 @@ const (
 	OutputDownloadDockerTarball
 )
 
-func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output) error {
+func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output) (solver.Request, error) {
 	opts, err := cg.SolveOptions(ctx, st)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s, err := cg.newSession(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	switch output.Type {
@@ -53,18 +53,18 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 		opts = append(opts, solver.WithPushImage(output.Ref))
 	case OutputDockerLoad:
 		if cg.mw == nil {
-			return errors.WithStack(errors.Errorf("progress.MultiWriter must be provided for dockerLoad"))
+			return nil, errors.WithStack(errors.Errorf("progress.MultiWriter must be provided for dockerLoad"))
 		}
 
 		if cg.dockerCli == nil {
 			cg.dockerCli, err = command.NewDockerCli()
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			err = cg.dockerCli.Initialize(flags.NewClientOptions())
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 
@@ -99,7 +99,7 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 	case OutputDownloadTarball, OutputDownloadOCITarball, OutputDownloadDockerTarball:
 		f, err := os.Open(output.LocalPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(f)))
@@ -116,9 +116,8 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 
 	def, err := st.Marshal(ctx, llb.LinuxAmd64)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	cg.request = cg.request.Peer(solver.NewRequest(s, def, opts...))
-	return nil
+	return solver.Single(&solver.Params{Def: def, SolveOpts: opts, Session: s}), nil
 }

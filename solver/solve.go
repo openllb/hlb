@@ -22,7 +22,7 @@ type SolveInfo struct {
 	OutputLocal           string
 	OutputLocalTarball    bool
 	OutputLocalOCITarball bool
-	Callbacks             []func() error
+	Callbacks             []func() error `json:"-"`
 	ImageSpec             *specs.Image
 }
 
