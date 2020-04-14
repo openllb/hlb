@@ -7,6 +7,9 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/solver/pb"
+	digest "github.com/opencontainers/go-digest"
+	"github.com/xlab/treeprint"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -20,48 +23,22 @@ type Request interface {
 	// for each independent solve.
 	Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error
 
-	// Next adds a sequential solve to this request. The added request will only
-	// execute after this request has completed.
-	Next(n Request) Request
-
-	// Peer adds a parallel solve to this request. The added request will execute
-	// in parallel with this request.
-	Peer(p Request) Request
+	Tree(tree treeprint.Tree) error
 }
 
-// NewEmptyRequest returns an empty request, which can be used as the root of
-// a solve request tree.
-func NewEmptyRequest() Request {
-	return &nullRequest{}
-}
-
-type nullRequest struct{}
-
-func (r *nullRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
-	return nil
-}
-
-func (r *nullRequest) Next(n Request) Request {
-	return n
-}
-
-func (r *nullRequest) Peer(p Request) Request {
-	return p
+type Params struct {
+	Def       *llb.Definition
+	SolveOpts []SolveOption
+	Session   *session.Session
 }
 
 type singleRequest struct {
-	s    *session.Session
-	def  *llb.Definition
-	opts []SolveOption
+	params *Params
 }
 
-// NewRequest returns a single solve request.
-func NewRequest(s *session.Session, def *llb.Definition, opts ...SolveOption) Request {
-	return &singleRequest{
-		s:    s,
-		def:  def,
-		opts: opts,
-	}
+// Single returns a single solve request.
+func Single(params *Params) Request {
+	return &singleRequest{params: params}
 }
 
 func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
@@ -73,30 +50,81 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return r.s.Run(ctx, cln.Dialer())
+		return r.params.Session.Run(ctx, cln.Dialer())
 	})
 
 	g.Go(func() error {
-		return Solve(ctx, cln, r.s, pw, r.def, r.opts...)
+		return Solve(ctx, cln, r.params.Session, pw, r.params.Def, r.params.SolveOpts...)
 	})
 
 	return g.Wait()
 }
 
-func (r *singleRequest) Next(n Request) Request {
-	return &sequentialRequest{
-		reqs: []Request{r, n},
-	}
+func (r *singleRequest) Tree(tree treeprint.Tree) error {
+	branch := tree.AddBranch("single")
+	return treeFromDefinition(branch, r.params.Def)
 }
 
-func (r *singleRequest) Peer(p Request) Request {
-	return &parallelRequest{
-		reqs: []Request{r, p},
+func treeFromDefinition(tree treeprint.Tree, def *llb.Definition) error {
+	ops := make(map[digest.Digest]*pb.Op)
+
+	var dgst digest.Digest
+	for _, dt := range def.Def {
+		var op pb.Op
+		if err := (&op).Unmarshal(dt); err != nil {
+			return err
+		}
+		dgst = digest.FromBytes(dt)
+		ops[dgst] = &op
 	}
+
+	if dgst == "" {
+		return nil
+	}
+
+	terminal := ops[dgst]
+	child := op{dgst: terminal.Inputs[0].Digest, ops: ops}
+	return child.Tree(tree)
+}
+
+type op struct {
+	dgst digest.Digest
+	ops  map[digest.Digest]*pb.Op
+}
+
+func (o op) Tree(tree treeprint.Tree) error {
+	pbOp := o.ops[o.dgst]
+
+	var branch treeprint.Tree
+
+	switch v := pbOp.Op.(type) {
+	case *pb.Op_Source:
+		branch = tree.AddMetaBranch("source", v.Source)
+	case *pb.Op_Exec:
+		branch = tree.AddMetaBranch("exec", v.Exec)
+	case *pb.Op_File:
+		branch = tree.AddMetaBranch("file", v.File)
+	case *pb.Op_Build:
+		branch = tree.AddMetaBranch("build", v.Build)
+	}
+
+	for _, input := range pbOp.Inputs {
+		child := op{dgst: input.Digest, ops: o.ops}
+		err := child.Tree(branch)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type parallelRequest struct {
 	reqs []Request
+}
+
+func Parallel(reqs ...Request) Request {
+	return &parallelRequest{reqs: reqs}
 }
 
 func (r *parallelRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
@@ -110,19 +138,23 @@ func (r *parallelRequest) Solve(ctx context.Context, cln *client.Client, mw *pro
 	return g.Wait()
 }
 
-func (r *parallelRequest) Next(n Request) Request {
-	return &sequentialRequest{
-		reqs: []Request{r, n},
+func (r *parallelRequest) Tree(tree treeprint.Tree) error {
+	branch := tree.AddBranch("parallel")
+	for _, req := range r.reqs {
+		err := req.Tree(branch)
+		if err != nil {
+			return err
+		}
 	}
-}
-
-func (r *parallelRequest) Peer(p Request) Request {
-	r.reqs = append(r.reqs, p)
-	return r
+	return nil
 }
 
 type sequentialRequest struct {
 	reqs []Request
+}
+
+func Sequential(reqs ...Request) Request {
+	return &sequentialRequest{reqs: reqs}
 }
 
 func (r *sequentialRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
@@ -135,13 +167,13 @@ func (r *sequentialRequest) Solve(ctx context.Context, cln *client.Client, mw *p
 	return nil
 }
 
-func (r *sequentialRequest) Next(n Request) Request {
-	r.reqs = append(r.reqs, n)
-	return r
-}
-
-func (r *sequentialRequest) Peer(p Request) Request {
-	return &parallelRequest{
-		reqs: []Request{r, p},
+func (r *sequentialRequest) Tree(tree treeprint.Tree) error {
+	branch := tree.AddBranch("sequential")
+	for _, req := range r.reqs {
+		err := req.Tree(branch)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }

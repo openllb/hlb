@@ -1,0 +1,154 @@
+package codegen
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/moby/buildkit/client/llb"
+	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/solver"
+	"github.com/stretchr/testify/require"
+	"github.com/xlab/treeprint"
+)
+
+func Expect(t *testing.T, st llb.State) solver.Request {
+	def, err := st.Marshal(context.Background(), llb.LinuxAmd64)
+	require.NoError(t, err)
+
+	return solver.Single(&solver.Params{
+		Def: def,
+	})
+}
+
+type testCase struct {
+	name    string
+	targets []string
+	input   string
+	fn      func(t *testing.T, cg *CodeGen) solver.Request
+}
+
+func cleanup(value string) string {
+	result := strings.TrimSpace(value)
+	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
+	result = strings.ReplaceAll(result, "|\n", "| \n")
+	return result
+}
+
+func TestCodeGen(t *testing.T) {
+	for _, tc := range []testCase{{
+		"image",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Parallel(
+				Expect(t, llb.Image("alpine")),
+			)
+		},
+	}, {
+		"call function",
+		[]string{"default"},
+		`
+		fs default() {
+			foo "busybox"
+		}
+
+		fs foo(string ref) {
+			image ref
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Parallel(
+				Expect(t, llb.Image("busybox")),
+			)
+		},
+	}, {
+		"local",
+		[]string{"default"},
+		`
+		fs default() {
+			local "."
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			id, err := cg.LocalID(".")
+			require.NoError(t, err)
+
+			return solver.Parallel(
+				Expect(t, llb.Local(id, llb.SessionID(cg.SessionID()))),
+			)
+		},
+		// }, {
+		// 	"sequential group",
+		// 	[]string{"default"},
+		// 	`
+		// 	group default() {
+		// 		image "alpine"
+		// 		image "busybox"
+		// 	}
+		// 	`,
+		// 	func(t *testing.T, cg *CodeGen) solver.Request {
+		// 		return solver.Sequential(
+		// 			Expect(t, llb.Image("alpine")),
+		// 			Expect(t, llb.Image("busybox")),
+		// 		)
+		// 	},
+		// }, {
+		// 	"parallel group",
+		// 	[]string{"default"},
+		// 	`
+		// 	group default() {
+		// 		parallel group {
+		// 			image "alpine"
+		// 		} group {
+		// 			image "busybox"
+		// 		}
+		// 	}
+		// 	`,
+		// 	func(t *testing.T, cg *CodeGen) solver.Request {
+		// 		return solver.Parallel(
+		// 			Expect(t, llb.Image("alpine")),
+		// 			Expect(t, llb.Image("busybox")),
+		// 		)
+		// 	},
+	}} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cg, err := New()
+			require.NoError(t, err)
+
+			mod, err := parser.Parse(strings.NewReader(cleanup(tc.input)))
+			require.NoError(t, err)
+
+			err = checker.Check(mod)
+			require.NoError(t, err)
+
+			var targets []Target
+			for _, target := range tc.targets {
+				targets = append(targets, Target{Name: target})
+			}
+
+			request, err := cg.Generate(context.Background(), mod, targets)
+			require.NoError(t, err)
+
+			testRequest := tc.fn(t, cg)
+
+			expected := treeprint.New()
+			testRequest.Tree(expected)
+
+			actual := treeprint.New()
+			request.Tree(actual)
+			t.Log(actual.String())
+
+			// Compare trees.
+			require.Equal(t, expected.String(), actual.String())
+		})
+	}
+}
