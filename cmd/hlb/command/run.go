@@ -15,6 +15,7 @@ import (
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
+	"github.com/xlab/treeprint"
 )
 
 var runCommand = &cli.Command{
@@ -31,6 +32,10 @@ var runCommand = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "jump into a source level debugger for hlb",
+		},
+		&cli.BoolFlag{
+			Name:  "tree",
+			Usage: "print out the request tree without solving",
 		},
 		&cli.StringFlag{
 			Name:  "log-output",
@@ -53,6 +58,7 @@ var runCommand = &cli.Command{
 
 		return Run(ctx, cln, rc, RunOptions{
 			Debug:     c.Bool("debug"),
+			Tree:      c.Bool("tree"),
 			Targets:   c.StringSlice("target"),
 			LLB:       c.Bool("llb"),
 			LogOutput: c.String("log-output"),
@@ -63,6 +69,7 @@ var runCommand = &cli.Command{
 
 type RunOptions struct {
 	Debug     bool
+	Tree      bool
 	Targets   []string
 	LLB       bool
 	LogOutput string
@@ -150,7 +157,26 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return err
 	}
 
-	if opts.Debug {
+	if opts.Debug || opts.Tree {
+		p.Release()
+		err = p.Wait()
+		if err != nil {
+			return err
+		}
+
+		if opts.Debug {
+			return nil
+		}
+	}
+
+	if opts.Tree {
+		tree := treeprint.New()
+		err = solveReq.Tree(tree)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(tree)
 		return nil
 	}
 
