@@ -5,6 +5,7 @@ import (
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 )
 
@@ -151,5 +152,33 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, call
 		return cg.EmitOptions(ctx, scope, op, expr.FuncLit.Body.NonEmptyStmts(), noopAliasCallback)
 	default:
 		return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option expr")})
+	}
+}
+
+func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, expr *parser.Expr, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
+	switch {
+	case expr.Ident != nil:
+		obj := scope.Lookup(expr.Ident.Name)
+		switch obj.Kind {
+		case parser.DeclKind:
+			switch n := obj.Node.(type) {
+			case *parser.FuncDecl:
+				return cg.EmitGroupFuncDecl(ctx, scope, n, nil, noopAliasCallback, chainStart)
+			case *parser.AliasDecl:
+				return cg.EmitGroupAliasDecl(ctx, scope, n, nil, chainStart)
+			default:
+				return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown decl object")})
+			}
+		case parser.ExprKind:
+			return obj.Data.(solver.Request), nil
+		default:
+			return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
+		}
+	case expr.BasicLit != nil:
+		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("group expr cannot be basic lit")})
+	case expr.FuncLit != nil:
+		return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, chainStart)
+	default:
+		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
 	}
 }

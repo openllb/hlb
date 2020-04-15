@@ -17,7 +17,7 @@ var (
 
 		Keyword  = \b(with|as|import|export|from)\b
 		Modifier = \b(variadic)\b
-		Type     = \b(string|int|bool|fs|option)(::[a-z][a-z]*)?\b
+		Type     = \b(string|int|bool|fs|option|group)(::[a-z][a-z]*)?\b
 		Numeric  = \b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b
 		Decimal  = \b(0|[1-9][0-9]*)\b
 		String   = "(\\.|[^"])*"|'[^']*'
@@ -335,6 +335,9 @@ func (t *Type) Equals(typ ObjType) bool {
 		parts := typeParts(typ)
 		return ObjType(parts[0]) == Option
 	}
+	if typ == Group {
+		return t.ObjType == Filesystem || t.ObjType == Group
+	}
 	return t.ObjType == typ
 }
 
@@ -347,6 +350,7 @@ const (
 	Bool       ObjType = "bool"
 	Filesystem ObjType = "fs"
 	Option     ObjType = "option"
+	Group      ObjType = "group"
 )
 
 // Ident represents an identifier.
