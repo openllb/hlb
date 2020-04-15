@@ -3,6 +3,7 @@ package solver
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/kballard/go-shellquote"
@@ -13,6 +14,11 @@ import (
 	digest "github.com/opencontainers/go-digest"
 	"github.com/xlab/treeprint"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	// LopcalPathDescriptionKey is the key name in the metadata description map for the input path to a local fs.
+	LocalPathDescriptionKey = "hlb.local.path"
 )
 
 // Request is a node in the solve request tree produced by the compiler. The
@@ -63,8 +69,7 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 }
 
 func (r *singleRequest) Tree(tree treeprint.Tree) error {
-	branch := tree.AddBranch("single")
-	return treeFromDefinition(branch, r.params.Def)
+	return treeFromDefinition(tree, r.params.Def)
 }
 
 func treeFromDefinition(tree treeprint.Tree, def *llb.Definition) error {
@@ -85,13 +90,14 @@ func treeFromDefinition(tree treeprint.Tree, def *llb.Definition) error {
 	}
 
 	terminal := ops[dgst]
-	child := op{dgst: terminal.Inputs[0].Digest, ops: ops}
+	child := op{dgst: terminal.Inputs[0].Digest, ops: ops, meta: def.Metadata}
 	return child.Tree(tree)
 }
 
 type op struct {
 	dgst digest.Digest
 	ops  map[digest.Digest]*pb.Op
+	meta map[digest.Digest]pb.OpMetadata
 }
 
 func (o op) Tree(tree treeprint.Tree) error {
@@ -114,6 +120,9 @@ func (o op) Tree(tree treeprint.Tree) error {
 		} else {
 			cmd = shellquote.Join(meta.Args...)
 		}
+		if o.meta[o.dgst].IgnoreCache {
+			cmd += " [ignoreCache]"
+		}
 		branch = tree.AddMetaBranch("exec", cmd)
 		if len(meta.Env) > 0 {
 			for _, env := range meta.Env {
@@ -129,10 +138,12 @@ func (o op) Tree(tree treeprint.Tree) error {
 		}
 
 		sources := []*pb.Op_Source{}
+		sourceMeta := []pb.OpMetadata{}
 		for _, input := range pbOp.Inputs {
 			op := o.ops[input.Digest]
 			if src, ok := op.Op.(*pb.Op_Source); ok {
 				sources = append(sources, src)
+				sourceMeta = append(sourceMeta, o.meta[input.Digest])
 				reportedInputs[input.Digest] = struct{}{}
 			}
 		}
@@ -143,6 +154,17 @@ func (o op) Tree(tree treeprint.Tree) error {
 				source = sources[mnt.Input].Source.Identifier
 				if mnt.Selector != "" {
 					source += mnt.Selector
+				}
+				if strings.HasPrefix(source, "local://") {
+					if localPath, ok := sourceMeta[mnt.Input].Description[LocalPathDescriptionKey]; ok {
+						source = localPath
+					}
+					for name, value := range sources[mnt.Input].Source.Attrs {
+						if name == "local.session" {
+							continue
+						}
+						source += fmt.Sprintf(",%s=%s", strings.TrimPrefix(name, "local."), value)
+					}
 				}
 			}
 			opts := fmt.Sprintf("type=%s", mnt.MountType)
@@ -173,7 +195,7 @@ func (o op) Tree(tree treeprint.Tree) error {
 		if _, ok := reportedInputs[input.Digest]; ok {
 			continue
 		}
-		child := op{dgst: input.Digest, ops: o.ops}
+		child := op{dgst: input.Digest, ops: o.ops, meta: o.meta}
 		err := child.Tree(branch)
 		if err != nil {
 			return err
