@@ -183,6 +183,37 @@ func TestCompile(t *testing.T) {
 		}
 		`,
 		nil,
+	}, {
+		"errors with duplicate function names",
+		`
+		fs duplicateFunctionName() {}
+		fs duplicateFunctionName() {}
+		`,
+		ErrDuplicateDecls{},
+	}, {
+		"errors with function and alias name collisions",
+		`
+		fs duplicateName() {}
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as duplicateName
+			}
+		}
+		`,
+		ErrDuplicateDecls{},
+	}, {
+		"errors with duplicate alias names",
+		`
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as duplicateAliasName
+			}
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as duplicateAliasName
+			}
+		}
+		`,
+		ErrDuplicateDecls{},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
