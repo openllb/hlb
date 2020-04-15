@@ -2,8 +2,10 @@ package solver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/docker/buildx/util/progress"
+	"github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/session"
@@ -98,22 +100,68 @@ func (o op) Tree(tree treeprint.Tree) error {
 	var branch treeprint.Tree
 
 	switch v := pbOp.Op.(type) {
-	case *pb.Op_Source:
-		branch = tree.AddMetaBranch("source", v.Source)
 	case *pb.Op_Exec:
-		branch = tree.AddMetaBranch("exec", v.Exec)
+		meta := v.Exec.Meta
+		cmd := ""
+		if len(meta.Args) == 3 {
+			if meta.Args[0] == "/bin/sh" && meta.Args[1] == "-c" {
+				cmd = meta.Args[2]
+			}
+		} else {
+			cmd = shellquote.Join(meta.Args...)
+		}
+		branch = tree.AddMetaBranch("exec", cmd)
+		if len(meta.Env) > 0 {
+			for _, env := range meta.Env {
+				branch.AddMetaNode("env", env)
+			}
+		}
+
+		if meta.Cwd != "" {
+			branch.AddMetaNode("cwd", meta.Cwd)
+		}
+		if meta.User != "" {
+			branch.AddMetaNode("user", meta.User)
+		}
+
+		sources := []*pb.Op_Source{}
+		for _, input := range pbOp.Inputs {
+			op := o.ops[input.Digest]
+			if src, ok := op.Op.(*pb.Op_Source); ok {
+				sources = append(sources, src)
+			}
+		}
+
+		for _, mnt := range v.Exec.Mounts {
+			source := "scratch"
+			if mnt.Input >= 0 {
+				source = sources[mnt.Input].Source.Identifier
+				if mnt.Selector != "" {
+					source += mnt.Selector
+				}
+			}
+			opts := fmt.Sprintf("type=%s", mnt.MountType)
+			if mnt.Readonly {
+				opts += ",ro"
+			}
+			if mnt.CacheOpt != nil {
+				opts += fmt.Sprintf(",cache-id=%s", mnt.CacheOpt.ID)
+				opts += fmt.Sprintf(",sharing=%s", mnt.CacheOpt.Sharing)
+			}
+			if mnt.SecretOpt != nil {
+				opts += fmt.Sprintf(",secret=%s", mnt.SecretOpt.ID)
+			}
+			if mnt.SSHOpt != nil {
+				opts += fmt.Sprintf(",ssh=%s", mnt.SSHOpt.ID)
+			}
+
+			branch.AddMetaNode("mount", fmt.Sprintf("%s => %s [%s]", source, mnt.Dest, opts))
+		}
+
 	case *pb.Op_File:
 		branch = tree.AddMetaBranch("file", v.File)
 	case *pb.Op_Build:
 		branch = tree.AddMetaBranch("build", v.Build)
-	}
-
-	for _, input := range pbOp.Inputs {
-		child := op{dgst: input.Digest, ops: o.ops}
-		err := child.Tree(branch)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
