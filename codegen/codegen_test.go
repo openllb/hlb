@@ -46,9 +46,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			return solver.Parallel(
-				Expect(t, llb.Image("alpine")),
-			)
+			return Expect(t, llb.Image("alpine"))
 		},
 	}, {
 		"call function",
@@ -63,9 +61,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			return solver.Parallel(
-				Expect(t, llb.Image("busybox")),
-			)
+			return Expect(t, llb.Image("busybox"))
 		},
 	}, {
 		"local",
@@ -79,43 +75,93 @@ func TestCodeGen(t *testing.T) {
 			id, err := cg.LocalID(".")
 			require.NoError(t, err)
 
-			return solver.Parallel(
-				Expect(t, llb.Local(id, llb.SessionID(cg.SessionID()))),
+			return Expect(t, llb.Local(id, llb.SessionID(cg.SessionID())))
+		},
+	}, {
+		"empty group",
+		[]string{"default"},
+		`
+		group default() {}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Sequential()
+		},
+	}, {
+		"sequential group",
+		[]string{"default"},
+		`
+		group default() {
+			image "alpine"
+			image "busybox"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Sequential(
+				Expect(t, llb.Image("alpine")),
+				Expect(t, llb.Image("busybox")),
 			)
 		},
-		// }, {
-		// 	"sequential group",
-		// 	[]string{"default"},
-		// 	`
-		// 	group default() {
-		// 		image "alpine"
-		// 		image "busybox"
-		// 	}
-		// 	`,
-		// 	func(t *testing.T, cg *CodeGen) solver.Request {
-		// 		return solver.Sequential(
-		// 			Expect(t, llb.Image("alpine")),
-		// 			Expect(t, llb.Image("busybox")),
-		// 		)
-		// 	},
-		// }, {
-		// 	"parallel group",
-		// 	[]string{"default"},
-		// 	`
-		// 	group default() {
-		// 		parallel group {
-		// 			image "alpine"
-		// 		} group {
-		// 			image "busybox"
-		// 		}
-		// 	}
-		// 	`,
-		// 	func(t *testing.T, cg *CodeGen) solver.Request {
-		// 		return solver.Parallel(
-		// 			Expect(t, llb.Image("alpine")),
-		// 			Expect(t, llb.Image("busybox")),
-		// 		)
-		// 	},
+	}, {
+		"parallel group",
+		[]string{"default"},
+		`
+		group default() {
+			parallel group {
+				image "alpine"
+			} group {
+				image "busybox"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Parallel(
+				Expect(t, llb.Image("alpine")),
+				Expect(t, llb.Image("busybox")),
+			)
+		},
+	}, {
+		"parallel and sequential groups",
+		[]string{"default"},
+		`
+		group default() {
+			image "golang:alpine"
+			parallel group {
+				image "alpine"
+			} group {
+				image "busybox"
+			}
+			image "node:alpine"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Sequential(
+				Expect(t, llb.Image("golang:alpine")),
+				solver.Parallel(
+					Expect(t, llb.Image("alpine")),
+					Expect(t, llb.Image("busybox")),
+				),
+				Expect(t, llb.Image("node:alpine")),
+			)
+		},
+	}, {
+		"invoking group functions",
+		[]string{"default"},
+		`
+		group default() {
+			foo "stable"
+		}
+
+		group foo(string ref) {
+			image string { format "alpine:%s" ref; }
+			image string { format "busybox:%s" ref; }
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Sequential(
+				Expect(t, llb.Image("alpine:stable")),
+				Expect(t, llb.Image("busybox:stable")),
+			)
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,10 +188,11 @@ func TestCodeGen(t *testing.T) {
 
 			expected := treeprint.New()
 			testRequest.Tree(expected)
+			t.Logf("expected: %s", expected)
 
 			actual := treeprint.New()
 			request.Tree(actual)
-			t.Log(actual.String())
+			t.Logf("actual: %s", actual)
 
 			// Compare trees.
 			require.Equal(t, expected.String(), actual.String())

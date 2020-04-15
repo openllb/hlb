@@ -212,6 +212,9 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 
 	}
 
+	if len(requests) == 1 {
+		return requests[0], nil
+	}
 	return solver.Parallel(requests...), nil
 }
 
@@ -300,7 +303,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 			v = ""
 		}
 	case parser.Group:
-		if _, ok := v.(solver.Request); v == nil || !ok {
+		if _, ok := v.([]solver.Request); v == nil || !ok {
 			v = []solver.Request{}
 		}
 	}
@@ -356,7 +359,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (func(v interface{}) (interface{}, error), error) {
 	switch typ {
 	case parser.Filesystem:
-		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac, chainStart)
+		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, call, ac, chainStart)
 		if err != nil {
 			return nil, err
 		}
@@ -470,6 +473,9 @@ func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, stmt
 	}
 
 	requests := v.([]solver.Request)
+	if len(requests) == 1 {
+		return requests[0], nil
+	}
 	return solver.Sequential(requests...), nil
 }
 
@@ -532,7 +538,7 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 	case "parallel":
 		var peerRequests []solver.Request
 		for _, arg := range call.Args {
-			request, err := cg.EmitGroupExpr(ctx, scope, call, arg, ac, chainStart)
+			request, err := cg.EmitGroupExpr(ctx, scope, call, arg, ac, nil)
 			if err != nil {
 				return gc, err
 			}
@@ -545,6 +551,34 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 			return requests, nil
 		}
 	default:
+		so, err := cg.EmitFilesystemBuiltinChainStmt(ctx, scope, call, ac, nil)
+		if err != nil {
+			return gc, err
+		}
+
+		if so != nil {
+			return func(requests []solver.Request) ([]solver.Request, error) {
+				st, err := so(llb.Scratch())
+				if err != nil {
+					return requests, err
+				}
+
+				request, err := cg.outputRequest(ctx, st, Output{})
+				if err != nil {
+					return requests, err
+				}
+
+				if len(cg.requests) > 0 {
+					request = solver.Parallel(append([]solver.Request{request}, cg.requests...)...)
+				}
+
+				cg.reset()
+
+				requests = append(requests, request)
+				return requests, nil
+			}, nil
+		}
+
 		// Must be a named reference.
 		obj := scope.Lookup(name)
 		if obj == nil {
@@ -552,7 +586,6 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 		}
 
 		var v interface{}
-		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
 			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
@@ -605,7 +638,61 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 	return
 }
 
-func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
+func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
+	so, err = cg.EmitFilesystemBuiltinChainStmt(ctx, scope, call, ac, chainStart)
+	if err != nil {
+		return so, err
+	}
+
+	var name string
+	switch {
+	case call.Func.Ident != nil:
+		name = call.Func.Ident.Name
+	case call.Func.Selector != nil:
+		name = call.Func.Selector.Ident.Name
+	}
+
+	if so == nil {
+		// Must be a named reference.
+		obj := scope.Lookup(name)
+		if obj == nil {
+			return so, errors.WithStack(ErrCodeGen{call, errors.Errorf("could not find reference")})
+		}
+
+		var v interface{}
+		var err error
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
+		case *parser.AliasDecl:
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
+			switch m := importObj.Node.(type) {
+			case *parser.FuncDecl:
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac, chainStart)
+			case *parser.AliasDecl:
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
+			default:
+				return so, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
+			}
+		case *parser.Field:
+			v = obj.Data
+		default:
+			return so, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
+		}
+		if err != nil {
+			return so, err
+		}
+		so = func(_ llb.State) (llb.State, error) {
+			return v.(llb.State), nil
+		}
+	}
+
+	return so, nil
+}
+func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
 	args := call.Args
 	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
@@ -1067,42 +1154,6 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			}
 			cg.requests = append(cg.requests, request)
 			return st, nil
-		}
-	default:
-		// Must be a named reference.
-		obj := scope.Lookup(name)
-		if obj == nil {
-			return so, errors.WithStack(ErrCodeGen{call, errors.Errorf("could not find reference")})
-		}
-
-		var v interface{}
-		var err error
-		switch n := obj.Node.(type) {
-		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
-		case *parser.AliasDecl:
-			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
-		case *parser.ImportDecl:
-			importScope := obj.Data.(*parser.Scope)
-			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
-			switch m := importObj.Node.(type) {
-			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac, chainStart)
-			case *parser.AliasDecl:
-				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
-			default:
-				return so, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
-			}
-		case *parser.Field:
-			v = obj.Data
-		default:
-			return so, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
-		}
-		if err != nil {
-			return so, err
-		}
-		so = func(_ llb.State) (llb.State, error) {
-			return v.(llb.State), nil
 		}
 	}
 
