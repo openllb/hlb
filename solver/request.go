@@ -99,7 +99,11 @@ func (o op) Tree(tree treeprint.Tree) error {
 
 	var branch treeprint.Tree
 
+	reportedInputs := map[digest.Digest]struct{}{}
+
 	switch v := pbOp.Op.(type) {
+	case *pb.Op_Source:
+		branch = tree.AddMetaBranch("source", v.Source)
 	case *pb.Op_Exec:
 		meta := v.Exec.Meta
 		cmd := ""
@@ -129,6 +133,7 @@ func (o op) Tree(tree treeprint.Tree) error {
 			op := o.ops[input.Digest]
 			if src, ok := op.Op.(*pb.Op_Source); ok {
 				sources = append(sources, src)
+				reportedInputs[input.Digest] = struct{}{}
 			}
 		}
 
@@ -162,6 +167,17 @@ func (o op) Tree(tree treeprint.Tree) error {
 		branch = tree.AddMetaBranch("file", v.File)
 	case *pb.Op_Build:
 		branch = tree.AddMetaBranch("build", v.Build)
+	}
+
+	for _, input := range pbOp.Inputs {
+		if _, ok := reportedInputs[input.Digest]; ok {
+			continue
+		}
+		child := op{dgst: input.Digest, ops: o.ops}
+		err := child.Tree(branch)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
