@@ -493,3 +493,9 @@ fs downloadDockerTarball(string localPath, string ref)
 # specifier.
 # @return the resulting string from formatting.
 string format(string formatString, variadic string values)
+
+# Execute groups in parallel.
+#
+# @param groups the groups to run in parallel
+# @return a group that finishes when all of its groups are finished.
+group parallel(variadic group groups)

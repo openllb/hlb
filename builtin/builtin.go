@@ -134,6 +134,15 @@ var (
 					},
 				},
 			},
+			"group": LookupByType{
+				Func: map[string]FuncLookup{
+					"parallel": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField("group", "groups", true),
+						},
+					},
+				},
+			},
 			"option::copy": LookupByType{
 				Func: map[string]FuncLookup{
 					"followSymlinks": FuncLookup{

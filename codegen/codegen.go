@@ -151,25 +151,30 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 
 		call := parser.NewCallStmt(target.Name, nil, nil, nil).Call
 
-		var st llb.State
+		var (
+			v   interface{}
+			typ *parser.Type
+		)
 		switch obj.Kind {
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				if n.Type.ObjType != parser.Filesystem {
+				typ = n.Type
+				if typ.Primary() != parser.Group && typ.Primary() != parser.Filesystem {
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				st, err = cg.EmitFilesystemFuncDecl(ctx, mod.Scope, n, call, noopAliasCallback, nil)
+				v, err = cg.EmitFuncDecl(ctx, mod.Scope, n, call, noopAliasCallback, nil)
 				if err != nil {
 					return nil, err
 				}
 			case *parser.AliasDecl:
-				if n.Func.Type.ObjType != parser.Filesystem {
+				typ = n.Func.Type
+				if typ.Primary() != parser.Group && typ.Primary() != parser.Filesystem {
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				st, err = cg.EmitFilesystemAliasDecl(ctx, mod.Scope, n, call, nil)
+				v, err = cg.EmitAliasDecl(ctx, mod.Scope, n, call, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -178,38 +183,38 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 			return nil, checker.ErrInvalidTarget{Node: obj.Node, Target: target.Name}
 		}
 
-		def, err := st.Marshal(ctx, llb.LinuxAmd64)
-		if err != nil {
-			return nil, err
-		}
+		var request solver.Request
 
-		opts, err := cg.SolveOptions(ctx, st)
-		if err != nil {
-			return nil, err
-		}
-
-		s, err := cg.newSession(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		request := solver.Single(&solver.Params{Def: def, SolveOpts: opts, Session: s})
-
-		if len(cg.requests) > 0 || len(target.Outputs) > 0 {
-			peerRequests := append([]solver.Request{request}, cg.requests...)
-			for _, output := range target.Outputs {
-				peerRequest, err := cg.outputRequest(ctx, st, output)
-				if err != nil {
-					return nil, err
-				}
-				peerRequests = append(peerRequests, peerRequest)
+		switch typ.Primary() {
+		case parser.Group:
+			request = v.(solver.Request)
+		case parser.Filesystem:
+			st := v.(llb.State)
+			request, err = cg.outputRequest(ctx, st, Output{})
+			if err != nil {
+				return nil, err
 			}
-			request = solver.Parallel(peerRequests...)
+
+			if len(cg.requests) > 0 || len(target.Outputs) > 0 {
+				peerRequests := append([]solver.Request{request}, cg.requests...)
+				for _, output := range target.Outputs {
+					peerRequest, err := cg.outputRequest(ctx, st, output)
+					if err != nil {
+						return nil, err
+					}
+					peerRequests = append(peerRequests, peerRequest)
+				}
+				request = solver.Parallel(peerRequests...)
+			}
 		}
 
 		requests = append(requests, request)
+
 	}
 
+	if len(requests) == 1 {
+		return requests[0], nil
+	}
 	return solver.Parallel(requests...), nil
 }
 
@@ -297,6 +302,10 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		if _, ok := v.(string); v == nil || !ok {
 			v = ""
 		}
+	case parser.Group:
+		if _, ok := v.([]solver.Request); v == nil || !ok {
+			v = []solver.Request{}
+		}
 	}
 
 	var err error
@@ -350,7 +359,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (func(v interface{}) (interface{}, error), error) {
 	switch typ {
 	case parser.Filesystem:
-		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, typ, call, ac, chainStart)
+		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, call, ac, chainStart)
 		if err != nil {
 			return nil, err
 		}
@@ -364,6 +373,14 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 		}
 		return func(v interface{}) (interface{}, error) {
 			return chain(v.(string))
+		}, nil
+	case parser.Group:
+		chain, err := cg.EmitGroupChainStmt(ctx, scope, call, ac, chainStart)
+		if err != nil {
+			return nil, err
+		}
+		return func(v interface{}) (interface{}, error) {
+			return chain(v.([]solver.Request))
 		}, nil
 	default:
 		return nil, errors.WithStack(ErrCodeGen{call, errors.Errorf("unknown chain stmt")})
@@ -449,6 +466,19 @@ func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stm
 	return v.(string), err
 }
 
+func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Group, stmts, ac, chainStart)
+	if v == nil {
+		return nil, err
+	}
+
+	requests := v.([]solver.Request)
+	if len(requests) == 1 {
+		return requests[0], nil
+	}
+	return solver.Sequential(requests...), nil
+}
+
 func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, op string, ac aliasCallback) (interface{}, error) {
 	switch lit.Type.Primary() {
 	case parser.Int, parser.Bool:
@@ -459,6 +489,8 @@ func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *pa
 		return cg.EmitStringBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
 	case parser.Option:
 		return cg.EmitOptions(ctx, scope, op, lit.Body.NonEmptyStmts(), ac)
+	case parser.Group:
+		return cg.EmitGroupBlock(ctx, scope, lit.Body.NonEmptyStmts(), ac, nil)
 	default:
 		return nil, errors.WithStack(ErrCodeGen{lit, errors.Errorf("unknown func lit")})
 	}
@@ -491,7 +523,176 @@ func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, pare
 	}
 }
 
-func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
+type GroupChain func([]solver.Request) ([]solver.Request, error)
+
+func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (gc GroupChain, err error) {
+	var name string
+	switch {
+	case call.Func.Ident != nil:
+		name = call.Func.Ident.Name
+	case call.Func.Selector != nil:
+		name = call.Func.Selector.Ident.Name
+	}
+
+	switch name {
+	case "parallel":
+		var peerRequests []solver.Request
+		for _, arg := range call.Args {
+			request, err := cg.EmitGroupExpr(ctx, scope, call, arg, ac, nil)
+			if err != nil {
+				return gc, err
+			}
+
+			peerRequests = append(peerRequests, request)
+		}
+
+		gc = func(requests []solver.Request) ([]solver.Request, error) {
+			requests = append(requests, solver.Parallel(peerRequests...))
+			return requests, nil
+		}
+	default:
+		so, err := cg.EmitFilesystemBuiltinChainStmt(ctx, scope, call, ac, nil)
+		if err != nil {
+			return gc, err
+		}
+
+		if so != nil {
+			return func(requests []solver.Request) ([]solver.Request, error) {
+				st, err := so(llb.Scratch())
+				if err != nil {
+					return requests, err
+				}
+
+				request, err := cg.outputRequest(ctx, st, Output{})
+				if err != nil {
+					return requests, err
+				}
+
+				if len(cg.requests) > 0 {
+					request = solver.Parallel(append([]solver.Request{request}, cg.requests...)...)
+				}
+
+				cg.reset()
+
+				requests = append(requests, request)
+				return requests, nil
+			}, nil
+		}
+
+		// Must be a named reference.
+		obj := scope.Lookup(name)
+		if obj == nil {
+			return gc, errors.WithStack(ErrCodeGen{call, errors.Errorf("could not find reference")})
+		}
+
+		var v interface{}
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
+		case *parser.AliasDecl:
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
+			switch m := importObj.Node.(type) {
+			case *parser.FuncDecl:
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac, chainStart)
+			case *parser.AliasDecl:
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
+			default:
+				return gc, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
+			}
+		case *parser.Field:
+			v = obj.Data
+		default:
+			return gc, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
+		}
+		if err != nil {
+			return gc, err
+		}
+		gc = func(requests []solver.Request) ([]solver.Request, error) {
+			var request solver.Request
+			switch t := v.(type) {
+			case solver.Request:
+				request = t
+			case llb.State:
+				request, err = cg.outputRequest(ctx, t, Output{})
+				if err != nil {
+					return requests, err
+				}
+
+				if len(cg.requests) > 0 {
+					request = solver.Parallel(append([]solver.Request{request}, cg.requests...)...)
+				}
+
+				cg.reset()
+			default:
+				return requests, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown group chain statement")})
+			}
+
+			requests = append(requests, request)
+			return requests, nil
+		}
+	}
+
+	return
+}
+
+func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
+	so, err = cg.EmitFilesystemBuiltinChainStmt(ctx, scope, call, ac, chainStart)
+	if err != nil {
+		return so, err
+	}
+
+	var name string
+	switch {
+	case call.Func.Ident != nil:
+		name = call.Func.Ident.Name
+	case call.Func.Selector != nil:
+		name = call.Func.Selector.Ident.Name
+	}
+
+	if so == nil {
+		// Must be a named reference.
+		obj := scope.Lookup(name)
+		if obj == nil {
+			return so, errors.WithStack(ErrCodeGen{call, errors.Errorf("could not find reference")})
+		}
+
+		var v interface{}
+		var err error
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
+		case *parser.AliasDecl:
+			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
+			switch m := importObj.Node.(type) {
+			case *parser.FuncDecl:
+				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac, chainStart)
+			case *parser.AliasDecl:
+				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
+			default:
+				return so, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
+			}
+		case *parser.Field:
+			v = obj.Data
+		default:
+			return so, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
+		}
+		if err != nil {
+			return so, err
+		}
+		so = func(_ llb.State) (llb.State, error) {
+			return v.(llb.State), nil
+		}
+	}
+
+	return so, nil
+}
+func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, ac aliasCallback, chainStart interface{}) (so StateOption, err error) {
 	args := call.Args
 	iopts, err := cg.EmitWithOption(ctx, scope, call, call.WithOpt, ac)
 	if err != nil {
@@ -874,8 +1075,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 		so = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDockerPush, Ref: ref})
+			if err != nil {
+				return st, err
+			}
 			cg.requests = append(cg.requests, request)
-			return st, err
+			return st, nil
 		}
 	case "dockerLoad":
 		ref, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -884,8 +1088,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		}
 		so = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDockerLoad, Ref: ref})
+			if err != nil {
+				return st, err
+			}
 			cg.requests = append(cg.requests, request)
-			return st, err
+			return st, nil
 		}
 	case "download":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -895,8 +1102,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 		so = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownload, LocalPath: localPath})
+			if err != nil {
+				return st, err
+			}
 			cg.requests = append(cg.requests, request)
-			return st, err
+			return st, nil
 		}
 	case "downloadTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -906,8 +1116,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 		so = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadTarball, LocalPath: localPath})
+			if err != nil {
+				return st, err
+			}
 			cg.requests = append(cg.requests, request)
-			return st, err
+			return st, nil
 		}
 	case "downloadOCITarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -917,8 +1130,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 		so = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadOCITarball, LocalPath: localPath})
+			if err != nil {
+				return st, err
+			}
 			cg.requests = append(cg.requests, request)
-			return st, err
+			return st, nil
 		}
 	case "downloadDockerTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, call, args[0])
@@ -933,44 +1149,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 		so = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadDockerTarball, LocalPath: localPath, Ref: ref})
-			cg.requests = append(cg.requests, request)
-			return st, err
-		}
-	default:
-		// Must be a named reference.
-		obj := scope.Lookup(name)
-		if obj == nil {
-			return so, errors.WithStack(ErrCodeGen{call, errors.Errorf("could not find reference")})
-		}
-
-		var v interface{}
-		var err error
-		switch n := obj.Node.(type) {
-		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, call, ac, chainStart)
-		case *parser.AliasDecl:
-			v, err = cg.EmitAliasDecl(ctx, scope, n, call, chainStart)
-		case *parser.ImportDecl:
-			importScope := obj.Data.(*parser.Scope)
-			importObj := importScope.Lookup(call.Func.Selector.Select.Name)
-			switch m := importObj.Node.(type) {
-			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, call, ac, chainStart)
-			case *parser.AliasDecl:
-				v, err = cg.EmitAliasDecl(ctx, scope, m, call, chainStart)
-			default:
-				return so, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
+			if err != nil {
+				return st, err
 			}
-		case *parser.Field:
-			v = obj.Data
-		default:
-			return so, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
-		}
-		if err != nil {
-			return so, err
-		}
-		so = func(_ llb.State) (llb.State, error) {
-			return v.(llb.State), nil
+			cg.requests = append(cg.requests, request)
+			return st, nil
 		}
 	}
 

@@ -319,7 +319,12 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 		// If the function is not a builtin, retrieve it from the scope and then
 		// type check it.
 		_, ok := builtin.Lookup.ByType[typ].Func[name]
+		if !ok && typ == parser.Group {
+			_, ok = builtin.Lookup.ByType[parser.Filesystem].Func[name]
+		}
+
 		if !ok {
+
 			obj := scope.Lookup(name)
 			if obj == nil {
 				return ErrIdentNotDefined{Ident: call.Func.Ident}
@@ -378,6 +383,10 @@ func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, ca
 
 	var signature []*parser.Field
 	fun, ok := builtin.Lookup.ByType[typ].Func[ident.Name]
+	if !ok && typ == parser.Group {
+		fun, ok = builtin.Lookup.ByType[parser.Filesystem].Func[ident.Name]
+	}
+
 	if ok {
 		signature = fun.Params
 	} else {
