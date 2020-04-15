@@ -1,27 +1,29 @@
-package hlb
+package checker
 
 import (
-	"context"
 	"strings"
 	"testing"
 
-	"github.com/openllb/hlb/checker"
-	"github.com/openllb/hlb/codegen"
-	"github.com/openllb/hlb/solver"
+	"github.com/openllb/hlb/parser"
 	"github.com/stretchr/testify/require"
 )
 
-type compileTestCase struct {
+type testCase struct {
 	name    string
-	targets []string
 	input   string
 	errType interface{}
 }
 
+func cleanup(value string) string {
+	result := strings.TrimSpace(value)
+	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
+	result = strings.ReplaceAll(result, "|\n", "| \n")
+	return result
+}
+
 func TestCompile(t *testing.T) {
-	for _, tc := range []compileTestCase{{
+	for _, tc := range []testCase{{
 		"empty",
-		[]string{"default"},
 		`
 		fs default() {
 			scratch
@@ -30,7 +32,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"image",
-		[]string{"default"},
 		`
 		fs default() {
 			image "busybox:latest"
@@ -39,7 +40,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"second source from function",
-		[]string{"default"},
 		`
 		fs default() {
 			scratch
@@ -52,7 +52,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"single named option",
-		[]string{"default"},
 		`
 		option::run myopt() {
 			dir "/tmp"
@@ -65,7 +64,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"combine named option",
-		[]string{"default"},
 		`
 		option::run myopt() {
 			dir "/tmp"
@@ -81,7 +79,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"multiple targets",
-		[]string{"foo", "bar"},
 		`
 		fs foo() {
 			image "busybox:latest"
@@ -95,7 +92,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"cp from alias",
-		[]string{"default"},
 		`
 		fs default() {
 			scratch
@@ -106,7 +102,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"many sources",
-		[]string{"default"},
 		`
 		fs default() {
 			image "alpine"
@@ -116,7 +111,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"compose fs",
-		[]string{"default"},
 		`
 		fs default() {
 			image "alpine" as this
@@ -132,7 +126,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"empty variadic options",
-		[]string{"default"},
 		`
 		fs default() {
 			myfunc
@@ -145,7 +138,6 @@ func TestCompile(t *testing.T) {
 		nil,
 	}, {
 		"variadic options",
-		[]string{"default"},
 		`
 		fs default() {
 			myfunc option::run {
@@ -160,29 +152,33 @@ func TestCompile(t *testing.T) {
 		}
 		`,
 		nil,
+	}, {
+		"import file",
+		`
+		import foo "./go.hlb"
+
+		fs default() {
+			foo.bar
+		}
+		`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
-			p, err := solver.NewProgress(ctx, solver.WithLogOutput(solver.LogOutputPlain))
-			require.NoError(t, err)
-
 			in := strings.NewReader(cleanup(tc.input))
 
-			var targets []codegen.Target
-			for _, target := range tc.targets {
-				targets = append(targets, codegen.Target{Name: target})
-			}
+			mod, err := parser.Parse(in)
+			require.NoError(t, err)
 
-			_, err = Compile(ctx, nil, p, targets, in)
+			err = Check(mod)
 			if tc.errType == nil {
 				require.NoError(t, err)
 			} else {
 				// assume if we got a semantic error we really want
 				// to validate the underlying error
-				if semErr, ok := err.(checker.ErrSemantic); ok {
+				if semErr, ok := err.(ErrSemantic); ok {
 					require.IsType(t, tc.errType, semErr.Errs[0])
 				} else {
 					require.IsType(t, tc.errType, err)
