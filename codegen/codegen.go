@@ -575,7 +575,9 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		if err != nil {
 			return so, err
 		}
-		opts = append(opts, llb.SessionID(cg.sessionID))
+		opts = append(opts, llb.SessionID(cg.sessionID), llb.WithDescription(map[string]string{
+			solver.LocalPathDescriptionKey: fmt.Sprintf("local://%s", path),
+		}))
 
 		// Register paths as syncable directories for the session.
 		cg.syncedDirByID[id] = filesync.SyncedDir{
