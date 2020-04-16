@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -76,6 +77,22 @@ func TestCodeGen(t *testing.T) {
 			require.NoError(t, err)
 
 			return Expect(t, llb.Local(id, llb.SessionID(cg.SessionID())))
+		},
+	}, {
+		"local env",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkfile "home" 0o644 foo
+		}
+
+		string foo() {
+			localEnv "HOME"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0644, []byte(os.Getenv("HOME")))))
 		},
 	}, {
 		"empty group",

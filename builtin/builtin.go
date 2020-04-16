@@ -424,6 +424,11 @@ var (
 							parser.NewField(parser.Str, "values", true),
 						},
 					},
+					"localEnv": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "key", false),
+						},
+					},
 				},
 			},
 		},

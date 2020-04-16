@@ -414,6 +414,15 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		return func(_ string) (string, error) {
 			return fmt.Sprintf(formatStr, as...), nil
 		}, nil
+	case "localEnv":
+		key, err := cg.EmitStringExpr(ctx, scope, call, args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		return func(_ string) (string, error) {
+			return os.Getenv(key), nil
+		}, nil
 	default:
 		// Must be a named reference.
 		obj := scope.Lookup(name)

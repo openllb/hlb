@@ -494,6 +494,12 @@ fs downloadDockerTarball(string localPath, string ref)
 # @return the resulting string from formatting.
 string format(string formatString, variadic string values)
 
+# An environment variable from the client's local environment.
+#
+# @param the environment variable's key.
+# @return the environment variable's value
+string localEnv(string key)
+
 # Execute groups in parallel.
 #
 # @param groups the groups to run in parallel
