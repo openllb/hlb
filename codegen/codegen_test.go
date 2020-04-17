@@ -95,6 +95,37 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0644, []byte(os.Getenv("HOME")))))
 		},
 	}, {
+		"scratch mounts without func lit",
+		[]string{"default"},
+		`
+		fs echo() {
+			image "alpine"
+			run "touch /out/foo" with option {
+				mount scratch "/out" as default
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Image("alpine").Run(
+				llb.Shlex("touch /out/foo"),
+			).AddMount("/out", llb.Scratch()))
+		},
+	}, {
+		"option builtin without func lit",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+			run "echo unchanged" with readonlyRootfs
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Image("alpine").Run(
+				llb.Shlex("echo unchanged"),
+				llb.ReadonlyRootFS(),
+			).Root())
+		},
+	}, {
 		"empty group",
 		[]string{"default"},
 		`

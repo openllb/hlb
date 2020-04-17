@@ -142,11 +142,8 @@ func Walk(node Node, v Visitor) {
 		if n.With != nil {
 			Walk(n.With, v)
 		}
-		switch {
-		case n.Ident != nil:
-			Walk(n.Ident, v)
-		case n.FuncLit != nil:
-			Walk(n.FuncLit, v)
+		if n.Expr != nil {
+			Walk(n.Expr, v)
 		}
 	case *BlockStmt:
 		walkStmtList(n.List, v)

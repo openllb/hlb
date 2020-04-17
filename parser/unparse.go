@@ -256,7 +256,7 @@ func (s *CallStmt) String() string {
 	}
 
 	withOpt := ""
-	if s.WithOpt != nil && (s.WithOpt.Ident != nil || (s.WithOpt.Ident == nil && s.WithOpt.FuncLit.NumStmts() > 0)) {
+	if s.WithOpt != nil && (s.WithOpt.Expr.FuncLit == nil || (s.WithOpt.Expr.FuncLit != nil && s.WithOpt.Expr.FuncLit.NumStmts() > 0)) {
 		withOpt = fmt.Sprintf(" %s", s.WithOpt)
 	}
 
@@ -286,13 +286,7 @@ func (a *As) String() string {
 }
 
 func (w *WithOpt) String() string {
-	switch {
-	case w.Ident != nil:
-		return fmt.Sprintf("%s %s", w.With, w.Ident)
-	case w.FuncLit != nil:
-		return fmt.Sprintf("%s %s", w.With, w.FuncLit)
-	}
-	panic("unknown with opt")
+	return fmt.Sprintf("with %s", w.Expr)
 }
 
 func (w *With) String() string {

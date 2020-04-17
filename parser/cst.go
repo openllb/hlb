@@ -299,6 +299,17 @@ func (e *Expr) End() lexer.Position {
 	}
 }
 
+func (e *Expr) Name() string {
+	switch {
+	case e.Selector != nil:
+		return e.Selector.Ident.Name
+	case e.Ident != nil:
+		return e.Ident.Name
+	default:
+		return ""
+	}
+}
+
 // Type represents an object type.
 type Type struct {
 	Pos     lexer.Position
@@ -580,37 +591,27 @@ func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
 
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
-	Pos     lexer.Position
-	With    *With    `parser:"@@"`
-	Ident   *Ident   `parser:"( @@"`
-	FuncLit *FuncLit `parser:"| @@ )"`
+	Pos  lexer.Position
+	With *With `parser:"@@"`
+	Expr *Expr `parser:"@@"`
 }
 
 func NewWithIdent(name string) *WithOpt {
 	return &WithOpt{
-		With:  &With{Keyword: "with"},
-		Ident: NewIdent(name),
+		With: &With{Keyword: "with"},
+		Expr: NewIdentExpr(name),
 	}
 }
 
 func NewWithFuncLit(stmts ...*Stmt) *WithOpt {
 	return &WithOpt{
-		With:    &With{Keyword: "with"},
-		FuncLit: NewFuncLit(Option, stmts...),
+		With: &With{Keyword: "with"},
+		Expr: NewFuncLitExpr(Option, stmts...),
 	}
 }
 
 func (w *WithOpt) Position() lexer.Position { return w.Pos }
-func (w *WithOpt) End() lexer.Position {
-	switch {
-	case w.Ident != nil:
-		return w.Ident.End()
-	case w.FuncLit != nil:
-		return w.FuncLit.End()
-	default:
-		return shiftPosition(w.Pos, 1, 0)
-	}
-}
+func (w *WithOpt) End() lexer.Position      { return w.Expr.End() }
 
 // With represents the keyword "with".
 type With struct {
