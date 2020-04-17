@@ -167,7 +167,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		path = ResolvePathForNode(scope.Node, path)
+
+		path, err = ResolvePathForNode(scope.Node, path)
+		if err != nil {
+			return fc, err
+		}
 
 		var opts []llb.LocalOption
 		for _, iopt := range iopts {
@@ -497,7 +501,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		localPath = ResolvePathForNode(scope.Node, localPath)
+
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		if err != nil {
+			return fc, err
+		}
 
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownload, LocalPath: localPath})
@@ -512,7 +520,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		localPath = ResolvePathForNode(scope.Node, localPath)
+
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		if err != nil {
+			return fc, err
+		}
 
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadTarball, LocalPath: localPath})
@@ -527,7 +539,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		localPath = ResolvePathForNode(scope.Node, localPath)
+
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		if err != nil {
+			return fc, err
+		}
 
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadOCITarball, LocalPath: localPath})
@@ -542,7 +558,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		localPath = ResolvePathForNode(scope.Node, localPath)
+
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		if err != nil {
+			return fc, err
+		}
 
 		ref, err := cg.EmitStringExpr(ctx, scope, args[1])
 		if err != nil {
