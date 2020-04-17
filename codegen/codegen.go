@@ -959,7 +959,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				)
 				switch srcUri.Scheme {
 				case "unix":
-					path = srcUri.Path
+					path = ResolvePathForNode(scope.Node, srcUri.Path)
 					id = digest.FromString(path).String()
 				default:
 					conn, err := net.Dial(srcUri.Scheme, srcUri.Host)
@@ -1020,6 +1020,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				if err != nil {
 					return opts, err
 				}
+				localPath = ResolvePathForNode(scope.Node, localPath)
 
 				mountPoint, err := cg.EmitStringExpr(ctx, scope, args[1])
 				if err != nil {
@@ -1130,7 +1131,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 					if err != nil {
 						return opts, err
 					}
-					opts = append(opts, localPath)
+					opts = append(opts, ResolvePathForNode(scope.Node, localPath))
 				}
 			default:
 				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
@@ -1313,4 +1314,12 @@ func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser,
 	return func(map[string]string) (io.WriteCloser, error) {
 		return w, nil
 	}
+}
+
+func ResolvePathForNode(node parser.Node, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	return filepath.Join(filepath.Dir(node.Position().Filename), path)
 }

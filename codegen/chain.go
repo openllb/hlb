@@ -167,6 +167,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+		path = ResolvePathForNode(scope.Node, path)
 
 		var opts []llb.LocalOption
 		for _, iopt := range iopts {
@@ -178,7 +179,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		opts = append(opts, llb.SessionID(cg.sessionID), llb.WithDescription(map[string]string{
+		opts = append(opts, llb.SessionID(cg.sessionID), llb.SharedKeyHint(path), llb.WithDescription(map[string]string{
 			solver.LocalPathDescriptionKey: fmt.Sprintf("local://%s", path),
 		}))
 
@@ -482,6 +483,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDockerLoad, Ref: ref})
 			if err != nil {
@@ -495,6 +497,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+		localPath = ResolvePathForNode(scope.Node, localPath)
 
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownload, LocalPath: localPath})
@@ -509,6 +512,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+		localPath = ResolvePathForNode(scope.Node, localPath)
 
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadTarball, LocalPath: localPath})
@@ -523,6 +527,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+		localPath = ResolvePathForNode(scope.Node, localPath)
 
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadOCITarball, LocalPath: localPath})
@@ -537,6 +542,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+		localPath = ResolvePathForNode(scope.Node, localPath)
 
 		ref, err := cg.EmitStringExpr(ctx, scope, args[1])
 		if err != nil {
