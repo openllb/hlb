@@ -157,7 +157,7 @@ var (
 					"createDestPath": FuncLookup{
 						Params: []*parser.Field{},
 					},
-					"allowWildcards": FuncLookup{
+					"allowWildcard": FuncLookup{
 						Params: []*parser.Field{},
 					},
 					"allowEmptyWildcard": FuncLookup{
@@ -300,7 +300,7 @@ var (
 					"allowNotFound": FuncLookup{
 						Params: []*parser.Field{},
 					},
-					"allowWildcards": FuncLookup{
+					"allowWildcard": FuncLookup{
 						Params: []*parser.Field{},
 					},
 				},

@@ -385,7 +385,7 @@ option::rm allowNotFound()
 # Allows wildcards in the path to remove.
 #
 # @return an option to allow wildcards in the path to remove.
-option::rm allowWildcards()
+option::rm allowWildcard()
 
 # Copies a file from an input filesystem into the current filesystem.
 #
@@ -420,7 +420,7 @@ option::copy createDestPath()
 # Allows wildcards in the path to copy.
 #
 # @return an option to allow wildcards in the path to copy.
-option::copy allowWildcards()
+option::copy allowWildcard()
 
 # Allows wildcards to match no files in the path to copy.
 #
