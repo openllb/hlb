@@ -214,6 +214,32 @@ func TestCompile(t *testing.T) {
 		}
 		`,
 		ErrDuplicateDecls{},
+	}, {
+		"basic function export",
+		`
+		export myFunction
+
+		fs myFunction() {}
+		`,
+		nil,
+	}, {
+		"basic alias export",
+		`
+		export myAlias
+
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as myAlias
+			}
+		}
+		`,
+		nil,
+	}, {
+		"errors when export does not exist",
+		`
+		export myNonExistentFunction
+		`,
+		ErrIdentNotDefined{},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
