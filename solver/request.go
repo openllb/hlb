@@ -151,9 +151,11 @@ func (o op) Tree(tree treeprint.Tree) error {
 		for _, mnt := range v.Exec.Mounts {
 			source := "scratch"
 			if mnt.Input >= 0 {
-				source = sources[mnt.Input].Source.Identifier
-				if mnt.Selector != "" {
-					source += mnt.Selector
+				if int(mnt.Input) < len(sources) {
+					source = sources[mnt.Input].Source.Identifier
+					if mnt.Selector != "" {
+						source += mnt.Selector
+					}
 				}
 				if strings.HasPrefix(source, "local://") {
 					if localPath, ok := sourceMeta[mnt.Input].Description[LocalPathDescriptionKey]; ok {

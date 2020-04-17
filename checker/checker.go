@@ -445,15 +445,7 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 		// Inherit the secondary type from the calling function name.
 		optionType := parser.ObjType(fmt.Sprintf("%s::%s", parser.Option, name))
 
-		var err error
-		switch {
-		case call.WithOpt.Ident != nil:
-			err = c.checkIdentArg(scope, optionType, call.WithOpt.Ident)
-		case call.WithOpt.FuncLit != nil:
-			err = c.checkFuncLitArg(scope, optionType, call.WithOpt.FuncLit)
-		default:
-			panic("unknown with opt type")
-		}
+		err := c.checkExpr(scope, optionType, call.WithOpt.Expr)
 		if err != nil {
 			return err
 		}

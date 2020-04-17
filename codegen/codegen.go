@@ -393,33 +393,6 @@ func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *pa
 	}
 }
 
-func (cg *CodeGen) EmitWithOption(ctx context.Context, scope *parser.Scope, name string, with *parser.WithOpt, ac aliasCallback) (opts []interface{}, err error) {
-	if with == nil {
-		return
-	}
-
-	switch {
-	case with.Ident != nil:
-		obj := scope.Lookup(with.Ident.Name)
-		switch obj.Kind {
-		case parser.ExprKind:
-			return obj.Data.([]interface{}), nil
-		case parser.DeclKind:
-			if n, ok := obj.Node.(*parser.FuncDecl); ok {
-				return cg.EmitOptions(ctx, scope, name, n.Body.NonEmptyStmts(), ac)
-			} else {
-				return opts, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown decl type")})
-			}
-		default:
-			return opts, errors.WithStack(ErrCodeGen{obj.Node, errors.Errorf("unknown with option kind")})
-		}
-	case with.FuncLit != nil:
-		return cg.EmitOptions(ctx, scope, name, with.FuncLit.Body.NonEmptyStmts(), ac)
-	default:
-		return opts, errors.WithStack(ErrCodeGen{with, errors.Errorf("unknown with option")})
-	}
-}
-
 func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	switch op {
 	case "image":
@@ -467,7 +440,7 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 					opts = append(opts, imagemetaresolver.WithDefault)
 				}
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -476,6 +449,26 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 		}
 	}
 	return
+}
+
+func (cg *CodeGen) EmitOptionLookup(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, op string) (opts []interface{}, err error) {
+	obj := scope.Lookup(expr.Name())
+	switch obj.Kind {
+	case parser.DeclKind:
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			return cg.EmitOptionFuncDecl(ctx, scope, n, args)
+		default:
+			return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
+		}
+	case parser.FieldKind:
+		// we will get here with a variadic argument that is used with zero values
+		return nil, nil
+	case parser.ExprKind:
+		return obj.Data.([]interface{}), nil
+	default:
+		return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
+	}
 }
 
 func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
@@ -502,7 +495,7 @@ func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op 
 				}
 				opts = append(opts, llb.Filename(filename))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -527,7 +520,7 @@ func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op s
 					opts = append(opts, llb.KeepGitDir())
 				}
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -571,7 +564,7 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 				}
 				opts = append(opts, llb.FollowPaths(paths))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -626,7 +619,7 @@ func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope,
 				}
 				opts = append(opts, withFrontendOpt(key, value))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -667,7 +660,7 @@ func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -702,7 +695,7 @@ func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, o
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -731,7 +724,7 @@ func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op st
 				}
 				opts = append(opts, llb.WithAllowWildcard(v))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -804,7 +797,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.WithCreatedTime(t))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -820,13 +813,20 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
-			args := stmt.Call.Args
-			iopts, err := cg.EmitWithOption(ctx, scope, stmt.Call.Func.Name(), stmt.Call.WithOpt, ac)
-			if err != nil {
-				return opts, err
+			var (
+				expr = stmt.Call.Func
+				args = stmt.Call.Args
+				with = stmt.Call.WithOpt
+			)
+			var iopts []interface{}
+			if with != nil {
+				iopts, err = cg.EmitOptionExpr(ctx, scope, with.Expr, nil, expr.Name())
+				if err != nil {
+					return opts, err
+				}
 			}
 
-			switch stmt.Call.Func.Ident.Name {
+			switch expr.Name() {
 			case "readonlyRootfs":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
@@ -925,7 +925,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				}
 
 				sort.Strings(localPaths)
-				id := digest.FromString(strings.Join(localPaths, "")).String()
+				id := SSHID(localPaths...)
 				sshOpts = append(sshOpts, llb.SSHID(id))
 
 				// Register paths as forwardable SSH agent sockets or PEM keys for the
@@ -1062,7 +1062,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddMount(target, input, mountOpts...))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, expr, args, op)
 				if err != nil {
 					return opts, ErrCodeGen{Node: stmt, Err: err}
 				}
@@ -1133,7 +1133,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 					opts = append(opts, localPath)
 				}
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -1200,7 +1200,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 				}
 				sopt.mode = os.FileMode(mode)
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -1272,7 +1272,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 
 				opts = append(opts, llb.AsPersistentCacheDir(id, sharing))
 			default:
-				iopts, err := cg.EmitOptionExpr(ctx, scope, args, op, stmt.Call.Func)
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
 					return opts, err
 				}
@@ -1303,6 +1303,10 @@ func (cg *CodeGen) LocalID(path string, opts ...llb.LocalOption) (string, error)
 
 func SecretID(path string) string {
 	return digest.FromString(path).String()
+}
+
+func SSHID(paths ...string) string {
+	return digest.FromString(strings.Join(paths, "")).String()
 }
 
 func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser, error) {

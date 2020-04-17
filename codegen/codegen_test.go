@@ -95,7 +95,7 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0644, []byte(os.Getenv("HOME")))))
 		},
 	}, {
-		"scratch mounts with func lit",
+		"scratch mounts without func lit",
 		[]string{"default"},
 		`
 		fs echo() {
@@ -109,6 +109,21 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Image("alpine").Run(
 				llb.Shlex("touch /out/foo"),
 			).AddMount("/out", llb.Scratch()))
+		},
+	}, {
+		"option builtin without func lit",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+			run "ssh root@foobar" with ssh
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Image("alpine").Run(
+				llb.Shlex("ssh root@foobar"),
+				llb.AddSSHSocket(llb.SSHID(SSHID())),
+			).Root())
 		},
 	}, {
 		"empty group",

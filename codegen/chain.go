@@ -101,9 +101,12 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 	return fc, nil
 }
 func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, with *parser.WithOpt, ac aliasCallback, chainStart interface{}) (fc FilesystemChain, err error) {
-	iopts, err := cg.EmitWithOption(ctx, scope, expr.Name(), with, ac)
-	if err != nil {
-		return fc, err
+	var iopts []interface{}
+	if with != nil {
+		iopts, err = cg.EmitOptionExpr(ctx, scope, with.Expr, nil, expr.Name())
+		if err != nil {
+			return fc, err
+		}
 	}
 
 	switch expr.Name() {
@@ -294,13 +297,13 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 
 		if with != nil {
 			switch {
-			case with.Ident != nil:
+			case with.Expr.Ident != nil:
 				// Do nothing.
 				//
 				// Mounts inside option functions cannot be aliased because they need
 				// to be in the context of a specific function run is in.
-			case with.FuncLit != nil:
-				for _, stmt := range with.FuncLit.Body.NonEmptyStmts() {
+			case with.Expr.FuncLit != nil:
+				for _, stmt := range with.Expr.FuncLit.Body.NonEmptyStmts() {
 					if stmt.Call.Func.Ident.Name != "mount" || stmt.Call.Alias == nil {
 						continue
 					}

@@ -164,14 +164,14 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			if field.Variadic != nil {
 				for j := i; j < len(args); j++ {
 					var vv []interface{}
-					vv, err = cg.EmitOptionExpr(ctx, scope, nil, string(field.Type.Secondary()), args[j])
+					vv, err = cg.EmitOptionExpr(ctx, scope, args[i], nil, string(field.Type.Secondary()))
 					if err != nil {
 						break
 					}
 					v = append(v, vv...)
 				}
 			} else {
-				v, err = cg.EmitOptionExpr(ctx, scope, nil, string(field.Type.Secondary()), args[i])
+				v, err = cg.EmitOptionExpr(ctx, scope, args[i], nil, string(field.Type.Secondary()))
 			}
 			data = v
 		case parser.Group:

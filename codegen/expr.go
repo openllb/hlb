@@ -118,26 +118,15 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	}
 }
 
-func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, args []*parser.Expr, op string, expr *parser.Expr) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, op string) (opts []interface{}, err error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case parser.DeclKind:
-			switch n := obj.Node.(type) {
-			case *parser.FuncDecl:
-				return cg.EmitOptionFuncDecl(ctx, scope, n, args)
-			default:
-				return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
-			}
-		case parser.FieldKind:
-			// we will get here with a variadic argument that is used with zero values
-			return nil, nil
-		case parser.ExprKind:
-			return obj.Data.([]interface{}), nil
-		default:
-			return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
-		}
+		return cg.EmitOptions(ctx, scope, op, []*parser.Stmt{{
+			Call: &parser.CallStmt{
+				Func: expr,
+				Args: args,
+			},
+		}}, noopAliasCallback)
 	case expr.BasicLit != nil:
 		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("option expr cannot be basic lit")})
 	case expr.FuncLit != nil:

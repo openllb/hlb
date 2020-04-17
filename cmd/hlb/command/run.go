@@ -157,7 +157,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return err
 	}
 
-	if opts.Debug || opts.Tree {
+	if solveReq == nil || opts.Debug || opts.Tree {
 		p.Release()
 		err = p.Wait()
 		if err != nil {

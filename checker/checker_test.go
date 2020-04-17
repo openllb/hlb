@@ -63,6 +63,15 @@ func TestCompile(t *testing.T) {
 		`,
 		nil,
 	}, {
+		"single builtin option",
+		`
+		fs default() {
+			image "busybox:latest"
+			run "ssh root@foobar" with ssh
+		}
+		`,
+		nil,
+	}, {
 		"single named option",
 		`
 		option::run myopt() {
