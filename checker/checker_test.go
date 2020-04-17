@@ -297,6 +297,133 @@ func TestChecker_Check(t *testing.T) {
 				Name: "myFunction",
 			},
 		},
+	}, {
+		"variadic options with bad type",
+		`
+		fs default() {
+			myfunc option::run {} option::copy {}
+		}
+		fs myfunc(variadic option::run opts) {
+			image "busybox"
+			run "echo hi" with opts
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"variadic options with bad method type",
+		`
+			fs default() {
+				myfunc option::run {
+					copyOpt
+				}
+			}
+			fs myfunc(variadic option::run opts) {
+				image "busybox"
+				run "echo hi" with opts
+			}
+			option::copy copyOpt() {}
+			`,
+		ErrWrongArgType{},
+	}, {
+		"variadic options with mixed types",
+		`
+		fs default() {
+			myfunc option::run {} option::copy {}
+		}
+		fs myfunc(variadic option::run opts) {
+			image "busybox"
+			run "echo hi" with opts
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"func call with bad arg count",
+		`
+		fs default() {
+			myfunc "a" "b"
+		}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrNumArgs{},
+	}, {
+		"func call with bad arg type: basic literal",
+		`
+		fs default() {
+			myfunc 1
+		}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"func call with bad arg type: basic ident",
+		`
+		fs default() {
+			myfunc one
+		}
+		int one() { 1; }
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"func call with bad arg type: func ident",
+		`
+		fs default() {
+			myfunc foo
+		}
+		fs foo() {}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"func call with bad arg type: func literal",
+		`
+		fs default() {
+			myfunc fs {}
+		}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"func call with bad subtype",
+		`
+		fs default() {
+			runOpt
+		}
+		option::run runOpt() {}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrWrongArgType{},
+	}, {
+		"func call with bad option type",
+		`
+		fs default() {
+			myfunc "foo" with runOpt
+		}
+		option::run runOpt() {}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+		ErrWrongArgType{},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -305,11 +432,19 @@ func TestChecker_Check(t *testing.T) {
 			mod, err := parser.Parse(in)
 			require.NoError(t, err)
 
-			err = Check(mod)
+			var r interface{}
+			func() {
+				defer func() {
+					r = recover()
+				}()
+				err = Check(mod)
+			}()
+			require.Nil(t, r, "panic: %+v", r)
 			validateError(t, tc.errType, err)
 		})
 	}
 }
+
 
 func TestChecker_CheckSelectors(t *testing.T) {
 	t.Parallel()
@@ -384,9 +519,9 @@ func validateError(t *testing.T, expectedError error, actualError error) {
 		// to validate the underlying error
 		if semErr, ok := actualError.(ErrSemantic); ok {
 			require.IsType(t, expectedError, semErr.Errs[0])
-			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error())
+			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error(), "error: %v", actualError)
 		} else {
-			require.IsType(t, expectedError, actualError)
+			require.IsType(t, expectedError, actualError, "error: %v", actualError)
 		}
 	}
 }
