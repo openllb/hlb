@@ -116,13 +116,13 @@ func TestCodeGen(t *testing.T) {
 		`
 		fs default() {
 			image "alpine"
-			run "ssh root@foobar" with ssh
+			run "echo unchanged" with readonlyRootfs
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return Expect(t, llb.Image("alpine").Run(
-				llb.Shlex("ssh root@foobar"),
-				llb.AddSSHSocket(llb.SSHID(SSHID())),
+				llb.Shlex("echo unchanged"),
+				llb.ReadonlyRootFS(),
 			).Root())
 		},
 	}, {
