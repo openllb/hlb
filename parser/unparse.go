@@ -286,7 +286,7 @@ func (a *As) String() string {
 }
 
 func (w *WithOpt) String() string {
-	return w.Expr.String()
+	return fmt.Sprintf("with %s", w.Expr)
 }
 
 func (w *With) String() string {
