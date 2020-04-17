@@ -11,7 +11,7 @@ import (
 type testCase struct {
 	name    string
 	input   string
-	errType interface{}
+	errType error
 }
 
 func cleanup(value string) string {
@@ -21,7 +21,7 @@ func cleanup(value string) string {
 	return result
 }
 
-func TestCompile(t *testing.T) {
+func TestChecker_Check(t *testing.T) {
 	for _, tc := range []testCase{{
 		"empty",
 		`
@@ -240,6 +240,15 @@ func TestCompile(t *testing.T) {
 		export myNonExistentFunction
 		`,
 		ErrIdentNotDefined{},
+	}, {
+		"errors when a selector is called on a name that isn't an import",
+		`
+		fs myFunction() {}
+		fs badSelectorCaller() {
+    		myFunction.build
+		}
+		`,
+		ErrNotImport{},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -251,17 +260,77 @@ func TestCompile(t *testing.T) {
 			require.NoError(t, err)
 
 			err = Check(mod)
-			if tc.errType == nil {
-				require.NoError(t, err)
-			} else {
-				// assume if we got a semantic error we really want
-				// to validate the underlying error
-				if semErr, ok := err.(ErrSemantic); ok {
-					require.IsType(t, tc.errType, semErr.Errs[0])
-				} else {
-					require.IsType(t, tc.errType, err)
-				}
-			}
+			validateError(t, tc.errType, err)
 		})
+	}
+}
+
+func TestChecker_CheckSelectors(t *testing.T) {
+	for _, tc := range []testCase{{
+		"able to access valid selector",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs badSelectorCaller() {
+    		myImportedModule.validSelector
+		}
+		`,
+		nil,
+	}, {
+		"errors when attempting to access invalid selector",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs badSelectorCaller() {
+    		myImportedModule.invalidSelector
+		}
+		`,
+		ErrIdentUndefined{},
+	}} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			importedModuleDefinition := `
+				export validSelector
+				fs validSelector() {}
+			`
+
+			importedModule, err := parser.Parse(strings.NewReader(importedModuleDefinition))
+			require.NoError(t, err)
+			err = Check(importedModule)
+			require.NoError(t, err)
+
+			in := strings.NewReader(cleanup(tc.input))
+
+			module, err := parser.Parse(in)
+			require.NoError(t, err)
+
+			err = Check(module)
+			require.NoError(t, err)
+
+			obj := module.Scope.Lookup("myImportedModule")
+			if obj == nil {
+				t.Fatal("myImportedModule should be imported for this test to work")
+			}
+			obj.Data = importedModule.Scope
+
+			err = CheckSelectors(module)
+			validateError(t, tc.errType, err)
+		})
+	}
+}
+
+func validateError(t *testing.T, expectedError error, actualError error) {
+	if expectedError == nil {
+		require.NoError(t, actualError)
+	} else {
+		// assume if we got a semantic error we really want
+		// to validate the underlying error
+		if semErr, ok := actualError.(ErrSemantic); ok {
+			require.IsType(t, expectedError, semErr.Errs[0])
+		} else {
+			require.IsType(t, expectedError, actualError)
+		}
 	}
 }
