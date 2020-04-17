@@ -168,6 +168,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
+		path, err = ResolvePathForNode(scope.Node, path)
+		if err != nil {
+			return fc, err
+		}
+
 		var opts []llb.LocalOption
 		for _, iopt := range iopts {
 			opt := iopt.(llb.LocalOption)
@@ -178,7 +183,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
-		opts = append(opts, llb.SessionID(cg.sessionID), llb.WithDescription(map[string]string{
+		opts = append(opts, llb.SessionID(cg.sessionID), llb.SharedKeyHint(path), llb.WithDescription(map[string]string{
 			solver.LocalPathDescriptionKey: fmt.Sprintf("local://%s", path),
 		}))
 
@@ -482,6 +487,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		if err != nil {
 			return fc, err
 		}
+
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDockerLoad, Ref: ref})
 			if err != nil {
@@ -492,6 +498,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		}
 	case "download":
 		localPath, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return fc, err
+		}
+
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
 		if err != nil {
 			return fc, err
 		}
@@ -510,6 +521,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		if err != nil {
+			return fc, err
+		}
+
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadTarball, LocalPath: localPath})
 			if err != nil {
@@ -524,6 +540,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		if err != nil {
+			return fc, err
+		}
+
 		fc = func(st llb.State) (llb.State, error) {
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDownloadOCITarball, LocalPath: localPath})
 			if err != nil {
@@ -534,6 +555,11 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		}
 	case "downloadDockerTarball":
 		localPath, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return fc, err
+		}
+
+		localPath, err = ResolvePathForNode(scope.Node, localPath)
 		if err != nil {
 			return fc, err
 		}

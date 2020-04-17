@@ -15,6 +15,7 @@ import (
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
@@ -959,7 +960,11 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				)
 				switch srcUri.Scheme {
 				case "unix":
-					path = srcUri.Path
+					path, err = ResolvePathForNode(scope.Node, srcUri.Path)
+					if err != nil {
+						return opts, err
+					}
+
 					id = digest.FromString(path).String()
 				default:
 					conn, err := net.Dial(srcUri.Scheme, srcUri.Host)
@@ -1017,6 +1022,11 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
 			case "secret":
 				localPath, err := cg.EmitStringExpr(ctx, scope, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				localPath, err = ResolvePathForNode(scope.Node, localPath)
 				if err != nil {
 					return opts, err
 				}
@@ -1130,6 +1140,12 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 					if err != nil {
 						return opts, err
 					}
+
+					localPath, err = ResolvePathForNode(scope.Node, localPath)
+					if err != nil {
+						return opts, err
+					}
+
 					opts = append(opts, localPath)
 				}
 			default:
@@ -1313,4 +1329,17 @@ func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser,
 	return func(map[string]string) (io.WriteCloser, error) {
 		return w, nil
 	}
+}
+
+func ResolvePathForNode(node parser.Node, path string) (string, error) {
+	path, err := homedir.Expand(path)
+	if err != nil {
+		return path, err
+	}
+
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
+	return filepath.Join(filepath.Dir(node.Position().Filename), path), nil
 }

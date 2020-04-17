@@ -76,7 +76,7 @@ func TestCodeGen(t *testing.T) {
 			id, err := cg.LocalID(".")
 			require.NoError(t, err)
 
-			return Expect(t, llb.Local(id, llb.SessionID(cg.SessionID())))
+			return Expect(t, llb.Local(id, llb.SessionID(cg.SessionID()), llb.SharedKeyHint(".")))
 		},
 	}, {
 		"local env",

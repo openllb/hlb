@@ -10,6 +10,7 @@ require (
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
+	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.7.1-0.20200409032528-226a5db9ad3d
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/opencontainers/image-spec v1.0.1
