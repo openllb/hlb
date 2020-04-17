@@ -14,10 +14,10 @@ fs build(fs src, string package, string verPackage) {
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
 	run string {
-		format "v=$(%s) && /usr/local/go/bin/go build -o /out/binary -ldflags \"-linkmode external -extldflags -static -X %s.Version=$v\" -a %s" string { versionCmd; }  package verPackage
+		format "v=$(%s) && /usr/local/go/bin/go build -o /out/binary -ldflags \"-linkmode external -extldflags -static -X %s.Version=$v\" -a %s" versionCmd package verPackage
 	} with option {
 		cacheMounts src
-		mount fs { scratch; } "/out" as binary
+		mount scratch "/out" as binary
 	}
 }
 
@@ -27,14 +27,14 @@ fs crossBuild(fs src, string package, string verPackage) {
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
 	run string {
-		format "v=$(%s) && LDFLAGS=\"-X %s.Version=$v\" /cross/build %q" string { versionCmd; } verPackage package 
+		format "v=$(%s) && LDFLAGS=\"-X %s.Version=$v\" /cross/build %q" versionCmd verPackage package 
 	} with option {
 		cacheMounts src
 		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
 			sourcePath "/scripts"
 			readonly
 		}
-		mount fs { scratch; } "/root/go/bin" as crossBinaries
+		mount scratch "/root/go/bin" as crossBinaries
 	}
 }
 
@@ -61,10 +61,10 @@ option::run cacheMounts(fs src) {
 	mount src "/go/src/hlb" with option {
 		readonly
 	}
-	mount fs { scratch; } "/root/.cache/go-build" with option {
+	mount scratch "/root/.cache/go-build" with option {
 		cache "hlb/go-build" "private"
 	}
-	mount fs { scratch; } "/go/pkg/mod" with option {
+	mount scratch "/go/pkg/mod" with option {
 		cache "hlb/go-mod" "private"
 	}
 }

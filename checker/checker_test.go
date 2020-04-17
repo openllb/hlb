@@ -51,6 +51,18 @@ func TestCompile(t *testing.T) {
 		`,
 		nil,
 	}, {
+		"second source from function without func lit",
+		`
+		fs default() {
+			scratch
+			nothing scratch
+		}
+		fs nothing(fs repo) {
+			scratch
+		}
+		`,
+		nil,
+	}, {
 		"single named option",
 		`
 		option::run myopt() {

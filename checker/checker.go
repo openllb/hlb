@@ -482,6 +482,11 @@ func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parse
 }
 
 func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *parser.Ident) error {
+	_, ok := builtin.Lookup.ByType[typ].Func[ident.Name]
+	if ok {
+		return nil
+	}
+
 	obj := scope.Lookup(ident.Name)
 	if obj == nil {
 		return ErrIdentNotDefined{ident}

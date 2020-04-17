@@ -299,6 +299,17 @@ func (e *Expr) End() lexer.Position {
 	}
 }
 
+func (e *Expr) Name() string {
+	switch {
+	case e.Selector != nil:
+		return e.Selector.Ident.Name
+	case e.Ident != nil:
+		return e.Ident.Name
+	default:
+		return ""
+	}
+}
+
 // Type represents an object type.
 type Type struct {
 	Pos     lexer.Position

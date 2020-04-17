@@ -95,6 +95,22 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0644, []byte(os.Getenv("HOME")))))
 		},
 	}, {
+		"scratch mounts with func lit",
+		[]string{"default"},
+		`
+		fs echo() {
+			image "alpine"
+			run "touch /out/foo" with option {
+				mount scratch "/out" as default
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Image("alpine").Run(
+				llb.Shlex("touch /out/foo"),
+			).AddMount("/out", llb.Scratch()))
+		},
+	}, {
 		"empty group",
 		[]string{"default"},
 		`
