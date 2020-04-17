@@ -18,6 +18,10 @@ import (
 	"github.com/xlab/treeprint"
 )
 
+var (
+	DefaultHLBFilename = "build.hlb"
+)
+
 var runCommand = &cli.Command{
 	Name:      "run",
 	Usage:     "compiles and runs a hlb program",
@@ -189,8 +193,9 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 }
 
 func ModuleReadCloser(args []string) (io.ReadCloser, error) {
-	var rc io.ReadCloser
 	if len(args) == 0 {
+		return os.Open(DefaultHLBFilename)
+	} else if args[0] == "-" {
 		fi, err := os.Stdin.Stat()
 		if err != nil {
 			return nil, err
@@ -200,13 +205,8 @@ func ModuleReadCloser(args []string) (io.ReadCloser, error) {
 			return nil, fmt.Errorf("must provide path to hlb module or pipe to stdin")
 		}
 
-		rc = os.Stdin
-	} else {
-		f, err := os.Open(args[0])
-		if err != nil {
-			return nil, err
-		}
-		rc = f
+		return os.Stdin, nil
 	}
-	return rc, nil
+
+	return os.Open(args[0])
 }
