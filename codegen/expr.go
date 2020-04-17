@@ -11,7 +11,7 @@ import (
 
 func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (string, error) {
 	switch {
-	case expr.Ident != nil:
+	case expr.Ident != nil, expr.Selector != nil:
 
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
@@ -101,7 +101,7 @@ func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, a
 
 func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback) (st llb.State, err error) {
 	switch {
-	case expr.Ident != nil:
+	case expr.Ident != nil, expr.Selector != nil:
 		so, err := cg.EmitFilesystemChainStmt(ctx, scope, expr, nil, nil, ac, nil)
 		if err != nil {
 			return st, err
@@ -120,7 +120,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 
 func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, args []*parser.Expr, op string, expr *parser.Expr) (opts []interface{}, err error) {
 	switch {
-	case expr.Ident != nil:
+	case expr.Ident != nil, expr.Selector != nil:
 		obj := scope.Lookup(expr.Ident.Name)
 		switch obj.Kind {
 		case parser.DeclKind:
@@ -149,7 +149,7 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, args
 
 func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
 	switch {
-	case expr.Ident != nil:
+	case expr.Ident != nil, expr.Selector != nil:
 		gc, err := cg.EmitGroupChainStmt(ctx, scope, expr, nil, nil, ac, chainStart)
 		if err != nil {
 			return nil, err
