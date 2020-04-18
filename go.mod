@@ -8,6 +8,7 @@ require (
 	github.com/docker/cli v1.14.0-0.20190523191156-ab688a9a79a1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kr/pretty v0.2.0 // indirect
+	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
 	github.com/mitchellh/go-homedir v1.1.0

@@ -53,9 +53,9 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 			value = filepath.Join(prefix, ModuleFilename)
 		case decl.ImportPath != nil:
 			if prefix == "" {
-				value = decl.ImportPath.Path
+				value = decl.ImportPath.Path.Unquoted()
 			} else {
-				value = filepath.Join(prefix, decl.ImportPath.Path)
+				value = filepath.Join(prefix, decl.ImportPath.Path.Unquoted())
 			}
 		}
 

@@ -1,20 +1,23 @@
 package parser
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/regex"
+	"github.com/lithammer/dedent"
 )
 
 var (
 	// Lexer lexes HLB into tokens for the parser.
 	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
-	        whitespace = [\r\t ]+
-
+		Whitespace = [\r\t ]+
+		HereDoc = <<[-~]?
 		Keyword  = \b(with|as|import|export|from)\b
 		Modifier = \b(variadic)\b
 		Type     = \b(string|int|bool|fs|option|group)(::[a-z][a-z]*)?\b
@@ -24,19 +27,73 @@ var (
 		Bool     = \b(true|false)\b
 		Selector = \b[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*\b
 		Ident    = \b[a-zA-Z_][a-zA-Z0-9_]*\b
-	        Newline  = \n
+		Newline  = \n
 		Operator = {|}|\(|\)|,|;
-	        Comment  = #[^\n]*\n
-	        Bad      = .*
+		Comment  = #[^\n]*\n
+		Bad      = .*
 	`)))
 
 	// Parser parses HLB into a concrete syntax tree rooted from a Module.
 	Parser = participle.MustBuild(
 		&Module{},
-		participle.Lexer(Lexer),
-		participle.Unquote(),
+		participle.Lexer(&hereDocDefinition{Lexer}),
 	)
 )
+
+// hereDocDefinition allows for a lexer that optionally
+// emits whitespace depending on if it lexing the contents
+// of a here-doc
+type hereDocDefinition struct {
+	def lexer.Definition
+}
+
+func (s *hereDocDefinition) Lex(r io.Reader) (lexer.Lexer, error) {
+	lex, err := s.def.Lex(r)
+	if err != nil {
+		return lex, err
+	}
+	return &hereDocLexer{lex: lex, sym: s.def.Symbols()}, err
+}
+
+func (s *hereDocDefinition) Symbols() map[string]rune {
+	return s.def.Symbols()
+}
+
+// hereDocLexer will only emit whitespace tokens if processing
+// a here-doc statement, otherwise, whitespace tokens will be
+// ignored.
+type hereDocLexer struct {
+	lex       lexer.Lexer
+	sym       map[string]rune
+	keepSpace bool
+	foundHere bool
+	hereIdent lexer.Token
+}
+
+func (s *hereDocLexer) Next() (lexer.Token, error) {
+	t, err := s.lex.Next()
+	switch t.Type {
+	case s.sym["Whitespace"]:
+		if !s.keepSpace {
+			// not preserving spsace, so move on to next token
+			return s.Next()
+		}
+	case s.sym["HereDoc"]:
+		s.foundHere = true
+	case s.sym["Ident"]:
+		if s.foundHere && s.hereIdent.Value == t.Value {
+			// end of heredoc
+			s.foundHere = false
+			s.keepSpace = false
+			s.hereIdent = lexer.Token{}
+		} else if s.foundHere && s.hereIdent.Value == "" {
+			s.hereIdent = t
+			s.keepSpace = true
+		}
+	}
+
+	return t, err
+}
 
 // Node is implemented by all nodes in the CST.
 type Node interface {
@@ -166,7 +223,7 @@ func (f *From) End() lexer.Position      { return shiftPosition(f.Pos, len(f.Key
 // ImportPath represents the relative path to a local import.
 type ImportPath struct {
 	Pos  lexer.Position
-	Path string `parser:"@String"`
+	Path QuotedString `parser:"@@"`
 }
 
 func (i *ImportPath) Position() lexer.Position { return i.Pos }
@@ -407,23 +464,137 @@ func (s *Selector) Capture(tokens []string) error {
 	return nil
 }
 
+type QuotedString string
+
+func (qs *QuotedString) Parse(lex *lexer.PeekingLexer) error {
+	token, err := lex.Peek(0)
+	if err != nil {
+		return err
+	}
+	if token.Type != Lexer.Symbols()["String"] {
+		return participle.NextMatch
+	}
+	token, err = lex.Next()
+	if err != nil {
+		return err
+	}
+	s, err := strconv.Unquote(token.Value)
+	*qs = QuotedString(s)
+	return err
+}
+
 // BasicLit represents a literal of basic type.
 type BasicLit struct {
 	Pos     lexer.Position
-	Str     *string     `parser:"( @String"`
-	Decimal *int        `parser:"| @Decimal"`
-	Numeric *NumericLit `parser:"| @Numeric"`
-	Bool    *bool       `parser:"| @Bool )"`
+	Str     *QuotedString `parser:"( @@"`
+	HereDoc *HereDoc      `parser:"| @@"`
+	Decimal *int          `parser:"| @Decimal"`
+	Numeric *NumericLit   `parser:"| @Numeric"`
+	Bool    *bool         `parser:"| @Bool )"`
 }
 
 func (l *BasicLit) Position() lexer.Position { return l.Pos }
 func (l *BasicLit) End() lexer.Position {
 	switch {
-	case l.Str != nil, l.Decimal != nil, l.Numeric != nil, l.Bool != nil:
+	case l.Str != nil, l.HereDoc != nil, l.Decimal != nil, l.Numeric != nil, l.Bool != nil:
 		return shiftPosition(l.Pos, len(l.String()), 0)
 	default:
 		return shiftPosition(l.Pos, 1, 0)
 	}
+}
+
+// HereDoc represents a multiline here-doc type.
+type HereDoc struct {
+	Pos      lexer.Position
+	Value    string
+	raw      string
+	operator string
+	ident    string
+}
+
+func (h *HereDoc) Position() lexer.Position { return h.Pos }
+func (h *HereDoc) End() lexer.Position {
+	return shiftPosition(h.Pos, len(h.raw), 0)
+}
+
+func (h *HereDoc) Parse(lex *lexer.PeekingLexer) error {
+	token, err := lex.Peek(0)
+	if err != nil {
+		return err
+	}
+
+	if token.Type != Lexer.Symbols()["HereDoc"] {
+		return participle.NextMatch
+	}
+
+	// Consume heredoc token.
+	heredoc, err := lex.Next()
+	if err != nil {
+		return err
+	}
+
+	h.operator = heredoc.Value
+
+	// Consume heredoc identifier.
+	ident, err := lex.Next()
+	if err != nil {
+		return err
+	}
+
+	if ident.Type != Lexer.Symbols()["Ident"] {
+		return participle.NextMatch
+	}
+
+	h.ident = ident.Value
+
+	var next lexer.Token
+
+	heredocTokens := []lexer.Token{}
+
+	for {
+		next, err = lex.Next()
+		if err != nil {
+			return err
+		}
+		if next.Type == Lexer.Symbols()["Ident"] && next.Value == h.ident {
+			break
+		}
+		heredocTokens = append(heredocTokens, next)
+	}
+
+	// trim leading whitespace to first newline
+	for i := range heredocTokens {
+		if heredocTokens[i].Type == Lexer.Symbols()["Newline"] {
+			heredocTokens = heredocTokens[i+1:]
+			break
+		}
+	}
+	// trim trailing whitespace from last line
+	for i := len(heredocTokens) - 1; i >= 0; i-- {
+		if heredocTokens[i].Type == Lexer.Symbols()["Newline"] {
+			heredocTokens = heredocTokens[:i]
+			break
+		}
+	}
+	for _, t := range heredocTokens {
+		h.raw += t.Value
+	}
+
+	switch h.operator {
+	case "<<-": // dedent
+		h.Value = dedent.Dedent(h.raw)
+	case "<<~": // fold
+		s := bufio.NewScanner(strings.NewReader(h.raw))
+		lines := []string{}
+		for s.Scan() {
+			lines = append(lines, strings.TrimSpace(s.Text()))
+		}
+		h.Value = strings.Join(lines, " ")
+	default:
+		h.Value = h.raw
+	}
+
+	return nil
 }
 
 // NumericLit represents a number literal with a non-decimal base.
@@ -460,7 +631,7 @@ func (l *NumericLit) Capture(tokens []string) error {
 // ObjType returns the type of the basic literal.
 func (l *BasicLit) ObjType() ObjType {
 	switch {
-	case l.Str != nil:
+	case l.Str != nil, l.HereDoc != nil:
 		return Str
 	case l.Decimal != nil, l.Numeric != nil:
 		return Int
@@ -471,9 +642,10 @@ func (l *BasicLit) ObjType() ObjType {
 }
 
 func NewStringExpr(v string) *Expr {
+	qs := QuotedString(v)
 	return &Expr{
 		BasicLit: &BasicLit{
-			Str: &v,
+			Str: &qs,
 		},
 	}
 }

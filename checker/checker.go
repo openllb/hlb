@@ -518,7 +518,7 @@ func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *
 func (c *checker) checkBasicLitArg(typ parser.ObjType, lit *parser.BasicLit) error {
 	switch typ {
 	case parser.Str:
-		if lit.Str == nil {
+		if lit.Str == nil && lit.HereDoc == nil {
 			return ErrWrongArgType{lit.Pos, typ, lit.ObjType()}
 		}
 	case parser.Int:

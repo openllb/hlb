@@ -30,7 +30,10 @@ func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, expr
 			return "", errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
 		}
 	case expr.BasicLit != nil:
-		return *expr.BasicLit.Str, nil
+		if expr.BasicLit.Str != nil {
+			return expr.BasicLit.Str.Unquoted(), nil
+		}
+		return expr.BasicLit.HereDoc.Value, nil
 	case expr.FuncLit != nil:
 		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), nil)
 	default:

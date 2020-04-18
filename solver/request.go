@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	// LopcalPathDescriptionKey is the key name in the metadata description map for the input path to a local fs.
+	// LocalPathDescriptionKey is the key name in the metadata description map for the input path to a local fs.
 	LocalPathDescriptionKey = "hlb.local.path"
 )
 

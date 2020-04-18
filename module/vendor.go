@@ -102,7 +102,7 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 			case decl.ImportFunc != nil:
 				filename = ModuleFilename
 			case decl.ImportPath != nil:
-				filename = decl.ImportPath.Path
+				filename = decl.ImportPath.Path.Unquoted()
 			}
 
 			f, err := os.Create(filepath.Join(vp, filename))

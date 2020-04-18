@@ -210,6 +210,36 @@ func TestCodeGen(t *testing.T) {
 				Expect(t, llb.Image("busybox:stable")),
 			)
 		},
+	}, {
+		"here doc processing",
+		[]string{"default"},
+		`
+		fs default() {
+			image "busybox"
+
+			run <<~EOM
+			echo
+			hi
+			EOM
+
+			run <<-EOM
+			echo hi
+			EOM
+
+			run <<EOM
+			echo hi
+			EOM
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Image("busybox").Run(
+				llb.Shlex("echo hi"),
+			).Run(
+				llb.Shlex("echo hi"),
+			).Run(
+				llb.Shlex("\techo hi"),
+			).Root())
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

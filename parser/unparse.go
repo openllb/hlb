@@ -128,7 +128,7 @@ func (f *From) String() string {
 }
 
 func (ip *ImportPath) String() string {
-	return strconv.Quote(ip.Path)
+	return ip.Path.String()
 }
 
 func (d *ExportDecl) String() string {
@@ -201,10 +201,20 @@ func (i *Ident) String() string {
 	return i.Name
 }
 
+func (qs *QuotedString) String() string {
+	return strconv.Quote(string(*qs))
+}
+
+func (qs *QuotedString) Unquoted() string {
+	return string(*qs)
+}
+
 func (l *BasicLit) String() string {
 	switch {
 	case l.Str != nil:
-		return strconv.Quote(*l.Str)
+		return l.Str.String()
+	case l.HereDoc != nil:
+		return l.HereDoc.String()
 	case l.Decimal != nil:
 		return strconv.Itoa(*l.Decimal)
 	case l.Numeric != nil:
@@ -225,6 +235,13 @@ func (l *NumericLit) String() string {
 		return fmt.Sprintf("0x%0x", l.Value)
 	}
 	panic("unknown numeric lit")
+}
+
+func (h *HereDoc) String() string {
+	// this is a hack, the unparsing will automatically add tabs for newline separated statements,
+	// but for heredocs we need to preserve the literal input.  So we manually add some markers
+	// to the response that is trimmed out when serializing the block statement.
+	return fmt.Sprintf("%s%s\n<HLB-HEREDOC-MARKER>\n%s\n<HLB-HEREDOC-MARKER>\n%s", h.operator, h.ident, h.raw, h.ident)
 }
 
 func (l *FuncLit) String() string {
@@ -348,8 +365,15 @@ func (s *BlockStmt) String() string {
 			}
 		}
 
+		insideHeredoc := false
 		for i := 1; i < len(stmts); i++ {
-			if len(stmts[i]) > 0 {
+			if stmts[i] == "<HLB-HEREDOC-MARKER>" {
+				stmts = append(stmts[:i], stmts[i+1:]...)
+				i--
+				insideHeredoc = !insideHeredoc
+				continue
+			}
+			if len(stmts[i]) > 0 && !insideHeredoc {
 				stmts[i] = fmt.Sprintf("\t%s", stmts[i])
 			}
 		}
