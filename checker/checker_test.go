@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb/parser"
 	"github.com/stretchr/testify/require"
 )
@@ -189,7 +190,16 @@ func TestChecker_Check(t *testing.T) {
 		fs duplicateFunctionName() {}
 		fs duplicateFunctionName() {}
 		`,
-		ErrDuplicateDecls{},
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   4,
+				},
+				Name: "duplicateFunctionName",
+			}},
+		},
 	}, {
 		"errors with function and alias name collisions",
 		`
@@ -200,7 +210,16 @@ func TestChecker_Check(t *testing.T) {
 			}
 		}
 		`,
-		ErrDuplicateDecls{},
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   4,
+				},
+				Name: "duplicateName",
+			}},
+		},
 	}, {
 		"errors with duplicate alias names",
 		`
@@ -213,12 +232,21 @@ func TestChecker_Check(t *testing.T) {
 			}
 		}
 		`,
-		ErrDuplicateDecls{},
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     3,
+					Column:   34,
+				},
+				Name: "duplicateAliasName",
+			}},
+		},
 	}, {
 		"basic function export",
 		`
 		export myFunction
-
+	
 		fs myFunction() {}
 		`,
 		nil,
@@ -226,7 +254,7 @@ func TestChecker_Check(t *testing.T) {
 		"basic alias export",
 		`
 		export myAlias
-
+	
 		fs myFunction() {
 			run "echo Hello" with option {
 				mount fs { scratch; } "/src" as myAlias
@@ -239,7 +267,16 @@ func TestChecker_Check(t *testing.T) {
 		`
 		export myNonExistentFunction
 		`,
-		ErrIdentNotDefined{},
+		ErrIdentNotDefined{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   8,
+				},
+				Name: "myNonExistentFunction",
+			},
+		},
 	}, {
 		"errors when a selector is called on a name that isn't an import",
 		`
@@ -248,11 +285,20 @@ func TestChecker_Check(t *testing.T) {
     		myFunction.build
 		}
 		`,
-		ErrNotImport{},
+		ErrNotImport{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     3,
+					Column:   7,
+				},
+				Name: "myFunction",
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			//t.Parallel()
 
 			in := strings.NewReader(cleanup(tc.input))
 
@@ -285,7 +331,16 @@ func TestChecker_CheckSelectors(t *testing.T) {
     		myImportedModule.invalidSelector
 		}
 		`,
-		ErrIdentUndefined{},
+		ErrIdentUndefined{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     4,
+					Column:   24,
+				},
+				Name: "invalidSelector",
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -329,6 +384,7 @@ func validateError(t *testing.T, expectedError error, actualError error) {
 		// to validate the underlying error
 		if semErr, ok := actualError.(ErrSemantic); ok {
 			require.IsType(t, expectedError, semErr.Errs[0])
+			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error())
 		} else {
 			require.IsType(t, expectedError, actualError)
 		}
