@@ -23,6 +23,8 @@ func cleanup(value string) string {
 }
 
 func TestChecker_Check(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []testCase{{
 		"empty",
 		`
@@ -282,7 +284,7 @@ func TestChecker_Check(t *testing.T) {
 		`
 		fs myFunction() {}
 		fs badSelectorCaller() {
-    		myFunction.build
+			myFunction.build
 		}
 		`,
 		ErrNotImport{
@@ -290,7 +292,7 @@ func TestChecker_Check(t *testing.T) {
 				Pos: lexer.Position{
 					Filename: "<stdin>",
 					Line:     3,
-					Column:   7,
+					Column:   1,
 				},
 				Name: "myFunction",
 			},
@@ -298,8 +300,6 @@ func TestChecker_Check(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			//t.Parallel()
-
 			in := strings.NewReader(cleanup(tc.input))
 
 			mod, err := parser.Parse(in)
@@ -312,13 +312,15 @@ func TestChecker_Check(t *testing.T) {
 }
 
 func TestChecker_CheckSelectors(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []testCase{{
 		"able to access valid selector",
 		`
 		import myImportedModule "./myModule.hlb"
 	
 		fs badSelectorCaller() {
-    		myImportedModule.validSelector
+			myImportedModule.validSelector
 		}
 		`,
 		nil,
@@ -328,7 +330,7 @@ func TestChecker_CheckSelectors(t *testing.T) {
 		import myImportedModule "./myModule.hlb"
 	
 		fs badSelectorCaller() {
-    		myImportedModule.invalidSelector
+			myImportedModule.invalidSelector
 		}
 		`,
 		ErrIdentUndefined{
@@ -336,7 +338,7 @@ func TestChecker_CheckSelectors(t *testing.T) {
 				Pos: lexer.Position{
 					Filename: "<stdin>",
 					Line:     4,
-					Column:   24,
+					Column:   18,
 				},
 				Name: "invalidSelector",
 			},
@@ -344,8 +346,6 @@ func TestChecker_CheckSelectors(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			importedModuleDefinition := `
 				export validSelector
 				fs validSelector() {}
