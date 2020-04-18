@@ -50,9 +50,9 @@ jobs:
       run: while true; do lineCount=$(docker exec buildkitd buildctl debug workers | wc -l); if [ $lineCount -gt 1 ]; then break; fi; sleep 1; done
 
     - name: GoLint
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./source.hlb
+      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./build.hlb
 
     - name: Crosscompile
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain ./source.hlb
+      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain ./build.hlb
 
 
