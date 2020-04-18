@@ -85,6 +85,24 @@ var (
 				}
 			} "src" "dst"
 		}
+
+		string heredocTest() {
+			value <<-EOM
+			this
+			  should
+			dedent
+			EOM
+			value <<~EOM
+			this 
+			  should
+			fold
+			EOM
+			value <<EOM
+			this
+			  is
+			literal
+			EOM
+		}
 	`
 )
 

@@ -476,6 +476,46 @@ func TestUnparse(t *testing.T) {
 
 			fs bar() { scratch; }
 			`,
+		}, {
+			`heredoc`,
+			`
+			string heredocTest() {
+				value <<-EOM
+				this
+				  should
+				dedent
+				EOM
+				value <<~EOM
+				this 
+				  should
+				fold
+				EOM
+				value <<EOM
+				this
+				  is
+				literal
+				EOM
+			}
+			`,
+			`
+			string heredocTest() {
+				value <<-EOM
+				this
+				  should
+				dedent
+				EOM
+				value <<~EOM
+				this 
+				  should
+				fold
+				EOM
+				value <<EOM
+				this
+				  is
+				literal
+				EOM
+			}
+			`,
 		},
 	} {
 		tc := tc

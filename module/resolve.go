@@ -394,7 +394,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					filename = ModuleFilename
 				case n.ImportPath != nil:
 					importRes = res
-					filename = n.ImportPath.Path
+					filename = n.ImportPath.Path.Unquoted()
 				}
 
 				rc, err := importRes.Open(filename)
