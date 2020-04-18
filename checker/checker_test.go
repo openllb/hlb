@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb/parser"
 	"github.com/stretchr/testify/require"
 )
@@ -11,7 +12,7 @@ import (
 type testCase struct {
 	name    string
 	input   string
-	errType interface{}
+	errType error
 }
 
 func cleanup(value string) string {
@@ -21,7 +22,9 @@ func cleanup(value string) string {
 	return result
 }
 
-func TestCompile(t *testing.T) {
+func TestChecker_Check(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []testCase{{
 		"empty",
 		`
@@ -183,28 +186,207 @@ func TestCompile(t *testing.T) {
 		}
 		`,
 		nil,
+	}, {
+		"errors with duplicate function names",
+		`
+		fs duplicateFunctionName() {}
+		fs duplicateFunctionName() {}
+		`,
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   4,
+				},
+				Name: "duplicateFunctionName",
+			}},
+		},
+	}, {
+		"errors with function and alias name collisions",
+		`
+		fs duplicateName() {}
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as duplicateName
+			}
+		}
+		`,
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   4,
+				},
+				Name: "duplicateName",
+			}},
+		},
+	}, {
+		"errors with duplicate alias names",
+		`
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as duplicateAliasName
+			}
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as duplicateAliasName
+			}
+		}
+		`,
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     3,
+					Column:   34,
+				},
+				Name: "duplicateAliasName",
+			}},
+		},
+	}, {
+		"basic function export",
+		`
+		export myFunction
+	
+		fs myFunction() {}
+		`,
+		nil,
+	}, {
+		"basic alias export",
+		`
+		export myAlias
+	
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as myAlias
+			}
+		}
+		`,
+		nil,
+	}, {
+		"errors when export does not exist",
+		`
+		export myNonExistentFunction
+		`,
+		ErrIdentNotDefined{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   8,
+				},
+				Name: "myNonExistentFunction",
+			},
+		},
+	}, {
+		"errors when a selector is called on a name that isn't an import",
+		`
+		fs myFunction() {}
+		fs badSelectorCaller() {
+			myFunction.build
+		}
+		`,
+		ErrNotImport{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     3,
+					Column:   1,
+				},
+				Name: "myFunction",
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			in := strings.NewReader(cleanup(tc.input))
 
 			mod, err := parser.Parse(in)
 			require.NoError(t, err)
 
 			err = Check(mod)
-			if tc.errType == nil {
-				require.NoError(t, err)
-			} else {
-				// assume if we got a semantic error we really want
-				// to validate the underlying error
-				if semErr, ok := err.(ErrSemantic); ok {
-					require.IsType(t, tc.errType, semErr.Errs[0])
-				} else {
-					require.IsType(t, tc.errType, err)
-				}
-			}
+			validateError(t, tc.errType, err)
 		})
+	}
+}
+
+func TestChecker_CheckSelectors(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []testCase{{
+		"able to access valid selector",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs badSelectorCaller() {
+			myImportedModule.validSelector
+		}
+		`,
+		nil,
+	}, {
+		"errors when attempting to access invalid selector",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs badSelectorCaller() {
+			myImportedModule.invalidSelector
+		}
+		`,
+		ErrIdentUndefined{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     4,
+					Column:   18,
+				},
+				Name: "invalidSelector",
+			},
+		},
+	}} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			importedModuleDefinition := `
+				export validSelector
+				fs validSelector() {}
+			`
+
+			importedModule, err := parser.Parse(strings.NewReader(importedModuleDefinition))
+			require.NoError(t, err)
+			err = Check(importedModule)
+			require.NoError(t, err)
+
+			in := strings.NewReader(cleanup(tc.input))
+
+			module, err := parser.Parse(in)
+			require.NoError(t, err)
+
+			err = Check(module)
+			require.NoError(t, err)
+
+			obj := module.Scope.Lookup("myImportedModule")
+			if obj == nil {
+				t.Fatal("myImportedModule should be imported for this test to work")
+			}
+			obj.Data = importedModule.Scope
+
+			err = CheckSelectors(module)
+			validateError(t, tc.errType, err)
+		})
+	}
+}
+
+func validateError(t *testing.T, expectedError error, actualError error) {
+	if expectedError == nil {
+		require.NoError(t, actualError)
+	} else {
+		// assume if we got a semantic error we really want
+		// to validate the underlying error
+		if semErr, ok := actualError.(ErrSemantic); ok {
+			require.IsType(t, expectedError, semErr.Errs[0])
+			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error())
+		} else {
+			require.IsType(t, expectedError, actualError)
+		}
 	}
 }
