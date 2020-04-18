@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client/llb"
@@ -326,7 +327,9 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			}
 		}
 
-		opts = append(opts, llb.Shlex(shlex))
+		customName := strings.ReplaceAll(shlex, "\n", "")
+		opts = append(opts, llb.Shlex(shlex), llb.WithCustomName(customName))
+
 		fc = func(st llb.State) (llb.State, error) {
 			exec := st.Run(opts...)
 
