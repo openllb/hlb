@@ -1,10 +1,12 @@
 package codegen
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client/llb"
@@ -35,7 +37,7 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 			return chain(v.(llb.State))
 		}, nil
 	case parser.Str:
-		chain, err := cg.EmitStringChainStmt(ctx, scope, call.Func, call.Args, chainStart)
+		chain, err := cg.EmitStringChainStmt(ctx, scope, call.Func, call.Args, call.WithOpt, chainStart)
 		if err != nil {
 			return nil, err
 		}
@@ -585,7 +587,16 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 	return fc, nil
 }
 
-func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, chainStart interface{}) (StringChain, error) {
+func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, with *parser.WithOpt, chainStart interface{}) (StringChain, error) {
+	var iopts []interface{}
+	var err error
+	if with != nil {
+		iopts, err = cg.EmitOptionExpr(ctx, scope, with.Expr, nil, expr.Name())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	switch expr.Name() {
 	case "value":
 		val, err := cg.EmitStringExpr(ctx, scope, args[0])
@@ -618,6 +629,28 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 
 		return func(_ string) (string, error) {
 			return os.Getenv(key), nil
+		}, nil
+	case "template":
+		text, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		t, err := template.New(expr.Pos.String()).Parse(text)
+		if err != nil {
+			return nil, err
+		}
+
+		data := map[string]interface{}{}
+		for _, iopt := range iopts {
+			opt := iopt.(*TemplateField)
+			data[opt.Name] = opt.Value
+		}
+
+		return func(_ string) (string, error) {
+			buf := bytes.NewBufferString("")
+			err = t.Execute(buf, data)
+			return buf.String(), err
 		}, nil
 	default:
 		// Must be a named reference.

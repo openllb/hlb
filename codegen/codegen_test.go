@@ -240,6 +240,30 @@ func TestCodeGen(t *testing.T) {
 				llb.Shlex("\techo hi"),
 			).Root())
 		},
+	}, {
+		"templates",
+		[]string{"default"},
+		`
+		string cmd() {
+			template <<-EOM
+				echo hi {{.user}}
+			EOM with option {
+				stringField "user" string {
+					localEnv "USER"
+				}
+			}
+		}
+
+		fs default() {
+			image "busybox"
+			run cmd 
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Image("busybox").Run(
+				llb.Shlexf("echo hi %s", os.Getenv("USER")),
+			).Root())
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
