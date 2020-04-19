@@ -203,7 +203,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return llb.Local(id, opts...), nil
 		}
 	case "frontend":
-		fcurce, err := cg.EmitStringExpr(ctx, scope, args[0])
+		source, err := cg.EmitStringExpr(ctx, scope, args[0])
 		if err != nil {
 			return fc, err
 		}
@@ -235,7 +235,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 						req := gateway.SolveRequest{
 							Frontend: "gateway.v0",
 							FrontendOpt: map[string]string{
-								"fcurce": fcurce,
+								"source": source,
 							},
 							FrontendInputs: make(map[string]*pb.Definition),
 						}

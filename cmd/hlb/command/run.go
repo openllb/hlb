@@ -168,7 +168,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 			return err
 		}
 
-		if opts.Debug {
+		if solveReq == nil || opts.Debug {
 			return nil
 		}
 	}
