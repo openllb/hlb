@@ -79,7 +79,7 @@ styles [] {
 
 }
 
-__TYPE \= (\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)
+__TYPE \= (\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)
 __WHITESPACE \= (?:[\t ]+)
 __IDENT \= (\b[a-zA-Z_][a-zA-Z0-9]*\b)
 __KEYWORD \= (\b(with|as|variadic)\b)
@@ -87,8 +87,8 @@ __BOOL \= (\b(true|false)\b)
 __NUMERIC \= (\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b)
 __DECIMAL \= (\b(0|[1-9][0-9]*)\b)
 ## exclusion list generated with:
-## echo $(grep -E "case \"[^\"]+\":" codegen/codegen.go | awk -F'"' '{print $2}' | sort | uniq) | tr ' ' '|'
-__NOT_BUILTIN \= (\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))
+## echo $(grep -E "case \"[^\"]+\":" codegen/codegen.go codegen/chain.go | awk -F'"' '{print $2}' | sort | uniq) | tr ' ' '|'
+__NOT_BUILTIN \= (\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localEnv|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|parallel|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))
 
 contexts [] {
 
@@ -134,6 +134,15 @@ contexts [] {
          : pop {
             regex \= (")
             styles [] = .punctuation;
+         }
+      }
+      : inline_push {
+         regex \= (<<[-~]?)([A-Z]+)
+         styles [] = .punctuation, .constant;
+         default_style = .string
+         : pop {
+            regex \= (\2)
+            styles [] = .constant;
          }
       }
    }

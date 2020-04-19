@@ -32,7 +32,7 @@
         </dict>
         <dict>
           <key>match</key>
-          <string>(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)</string>
+          <string>(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)</string>
           <key>name</key>
           <string>entity.name.type.hlb</string>
         </dict>
@@ -129,7 +129,7 @@
         </dict>
         <dict>
           <key>begin</key>
-          <string>(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)(?:[\t\x{0020}]+)(\{)</string>
+          <string>(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)(?:[\t\x{0020}]+)(\{)</string>
           <key>beginCaptures</key>
           <dict>
             <key>1</key>
@@ -163,7 +163,7 @@
         </dict>
         <dict>
           <key>match</key>
-          <string>(\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))</string>
+          <string>(\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localEnv|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|parallel|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|target|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))</string>
           <key>name</key>
           <string>variable.hlb</string>
         </dict>
@@ -209,9 +209,44 @@
             </dict>
           </dict>
         </dict>
+        <dict>
+          <key>begin</key>
+          <string>(&lt;&lt;[-\x{007e}]?)([A-Z]+)</string>
+          <key>beginCaptures</key>
+          <dict>
+            <key>1</key>
+            <dict>
+              <key>name</key>
+              <string>punctuation.hlb</string>
+            </dict>
+            <key>2</key>
+            <dict>
+              <key>name</key>
+              <string>constant.hlb</string>
+            </dict>
+          </dict>
+          <key>contentName</key>
+          <string>string.hlb</string>
+          <key>end</key>
+          <string>(\2)</string>
+          <key>endCaptures</key>
+          <dict>
+            <key>1</key>
+            <dict>
+              <key>name</key>
+              <string>constant.hlb</string>
+            </dict>
+          </dict>
+        </dict>
        </array>
     </dict>
     <key>common__1</key>
+    <dict>
+      <key>patterns</key>
+      <array> 
+       </array>
+    </dict>
+    <key>common__2</key>
     <dict>
       <key>patterns</key>
       <array> 
@@ -223,7 +258,7 @@
       <array> 
         <dict>
           <key>match</key>
-          <string>(\bstring\b|\bint\b|\bbool\b|\bfs\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)</string>
+          <string>(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh)\b)</string>
           <key>name</key>
           <string>entity.name.type.hlb</string>
         </dict>
