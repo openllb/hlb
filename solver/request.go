@@ -113,10 +113,8 @@ func (o op) Tree(tree treeprint.Tree) error {
 	case *pb.Op_Exec:
 		meta := v.Exec.Meta
 		cmd := ""
-		if len(meta.Args) == 3 {
-			if meta.Args[0] == "/bin/sh" && meta.Args[1] == "-c" {
-				cmd = meta.Args[2]
-			}
+		if len(meta.Args) == 3 && meta.Args[0] == "/bin/sh" && meta.Args[1] == "-c" {
+			cmd = meta.Args[2]
 		} else {
 			cmd = shellquote.Join(meta.Args...)
 		}

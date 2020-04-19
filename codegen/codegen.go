@@ -422,6 +422,8 @@ func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op stri
 		return cg.EmitRmOptions(ctx, scope, op, stmts)
 	case "copy":
 		return cg.EmitCopyOptions(ctx, scope, op, stmts)
+	case "template":
+		return cg.EmitTemplateOptions(ctx, scope, op, stmts)
 	default:
 		return opts, errors.Errorf("call stmt does not support options: %s", op)
 	}
@@ -809,6 +811,40 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 
 	opts = append([]interface{}{cp}, opts...)
 	return
+}
+
+type TemplateField struct {
+	Name  string
+	Value interface{}
+}
+
+func (cg *CodeGen) EmitTemplateOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+	for _, stmt := range stmts {
+		if stmt.Call != nil {
+			args := stmt.Call.Args
+			switch stmt.Call.Func.Ident.Name {
+			case "stringField":
+				name, err := cg.EmitStringExpr(ctx, scope, args[0])
+				if err != nil {
+					return opts, err
+				}
+
+				value, err := cg.EmitStringExpr(ctx, scope, args[1])
+				if err != nil {
+					return opts, err
+				}
+
+				opts = append(opts, &TemplateField{Name: name, Value: value})
+			default:
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
+			}
+		}
+	}
+	return opts, nil
 }
 
 func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
