@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -621,6 +622,14 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		return func(_ string) (string, error) {
 			return fmt.Sprintf(formatStr, as...), nil
 		}, nil
+	case "localArch":
+		return func(_ string) (string, error) {
+			return runtime.GOARCH, nil
+		}, nil
+	case "localCwd":
+		return func(_ string) (string, error) {
+			return os.Getwd()
+		}, nil
 	case "localEnv":
 		key, err := cg.EmitStringExpr(ctx, scope, args[0])
 		if err != nil {
@@ -629,6 +638,10 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 
 		return func(_ string) (string, error) {
 			return os.Getenv(key), nil
+		}, nil
+	case "localOs":
+		return func(_ string) (string, error) {
+			return runtime.GOOS, nil
 		}, nil
 	case "template":
 		text, err := cg.EmitStringExpr(ctx, scope, args[0])

@@ -494,11 +494,26 @@ fs downloadDockerTarball(string localPath, string ref)
 # @return the resulting string from formatting.
 string format(string formatString, variadic string values)
 
+# The architecture for the clients local environment.
+#
+# @return the Arch
+string localArch()
+
+# The current working directory from the clients local environment.
+#
+# @return current working directory
+string localCwd()
+
 # An environment variable from the client's local environment.
 #
 # @param key the environment variable's key.
 # @return the environment variable's value
 string localEnv(string key)
+
+# The OS from the clients local environment.
+#
+# @return the OS
+string localOs()
 
 # Process text as a Go text template.
 # For template syntax documentation see:
