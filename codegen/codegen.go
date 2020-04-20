@@ -366,7 +366,7 @@ func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stm
 
 func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
 	v, err := cg.EmitBlock(ctx, scope, parser.Group, stmts, ac, chainStart)
-	if v == nil {
+	if err != nil {
 		return nil, err
 	}
 
