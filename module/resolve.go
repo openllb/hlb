@@ -163,6 +163,9 @@ func (r *localResolved) Digest() digest.Digest {
 }
 
 func (r *localResolved) Open(filename string) (io.ReadCloser, error) {
+	if filepath.IsAbs(filename) {
+		return os.Open(filename)
+	}
 	return os.Open(filepath.Join(r.root, filename))
 }
 
