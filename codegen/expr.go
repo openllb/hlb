@@ -12,23 +12,12 @@ import (
 func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (string, error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-
-		obj := scope.Lookup(expr.Ident.Name)
-		switch obj.Kind {
-		case parser.DeclKind:
-			switch n := obj.Node.(type) {
-			case *parser.FuncDecl:
-				return cg.EmitStringFuncDecl(ctx, scope, n, nil, noopAliasCallback, nil)
-			case *parser.AliasDecl:
-				return cg.EmitStringAliasDecl(ctx, scope, n, nil, nil)
-			default:
-				return "", errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown decl object")})
-			}
-		case parser.ExprKind:
-			return obj.Data.(string), nil
-		default:
-			return "", errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown obj type")})
+		sc, err := cg.EmitStringChainStmt(ctx, scope, expr, nil, nil, nil)
+		if err != nil {
+			return "", err
 		}
+
+		return sc("")
 	case expr.BasicLit != nil:
 		if expr.BasicLit.Str != nil {
 			return expr.BasicLit.Str.Unquoted(), nil
@@ -110,8 +99,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 			return st, err
 		}
 
-		st, err = so(st)
-		return st, err
+		return so(st)
 	case expr.BasicLit != nil:
 		return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("fs expr cannot be basic lit")})
 	case expr.FuncLit != nil:
