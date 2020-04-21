@@ -705,7 +705,11 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 		}
 
 		gc = func(requests []solver.Request) ([]solver.Request, error) {
-			requests = append(requests, solver.Parallel(peerRequests...))
+			if len(peerRequests) == 1 {
+				requests = append(requests, peerRequests[0])
+			} else {
+				requests = append(requests, solver.Parallel(peerRequests...))
+			}
 			return requests, nil
 		}
 	default:
