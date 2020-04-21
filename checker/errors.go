@@ -55,6 +55,9 @@ type ErrNumArgs struct {
 }
 
 func (e ErrNumArgs) Error() string {
+	if e.CallStmt == nil {
+		return "<invalid ErrNumArgs>"
+	}
 	return fmt.Sprintf("%s expected %d args, found %d", FormatPos(e.CallStmt.Pos), e.Expected, len(e.CallStmt.Args))
 }
 

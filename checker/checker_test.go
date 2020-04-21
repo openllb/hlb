@@ -22,6 +22,14 @@ func cleanup(value string) string {
 	return result
 }
 
+func makePos(line, col int) lexer.Position { //nolint:unparam
+	return lexer.Position{
+		Filename: "<stdin>",
+		Line:     line,
+		Column:   col,
+	}
+}
+
 func TestChecker_Check(t *testing.T) {
 	t.Parallel()
 
@@ -297,7 +305,214 @@ func TestChecker_Check(t *testing.T) {
 				Name: "myFunction",
 			},
 		},
-	}} {
+	}, {
+		"variadic options with bad type",
+		`
+		fs default() {
+			myfunc "string"
+		}
+		fs myfunc(variadic option::run opts) {
+			image "busybox"
+			run "echo hi" with opts
+		}
+		`,
+		ErrWrongArgType{
+			Pos:      makePos(2, 8),
+			Expected: "option::run",
+			Found:    "string",
+		},
+	}, /*{
+			"variadic options with bad method type",
+			`
+				fs default() {
+					myfunc option::run {
+						copyOpt
+					}
+				}
+				fs myfunc(variadic option::run opts) {
+					image "busybox"
+					run "echo hi" with opts
+				}
+				option::copy copyOpt() {}
+				`,
+			ErrWrongArgType{},
+		},*/{
+			"variadic options with mixed types",
+			`
+		fs default() {
+			myfunc option::run {} "string"
+		}
+		fs myfunc(variadic option::run opts) {
+			image "busybox"
+			run "echo hi" with opts
+		}
+		`,
+			ErrWrongArgType{
+				Pos:      makePos(2, 23),
+				Expected: "option::run",
+				Found:    "string",
+			},
+		}, {
+			"func call with bad arg count",
+			`
+		fs default() {
+			myfunc "a" "b"
+		}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+			ErrNumArgs{
+				Expected: 1,
+				CallStmt: &parser.CallStmt{
+					Pos:  makePos(2, 1),
+					Args: make([]*parser.Expr, 2),
+				},
+			},
+		}, {
+			"func call with bad arg type: basic literal",
+			`
+		fs default() {
+			myfunc 1
+		}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+			ErrWrongArgType{
+				Pos:      makePos(2, 8),
+				Expected: "string",
+				Found:    "int",
+			},
+		}, /*{
+			"func call with bad arg type: basic ident",
+			`
+			fs default() {
+				myfunc s
+			}
+			string s() { value "string"; }
+			int myfunc(int i) {}
+			`,
+			ErrWrongArgType{},
+		},*/ /*{
+			"func call with bad arg type: func ident",
+			`
+		fs default() {
+			myfunc foo
+		}
+		fs foo() {}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+			ErrWrongArgType{},
+		},*/{
+			"func call with bad arg type: func literal",
+			`
+		fs default() {
+			myfunc fs {}
+		}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+			ErrWrongArgType{
+				Pos:      makePos(2, 8),
+				Expected: "string",
+				Found:    "fs",
+			},
+		}, {
+			"func call with bad subtype",
+			`
+		fs default() {
+			runOpt
+		}
+		option::run runOpt() {}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+			ErrWrongArgType{
+				Pos:      makePos(2, 1),
+				Expected: "fs",
+				Found:    "option::run",
+			},
+		}, /*{
+			"func call with bad option type",
+			`
+		fs default() {
+			myfunc "foo" with runOpt
+		}
+		option::run runOpt() {}
+		fs myfunc(string cmd) {
+			image "busybox"
+			run cmd
+		}
+		`,
+			ErrWrongArgType{},
+		},*/{
+			"func call with option",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				mount fs { scratch; } "/"
+			}
+		}
+		`,
+			nil,
+		}, {
+			"func call with user-defined option",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				fooOpt
+			}
+		}
+		option::run fooOpt() {}
+		`,
+			nil,
+		}, {
+			"func call with hoisted option",
+			`
+		fs default() {
+			scratch
+			run "foo" with fooOpt
+		}
+		option::run fooOpt() {}
+		`,
+			nil,
+		}, /*{
+			"func call with bad option type",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				fooOpt
+			}
+		}
+		option::copy fooOpt() {}
+		`,
+			ErrWrongArgType{},
+		},*/ /*{
+			"func call with bad hoisted option type",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				fooOpt
+			}
+		}
+		option::copy fooOpt() {}
+		`,
+			ErrWrongArgType{},
+		}*/} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(cleanup(tc.input))
@@ -305,7 +520,14 @@ func TestChecker_Check(t *testing.T) {
 			mod, err := parser.Parse(in)
 			require.NoError(t, err)
 
-			err = Check(mod)
+			var r interface{}
+			func() {
+				defer func() {
+					r = recover()
+				}()
+				err = Check(mod)
+			}()
+			require.Nil(t, r, "panic: %+v", r)
 			validateError(t, tc.errType, err)
 		})
 	}
@@ -383,10 +605,10 @@ func validateError(t *testing.T, expectedError error, actualError error) {
 		// assume if we got a semantic error we really want
 		// to validate the underlying error
 		if semErr, ok := actualError.(ErrSemantic); ok {
-			require.IsType(t, expectedError, semErr.Errs[0])
-			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error())
+			require.IsType(t, expectedError, semErr.Errs[0], "type %T", semErr.Errs[0])
+			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error(), "error: %v", actualError)
 		} else {
-			require.IsType(t, expectedError, actualError)
+			require.IsType(t, expectedError, actualError, "error: %v", actualError)
 		}
 	}
 }
