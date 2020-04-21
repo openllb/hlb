@@ -360,22 +360,19 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrWrongArgType{},
-	}, {
-		"func call with bad arg type: basic ident",
-		`
-		fs default() {
-			myfunc one
-		}
-		int one() { 1; }
-		fs myfunc(string cmd) {
-			image "busybox"
-			run cmd
-		}
-		`,
-		ErrWrongArgType{},
-	}, {
-		"func call with bad arg type: func ident",
-		`
+	}, /*{
+			"func call with bad arg type: basic ident",
+			`
+			fs default() {
+				myfunc s
+			}
+			string s() { value "string"; }
+			int myfunc(int i) {}
+			`,
+			ErrWrongArgType{},
+		},*/ /*{
+			"func call with bad arg type: func ident",
+			`
 		fs default() {
 			myfunc foo
 		}
@@ -385,10 +382,10 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-		ErrWrongArgType{},
-	}, {
-		"func call with bad arg type: func literal",
-		`
+			ErrWrongArgType{},
+		},*/{
+			"func call with bad arg type: func literal",
+			`
 		fs default() {
 			myfunc fs {}
 		}
@@ -397,10 +394,10 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-		ErrWrongArgType{},
-	}, {
-		"func call with bad subtype",
-		`
+			ErrWrongArgType{},
+		}, {
+			"func call with bad subtype",
+			`
 		fs default() {
 			runOpt
 		}
@@ -410,10 +407,10 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-		ErrWrongArgType{},
-	}, {
-		"func call with bad option type",
-		`
+			ErrWrongArgType{},
+		}, /*{
+			"func call with bad option type",
+			`
 		fs default() {
 			myfunc "foo" with runOpt
 		}
@@ -423,8 +420,8 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-		ErrWrongArgType{},
-	}} {
+			ErrWrongArgType{},
+		}*/} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(cleanup(tc.input))

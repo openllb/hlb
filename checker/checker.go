@@ -313,7 +313,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 				continue
 			}
 		default:
-			panic("implementation error")
+			panic("checkBlockStmt: implementation error")
 		}
 
 		// If the function is not a builtin, retrieve it from the scope and then
@@ -408,7 +408,7 @@ func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, ca
 			case *parser.ImportDecl:
 				panic("todo: ErrCallImport")
 			default:
-				panic("implementation error")
+				panic("checkCallSignature: implementation error")
 			}
 		}
 	}
