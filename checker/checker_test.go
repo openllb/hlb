@@ -301,7 +301,7 @@ func TestChecker_Check(t *testing.T) {
 		"variadic options with bad type",
 		`
 		fs default() {
-			myfunc option::run {} option::copy {}
+			myfunc "string"
 		}
 		fs myfunc(variadic option::run opts) {
 			image "busybox"
@@ -309,36 +309,36 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrWrongArgType{},
-	}, {
-		"variadic options with bad method type",
-		`
-			fs default() {
-				myfunc option::run {
-					copyOpt
+	}, /*{
+			"variadic options with bad method type",
+			`
+				fs default() {
+					myfunc option::run {
+						copyOpt
+					}
 				}
-			}
-			fs myfunc(variadic option::run opts) {
-				image "busybox"
-				run "echo hi" with opts
-			}
-			option::copy copyOpt() {}
-			`,
-		ErrWrongArgType{},
-	}, {
-		"variadic options with mixed types",
-		`
+				fs myfunc(variadic option::run opts) {
+					image "busybox"
+					run "echo hi" with opts
+				}
+				option::copy copyOpt() {}
+				`,
+			ErrWrongArgType{},
+		},*/{
+			"variadic options with mixed types",
+			`
 		fs default() {
-			myfunc option::run {} option::copy {}
+			myfunc option::run {} "string"
 		}
 		fs myfunc(variadic option::run opts) {
 			image "busybox"
 			run "echo hi" with opts
 		}
 		`,
-		ErrWrongArgType{},
-	}, {
-		"func call with bad arg count",
-		`
+			ErrWrongArgType{},
+		}, {
+			"func call with bad arg count",
+			`
 		fs default() {
 			myfunc "a" "b"
 		}
@@ -347,10 +347,10 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-		ErrNumArgs{},
-	}, {
-		"func call with bad arg type: basic literal",
-		`
+			ErrNumArgs{},
+		}, {
+			"func call with bad arg type: basic literal",
+			`
 		fs default() {
 			myfunc 1
 		}
@@ -359,8 +359,8 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-		ErrWrongArgType{},
-	}, /*{
+			ErrWrongArgType{},
+		}, /*{
 			"func call with bad arg type: basic ident",
 			`
 			fs default() {
@@ -419,6 +419,63 @@ func TestChecker_Check(t *testing.T) {
 			image "busybox"
 			run cmd
 		}
+		`,
+			ErrWrongArgType{},
+		},*/{
+			"func call with option",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				mount fs { scratch; } "/"
+			}
+		}
+		`,
+			nil,
+		}, {
+			"func call with user-defined option",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				fooOpt
+			}
+		}
+		option::run fooOpt() {}
+		`,
+			nil,
+		}, {
+			"func call with hoisted option",
+			`
+		fs default() {
+			scratch
+			run "foo" with fooOpt
+		}
+		option::run fooOpt() {}
+		`,
+			nil,
+		}, /*{
+			"func call with bad option type",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				fooOpt
+			}
+		}
+		option::copy fooOpt() {}
+		`,
+			ErrWrongArgType{},
+		},*/ /*{
+			"func call with bad hoisted option type",
+			`
+		fs default() {
+			scratch
+			run "foo" with option {
+				fooOpt
+			}
+		}
+		option::copy fooOpt() {}
 		`,
 			ErrWrongArgType{},
 		}*/} {
