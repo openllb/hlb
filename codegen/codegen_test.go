@@ -14,12 +14,13 @@ import (
 	"github.com/xlab/treeprint"
 )
 
-func Expect(t *testing.T, st llb.State) solver.Request {
+func Expect(t *testing.T, st llb.State, opts ...solver.SolveOption) solver.Request {
 	def, err := st.Marshal(context.Background(), llb.LinuxAmd64)
 	require.NoError(t, err)
 
 	return solver.Single(&solver.Params{
-		Def: def,
+		Def:       def,
+		SolveOpts: opts,
 	})
 }
 
@@ -208,6 +209,29 @@ func TestCodeGen(t *testing.T) {
 			return solver.Sequential(
 				Expect(t, llb.Image("alpine:stable")),
 				Expect(t, llb.Image("busybox:stable")),
+			)
+		},
+	}, {
+		"parallel coercing fs to group",
+		[]string{"default"},
+		`
+		group default() {
+			parallel group {
+				image "alpine"
+			} fs {
+				scratch
+				mkfile "foo" 0o644 "hello world"
+				download "."
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Parallel(
+				Expect(t, llb.Image("alpine")),
+				solver.Parallel(
+					Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world")))),
+					Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world"))), solver.WithDownload(".")),
+				),
 			)
 		},
 	}, {

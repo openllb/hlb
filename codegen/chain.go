@@ -696,7 +696,7 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 	case "parallel":
 		var peerRequests []solver.Request
 		for _, arg := range args {
-			request, err := cg.EmitGroupExpr(ctx, scope, arg, ac, nil)
+			request, err := cg.EmitGroupExpr(ctx, scope, arg, ac)
 			if err != nil {
 				return gc, err
 			}

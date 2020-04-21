@@ -176,7 +176,7 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		case parser.Group:
 			var v solver.Request
-			v, err = cg.EmitGroupExpr(ctx, scope, args[i], ac, nil)
+			v, err = cg.EmitGroupExpr(ctx, scope, args[i], ac)
 			data = v
 		}
 		if err != nil {
