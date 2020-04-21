@@ -22,6 +22,14 @@ func cleanup(value string) string {
 	return result
 }
 
+func makePos(line, col int) lexer.Position { //nolint:unparam
+	return lexer.Position{
+		Filename: "<stdin>",
+		Line:     line,
+		Column:   col,
+	}
+}
+
 func TestChecker_Check(t *testing.T) {
 	t.Parallel()
 
@@ -308,7 +316,11 @@ func TestChecker_Check(t *testing.T) {
 			run "echo hi" with opts
 		}
 		`,
-		ErrWrongArgType{},
+		ErrWrongArgType{
+			Pos:      makePos(2, 8),
+			Expected: "option::run",
+			Found:    "string",
+		},
 	}, /*{
 			"variadic options with bad method type",
 			`
@@ -335,7 +347,11 @@ func TestChecker_Check(t *testing.T) {
 			run "echo hi" with opts
 		}
 		`,
-			ErrWrongArgType{},
+			ErrWrongArgType{
+				Pos:      makePos(2, 23),
+				Expected: "option::run",
+				Found:    "string",
+			},
 		}, {
 			"func call with bad arg count",
 			`
@@ -347,7 +363,13 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-			ErrNumArgs{},
+			ErrNumArgs{
+				Expected: 1,
+				CallStmt: &parser.CallStmt{
+					Pos:  makePos(2, 1),
+					Args: make([]*parser.Expr, 2),
+				},
+			},
 		}, {
 			"func call with bad arg type: basic literal",
 			`
@@ -359,7 +381,11 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-			ErrWrongArgType{},
+			ErrWrongArgType{
+				Pos:      makePos(2, 8),
+				Expected: "string",
+				Found:    "int",
+			},
 		}, /*{
 			"func call with bad arg type: basic ident",
 			`
@@ -394,7 +420,11 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-			ErrWrongArgType{},
+			ErrWrongArgType{
+				Pos:      makePos(2, 8),
+				Expected: "string",
+				Found:    "fs",
+			},
 		}, {
 			"func call with bad subtype",
 			`
@@ -407,7 +437,11 @@ func TestChecker_Check(t *testing.T) {
 			run cmd
 		}
 		`,
-			ErrWrongArgType{},
+			ErrWrongArgType{
+				Pos:      makePos(2, 1),
+				Expected: "fs",
+				Found:    "option::run",
+			},
 		}, /*{
 			"func call with bad option type",
 			`
@@ -499,7 +533,6 @@ func TestChecker_Check(t *testing.T) {
 	}
 }
 
-
 func TestChecker_CheckSelectors(t *testing.T) {
 	t.Parallel()
 
@@ -572,7 +605,7 @@ func validateError(t *testing.T, expectedError error, actualError error) {
 		// assume if we got a semantic error we really want
 		// to validate the underlying error
 		if semErr, ok := actualError.(ErrSemantic); ok {
-			require.IsType(t, expectedError, semErr.Errs[0])
+			require.IsType(t, expectedError, semErr.Errs[0], "type %T", semErr.Errs[0])
 			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error(), "error: %v", actualError)
 		} else {
 			require.IsType(t, expectedError, actualError, "error: %v", actualError)
