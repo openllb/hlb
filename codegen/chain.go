@@ -709,34 +709,6 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 			return requests, nil
 		}
 	default:
-		so, err := cg.EmitFilesystemBuiltinChainStmt(ctx, scope, expr, args, with, ac, nil)
-		if err != nil {
-			return gc, err
-		}
-
-		if so != nil {
-			return func(requests []solver.Request) ([]solver.Request, error) {
-				st, err := so(llb.Scratch())
-				if err != nil {
-					return requests, err
-				}
-
-				request, err := cg.outputRequest(ctx, st, Output{})
-				if err != nil {
-					return requests, err
-				}
-
-				if len(cg.requests) > 0 {
-					request = solver.Parallel(append([]solver.Request{request}, cg.requests...)...)
-				}
-
-				cg.reset()
-
-				requests = append(requests, request)
-				return requests, nil
-			}, nil
-		}
-
 		// Must be a named reference.
 		obj := scope.Lookup(expr.Name())
 		if obj == nil {
