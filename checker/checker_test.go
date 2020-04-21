@@ -297,6 +297,40 @@ func TestChecker_Check(t *testing.T) {
 				Name: "myFunction",
 			},
 		},
+	}, {
+		// Until we support func literals as stmts, we have to use a parallel
+		// group of one element to coerce fs to group.
+		"basic group support",
+		`
+		group default() {
+			parallel groupA fs { image "b"; }
+			groupC
+		}
+		group groupA() {
+			parallel fs { image "a"; }
+		}
+		group groupC() {
+			parallel fs { image "c"; }
+		}
+		`,
+		nil,
+	}, {
+		"errors when fs statement is called in a group block",
+		`
+		group badGroup() {
+			image "alpine"
+		}
+		`,
+		ErrIdentNotDefined{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     2,
+					Column:   1,
+				},
+				Name: "image",
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

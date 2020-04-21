@@ -127,10 +127,10 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, expr
 	}
 }
 
-func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
+func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback) (solver.Request, error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-		gc, err := cg.EmitGroupChainStmt(ctx, scope, expr, nil, nil, ac, chainStart)
+		gc, err := cg.EmitGroupChainStmt(ctx, scope, expr, nil, nil, ac, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,29 @@ func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr 
 	case expr.BasicLit != nil:
 		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("group expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, chainStart)
+		switch expr.FuncLit.Type.Primary() {
+		case parser.Group:
+			return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, nil)
+		case parser.Filesystem:
+			st, err := cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			request, err := cg.outputRequest(ctx, st, Output{})
+			if err != nil {
+				return nil, err
+			}
+
+			if len(cg.requests) > 0 {
+				request = solver.Parallel(append([]solver.Request{request}, cg.requests...)...)
+			}
+			cg.reset()
+
+			return request, nil
+		default:
+			return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("invalid group func lit")})
+		}
 	default:
 		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
 	}

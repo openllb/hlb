@@ -403,9 +403,6 @@ func (t *Type) Equals(typ ObjType) bool {
 		parts := typeParts(typ)
 		return ObjType(parts[0]) == Option
 	}
-	if typ == Group {
-		return t.ObjType == Filesystem || t.ObjType == Group
-	}
 	return t.ObjType == typ
 }
 

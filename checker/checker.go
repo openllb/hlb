@@ -319,12 +319,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 		// If the function is not a builtin, retrieve it from the scope and then
 		// type check it.
 		_, ok := builtin.Lookup.ByType[typ].Func[name]
-		if !ok && typ == parser.Group {
-			_, ok = builtin.Lookup.ByType[parser.Filesystem].Func[name]
-		}
-
 		if !ok {
-
 			obj := scope.Lookup(name)
 			if obj == nil {
 				return ErrIdentNotDefined{Ident: call.Func.Ident}
@@ -536,6 +531,10 @@ func (c *checker) checkBasicLitArg(typ parser.ObjType, lit *parser.BasicLit) err
 }
 
 func (c *checker) checkFuncLitArg(scope *parser.Scope, typ parser.ObjType, lit *parser.FuncLit) error {
+	if typ == parser.Group && lit.Type.ObjType == parser.Filesystem {
+		typ = lit.Type.ObjType
+	}
+
 	err := c.checkType(lit, typ, lit.Type)
 	if err != nil {
 		return err

@@ -69,10 +69,18 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 }
 
 func (r *singleRequest) Tree(tree treeprint.Tree) error {
-	return treeFromDefinition(tree, r.params.Def)
+	return treeFromDefinition(tree, r.params.Def, r.params.SolveOpts)
 }
 
-func treeFromDefinition(tree treeprint.Tree, def *llb.Definition) error {
+func treeFromDefinition(tree treeprint.Tree, def *llb.Definition, opts []SolveOption) error {
+	var info SolveInfo
+	for _, opt := range opts {
+		err := opt(&info)
+		if err != nil {
+			return err
+		}
+	}
+
 	ops := make(map[digest.Digest]*pb.Op)
 
 	var dgst digest.Digest
@@ -90,7 +98,7 @@ func treeFromDefinition(tree treeprint.Tree, def *llb.Definition) error {
 	}
 
 	terminal := ops[dgst]
-	child := op{dgst: terminal.Inputs[0].Digest, ops: ops, meta: def.Metadata}
+	child := op{dgst: terminal.Inputs[0].Digest, ops: ops, meta: def.Metadata, info: info}
 	return child.Tree(tree)
 }
 
@@ -98,6 +106,7 @@ type op struct {
 	dgst digest.Digest
 	ops  map[digest.Digest]*pb.Op
 	meta map[digest.Digest]pb.OpMetadata
+	info SolveInfo
 }
 
 func (o op) Tree(tree treeprint.Tree) error {
@@ -189,6 +198,23 @@ func (o op) Tree(tree treeprint.Tree) error {
 		branch = tree.AddMetaBranch("file", v.File)
 	case *pb.Op_Build:
 		branch = tree.AddMetaBranch("build", v.Build)
+	}
+
+	solve := branch.AddBranch("solve options")
+	if o.info.OutputDockerRef != "" {
+		solve.AddMetaNode("dockerRef", o.info.OutputDockerRef)
+	}
+	if o.info.OutputPushImage != "" {
+		solve.AddMetaNode("pushImage", o.info.OutputPushImage)
+	}
+	if o.info.OutputLocal != "" {
+		solve.AddMetaNode("download", o.info.OutputLocal)
+	}
+	if o.info.OutputLocalTarball {
+		solve.AddNode("downloadTarball")
+	}
+	if o.info.OutputLocalOCITarball {
+		solve.AddNode("downloadOCITarball")
 	}
 
 	for _, input := range pbOp.Inputs {

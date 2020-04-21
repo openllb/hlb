@@ -14,12 +14,13 @@ import (
 	"github.com/xlab/treeprint"
 )
 
-func Expect(t *testing.T, st llb.State) solver.Request {
+func Expect(t *testing.T, st llb.State, opts ...solver.SolveOption) solver.Request {
 	def, err := st.Marshal(context.Background(), llb.LinuxAmd64)
 	require.NoError(t, err)
 
 	return solver.Single(&solver.Params{
-		Def: def,
+		Def:       def,
+		SolveOpts: opts,
 	})
 }
 
@@ -139,8 +140,8 @@ func TestCodeGen(t *testing.T) {
 		[]string{"default"},
 		`
 		group default() {
-			image "alpine"
-			image "busybox"
+			parallel fs { image "alpine"; }
+			parallel fs { image "busybox"; }
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -154,9 +155,9 @@ func TestCodeGen(t *testing.T) {
 		[]string{"default"},
 		`
 		group default() {
-			parallel group {
+			parallel fs {
 				image "alpine"
-			} group {
+			} fs {
 				image "busybox"
 			}
 		}
@@ -172,13 +173,13 @@ func TestCodeGen(t *testing.T) {
 		[]string{"default"},
 		`
 		group default() {
-			image "golang:alpine"
-			parallel group {
+			parallel fs { image "golang:alpine"; }
+			parallel fs {
 				image "alpine"
-			} group {
+			} fs {
 				image "busybox"
 			}
-			image "node:alpine"
+			parallel fs { image "node:alpine"; }
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -200,14 +201,41 @@ func TestCodeGen(t *testing.T) {
 		}
 
 		group foo(string ref) {
-			image string { format "alpine:%s" ref; }
-			image string { format "busybox:%s" ref; }
+			parallel fs {
+				image string { format "alpine:%s" ref; }
+			}
+			parallel fs {
+				image string { format "busybox:%s" ref; }
+			}
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return solver.Sequential(
 				Expect(t, llb.Image("alpine:stable")),
 				Expect(t, llb.Image("busybox:stable")),
+			)
+		},
+	}, {
+		"parallel coercing fs to group",
+		[]string{"default"},
+		`
+		group default() {
+			parallel fs {
+				image "alpine"
+			} fs {
+				scratch
+				mkfile "foo" 0o644 "hello world"
+				download "."
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Parallel(
+				Expect(t, llb.Image("alpine")),
+				solver.Parallel(
+					Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world")))),
+					Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world"))), solver.WithDownload(".")),
+				),
 			)
 		},
 	}, {
