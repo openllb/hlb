@@ -387,7 +387,7 @@ func TestChecker_Check(t *testing.T) {
 				Found:    "int",
 			},
 		}, /*{
-			"func call with bad arg type: basic ident",
+			"func call with bad arg: basic ident",
 			`
 			fs default() {
 				myfunc s
@@ -397,7 +397,7 @@ func TestChecker_Check(t *testing.T) {
 			`,
 			ErrWrongArgType{},
 		},*/ /*{
-			"func call with bad arg type: func ident",
+			"func call with bad arg: func ident",
 			`
 		fs default() {
 			myfunc foo
@@ -442,20 +442,7 @@ func TestChecker_Check(t *testing.T) {
 				Expected: "fs",
 				Found:    "option::run",
 			},
-		}, /*{
-			"func call with bad option type",
-			`
-		fs default() {
-			myfunc "foo" with runOpt
-		}
-		option::run runOpt() {}
-		fs myfunc(string cmd) {
-			image "busybox"
-			run cmd
-		}
-		`,
-			ErrWrongArgType{},
-		},*/{
+		}, {
 			"func call with option",
 			`
 		fs default() {
@@ -467,7 +454,7 @@ func TestChecker_Check(t *testing.T) {
 		`,
 			nil,
 		}, {
-			"func call with user-defined option",
+			"func call with option: inline literal",
 			`
 		fs default() {
 			scratch
@@ -479,7 +466,7 @@ func TestChecker_Check(t *testing.T) {
 		`,
 			nil,
 		}, {
-			"func call with hoisted option",
+			"func call with option: ident",
 			`
 		fs default() {
 			scratch
@@ -489,7 +476,7 @@ func TestChecker_Check(t *testing.T) {
 		`,
 			nil,
 		}, /*{
-			"func call with bad option type",
+			"func call with bad option: inline literal",
 			`
 		fs default() {
 			scratch
@@ -501,13 +488,11 @@ func TestChecker_Check(t *testing.T) {
 		`,
 			ErrWrongArgType{},
 		},*/ /*{
-			"func call with bad hoisted option type",
+			"func call with bad option: ident",
 			`
 		fs default() {
 			scratch
-			run "foo" with option {
-				fooOpt
-			}
+			run "foo" with fooOpt
 		}
 		option::copy fooOpt() {}
 		`,
