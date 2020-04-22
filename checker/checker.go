@@ -182,22 +182,43 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 			fun = n
 		case *parser.CallStmt:
 			call = n
-		case *parser.Selector:
-			obj := mod.Scope.Lookup(n.Ident.Name)
+		case *parser.Expr:
+			if n.Selector == nil {
+				return false
+			}
+
+			var (
+				args []*parser.Expr
+				with *parser.WithOpt
+			)
+
+			if call.Func == n {
+				args = call.Args
+				with = call.WithOpt
+			}
+
+			obj := mod.Scope.Lookup(n.Name())
 			if obj.Kind == parser.DeclKind {
 				if _, ok := obj.Node.(*parser.ImportDecl); ok {
 					scope := obj.Data.(*parser.Scope)
 
+					typ := fun.Type.ObjType
+					if typ == parser.Option {
+						// Inherit the secondary type from the calling function name.
+						typ = parser.ObjType(fmt.Sprintf("%s::%s", typ, call.Func.Name()))
+					}
+
 					// Check call signature against the imported module's scope since it was
 					// declared there.
-					params, err := c.checkCallSignature(scope, fun.Type.ObjType, call)
+					params, err := c.checkCallSignature(scope, typ, n, args)
 					if err != nil {
 						c.errs = append(c.errs, err)
+						return false
 					}
 
 					// Arguments are passed by value, so invoke the arguments in the main
 					// module's scope, not the imported module's scope.
-					err = c.checkCallArgs(mod.Scope, call, params)
+					err = c.checkCallArgs(mod.Scope, n, args, with, params)
 					if err != nil {
 						c.errs = append(c.errs, err)
 					}
@@ -362,21 +383,21 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 }
 
 func (c *checker) checkCallStmt(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) error {
-	params, err := c.checkCallSignature(scope, typ, call)
+	params, err := c.checkCallSignature(scope, typ, call.Func, call.Args)
 	if err != nil {
 		return err
 	}
 
-	return c.checkCallArgs(scope, call, params)
+	return c.checkCallArgs(scope, call.Func, call.Args, call.WithOpt, params)
 }
 
-func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) ([]*parser.Field, error) {
+func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, expr *parser.Expr, args []*parser.Expr) ([]*parser.Field, error) {
 	var ident *parser.Ident
 	switch {
-	case call.Func.Ident != nil:
-		ident = call.Func.Ident
-	case call.Func.Selector != nil:
-		ident = call.Func.Selector.Select
+	case expr.Ident != nil:
+		ident = expr.Ident
+	case expr.Selector != nil:
+		ident = expr.Selector.Select
 	}
 
 	var signature []*parser.Field
@@ -393,8 +414,8 @@ func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, ca
 			return nil, ErrIdentUndefined{ident}
 		}
 
-		if call.Func.Selector != nil && !obj.Exported {
-			return nil, ErrCallUnexported{call.Func.Selector}
+		if expr.Selector != nil && !obj.Exported {
+			return nil, ErrCallUnexported{expr.Selector}
 		}
 
 		if obj.Kind == parser.DeclKind {
@@ -413,25 +434,25 @@ func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, ca
 
 	// When the signature has a variadic field, construct a temporary signature to
 	// match the calling arguments.
-	params := extendSignatureWithVariadic(signature, call.Args)
+	params := extendSignatureWithVariadic(signature, args)
 
-	if len(params) != len(call.Args) {
-		return params, ErrNumArgs{len(params), call}
+	if len(params) != len(args) {
+		return params, ErrNumArgs{expr, len(params), len(args)}
 	}
 
 	return params, nil
 }
 
-func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, params []*parser.Field) error {
+func (c *checker) checkCallArgs(scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, with *parser.WithOpt, params []*parser.Field) error {
 	var name string
 	switch {
-	case call.Func.Ident != nil:
-		name = call.Func.Ident.Name
-	case call.Func.Selector != nil:
-		name = call.Func.Selector.Select.Name
+	case expr.Ident != nil:
+		name = expr.Ident.Name
+	case expr.Selector != nil:
+		name = expr.Selector.Select.Name
 	}
 
-	for i, arg := range call.Args {
+	for i, arg := range args {
 		typ := params[i].Type.ObjType
 		err := c.checkExpr(scope, typ, arg)
 		if err != nil {
@@ -439,11 +460,11 @@ func (c *checker) checkCallArgs(scope *parser.Scope, call *parser.CallStmt, para
 		}
 	}
 
-	if call.WithOpt != nil {
+	if with != nil {
 		// Inherit the secondary type from the calling function name.
 		optionType := parser.ObjType(fmt.Sprintf("%s::%s", parser.Option, name))
 
-		err := c.checkExpr(scope, optionType, call.WithOpt.Expr)
+		err := c.checkExpr(scope, optionType, with.Expr)
 		if err != nil {
 			return err
 		}
