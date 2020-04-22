@@ -245,6 +245,25 @@ func TestChecker_Check(t *testing.T) {
 			}},
 		},
 	}, {
+		"errors when calling import",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs default() {
+			myImportedModule
+		}
+		`,
+		ErrUseModuleWithoutSelector{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     4,
+					Column:   1,
+				},
+				Name: "myImportedModule",
+			},
+		},
+	}, {
 		"basic function export",
 		`
 		export myFunction

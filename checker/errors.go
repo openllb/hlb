@@ -133,3 +133,11 @@ type ErrBadParse struct {
 func (e ErrBadParse) Error() string {
 	return fmt.Sprintf("%s unable to parse", FormatPos(e.Node.Position()))
 }
+
+type ErrUseModuleWithoutSelector struct {
+	Ident *parser.Ident
+}
+
+func (e ErrUseModuleWithoutSelector) Error() string {
+	return fmt.Sprintf("%s use of module %s without selector", FormatPos(e.Ident.Position()), e.Ident)
+}
