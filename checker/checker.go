@@ -335,6 +335,9 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 					callType = n.Type
 				case *parser.AliasDecl:
 					callType = n.Func.Type
+				case *parser.ImportDecl:
+					c.errs = append(c.errs, ErrUseModuleWithoutSelector{Ident: call.Func.Ident})
+					continue
 				}
 			case parser.FieldKind:
 				field, ok := obj.Node.(*parser.Field)
