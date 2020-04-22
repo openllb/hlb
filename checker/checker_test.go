@@ -396,6 +396,19 @@ func TestChecker_CheckSelectors(t *testing.T) {
 				Name: "invalidSelector",
 			},
 		},
+	}, {
+		"able to use valid selector as mount input",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs badSelectorCaller() {
+			scratch
+			run "xyz" with option {
+				mount myImportedModule.validSelector "/mountpoint"
+			}
+		}
+		`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

@@ -50,12 +50,13 @@ func (e ErrInvalidFunc) Error() string {
 }
 
 type ErrNumArgs struct {
+	Node     parser.Node
 	Expected int
-	CallStmt *parser.CallStmt
+	Actual   int
 }
 
 func (e ErrNumArgs) Error() string {
-	return fmt.Sprintf("%s expected %d args, found %d", FormatPos(e.CallStmt.Pos), e.Expected, len(e.CallStmt.Args))
+	return fmt.Sprintf("%s expected %d args, found %d", FormatPos(e.Node.Position()), e.Expected, e.Actual)
 }
 
 type ErrIdentNotDefined struct {
