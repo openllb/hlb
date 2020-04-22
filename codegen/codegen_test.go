@@ -317,6 +317,55 @@ func TestCodeGen(t *testing.T) {
 				solver.WithEntitlement(entitlements.EntitlementSecurityInsecure),
 			)
 		},
+	}, {
+		"mount over readonly",
+		[]string{"default"},
+		`
+		fs default() {
+			image "busybox"
+			run "find ." with option {
+				dir "/foo"
+				mount fs {
+					local "."
+				} "/foo" with readonly
+				mount scratch "/foo/bar"
+				secret "codegen_test.go" "/foo/secret/codegen_test.go"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			id, err := cg.LocalID(".")
+			require.NoError(t, err)
+			sid := SecretID("codegen_test.go")
+
+			return Expect(t, llb.Image("busybox").Run(
+				llb.Shlex("find ."),
+				llb.Dir("/foo"),
+				llb.AddMount(
+					"/foo",
+					llb.Local(
+						id,
+						llb.SessionID(cg.SessionID()),
+						llb.SharedKeyHint("."),
+					).File(
+						// this Mkdir is made implicitly due to /foo/secret
+						// secret over readonly FS
+						llb.Mkdir("secret", 0755, llb.WithParents(true)),
+					).File(
+						// this Mkfile is made implicitly due to /foo/secret
+						// secret over readonly FS
+						llb.Mkfile("secret/codegen_test.go", 0644, []byte{}),
+					).File(
+						// this Mkdir is made implicitly due to /foo/bar
+						// mount over readonly FS
+						llb.Mkdir("bar", 0755, llb.WithParents(true)),
+					),
+					llb.Readonly,
+				),
+				llb.AddMount("/foo/bar", llb.Scratch()),
+				llb.AddSecret("/foo/secret/codegen_test.go", llb.SecretID(sid)),
+			).Root())
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
