@@ -10,6 +10,7 @@ import (
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/util/entitlements"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/errgroup"
 )
@@ -24,6 +25,7 @@ type SolveInfo struct {
 	OutputLocalOCITarball bool
 	Callbacks             []func() error `json:"-"`
 	ImageSpec             *specs.Image
+	Entitlements          []entitlements.Entitlement
 }
 
 func WithDownloadDockerTarball(ref string) SolveOption {
@@ -75,6 +77,13 @@ func WithImageSpec(cfg *specs.Image) SolveOption {
 	}
 }
 
+func WithEntitlement(e entitlements.Entitlement) SolveOption {
+	return func(info *SolveInfo) error {
+		info.Entitlements = append(info.Entitlements, e)
+		return nil
+	}
+}
+
 func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progress.Writer, def *llb.Definition, opts ...SolveOption) error {
 	info := &SolveInfo{}
 	for _, opt := range opts {
@@ -116,6 +125,7 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 	solveOpt := client.SolveOpt{
 		SharedSession:         s,
 		SessionPreInitialized: s != nil,
+		AllowedEntitlements:   info.Entitlements,
 	}
 
 	if info.OutputDockerRef != "" {

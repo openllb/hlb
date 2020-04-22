@@ -216,7 +216,12 @@ func (o op) Tree(tree treeprint.Tree) error {
 	if o.info.OutputLocalOCITarball {
 		solve.AddNode("downloadOCITarball")
 	}
-
+	if len(o.info.Entitlements) > 0 {
+		ent := solve.AddBranch("entitlements")
+		for _, entitlements := range o.info.Entitlements {
+			ent.AddNode(string(entitlements))
+		}
+	}
 	for _, input := range pbOp.Inputs {
 		if _, ok := reportedInputs[input.Digest]; ok {
 			continue

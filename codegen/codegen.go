@@ -26,6 +26,7 @@ import (
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/solver/pb"
+	"github.com/moby/buildkit/util/entitlements"
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
@@ -912,6 +913,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					netMode = pb.NetMode_UNSET
 				case "host":
 					netMode = pb.NetMode_HOST
+					cg.solveOpts = append(cg.solveOpts, solver.WithEntitlement(entitlements.EntitlementNetworkHost))
 				case "node":
 					netMode = pb.NetMode_NONE
 				default:
@@ -931,6 +933,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					securityMode = pb.SecurityMode_SANDBOX
 				case "insecure":
 					securityMode = pb.SecurityMode_INSECURE
+					cg.solveOpts = append(cg.solveOpts, solver.WithEntitlement(entitlements.EntitlementSecurityInsecure))
 				default:
 					return opts, errors.WithStack(ErrCodeGen{args[0], errors.Errorf("unknown security mode")})
 				}
