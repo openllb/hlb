@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/solver/pb"
+	"github.com/moby/buildkit/util/entitlements"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -291,6 +293,29 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Image("busybox").Run(
 				llb.Shlexf("echo hi %s", os.Getenv("USER")),
 			).Root())
+		},
+	}, {
+		"entitlements",
+		[]string{"default"},
+		`
+		fs default() {
+			image "busybox"
+			run "entitlements" with option {
+				network "host"
+				security "insecure"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t,
+				llb.Image("busybox").Run(
+					llb.Shlex("entitlements"),
+					llb.Network(pb.NetMode_HOST),
+					llb.Security(pb.SecurityMode_INSECURE),
+				).Root(),
+				solver.WithEntitlement(entitlements.EntitlementNetworkHost),
+				solver.WithEntitlement(entitlements.EntitlementSecurityInsecure),
+			)
 		},
 	}} {
 		tc := tc
