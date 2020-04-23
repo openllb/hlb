@@ -268,6 +268,18 @@ option::secret gid(int id)
 # @return an option to set the permissions of the secure file.
 option::secret mode(int filemode)
 
+# Attach secrets only for files that match any of the included patterns.
+#
+# @param pattern a list of patterns for files that should be attached as secrets
+# @return an option to attach files that match any pattern.
+option::secret includePatterns(variadic string pattern)
+
+# Attach secrets only for files that do not match any of the excluded patterns.
+#
+# @param pattern a list of patterns for files that should not be attached as secrets
+# @return an option to attach files that don't match any pattern.
+option::secret excludePatterns(variadic string pattern)
+
 # Sets the mount to be attached as a read-only filesystem.
 #
 # @return an option to attach the mount as a read-only filesystem..

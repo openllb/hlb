@@ -385,6 +385,16 @@ var (
 							parser.NewField(parser.Int, "filemode", false),
 						},
 					},
+					"includePatterns": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "pattern", true),
+						},
+					},
+					"excludePatterns": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "pattern", true),
+						},
+					},
 				},
 			},
 			"option::ssh": LookupByType{

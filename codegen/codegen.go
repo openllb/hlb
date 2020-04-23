@@ -1060,38 +1060,121 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.AddSSHSocket(sshOpts...))
 			case "secret":
-				localPath, err := cg.EmitStringExpr(ctx, scope, args[0])
+				localPathArg, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
 
-				localPath, err = ResolvePathForNode(scope.Node, localPath)
+				localPathArg, err = ResolvePathForNode(scope.Node, localPathArg)
 				if err != nil {
 					return opts, err
 				}
 
-				mountPoint, err := cg.EmitStringExpr(ctx, scope, args[1])
-				if err != nil {
-					return opts, err
-				}
+				var includePatterns []string
+				var excludePatterns []string
 
-				id := SecretID(localPath)
+				secretOpts := []llb.SecretOption{}
 
-				// Register path as an allowed file source for the session.
-				cg.fileSourceByID[id] = secretsprovider.FileSource{
-					ID:       id,
-					FilePath: localPath,
-				}
-
-				secretOpts := []llb.SecretOption{
-					llb.SecretID(id),
-				}
 				for _, iopt := range iopts {
-					opt := iopt.(llb.SecretOption)
-					secretOpts = append(secretOpts, opt)
+					switch opt := iopt.(type) {
+					case *secretIncludePatterns:
+						includePatterns = opt.Patterns
+					case *secretExcludePatterns:
+						excludePatterns = opt.Patterns
+					case llb.SecretOption:
+						secretOpts = append(secretOpts, opt)
+					}
 				}
 
-				opts = append(opts, llb.AddSecret(mountPoint, secretOpts...))
+				localPaths := []string{}
+				if st, err := os.Stat(localPathArg); err != nil {
+					return opts, err
+				} else {
+					switch {
+					case st.Mode().IsRegular():
+						localPaths = append(localPaths, localPathArg)
+					case st.Mode().IsDir():
+						err := filepath.Walk(localPathArg, func(walkPath string, info os.FileInfo, err error) error {
+							if err != nil {
+								return err
+							}
+							relPath, err := filepath.Rel(localPathArg, walkPath)
+							if err != nil {
+								return err
+							}
+							if relPath == "." {
+								return nil
+							}
+							if len(includePatterns) > 0 {
+								for _, pattern := range includePatterns {
+									if ok, err := filepath.Match(pattern, relPath); ok && err == nil {
+										if info.Mode().IsRegular() {
+											localPaths = append(localPaths, walkPath)
+										}
+										return nil
+									} else if err != nil {
+										return err
+									}
+								}
+								// didn't match include, so skip directory
+								if info.Mode().IsDir() {
+									return filepath.SkipDir
+								}
+								return nil
+							} else if len(excludePatterns) > 0 {
+								for _, pattern := range excludePatterns {
+									if ok, err := filepath.Match(pattern, relPath); !ok && err == nil {
+										if info.Mode().IsDir() {
+											return filepath.SkipDir
+										}
+										return nil
+									} else if err != nil {
+										return err
+									}
+								}
+								// didn't match exclude to add it to list
+								if info.Mode().IsRegular() {
+									localPaths = append(localPaths, walkPath)
+								}
+								return nil
+							}
+							if info.Mode().IsRegular() {
+								localPaths = append(localPaths, walkPath)
+							}
+							return nil
+						})
+						if err != nil {
+							return opts, err
+						}
+					default:
+						return opts, errors.Errorf("Unexpected secret file type at %s", localPathArg)
+					}
+				}
+
+				mountPointArg, err := cg.EmitStringExpr(ctx, scope, args[1])
+				if err != nil {
+					return opts, err
+				}
+
+				for _, localPath := range localPaths {
+					mountPoint := filepath.Join(
+						mountPointArg,
+						strings.TrimPrefix(localPath, localPathArg),
+					)
+
+					id := SecretID(localPath)
+
+					// Register path as an allowed file source for the session.
+					cg.fileSourceByID[id] = secretsprovider.FileSource{
+						ID:       id,
+						FilePath: localPath,
+					}
+
+					opts = append(opts, llb.AddSecret(
+						mountPoint,
+						append(secretOpts, llb.SecretID(id))...,
+					))
+				}
 			case "mount":
 				input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
 				if err != nil {
@@ -1103,13 +1186,11 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					return opts, err
 				}
 
-				var mountOpts []llb.MountOption
-				for _, iopt := range iopts {
-					opt := iopt.(llb.MountOption)
-					mountOpts = append(mountOpts, opt)
-				}
-
-				opts = append(opts, llb.AddMount(target, input, mountOpts...))
+				opts = append(opts, &mountRunOption{
+					Target: target,
+					Source: input,
+					Opts:   iopts,
+				})
 			default:
 				iopts, err := cg.EmitOptionLookup(ctx, scope, expr, args, op)
 				if err != nil {
@@ -1120,6 +1201,37 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 		}
 	}
 	return
+}
+
+// mountRunOption gives access to capture custom MountOptions so we
+// can easily capture if the mount is to be readonly
+type mountRunOption struct {
+	Target string
+	Source llb.State
+	Opts   []interface{}
+}
+
+type readonlyMount struct{}
+
+func (m *mountRunOption) SetRunOption(es *llb.ExecInfo) {
+	opts := []llb.MountOption{}
+	for _, opt := range m.Opts {
+		if _, ok := opt.(*readonlyMount); ok {
+			opts = append(opts, llb.Readonly)
+			continue
+		}
+		opts = append(opts, opt.(llb.MountOption))
+	}
+	llb.AddMount(m.Target, m.Source, opts...).SetRunOption(es)
+}
+
+func (m *mountRunOption) IsReadonly() bool {
+	for _, opt := range m.Opts {
+		if _, ok := opt.(*readonlyMount); ok {
+			return true
+		}
+	}
+	return false
 }
 
 type sshSocketOpt struct {
@@ -1215,6 +1327,14 @@ type secretOpt struct {
 	mode os.FileMode
 }
 
+type secretIncludePatterns struct {
+	Patterns []string
+}
+
+type secretExcludePatterns struct {
+	Patterns []string
+}
+
 func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	var sopt *secretOpt
 	for _, stmt := range stmts {
@@ -1254,6 +1374,24 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 					sopt = &secretOpt{}
 				}
 				sopt.mode = os.FileMode(mode)
+			case "includePatterns":
+				patterns := make([]string, len(args))
+				for i, arg := range args {
+					patterns[i], err = cg.EmitStringExpr(ctx, scope, arg)
+					if err != nil {
+						return opts, err
+					}
+				}
+				opts = append(opts, &secretIncludePatterns{patterns})
+			case "excludePatterns":
+				patterns := make([]string, len(args))
+				for i, arg := range args {
+					patterns[i], err = cg.EmitStringExpr(ctx, scope, arg)
+					if err != nil {
+						return opts, err
+					}
+				}
+				opts = append(opts, &secretExcludePatterns{patterns})
 			default:
 				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
@@ -1286,7 +1424,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 					return opts, err
 				}
 				if v {
-					opts = append(opts, llb.MountOption(llb.Readonly))
+					opts = append(opts, &readonlyMount{})
 				}
 			case "tmpfs":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
