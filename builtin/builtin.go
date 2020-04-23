@@ -434,10 +434,19 @@ var (
 							parser.NewField(parser.Str, "values", true),
 						},
 					},
+					"localArch": FuncLookup{
+						Params: []*parser.Field{},
+					},
+					"localCwd": FuncLookup{
+						Params: []*parser.Field{},
+					},
 					"localEnv": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "key", false),
 						},
+					},
+					"localOs": FuncLookup{
+						Params: []*parser.Field{},
 					},
 					"template": FuncLookup{
 						Params: []*parser.Field{
