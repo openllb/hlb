@@ -13,6 +13,7 @@ import (
 	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -78,6 +79,12 @@ type RunOptions struct {
 	LLB       bool
 	LogOutput string
 	Output    io.Writer
+
+	// override defaults sources as necessary
+	Environ []string
+	Cwd     string
+	Os      string
+	Arch    string
 }
 
 func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOptions) error {
@@ -87,6 +94,15 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 	if opts.Output == nil {
 		opts.Output = os.Stdout
 	}
+
+	ctx = local.WithEnviron(ctx, opts.Environ)
+	var err error
+	ctx, err = local.WithCwd(ctx, opts.Cwd)
+	if err != nil {
+		return err
+	}
+	ctx = local.WithOs(ctx, opts.Os)
+	ctx = local.WithArch(ctx, opts.Arch)
 
 	var progressOpts []solver.ProgressOption
 	if opts.LogOutput == "" || opts.LogOutput == "auto" {
