@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"text/template"
 
@@ -15,6 +14,7 @@ import (
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/solver/pb"
+	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
@@ -790,11 +790,11 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		}, nil
 	case "localArch":
 		return func(_ string) (string, error) {
-			return runtime.GOARCH, nil
+			return local.Arch(ctx), nil
 		}, nil
 	case "localCwd":
 		return func(_ string) (string, error) {
-			return os.Getwd()
+			return local.Cwd(ctx)
 		}, nil
 	case "localEnv":
 		key, err := cg.EmitStringExpr(ctx, scope, args[0])
@@ -803,11 +803,11 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		}
 
 		return func(_ string) (string, error) {
-			return os.Getenv(key), nil
+			return local.Env(ctx, key), nil
 		}, nil
 	case "localOs":
 		return func(_ string) (string, error) {
-			return runtime.GOOS, nil
+			return local.Os(ctx), nil
 		}, nil
 	case "template":
 		text, err := cg.EmitStringExpr(ctx, scope, args[0])
