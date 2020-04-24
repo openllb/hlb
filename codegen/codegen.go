@@ -30,6 +30,7 @@ import (
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/sockprovider"
 	"github.com/openllb/hlb/solver"
@@ -1478,8 +1479,12 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 
 // Get a consistent hash for this local (path + options) so we don't transport
 // the same content multiple times when referenced repeatedly.
-func (cg *CodeGen) LocalID(path string, opts ...llb.LocalOption) (string, error) {
-	opts = append(opts, llb.SessionID(cg.SessionID()))
+func (cg *CodeGen) LocalID(ctx context.Context, path string, opts ...llb.LocalOption) (string, error) {
+	uniqID, err := localUniqueID(ctx)
+	if err != nil {
+		return "", err
+	}
+	opts = append(opts, llb.LocalUniqueID(uniqID))
 	st := llb.Local(path, opts...)
 
 	def, err := st.Marshal(context.Background())
@@ -1492,6 +1497,37 @@ func (cg *CodeGen) LocalID(path string, opts ...llb.LocalOption) (string, error)
 	// of its inputs and so on, the digest of the terminal op is a merkle hash for
 	// the graph.
 	return digest.FromBytes(def.Def[len(def.Def)-1]).String(), nil
+}
+
+// returns a consistent string that is unique per host + cwd
+func localUniqueID(ctx context.Context) (string, error) {
+	wd, err := local.Cwd(ctx)
+	if err != nil {
+		return "", err
+	}
+	mac, err := firstUpMacAddr()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("cwd:%s,mac:%s", wd, mac), nil
+}
+
+// return the mac address for the first "UP" network interface
+func firstUpMacAddr() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue // not up
+		}
+		if iface.HardwareAddr.String() == "" {
+			continue // no mac
+		}
+		return iface.HardwareAddr.String(), nil
+	}
+	return "no-valid-interface", nil
 }
 
 func SecretID(path string) string {

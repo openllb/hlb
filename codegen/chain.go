@@ -184,7 +184,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			opts = append(opts, opt)
 		}
 
-		id, err := cg.LocalID(path, opts...)
+		id, err := cg.LocalID(ctx, path, opts...)
 		if err != nil {
 			return fc, err
 		}
