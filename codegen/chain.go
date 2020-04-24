@@ -469,15 +469,15 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
-		var opts []llb.CopyOption
+		info := &llb.CopyInfo{}
 		for _, iopt := range iopts {
-			opt := iopt.(llb.CopyOption)
-			opts = append(opts, opt)
+			opt := iopt.(CopyOption)
+			opt(info)
 		}
 
 		fc = func(st llb.State) (llb.State, error) {
 			return st.File(
-				llb.Copy(input, src, dest, opts...),
+				llb.Copy(input, src, dest, info),
 			), nil
 		}
 	case "dockerPush":
