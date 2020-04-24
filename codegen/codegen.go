@@ -740,55 +740,116 @@ func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op st
 	return
 }
 
-func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
-	cp := &llb.CopyInfo{}
+type CopyOption func(*llb.CopyInfo)
 
+func WithFollowSymlinks(follow bool) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.FollowSymlinks = follow
+	}
+}
+
+func WithCopyDirContentsOnly(contentsOnly bool) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.CopyDirContentsOnly = contentsOnly
+	}
+}
+
+func WithAttemptUnpack(unpack bool) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.AttemptUnpack = unpack
+	}
+}
+
+func WithCreateDestPath(createDest bool) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.CreateDestPath = createDest
+	}
+}
+
+func WithAllowWildcard(allow bool) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.AllowWildcard = allow
+	}
+}
+
+func WithAllowEmptyWildcard(allow bool) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.AllowEmptyWildcard = allow
+	}
+}
+
+func WithChown(owner string) CopyOption {
+	return func(info *llb.CopyInfo) {
+		opt := llb.WithUser(owner).(llb.ChownOpt)
+		info.ChownOpt = &opt
+	}
+}
+
+func WithChmod(mode os.FileMode) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.Mode = &mode
+	}
+}
+
+func WithCreatedTime(t time.Time) CopyOption {
+	return func(info *llb.CopyInfo) {
+		info.CreatedTime = &t
+	}
+}
+
+func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
 			switch stmt.Call.Func.Ident.Name {
 			case "followSymlinks":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
+				follow, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
-				cp.FollowSymlinks = v
+				opts = append(opts, WithFollowSymlinks(follow))
 			case "contentsOnly":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
+				contentsOnly, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
-				cp.CopyDirContentsOnly = v
+				opts = append(opts, WithCopyDirContentsOnly(contentsOnly))
 			case "unpack":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
+				unpack, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
-				cp.AttemptUnpack = v
+				opts = append(opts, WithAttemptUnpack(unpack))
 			case "createDestPath":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
+				create, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
-				cp.CreateDestPath = v
+				opts = append(opts, WithCreateDestPath(create))
 			case "allowWildcard":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
+				allow, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
-				cp.AllowWildcard = v
+				opts = append(opts, WithAllowWildcard(allow))
 			case "allowEmptyWildcard":
-				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
+				allow, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
 					return opts, err
 				}
-				cp.AllowEmptyWildcard = v
+				opts = append(opts, WithAllowEmptyWildcard(allow))
 			case "chown":
 				owner, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}
-				opts = append(opts, llb.WithUser(owner))
+				opts = append(opts, WithChown(owner))
+			case "chmod":
+				mode, err := cg.EmitIntExpr(ctx, scope, args[0])
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, WithChmod(os.FileMode(mode)))
 			case "createdTime":
 				v, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -799,8 +860,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 				if err != nil {
 					return opts, err
 				}
-
-				opts = append(opts, llb.WithCreatedTime(t))
+				opts = append(opts, WithCreatedTime(t))
 			default:
 				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
@@ -810,8 +870,6 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 			}
 		}
 	}
-
-	opts = append([]interface{}{cp}, opts...)
 	return
 }
 

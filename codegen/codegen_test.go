@@ -367,6 +367,33 @@ func TestCodeGen(t *testing.T) {
 				llb.AddSecret("/foo/secret/codegen_test.go", llb.SecretID(sid)),
 			).Root())
 		},
+	}, {
+		"merging user defined option::copy with func lit",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			copy scratch "/" "/foo" with option {
+				createDestPath
+				myOpt
+			}
+		}
+
+		option::copy myOpt() {
+			chown "1001:1001"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(
+				llb.Copy(llb.Scratch(), "/", "/foo", &llb.CopyInfo{
+					CreateDestPath: true,
+					ChownOpt: &llb.ChownOpt{
+						User:  &llb.UserOpt{UID: 1001},
+						Group: &llb.UserOpt{UID: 1001},
+					},
+				}),
+			))
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

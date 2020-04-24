@@ -31,7 +31,7 @@ option::http checksum(string digest)
 
 # Modifies the permissions of the retrieved file.
 #
-# @param filemode the new permissions of the file in int.
+# @param filemode the new permissions of the file.
 # @return an option to chmod the file.
 option::http chmod(int filemode)
 
@@ -444,6 +444,12 @@ option::copy allowEmptyWildcard()
 # @param owner the user:group owner of the copy path.
 # @return an option to change the owner of the copy path.
 option::copy chown(string owner)
+
+# Modifies the permissions of the copied files.
+#
+# @param filemode the new permissions of the file.
+# @return an option to chmod the file.
+option::copy chmod(int filemode)
 
 # Sets the created time of the copy path.
 #
