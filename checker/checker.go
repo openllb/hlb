@@ -200,7 +200,7 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 			obj := mod.Scope.Lookup(n.Name())
 			if obj.Kind == parser.DeclKind {
 				if _, ok := obj.Node.(*parser.ImportDecl); ok {
-					scope := obj.Data.(*parser.Scope)
+					importScope := obj.Data.(*parser.Scope)
 
 					typ := fun.Type.ObjType
 					if typ == parser.Option {
@@ -210,15 +210,15 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 
 					// Check call signature against the imported module's scope since it was
 					// declared there.
-					params, err := c.checkCallSignature(scope, typ, n, args)
+					params, err := c.checkCallSignature(importScope, typ, n, args)
 					if err != nil {
 						c.errs = append(c.errs, err)
 						return false
 					}
 
-					// Arguments are passed by value, so invoke the arguments in the main
-					// module's scope, not the imported module's scope.
-					err = c.checkCallArgs(mod.Scope, n, args, with, params)
+					// Arguments are passed by value, so invoke the arguments in the
+					// function's scope, not the imported module's scope.
+					err = c.checkCallArgs(fun.Scope, n, args, with, params)
 					if err != nil {
 						c.errs = append(c.errs, err)
 					}
