@@ -372,7 +372,7 @@ func TestChecker_CheckSelectors(t *testing.T) {
 		`
 		import myImportedModule "./myModule.hlb"
 	
-		fs badSelectorCaller() {
+		fs default() {
 			myImportedModule.validSelector
 		}
 		`,
@@ -382,7 +382,7 @@ func TestChecker_CheckSelectors(t *testing.T) {
 		`
 		import myImportedModule "./myModule.hlb"
 	
-		fs badSelectorCaller() {
+		fs default() {
 			myImportedModule.invalidSelector
 		}
 		`,
@@ -401,11 +401,21 @@ func TestChecker_CheckSelectors(t *testing.T) {
 		`
 		import myImportedModule "./myModule.hlb"
 	
-		fs badSelectorCaller() {
+		fs default() {
 			scratch
 			run "xyz" with option {
 				mount myImportedModule.validSelector "/mountpoint"
 			}
+		}
+		`,
+		nil,
+	}, {
+		"able to pass function field as argument to selector",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs default(string foo) {
+			myImportedModule.validSelectorWithArgs foo
 		}
 		`,
 		nil,
@@ -414,7 +424,9 @@ func TestChecker_CheckSelectors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			importedModuleDefinition := `
 				export validSelector
+				export validSelectorWithArgs
 				fs validSelector() {}
+				fs validSelectorWithArgs(string bar) {}
 			`
 
 			importedModule, err := parser.Parse(strings.NewReader(importedModuleDefinition))
