@@ -41,6 +41,7 @@ func cleanup(value string) string {
 }
 
 func TestCodeGen(t *testing.T) {
+	ctx := context.Background()
 	for _, tc := range []testCase{{
 		"image",
 		[]string{"default"},
@@ -76,7 +77,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			id, err := cg.LocalID(".")
+			id, err := cg.LocalID(ctx, ".")
 			require.NoError(t, err)
 
 			return Expect(t, llb.Local(id, llb.SessionID(cg.SessionID()), llb.SharedKeyHint(".")))
@@ -334,7 +335,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			id, err := cg.LocalID(".")
+			id, err := cg.LocalID(ctx, ".")
 			require.NoError(t, err)
 			sid := SecretID("codegen_test.go")
 
