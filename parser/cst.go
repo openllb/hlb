@@ -357,13 +357,17 @@ func (e *Expr) End() lexer.Position {
 }
 
 func (e *Expr) Name() string {
+	return e.IdentNode().Name
+}
+
+func (e *Expr) IdentNode() *Ident {
 	switch {
 	case e.Selector != nil:
-		return e.Selector.Ident.Name
+		return e.Selector.Ident
 	case e.Ident != nil:
-		return e.Ident.Name
+		return e.Ident
 	default:
-		return ""
+		return &Ident{}
 	}
 }
 

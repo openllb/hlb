@@ -200,8 +200,6 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 			obj := mod.Scope.Lookup(n.Name())
 			if obj.Kind == parser.DeclKind {
 				if _, ok := obj.Node.(*parser.ImportDecl); ok {
-					importScope := obj.Data.(*parser.Scope)
-
 					typ := fun.Type.ObjType
 					if typ == parser.Option {
 						// Inherit the secondary type from the calling function name.
@@ -210,7 +208,7 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 
 					// Check call signature against the imported module's scope since it was
 					// declared there.
-					params, err := c.checkCallSignature(importScope, typ, n, args)
+					params, err := c.checkCallSignature(mod.Scope, typ, n, args)
 					if err != nil {
 						c.errs = append(c.errs, err)
 						return false
@@ -300,7 +298,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 		}
 
 		call := stmt.Call
-		if call.Func == nil || (call.Func.Ident != nil && call.Func.Ident.Name == "breakpoint") {
+		if call.Func == nil || call.Func.Name() == "breakpoint" {
 			continue
 		}
 
@@ -343,7 +341,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 		if !ok {
 			obj := scope.Lookup(name)
 			if obj == nil {
-				return ErrIdentNotDefined{Ident: call.Func.Ident}
+				return ErrIdentNotDefined{Ident: call.Func.IdentNode()}
 			}
 
 			// The retrieved object may be either a function declaration or a field
@@ -357,7 +355,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 				case *parser.AliasDecl:
 					callType = n.Func.Type
 				case *parser.ImportDecl:
-					c.errs = append(c.errs, ErrUseModuleWithoutSelector{Ident: call.Func.Ident})
+					c.errs = append(c.errs, ErrUseModuleWithoutSelector{Ident: call.Func.IdentNode()})
 					continue
 				}
 			case parser.FieldKind:
@@ -383,6 +381,10 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 }
 
 func (c *checker) checkCallStmt(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) error {
+	if call.Func.Selector != nil {
+		return nil
+	}
+
 	params, err := c.checkCallSignature(scope, typ, call.Func, call.Args)
 	if err != nil {
 		return err
@@ -392,30 +394,18 @@ func (c *checker) checkCallStmt(scope *parser.Scope, typ parser.ObjType, call *p
 }
 
 func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, expr *parser.Expr, args []*parser.Expr) ([]*parser.Field, error) {
-	var ident *parser.Ident
-	switch {
-	case expr.Ident != nil:
-		ident = expr.Ident
-	case expr.Selector != nil:
-		ident = expr.Selector.Select
-	}
-
 	var signature []*parser.Field
-	fun, ok := builtin.Lookup.ByType[typ].Func[ident.Name]
+	fun, ok := builtin.Lookup.ByType[typ].Func[expr.Name()]
 	if !ok && typ == parser.Group {
-		fun, ok = builtin.Lookup.ByType[parser.Filesystem].Func[ident.Name]
+		fun, ok = builtin.Lookup.ByType[parser.Filesystem].Func[expr.Name()]
 	}
 
 	if ok {
 		signature = fun.Params
 	} else {
-		obj := scope.Lookup(ident.Name)
+		obj := scope.Lookup(expr.Name())
 		if obj == nil {
-			return nil, ErrIdentUndefined{ident}
-		}
-
-		if expr.Selector != nil && !obj.Exported {
-			return nil, ErrCallUnexported{expr.Selector}
+			return nil, ErrIdentUndefined{expr.IdentNode()}
 		}
 
 		if obj.Kind == parser.DeclKind {
@@ -425,7 +415,23 @@ func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, ex
 			case *parser.AliasDecl:
 				signature = n.Func.Params.List
 			case *parser.ImportDecl:
-				panic("todo: ErrCallImport")
+				importScope := obj.Data.(*parser.Scope)
+				importObj := importScope.Lookup(expr.Selector.Select.Name)
+				if importObj == nil {
+					return nil, ErrIdentUndefined{expr.Selector.Select}
+				}
+				if !importObj.Exported {
+					return nil, ErrCallUnexported{expr.Selector}
+				}
+
+				switch m := importObj.Node.(type) {
+				case *parser.FuncDecl:
+					signature = m.Params.List
+				case *parser.AliasDecl:
+					signature = m.Func.Params.List
+				default:
+					panic("implementation error")
+				}
 			default:
 				panic("implementation error")
 			}

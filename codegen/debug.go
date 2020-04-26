@@ -149,7 +149,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 								Func: n,
 							}
 						case *parser.CallStmt:
-							if n.Func.Ident.Name == "breakpoint" {
+							if n.Func.Name() == "breakpoint" {
 								fmt.Fprintf(w, "%s cannot break at breakpoint\n", checker.FormatPos(n.Pos))
 								continue
 							}
