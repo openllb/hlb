@@ -55,6 +55,17 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Image("alpine"))
 		},
 	}, {
+		"scratch",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch())
+		},
+	}, {
 		"call function",
 		[]string{"default"},
 		`
