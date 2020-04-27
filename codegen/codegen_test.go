@@ -225,6 +225,63 @@ func TestCodeGen(t *testing.T) {
 				llb.WithAllowWildcard(true))))
 		},
 	}, {
+		"basic copy",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch as this
+			copy this "testSource" "testDest"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			scratch := llb.Scratch()
+			return Expect(t, scratch.File(llb.Copy(scratch, "testSource", "testDest")))
+		},
+	}, {
+		"copy with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch as this
+			copy this "testSource" "testDest" with option {
+				followSymlinks
+				contentsOnly
+				unpack
+				createDestPath
+				allowWildcard
+				allowEmptyWildcard
+				chown "testUser"
+				chmod 0x777
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
+			require.NoError(t, err)
+
+			fileMode := os.FileMode(0x777)
+			copyInfo := llb.CopyInfo{
+				Mode:                &fileMode,
+				FollowSymlinks:      true,
+				CopyDirContentsOnly: true,
+				AttemptUnpack:       true,
+				CreateDestPath:      true,
+				AllowWildcard:       true,
+				AllowEmptyWildcard:  true,
+			}
+
+			scratch := llb.Scratch()
+			return Expect(t, scratch.File(llb.Copy(
+				scratch,
+				"testSource",
+				"testDest",
+				&copyInfo,
+				llb.WithUser("testUser"),
+				llb.WithCreatedTime(createdTime),
+			)))
+		},
+	}, {
 		"call function",
 		[]string{"default"},
 		`
