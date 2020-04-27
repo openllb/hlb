@@ -41,6 +41,7 @@ func cleanup(value string) string {
 }
 
 func TestCodeGen(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tc := range []testCase{{
 		"image",
@@ -397,8 +398,6 @@ func TestCodeGen(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			cg, err := New()
 			require.NoError(t, err)
 
