@@ -195,6 +195,36 @@ func TestCodeGen(t *testing.T) {
 				llb.WithCreatedTime(createdTime))))
 		},
 	}, {
+		"basic rm",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			rm "testFile"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Rm("testFile")))
+		},
+	}, {
+		"rm with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			rm "testFile" with option {
+				allowNotFound
+				allowWildcard
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Rm(
+				"testFile",
+				llb.WithAllowNotFound(true),
+				llb.WithAllowWildcard(true))))
+		},
+	}, {
 		"call function",
 		[]string{"default"},
 		`
