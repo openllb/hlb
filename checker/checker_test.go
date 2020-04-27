@@ -419,14 +419,38 @@ func TestChecker_CheckSelectors(t *testing.T) {
 		}
 		`,
 		nil,
+	}, {
+		"use imported option",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs default(string foo) {
+			image "busybox" with myImportedModule.resolveImage
+		}
+		`,
+		nil,
+	}, {
+		"merge imported option",
+		`
+		import myImportedModule "./myModule.hlb"
+	
+		fs default(string foo) {
+			image "busybox" with option {
+				myImportedModule.resolveImage
+			}
+		}
+		`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			importedModuleDefinition := `
 				export validSelector
 				export validSelectorWithArgs
+				export resolveImage
 				fs validSelector() {}
 				fs validSelectorWithArgs(string bar) {}
+				option::image resolveImage() { resolve; }
 			`
 
 			importedModule, err := parser.Parse(strings.NewReader(importedModuleDefinition))

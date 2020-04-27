@@ -285,7 +285,7 @@ type aliasCallback func(*parser.CallStmt, interface{}) bool
 func noopAliasCallback(_ *parser.CallStmt, _ interface{}) bool { return true }
 
 func isBreakpoint(call *parser.CallStmt) bool {
-	return call.Func.Ident != nil && call.Func.Ident.Name == "breakpoint"
+	return call.Func.Name() == "breakpoint"
 }
 
 func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (interface{}, error) {
@@ -435,7 +435,7 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "resolve":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
@@ -463,6 +463,15 @@ func (cg *CodeGen) EmitOptionLookup(ctx context.Context, scope *parser.Scope, ex
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
 			return cg.EmitOptionFuncDecl(ctx, scope, n, args)
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(expr.Selector.Select.Name)
+			switch m := importObj.Node.(type) {
+			case *parser.FuncDecl:
+				return cg.EmitOptionFuncDecl(ctx, scope, m, args)
+			default:
+				return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
+			}
 		default:
 			return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
 		}
@@ -480,7 +489,7 @@ func (cg *CodeGen) EmitHTTPOptions(ctx context.Context, scope *parser.Scope, op 
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "checksum":
 				dgst, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -515,7 +524,7 @@ func (cg *CodeGen) EmitGitOptions(ctx context.Context, scope *parser.Scope, op s
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "keepGitDir":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
@@ -540,7 +549,7 @@ func (cg *CodeGen) EmitLocalOptions(ctx context.Context, scope *parser.Scope, op
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "includePatterns":
 				patterns := make([]string, len(args))
 				for i, arg := range args {
@@ -598,7 +607,7 @@ func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope,
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "input":
 				key, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -639,7 +648,7 @@ func (cg *CodeGen) EmitMkdirOptions(ctx context.Context, scope *parser.Scope, op
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "createParents":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
@@ -680,7 +689,7 @@ func (cg *CodeGen) EmitMkfileOptions(ctx context.Context, scope *parser.Scope, o
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "chown":
 				owner, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -715,7 +724,7 @@ func (cg *CodeGen) EmitRmOptions(ctx context.Context, scope *parser.Scope, op st
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "allowNotFound":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
@@ -801,7 +810,7 @@ func (cg *CodeGen) EmitCopyOptions(ctx context.Context, scope *parser.Scope, op 
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "followSymlinks":
 				follow, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {
@@ -882,7 +891,7 @@ func (cg *CodeGen) EmitTemplateOptions(ctx context.Context, scope *parser.Scope,
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "stringField":
 				name, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -1307,7 +1316,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "target":
 				target, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -1399,7 +1408,7 @@ func (cg *CodeGen) EmitSecretOptions(ctx context.Context, scope *parser.Scope, o
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "id":
 				id, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
@@ -1476,7 +1485,7 @@ func (cg *CodeGen) EmitMountOptions(ctx context.Context, scope *parser.Scope, op
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
-			switch stmt.Call.Func.Ident.Name {
+			switch stmt.Call.Func.Name() {
 			case "readonly":
 				v, err := cg.MaybeEmitBoolExpr(ctx, scope, args)
 				if err != nil {

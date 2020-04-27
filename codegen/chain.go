@@ -82,6 +82,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(expr.Selector.Select.Name)
+			if importObj == nil {
+				return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("could not find reference")})
+			}
+
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
 				v, err = cg.EmitFuncDecl(ctx, scope, m, args, ac, chainStart)
@@ -314,7 +318,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 				// to be in the context of a specific function run is in.
 			case with.Expr.FuncLit != nil:
 				for _, stmt := range with.Expr.FuncLit.Body.NonEmptyStmts() {
-					if stmt.Call.Func.Ident.Name != "mount" || stmt.Call.Alias == nil {
+					if stmt.Call.Func.Name() != "mount" || stmt.Call.Alias == nil {
 						continue
 					}
 
