@@ -123,6 +123,18 @@ func TestCodeGen(t *testing.T) {
 				llb.KeepGitDir()))
 		},
 	}, {
+		"basic env",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			env "TEST_VAR" "test value"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().AddEnv("TEST_VAR", "test value"))
+		},
+	}, {
 		"call function",
 		[]string{"default"},
 		`
