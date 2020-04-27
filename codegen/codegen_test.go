@@ -55,7 +55,7 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.Image("alpine"))
 		},
 	}, {
-		"scratch",
+		"basic scratch",
 		[]string{"default"},
 		`
 		fs default() {
@@ -64,6 +64,36 @@ func TestCodeGen(t *testing.T) {
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return Expect(t, llb.Scratch())
+		},
+	}, {
+		"basic http",
+		[]string{"default"},
+		`
+		fs default() {
+			http "http://my.test.url"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.HTTP("http://my.test.url"))
+		},
+	}, {
+		"http with options",
+		[]string{"default"},
+		`
+		fs default() {
+			http "http://my.test.url" with option {
+				checksum "123"
+				chmod 777
+				filename "myTest.out"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.HTTP(
+				"http://my.test.url",
+				llb.Checksum("123"),
+				llb.Chmod(os.FileMode(777)),
+				llb.Filename("myTest.out")))
 		},
 	}, {
 		"call function",
