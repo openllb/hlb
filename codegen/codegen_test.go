@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/pb"
@@ -83,7 +84,7 @@ func TestCodeGen(t *testing.T) {
 		fs default() {
 			http "http://my.test.url" with option {
 				checksum "123"
-				chmod 777
+				chmod 0x777
 				filename "myTest.out"
 			}
 		}
@@ -92,7 +93,7 @@ func TestCodeGen(t *testing.T) {
 			return Expect(t, llb.HTTP(
 				"http://my.test.url",
 				llb.Checksum("123"),
-				llb.Chmod(os.FileMode(777)),
+				llb.Chmod(os.FileMode(0x777)),
 				llb.Filename("myTest.out")))
 		},
 	}, {
@@ -123,16 +124,40 @@ func TestCodeGen(t *testing.T) {
 				llb.KeepGitDir()))
 		},
 	}, {
-		"basic env",
+		"basic mkdir",
 		[]string{"default"},
 		`
 		fs default() {
 			scratch
-			env "TEST_VAR" "test value"
+			mkdir "testDir" 0x777
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			return Expect(t, llb.Scratch().AddEnv("TEST_VAR", "test value"))
+			return Expect(t, llb.Scratch().File(llb.Mkdir("testDir", os.FileMode(0x777))))
+		},
+	}, {
+		"mkdir with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkdir "testDir" 0x777 with option {
+				createParents
+				chown "testUser"
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
+			require.NoError(t, err)
+
+			return Expect(t, llb.Scratch().File(llb.Mkdir(
+				"testDir",
+				os.FileMode(0x777),
+				llb.WithParents(true),
+				llb.WithUser("testUser"),
+				llb.WithCreatedTime(createdTime))))
 		},
 	}, {
 		"call function",
