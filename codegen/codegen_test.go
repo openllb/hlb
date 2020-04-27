@@ -160,6 +160,41 @@ func TestCodeGen(t *testing.T) {
 				llb.WithCreatedTime(createdTime))))
 		},
 	}, {
+		"basic mkfile",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkfile "testFile" 0x777 "Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Mkfile("testFile", os.FileMode(0x777), []byte("Hello"))))
+		},
+	}, {
+		"mkfile with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkfile "testFile" 0x777 "Hello" with option {
+				chown "testUser"
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
+			require.NoError(t, err)
+
+			return Expect(t, llb.Scratch().File(llb.Mkfile(
+				"testFile",
+				os.FileMode(0x777),
+				[]byte("Hello"),
+				llb.WithUser("testUser"),
+				llb.WithCreatedTime(createdTime))))
+		},
+	}, {
 		"call function",
 		[]string{"default"},
 		`
