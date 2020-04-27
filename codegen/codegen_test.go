@@ -96,6 +96,33 @@ func TestCodeGen(t *testing.T) {
 				llb.Filename("myTest.out")))
 		},
 	}, {
+		"basic git",
+		[]string{"default"},
+		`
+		fs default() {
+			git "https://github.com/openllb/hlb.git" "master"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Git("https://github.com/openllb/hlb.git", "master"))
+		},
+	}, {
+		"git with options",
+		[]string{"default"},
+		`
+		fs default() {
+			git "https://github.com/openllb/hlb.git" "master" with option {
+				keepGitDir
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Git(
+				"https://github.com/openllb/hlb.git",
+				"master",
+				llb.KeepGitDir()))
+		},
+	}, {
 		"call function",
 		[]string{"default"},
 		`
