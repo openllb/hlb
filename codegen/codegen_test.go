@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/pb"
@@ -41,6 +42,7 @@ func cleanup(value string) string {
 }
 
 func TestCodeGen(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, tc := range []testCase{{
 		"image",
@@ -52,6 +54,271 @@ func TestCodeGen(t *testing.T) {
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return Expect(t, llb.Image("alpine"))
+		},
+	}, {
+		"basic scratch",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch())
+		},
+	}, {
+		"basic http",
+		[]string{"default"},
+		`
+		fs default() {
+			http "http://my.test.url"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.HTTP("http://my.test.url"))
+		},
+	}, {
+		"http with options",
+		[]string{"default"},
+		`
+		fs default() {
+			http "http://my.test.url" with option {
+				checksum "123"
+				chmod 0x777
+				filename "myTest.out"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.HTTP(
+				"http://my.test.url",
+				llb.Checksum("123"),
+				llb.Chmod(os.FileMode(0x777)),
+				llb.Filename("myTest.out")))
+		},
+	}, {
+		"basic git",
+		[]string{"default"},
+		`
+		fs default() {
+			git "https://github.com/openllb/hlb.git" "master"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Git("https://github.com/openllb/hlb.git", "master"))
+		},
+	}, {
+		"git with options",
+		[]string{"default"},
+		`
+		fs default() {
+			git "https://github.com/openllb/hlb.git" "master" with option {
+				keepGitDir
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Git(
+				"https://github.com/openllb/hlb.git",
+				"master",
+				llb.KeepGitDir()))
+		},
+	}, {
+		"basic mkdir",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkdir "testDir" 0x777
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Mkdir("testDir", os.FileMode(0x777))))
+		},
+	}, {
+		"mkdir with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkdir "testDir" 0x777 with option {
+				createParents
+				chown "testUser"
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
+			require.NoError(t, err)
+
+			return Expect(t, llb.Scratch().File(llb.Mkdir(
+				"testDir",
+				os.FileMode(0x777),
+				llb.WithParents(true),
+				llb.WithUser("testUser"),
+				llb.WithCreatedTime(createdTime))))
+		},
+	}, {
+		"basic env",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			env "TEST_VAR" "test value"
+			run "echo Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().AddEnv("TEST_VAR", "test value").Run(llb.Shlex("echo Hello")).Root())
+		},
+	}, {
+		"basic dir",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			dir "testDir"
+			run "echo Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().Dir("testDir").Run(llb.Shlex("echo Hello")).Root())
+		},
+	}, {
+		"basic user",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			user "testUser"
+			run "echo Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().User("testUser").Run(llb.Shlex("echo Hello")).Root())
+		},
+	}, {
+		"basic mkfile",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkfile "testFile" 0x777 "Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Mkfile("testFile", os.FileMode(0x777), []byte("Hello"))))
+		},
+	}, {
+		"mkfile with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			mkfile "testFile" 0x777 "Hello" with option {
+				chown "testUser"
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
+			require.NoError(t, err)
+
+			return Expect(t, llb.Scratch().File(llb.Mkfile(
+				"testFile",
+				os.FileMode(0x777),
+				[]byte("Hello"),
+				llb.WithUser("testUser"),
+				llb.WithCreatedTime(createdTime))))
+		},
+	}, {
+		"basic rm",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			rm "testFile"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Rm("testFile")))
+		},
+	}, {
+		"rm with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			rm "testFile" with option {
+				allowNotFound
+				allowWildcard
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(llb.Rm(
+				"testFile",
+				llb.WithAllowNotFound(true),
+				llb.WithAllowWildcard(true))))
+		},
+	}, {
+		"basic copy",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch as this
+			copy this "testSource" "testDest"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			scratch := llb.Scratch()
+			return Expect(t, scratch.File(llb.Copy(scratch, "testSource", "testDest")))
+		},
+	}, {
+		"copy with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch as this
+			copy this "testSource" "testDest" with option {
+				followSymlinks
+				contentsOnly
+				unpack
+				createDestPath
+				allowWildcard
+				allowEmptyWildcard
+				chown "testUser"
+				chmod 0x777
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
+			require.NoError(t, err)
+
+			fileMode := os.FileMode(0x777)
+			copyInfo := llb.CopyInfo{
+				Mode:                &fileMode,
+				FollowSymlinks:      true,
+				CopyDirContentsOnly: true,
+				AttemptUnpack:       true,
+				CreateDestPath:      true,
+				AllowWildcard:       true,
+				AllowEmptyWildcard:  true,
+			}
+
+			scratch := llb.Scratch()
+			return Expect(t, scratch.File(llb.Copy(
+				scratch,
+				"testSource",
+				"testDest",
+				&copyInfo,
+				llb.WithUser("testUser"),
+				llb.WithCreatedTime(createdTime),
+			)))
 		},
 	}, {
 		"call function",
@@ -397,8 +664,6 @@ func TestCodeGen(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			cg, err := New()
 			require.NoError(t, err)
 
