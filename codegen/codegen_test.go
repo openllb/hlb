@@ -160,6 +160,45 @@ func TestCodeGen(t *testing.T) {
 				llb.WithCreatedTime(createdTime))))
 		},
 	}, {
+		"basic env",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			env "TEST_VAR" "test value"
+			run "echo Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().AddEnv("TEST_VAR", "test value").Run(llb.Shlex("echo Hello")).Root())
+		},
+	}, {
+		"basic dir",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			dir "testDir"
+			run "echo Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().Dir("testDir").Run(llb.Shlex("echo Hello")).Root())
+		},
+	}, {
+		"basic user",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			user "testUser"
+			run "echo Hello"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().User("testUser").Run(llb.Shlex("echo Hello")).Root())
+		},
+	}, {
 		"basic mkfile",
 		[]string{"default"},
 		`
