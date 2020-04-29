@@ -24,7 +24,7 @@ func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, expr
 		}
 		return expr.BasicLit.HereDoc.Value, nil
 	case expr.FuncLit != nil:
-		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), nil)
+		return cg.EmitStringBlock(ctx, scope, expr.FuncLit.Body, nil)
 	default:
 		return "", errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown string expr")})
 	}
@@ -103,7 +103,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	case expr.BasicLit != nil:
 		return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("fs expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, nil)
+		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body, ac, nil)
 	default:
 		return st, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
 	}
@@ -112,16 +112,16 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, op string) (opts []interface{}, err error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-		return cg.EmitOptions(ctx, scope, op, []*parser.Stmt{{
+		return cg.EmitOptionBlock(ctx, scope, op, parser.NewBlockStmt(&parser.Stmt{
 			Call: &parser.CallStmt{
 				Func: expr,
 				Args: args,
 			},
-		}}, noopAliasCallback)
+		}), noopAliasCallback)
 	case expr.BasicLit != nil:
 		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("option expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		return cg.EmitOptions(ctx, scope, op, expr.FuncLit.Body.NonEmptyStmts(), noopAliasCallback)
+		return cg.EmitOptionBlock(ctx, scope, op, expr.FuncLit.Body, noopAliasCallback)
 	default:
 		return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option expr")})
 	}
@@ -150,9 +150,9 @@ func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr 
 	case expr.FuncLit != nil:
 		switch expr.FuncLit.Type.Primary() {
 		case parser.Group:
-			return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, nil)
+			return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body, ac, nil)
 		case parser.Filesystem:
-			st, err := cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body.NonEmptyStmts(), ac, nil)
+			st, err := cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body, ac, nil)
 			if err != nil {
 				return nil, err
 			}

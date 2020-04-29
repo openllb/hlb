@@ -184,9 +184,17 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 
 		switch typ.Primary() {
 		case parser.Group:
-			request = v.(solver.Request)
+			var ok bool
+			request, ok = v.(solver.Request)
+			if !ok {
+				return nil, errors.WithStack(ErrCodeGen{obj.Node, ErrBadCast})
+			}
 		case parser.Filesystem:
-			st := v.(llb.State)
+			st, ok := v.(llb.State)
+			if !ok {
+				return nil, errors.WithStack(ErrCodeGen{obj.Node, ErrBadCast})
+			}
+
 			request, err = cg.outputRequest(ctx, st, Output{})
 			if err != nil {
 				return nil, err
@@ -277,7 +285,7 @@ func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
 }
 
 func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
-	return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil, nil)
+	return cg.EmitFilesystemBlock(ctx, scope, lit.Body, nil, nil)
 }
 
 type aliasCallback func(*parser.CallStmt, interface{}) bool
@@ -353,26 +361,42 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 	return v, nil
 }
 
-func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (llb.State, error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, stmts, ac, chainStart)
-	return v.(llb.State), err
-}
-
-func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, chainStart interface{}) (string, error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Str, stmts, noopAliasCallback, chainStart)
-	if v == nil {
-		return "", err
+func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, ac aliasCallback, chainStart interface{}) (st llb.State, err error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, body.NonEmptyStmts(), ac, chainStart)
+	if err != nil {
+		return
 	}
-	return v.(string), err
+
+	st, ok := v.(llb.State)
+	if !ok {
+		return st, errors.WithStack(ErrCodeGen{body, ErrBadCast})
+	}
+	return
 }
 
-func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Group, stmts, ac, chainStart)
+func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, chainStart interface{}) (str string, err error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Str, body.NonEmptyStmts(), noopAliasCallback, chainStart)
+	if err != nil {
+		return
+	}
+
+	str, ok := v.(string)
+	if !ok {
+		return str, errors.WithStack(ErrCodeGen{body, ErrBadCast})
+	}
+	return
+}
+
+func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Group, body.NonEmptyStmts(), ac, chainStart)
 	if err != nil {
 		return nil, err
 	}
 
-	requests := v.([]solver.Request)
+	requests, ok := v.([]solver.Request)
+	if !ok {
+		return nil, errors.WithStack(ErrCodeGen{body, ErrBadCast})
+	}
 	if len(requests) == 1 {
 		return requests[0], nil
 	}
@@ -384,19 +408,20 @@ func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *pa
 	case parser.Int, parser.Bool:
 		panic("unimplemented")
 	case parser.Filesystem:
-		return cg.EmitFilesystemBlock(ctx, scope, lit.Body.NonEmptyStmts(), ac, nil)
+		return cg.EmitFilesystemBlock(ctx, scope, lit.Body, ac, nil)
 	case parser.Str:
-		return cg.EmitStringBlock(ctx, scope, lit.Body.NonEmptyStmts(), nil)
+		return cg.EmitStringBlock(ctx, scope, lit.Body, nil)
 	case parser.Option:
-		return cg.EmitOptions(ctx, scope, op, lit.Body.NonEmptyStmts(), ac)
+		return cg.EmitOptionBlock(ctx, scope, op, lit.Body, ac)
 	case parser.Group:
-		return cg.EmitGroupBlock(ctx, scope, lit.Body.NonEmptyStmts(), ac, nil)
+		return cg.EmitGroupBlock(ctx, scope, lit.Body, ac, nil)
 	default:
 		return nil, errors.WithStack(ErrCodeGen{lit, errors.Errorf("unknown func lit")})
 	}
 }
 
-func (cg *CodeGen) EmitOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitOptionBlock(ctx context.Context, scope *parser.Scope, op string, body *parser.BlockStmt, ac aliasCallback) (opts []interface{}, err error) {
+	stmts := body.NonEmptyStmts()
 	switch op {
 	case "image":
 		return cg.EmitImageOptions(ctx, scope, op, stmts)
