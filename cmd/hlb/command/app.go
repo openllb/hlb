@@ -34,6 +34,7 @@ func App() *cli.App {
 		runCommand,
 		formatCommand,
 		moduleCommand,
+		langserverCommand,
 	}
 	return app
 }

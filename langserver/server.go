@@ -490,8 +490,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 					return false
 				}
 
-				switch n := node.(type) {
-				case *parser.Expr:
+				if n, ok := node.(*parser.Expr); ok {
 					switch {
 					case n.Ident != nil, n.Selector != nil:
 						var name string
