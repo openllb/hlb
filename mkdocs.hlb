@@ -74,7 +74,7 @@ fs _runDocGen() {
 		mount fs { 
 			staticGoBuild "./cmd/docgen" fs {
 				local "." with option {
-					includePatterns "./cmd/docgen" "parser" "gen" "vendor" "go.mod" "go.sum"
+					includePatterns "./cmd/docgen" "parser" "gen" "go.mod" "go.sum"
 				}
 			}
 		 } "/" with readonly
@@ -93,7 +93,7 @@ fs _runBuiltinGen() {
 		mount fs { 
 			staticGoBuild "./cmd/builtingen" fs {
 				local "." with option {
-					includePatterns "./cmd/builtingen" "gen" "parser" "vendor" "go.mod" "go.sum"
+					includePatterns "./cmd/builtingen" "gen" "parser" "go.mod" "go.sum"
 				}
 			}
 		 } "/" with readonly
@@ -109,7 +109,7 @@ fs _runBuiltinGen() {
 fs staticGoBuild(string package, fs src) {
 	go.build src package option::template {
 		stringField "goBuildFlags" <<~EOM
-			-ldflags "-extldflags -static" -mod=vendor
+			-ldflags "-extldflags -static"
 		EOM
 		stringField "platform" "linux"
 		stringField "arch" "amd64"

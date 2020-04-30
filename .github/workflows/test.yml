@@ -8,6 +8,7 @@ on:
 
 env:
   GO111MODULE: on
+  BUILDKIT_HOST: docker-container://buildkitd
 
 jobs:
   build:
@@ -50,9 +51,21 @@ jobs:
       run: while true; do lineCount=$(docker exec buildkitd buildctl debug workers | wc -l); if [ $lineCount -gt 1 ]; then break; fi; sleep 1; done
 
     - name: GoLint
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./build.hlb
+      run: ./build/hlb run -t lint
+
+    - name: Ensure generated files
+      run: |
+        ./build/hlb run -t gen
+        if ! git diff --quiet; then
+          echo "ERROR: Generated files need updating:" >&2
+          echo "" >&2
+          git ls-files -m | sed 's/^/	/g' >&2
+          echo "" >&2
+          echo "To resolve run:" >&2
+          echo "	./hlb run -t gen" >&2
+          echo "and add changes to the git branch" >&2
+          exit 1
+        fi
 
     - name: Crosscompile
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain ./build.hlb
-
-
+      run: ./build/hlb run
