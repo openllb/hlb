@@ -21,7 +21,7 @@ Now that you have installed `hlb`, we can run our first build. Typically, we wil
 
 ```sh
 export BUILDKIT_HOST=docker-container://buildkitd
-echo 'fs default() { scratch; mkfile "/out" 0o644 "hello world"; }' | hlb run --download .
+echo 'fs default() { scratch; mkfile "/output" 0o644 "hello world"; }' | hlb run --download .
 ```
 
 Once the build has finished, you should end up with a file `output` in your working directory.
