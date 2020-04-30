@@ -55,10 +55,10 @@ As we learned earlier, we can define functions which we can later target when ru
 
 Since `hlb` is a functional language, variables and functions cannot be modified dynamically. When we copy from `npmInstall`, it is always referring to a snapshot of its filesystem after all its instructions have been executed. If we want to modify `npmInstall`, we will have to write a new function that starts from `npmInstall` but it will have to be defined with a new identifier.
 
-Now that we have isolated the directory, we can download the filesystem (containing only the `node_modules`) by specifying `--download <dest-dir>`:
+Now that we have isolated the directory, we can download the filesystem (containing only the `node_modules`) by specifying `--target <target>,download=<dest-dir>`:
 
 ```sh
-hlb run --target nodeModules --download . node.hlb
+hlb run --target nodeModules,download=. node.hlb
 ```
 
 After the build have finished, you should see the `node_modules` in your working directory.
