@@ -36,7 +36,11 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 			return nil, err
 		}
 		return func(v interface{}) (interface{}, error) {
-			return chain(v.(llb.State))
+			st, ok := v.(llb.State)
+			if !ok {
+				return st, errors.WithStack(ErrCodeGen{call, ErrBadCast})
+			}
+			return chain(st)
 		}, nil
 	case parser.Str:
 		chain, err := cg.EmitStringChainStmt(ctx, scope, call.Func, call.Args, call.WithOpt, chainStart)
@@ -44,7 +48,11 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 			return nil, err
 		}
 		return func(v interface{}) (interface{}, error) {
-			return chain(v.(string))
+			str, ok := v.(string)
+			if !ok {
+				return str, errors.WithStack(ErrCodeGen{call, ErrBadCast})
+			}
+			return chain(str)
 		}, nil
 	case parser.Group:
 		chain, err := cg.EmitGroupChainStmt(ctx, scope, call.Func, call.Args, call.WithOpt, ac, chainStart)
@@ -52,7 +60,11 @@ func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ p
 			return nil, err
 		}
 		return func(v interface{}) (interface{}, error) {
-			return chain(v.([]solver.Request))
+			requests, ok := v.([]solver.Request)
+			if !ok {
+				return requests, errors.WithStack(ErrCodeGen{call, ErrBadCast})
+			}
+			return chain(requests)
 		}, nil
 	default:
 		return nil, errors.WithStack(ErrCodeGen{call, errors.Errorf("unknown chain stmt")})
@@ -103,7 +115,11 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			return fc, err
 		}
 		fc = func(_ llb.State) (llb.State, error) {
-			return v.(llb.State), nil
+			st, ok := v.(llb.State)
+			if !ok {
+				return st, errors.WithStack(ErrCodeGen{expr, errors.Errorf("bad cast")})
+			}
+			return st, nil
 		}
 	}
 
@@ -869,7 +885,11 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			return nil, err
 		}
 		return func(_ string) (string, error) {
-			return v.(string), nil
+			str, ok := v.(string)
+			if !ok {
+				return str, errors.WithStack(ErrCodeGen{obj.Node, ErrBadCast})
+			}
+			return str, nil
 		}, nil
 	}
 }

@@ -5,6 +5,11 @@ import (
 
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
+	"github.com/pkg/errors"
+)
+
+var (
+	ErrBadCast = errors.Errorf("bad cast")
 )
 
 type ErrCodeGen struct {
