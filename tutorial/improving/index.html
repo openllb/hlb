@@ -11,7 +11,7 @@
       
       
       <link rel="shortcut icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.1, mkdocs-material-5.1.0">
+      <meta name="generator" content="mkdocs-1.1, mkdocs-material-5.1.3">
     
     
       
@@ -19,7 +19,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.89dc9fe3.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.62d34fff.min.css">
       
       
     
@@ -106,7 +106,7 @@
       <div class="md-search__scrollwrap" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
-            Type to start searching
+            Initializing search
           </div>
           <ol class="md-search-result__list"></ol>
         </div>
@@ -462,18 +462,18 @@
  9
 10
 11
-12</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">npmInstall</span><span class="p">()</span> <span class="p">{</span>
-    image <span class="s">&quot;node:alpine&quot;</span>
-    run <span class="s">&quot;apk add -U git&quot;</span>
-    run <span class="s">&quot;git clone https://github.com/left-pad/left-pad.git /src&quot;</span>
-    dir <span class="s">&quot;/src&quot;</span>
-    run <span class="s">&quot;npm install&quot;</span>
-<span class="p">}</span>
+12</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs npmInstall() {
+    image &quot;node:alpine&quot;
+    run &quot;apk add -U git&quot;
+    run &quot;git clone https://github.com/left-pad/left-pad.git /src&quot;
+    dir &quot;/src&quot;
+    run &quot;npm install&quot;
+}
 
-<span class="kt">fs</span> <span class="nf">nodeModules</span><span class="p">()</span> <span class="p">{</span>
+fs nodeModules() {
     scratch
-    copy <span class="nv">npmInstall</span> <span class="s">&quot;/src/node_modules&quot;</span> <span class="s">&quot;/&quot;</span>
-<span class="p">}</span>
+    copy npmInstall &quot;/src/node_modules&quot; &quot;/&quot;
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -482,8 +482,8 @@
 <p>Instructions like <code>image</code>, <code>run</code>, and <code>copy</code> are also regular functions, and you must invoke them with the required arguments. But some builtin functions have optional features that can be accessed in an option block. For example, <code>run</code> has an optional function <code>mount</code> that temporarily mounts a filesystem to a <code>mountpoint</code> directory while <code>run</code> is executing.</p>
 <p>The builtin <code>mount</code> function has the following signature:</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
-2</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="c1"># Mounts a source filesystem to the specific mountpoint.</span>
-<span class="kt">fs</span> <span class="nf">mount</span><span class="p">(</span><span class="kt">fs</span> <span class="nv">source</span>, <span class="kt">string</span> <span class="nv">mountpoint</span><span class="p">)</span>
+2</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code># Mounts a source filesystem to the specific mountpoint.
+fs mount(fs source, string mountpoint)
 </code></pre></div>
 </td></tr></table>
 
@@ -500,19 +500,19 @@
 10
 11
 12
-13</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="c1"># A block literal that returns type `option`.</span>
-<span class="kt">option</span> <span class="p">{</span>
-    mount <span class="nv">foo</span> <span class="s">&quot;/foo&quot;</span>
-    mount <span class="nv">bar</span> <span class="s">&quot;/bar&quot;</span>
-<span class="p">}</span>
+13</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code># A block literal that returns type `option`.
+option {
+    mount foo &quot;/foo&quot;
+    mount bar &quot;/bar&quot;
+}
 
-<span class="c1"># An inline block literal that returns type `fs`.</span>
-<span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span>
+# An inline block literal that returns type `fs`.
+fs { scratch; }
 
-<span class="kt">option</span> <span class="p">{</span>
-    <span class="c1"># Mount taking a `fs` block literal as the source filesystem.</span>
-    mount <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="s">&quot;/output&quot;</span>
-<span class="p">}</span>
+option {
+    # Mount taking a `fs` block literal as the source filesystem.
+    mount fs { scratch; } &quot;/output&quot;
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -526,15 +526,15 @@
 6
 7
 8
-9</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">npmInstall</span><span class="p">()</span> <span class="p">{</span>
-    image <span class="s">&quot;node:alpine&quot;</span>
-    run <span class="s">&quot;apk add -U git&quot;</span>
-    run <span class="s">&quot;git clone https://github.com/left-pad/left-pad.git /src&quot;</span>
-    dir <span class="s">&quot;/src&quot;</span>
-    run <span class="s">&quot;npm install&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        mount <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="s">&quot;/src/node_modules&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+9</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs npmInstall() {
+    image &quot;node:alpine&quot;
+    run &quot;apk add -U git&quot;
+    run &quot;git clone https://github.com/left-pad/left-pad.git /src&quot;
+    dir &quot;/src&quot;
+    run &quot;npm install&quot; with option {
+        mount fs { scratch; } &quot;/src/node_modules&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -552,15 +552,15 @@
 6
 7
 8
-9</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">npmInstall</span><span class="p">()</span> <span class="p">{</span>
-    image <span class="s">&quot;node:alpine&quot;</span>
-    run <span class="s">&quot;apk add -U git&quot;</span>
-    run <span class="s">&quot;git clone https://github.com/left-pad/left-pad.git /src&quot;</span>
-    dir <span class="s">&quot;/src&quot;</span>
-    run <span class="s">&quot;npm install&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        mount <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="s">&quot;/src/node_modules&quot;</span> <span class="kr">as</span><span class="s"> </span><span class="nf">nodeModules</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+9</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs npmInstall() {
+    image &quot;node:alpine&quot;
+    run &quot;apk add -U git&quot;
+    run &quot;git clone https://github.com/left-pad/left-pad.git /src&quot;
+    dir &quot;/src&quot;
+    run &quot;npm install&quot; with option {
+        mount fs { scratch; } &quot;/src/node_modules&quot; as nodeModules
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -574,9 +574,9 @@
 <p>Using the <code>mount</code> function we just learnt, we can define a new <code>fs</code> function that clones the repository and mount it. But that will still require another image. Luckily for us there is a <code>git</code> builtin function that can efficiently prepare a filesystem containing a <code>git</code> repository! Here's the signature:</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
-3</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="c1"># Creates a scratch filesystem with a git repostory from remote checked out at</span>
-<span class="c1"># a specified branch, commit or tag.</span>
-<span class="kt">fs</span> <span class="nf">git</span><span class="p">(</span><span class="kt">string</span> <span class="nv">remote</span>, <span class="kt">string</span> <span class="nv">ref</span><span class="p">)</span>
+3</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code># Creates a scratch filesystem with a git repostory from remote checked out at
+# a specified branch, commit or tag.
+fs git(string remote, string ref)
 </code></pre></div>
 </td></tr></table>
 
@@ -592,18 +592,18 @@
  9
 10
 11
-12</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">src</span><span class="p">()</span> <span class="p">{</span>
-    git <span class="s">&quot;https://github.com/left-pad/left-pad.git&quot;</span> <span class="s">&quot;master&quot;</span>
-<span class="p">}</span>
+12</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs src() {
+    git &quot;https://github.com/left-pad/left-pad.git&quot; &quot;master&quot;
+}
 
-<span class="kt">fs</span> <span class="nf">npmInstall</span><span class="p">()</span> <span class="p">{</span>
-    image <span class="s">&quot;node:alpine&quot;</span>
-    dir <span class="s">&quot;/src&quot;</span>
-    run <span class="s">&quot;npm install&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        mount <span class="nv">src</span> <span class="s">&quot;/src&quot;</span>
-        mount <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="s">&quot;/src/node_modules&quot;</span> <span class="kr">as</span><span class="s"> </span><span class="nf">nodeModules</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+fs npmInstall() {
+    image &quot;node:alpine&quot;
+    dir &quot;/src&quot;
+    run &quot;npm install&quot; with option {
+        mount src &quot;/src&quot;
+        mount fs { scratch; } &quot;/src/node_modules&quot; as nodeModules
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -684,15 +684,15 @@
       
     </div>
     
-      <script src="../../assets/javascripts/vendor.36cbf620.min.js"></script>
-      <script src="../../assets/javascripts/bundle.00c583dd.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
+      <script src="../../assets/javascripts/vendor.f81b9e8b.min.js"></script>
+      <script src="../../assets/javascripts/bundle.23546af0.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
       
       <script>
         app = initialize({
           base: "../..",
           features: [],
           search: Object.assign({
-            worker: "../../assets/javascripts/worker/search.7f7c8775.min.js"
+            worker: "../../assets/javascripts/worker/search.58d22e8e.min.js"
           }, typeof search !== "undefined" && search)
         })
       </script>

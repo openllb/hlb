@@ -11,7 +11,7 @@
       
       
       <link rel="shortcut icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.1, mkdocs-material-5.1.0">
+      <meta name="generator" content="mkdocs-1.1, mkdocs-material-5.1.3">
     
     
       
@@ -19,7 +19,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.89dc9fe3.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.62d34fff.min.css">
       
       
     
@@ -106,7 +106,7 @@
       <div class="md-search__scrollwrap" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
-            Type to start searching
+            Initializing search
           </div>
           <ol class="md-search-result__list"></ol>
         </div>
@@ -1388,12 +1388,12 @@
 3
 4
 5
-6</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
-    generate <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        frontendInput <span class="s">&quot;key&quot;</span> <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span>
-        <span class="nv">frontendOpt</span> <span class="s">&quot;key&quot;</span> <span class="s">&quot;value&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+6</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
+    generate fs { scratch; } with option {
+        frontendInput &quot;key&quot; fs { scratch; }
+        frontendOpt &quot;key&quot; &quot;value&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1434,11 +1434,11 @@ a git reference. Note that by default, the &#x60;.git&#x60; directory is not inc
 2
 3
 4
-5</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
-    git <span class="s">&quot;remote&quot;</span> <span class="s">&quot;ref&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
+5</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
+    git &quot;remote&quot; &quot;ref&quot; with option {
         keepGitDir
-    <span class="p">}</span>
-<span class="p">}</span>
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1456,13 +1456,13 @@ a git reference. Note that by default, the &#x60;.git&#x60; directory is not inc
 4
 5
 6
-7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
-    http <span class="s">&quot;url&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        checksum <span class="s">&quot;digest&quot;</span>
+7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
+    http &quot;url&quot; with option {
+        checksum &quot;digest&quot;
         chmod 0644
-        filename <span class="s">&quot;name&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+        filename &quot;name&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1494,11 +1494,11 @@ a git reference. Note that by default, the &#x60;.git&#x60; directory is not inc
 2
 3
 4
-5</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
-    image <span class="s">&quot;ref&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
+5</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
+    image &quot;ref&quot; with option {
         resolve
-    <span class="p">}</span>
-<span class="p">}</span>
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1518,13 +1518,13 @@ local system.</p>
 4
 5
 6
-7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
-    local <span class="s">&quot;path&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        excludePatterns <span class="s">&quot;pattern&quot;</span>
-        followPaths <span class="s">&quot;path&quot;</span>
-        includePatterns <span class="s">&quot;pattern&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
+    local &quot;path&quot; with option {
+        excludePatterns &quot;pattern&quot;
+        followPaths &quot;path&quot;
+        includePatterns &quot;pattern&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1550,9 +1550,9 @@ local system.</p>
 <p>An empty filesystem.</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
-3</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+3</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-<span class="p">}</span>
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1579,15 +1579,15 @@ local system.</p>
 6
 7
 8
-9</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+9</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    copy <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="s">&quot;src&quot;</span> <span class="s">&quot;dst&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
+    copy fs { scratch; } &quot;src&quot; &quot;dst&quot; with option {
         contentsOnly
         createDestPath
         followSymlinks
         unpack
-    <span class="p">}</span>
-<span class="p">}</span>
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1610,10 +1610,10 @@ destination.</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
 3
-4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    dir <span class="s">&quot;path&quot;</span>
-<span class="p">}</span>
+    dir &quot;path&quot;
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1631,10 +1631,10 @@ block.</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
 3
-4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    env <span class="s">&quot;key&quot;</span> <span class="s">&quot;value&quot;</span>
-<span class="p">}</span>
+    env &quot;key&quot; &quot;value&quot;
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1655,14 +1655,14 @@ block.</p>
 5
 6
 7
-8</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+8</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    mkdir <span class="s">&quot;path&quot;</span> 0644 <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        chown <span class="s">&quot;owner&quot;</span>
+    mkdir &quot;path&quot; 0644 with option {
+        chown &quot;owner&quot;
         createParents
-        createdTime <span class="s">&quot;created&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+        createdTime &quot;created&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1700,13 +1700,13 @@ block.</p>
 4
 5
 6
-7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    mkfile <span class="s">&quot;path&quot;</span> 0644 <span class="s">&quot;content&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        chown <span class="s">&quot;owner&quot;</span>
-        createdTime <span class="s">&quot;created&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+    mkfile &quot;path&quot; 0644 &quot;content&quot; with option {
+        chown &quot;owner&quot;
+        createdTime &quot;created&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1734,13 +1734,13 @@ block.</p>
 4
 5
 6
-7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+7</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    rm <span class="s">&quot;path&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
+    rm &quot;path&quot; with option {
         allowNotFound
         allowWildcards
-    <span class="p">}</span>
-<span class="p">}</span>
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1789,36 +1789,36 @@ If more than one arg is given, it will be executed directly, without a shell.</p
 27
 28
 29
-30</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+30</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    run <span class="s">&quot;arg&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-        dir <span class="s">&quot;path&quot;</span>
-        env <span class="s">&quot;key&quot;</span> <span class="s">&quot;value&quot;</span>
-        host <span class="s">&quot;hostname&quot;</span> <span class="s">&quot;address&quot;</span>
-        mount <span class="kt">fs</span> <span class="p">{</span> scratch; <span class="p">}</span> <span class="s">&quot;mountPoint&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
+    run &quot;arg&quot; with option {
+        dir &quot;path&quot;
+        env &quot;key&quot; &quot;value&quot;
+        host &quot;hostname&quot; &quot;address&quot;
+        mount fs { scratch; } &quot;mountPoint&quot; with option {
             readonly
             tmpfs
-            sourcePath <span class="s">&quot;path&quot;</span>
-            cache <span class="s">&quot;cacheid&quot;</span> <span class="s">&quot;sharingmode&quot;</span>
-        <span class="p">}</span>
-        network <span class="s">&quot;networkmode&quot;</span>
+            sourcePath &quot;path&quot;
+            cache &quot;cacheid&quot; &quot;sharingmode&quot;
+        }
+        network &quot;networkmode&quot;
         readonlyRootfs
-        secret <span class="s">&quot;localPath&quot;</span> <span class="s">&quot;mountPoint&quot;</span> <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-            uid <span class="m">0</span>
-            gid <span class="m">0</span>
+        secret &quot;localPath&quot; &quot;mountPoint&quot; with option {
+            uid 0
+            gid 0
             mode 0644
-        <span class="p">}</span>
-        security <span class="s">&quot;securitymode&quot;</span>
-        ssh <span class="kr">with</span> <span class="kt">option</span> <span class="p">{</span>
-            target <span class="s">&quot;mountPoint&quot;</span>
-            localPath <span class="s">&quot;path&quot;</span>
-            uid <span class="m">0</span>
-            gid <span class="m">0</span>
+        }
+        security &quot;securitymode&quot;
+        ssh with option {
+            target &quot;mountPoint&quot;
+            localPath &quot;path&quot;
+            uid 0
+            gid 0
             mode 0644
-        <span class="p">}</span>
-        user <span class="s">&quot;name&quot;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+        }
+        user &quot;name&quot;
+    }
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -1991,10 +1991,10 @@ methods. By default, this is [&quot;sh&quot;, &quot;-c&quot;].</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
 3
-4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    shell <span class="s">&quot;arg&quot;</span>
-<span class="p">}</span>
+    shell &quot;arg&quot;
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -2007,10 +2007,10 @@ methods. By default, this is [&quot;sh&quot;, &quot;-c&quot;].</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
 3
-4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code><span class="kt">fs</span> <span class="nf">default</span><span class="p">()</span> <span class="p">{</span>
+4</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     scratch
-    user <span class="s">&quot;name&quot;</span>
-<span class="p">}</span>
+    user &quot;name&quot;
+}
 </code></pre></div>
 </td></tr></table>
 
@@ -2089,15 +2089,15 @@ methods. By default, this is [&quot;sh&quot;, &quot;-c&quot;].</p>
       
     </div>
     
-      <script src="../assets/javascripts/vendor.36cbf620.min.js"></script>
-      <script src="../assets/javascripts/bundle.00c583dd.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
+      <script src="../assets/javascripts/vendor.f81b9e8b.min.js"></script>
+      <script src="../assets/javascripts/bundle.23546af0.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
       
       <script>
         app = initialize({
           base: "..",
           features: [],
           search: Object.assign({
-            worker: "../assets/javascripts/worker/search.7f7c8775.min.js"
+            worker: "../assets/javascripts/worker/search.58d22e8e.min.js"
           }, typeof search !== "undefined" && search)
         })
       </script>

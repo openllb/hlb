@@ -11,7 +11,7 @@
       
       
       <link rel="shortcut icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.1, mkdocs-material-5.1.0">
+      <meta name="generator" content="mkdocs-1.1, mkdocs-material-5.1.3">
     
     
       
@@ -19,7 +19,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.89dc9fe3.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.62d34fff.min.css">
       
       
     
@@ -106,7 +106,7 @@
       <div class="md-search__scrollwrap" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
-            Type to start searching
+            Initializing search
           </div>
           <ol class="md-search-result__list"></ol>
         </div>
@@ -435,7 +435,7 @@ docker run -d --name buildkitd --privileged openllb/buildkit:experimental
 <h2 id="run-your-first-build">Run your first build<a class="headerlink" href="#run-your-first-build" title="Permanent link">&para;</a></h2>
 <p>Now that you have installed <code>hlb</code>, we can run our first build. Typically, we will write our program in a file with a <code>.hlb</code> extension, but for our first build we can just pipe the program in from stdin. Try it yourself!</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span> <span class="nv">BUILDKIT_HOST</span><span class="o">=</span>docker-container://buildkitd
-<span class="nb">echo</span> <span class="s1">&#39;fs default() { scratch; mkfile &quot;/out&quot; 0o644 &quot;hello world&quot;; }&#39;</span> <span class="p">|</span> hlb run --download .
+<span class="nb">echo</span> <span class="s1">&#39;fs default() { scratch; mkfile &quot;/output&quot; 0o644 &quot;hello world&quot;; }&#39;</span> <span class="p">|</span> hlb run --target default,download<span class="o">=</span>.
 </code></pre></div>
 
 <p>Once the build has finished, you should end up with a file <code>output</code> in your working directory.</p>
@@ -515,15 +515,15 @@ hello world
       
     </div>
     
-      <script src="../../assets/javascripts/vendor.36cbf620.min.js"></script>
-      <script src="../../assets/javascripts/bundle.00c583dd.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
+      <script src="../../assets/javascripts/vendor.f81b9e8b.min.js"></script>
+      <script src="../../assets/javascripts/bundle.23546af0.min.js"></script><script id="__lang" type="application/json">{"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents"}</script>
       
       <script>
         app = initialize({
           base: "../..",
           features: [],
           search: Object.assign({
-            worker: "../../assets/javascripts/worker/search.7f7c8775.min.js"
+            worker: "../../assets/javascripts/worker/search.58d22e8e.min.js"
           }, typeof search !== "undefined" && search)
         })
       </script>
