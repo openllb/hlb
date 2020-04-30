@@ -189,8 +189,10 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors with duplicate function names",
 		`
-		fs duplicateFunctionName() {}
-		fs duplicateFunctionName() {}
+		fs duplicate(string ref) {}
+		fs duplicate(string ref) {
+			image ref
+		}
 		`,
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
@@ -199,7 +201,7 @@ func TestChecker_Check(t *testing.T) {
 					Line:     1,
 					Column:   4,
 				},
-				Name: "duplicateFunctionName",
+				Name: "duplicate",
 			}},
 		},
 	}, {
@@ -478,17 +480,10 @@ func TestChecker_CheckSelectors(t *testing.T) {
 	}
 }
 
-func validateError(t *testing.T, expectedError error, actualError error) {
-	if expectedError == nil {
-		require.NoError(t, actualError)
+func validateError(t *testing.T, expected error, actual error) {
+	if expected == nil {
+		require.NoError(t, actual)
 	} else {
-		// assume if we got a semantic error we really want
-		// to validate the underlying error
-		if semErr, ok := actualError.(ErrSemantic); ok {
-			require.IsType(t, expectedError, semErr.Errs[0])
-			require.Equal(t, expectedError.Error(), semErr.Errs[0].Error())
-		} else {
-			require.IsType(t, expectedError, actualError)
-		}
+		require.Equal(t, expected.Error(), actual.Error())
 	}
 }

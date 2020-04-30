@@ -40,19 +40,13 @@ func (c *checker) Check(mod *parser.Module) error {
 			}
 		case *parser.ImportDecl:
 			if n.Ident != nil {
-				skip := c.registerDecl(mod.Scope, n.Ident, n)
-				if skip {
-					return false
-				}
+				c.registerDecl(mod.Scope, n.Ident, n)
 			}
 		case *parser.FuncDecl:
 			fun := n
 
 			if fun.Name != nil {
-				skip := c.registerDecl(mod.Scope, fun.Name, fun)
-				if skip {
-					return false
-				}
+				c.registerDecl(mod.Scope, fun.Name, fun)
 			}
 
 			// Create a function-level scope.
@@ -236,7 +230,7 @@ func (c *checker) CheckSelectors(mod *parser.Module) error {
 	return nil
 }
 
-func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node parser.Node) bool {
+func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node parser.Node) {
 	// Ensure that this identifier is not already defined in the module scope.
 	obj := scope.Lookup(ident.Name)
 	if obj != nil {
@@ -244,7 +238,7 @@ func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node pa
 			c.duplicateDecls = append(c.duplicateDecls, obj.Ident)
 		}
 		c.duplicateDecls = append(c.duplicateDecls, ident)
-		return true
+		return
 	}
 
 	scope.Insert(&parser.Object{
@@ -252,7 +246,6 @@ func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node pa
 		Ident: ident,
 		Node:  node,
 	})
-	return false
 }
 
 func (c *checker) checkFieldList(fields []*parser.Field) error {
