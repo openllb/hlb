@@ -1,4 +1,6 @@
+# TODO replace with openllb/go.hlb
 import go "./go.hlb"
+import mkdocs "./mkdocs.hlb"
 
 fs default() {
 	crossHLB
@@ -17,4 +19,21 @@ fs src() {
 	local "." with option {
 		excludePatterns "build"
 	}
+}
+
+fs gen() {
+	mkdocs.generatedBuiltin
+	download "./builtin/."
+
+	mkdocs.generatedMarkdown
+	download "./docs/."
+}
+
+fs docs() {
+	mkdocs.build
+	download "./site/."
+}
+
+fs publishDocs() {
+	mkdocs.publish
 }

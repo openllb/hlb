@@ -145,7 +145,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 
 	var doc Documentation
 
-	for _, typ := range []string{"fs"} {
+	for _, typ := range []string{"fs", "string"} {
 		funcs := funcsByType[typ]
 		for _, fun := range funcs {
 			fun := fun
