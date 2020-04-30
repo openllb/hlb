@@ -4,10 +4,10 @@ go 1.12
 
 require (
 	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
+	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
 	github.com/docker/cli v1.14.0-0.20190523191156-ab688a9a79a1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
-	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
@@ -15,10 +15,9 @@ require (
 	github.com/moby/buildkit v0.7.1-0.20200409032528-226a5db9ad3d
 	github.com/opencontainers/go-digest v1.0.0-rc1
 	github.com/opencontainers/image-spec v1.0.1
-	github.com/opencontainers/selinux v1.4.0 // indirect
 	github.com/openllb/doxygen-parser v0.0.0-20200128221307-2aa2d8be1c35
-	github.com/opentracing/opentracing-go v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1
+	github.com/sourcegraph/go-lsp v0.0.0-20200117082640-b19bb38222e2
 	github.com/stretchr/testify v1.4.0
 	github.com/tonistiigi/fsutil v0.0.0-20200326231323-c2c7d7b0e144
 	github.com/urfave/cli/v2 v2.1.1
@@ -43,3 +42,6 @@ replace github.com/docker/docker => github.com/docker/docker v1.4.2-0.2020022723
 replace github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.0-pre1.0.20180209125602-c332b6f63c06
 
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20180806134042-1f13a808da65
+
+// necessary for langserver with vscode
+replace github.com/sourcegraph/go-lsp => github.com/radeksimko/go-lsp v0.0.0-20200223162147-9f2c54f29c9f
