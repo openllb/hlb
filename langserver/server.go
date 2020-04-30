@@ -321,9 +321,9 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, typ parser.Obj
 				}
 
 				switch {
-				case n.WithOpt.Ident != nil:
-				case n.WithOpt.FuncLit != nil:
-					lit := n.WithOpt.FuncLit
+				case n.WithOpt.Expr.Ident != nil:
+				case n.WithOpt.Expr.FuncLit != nil:
+					lit := n.WithOpt.Expr.FuncLit
 					highlightNode(lines, lit.Type, Type)
 
 					if lit.Type.Primary() == parser.Option {
@@ -540,7 +540,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 									vp := module.VendorPath(filepath.Join(rootDir, module.ModulesPath), dgst)
 									filename = filepath.Join(vp, module.ModuleFilename)
 								case decl.ImportPath != nil:
-									filename = filepath.Join(rootDir, decl.ImportPath.Path)
+									filename = filepath.Join(rootDir, decl.ImportPath.Path.Unquoted())
 								}
 
 								importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filename))
