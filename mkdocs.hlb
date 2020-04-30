@@ -1,51 +1,167 @@
-fs default() {
-	buildMkdocs src
+export generatedBuiltin
+export generatedMarkdown
+export build
+export publish
+
+import npm from fs {
+	image "openllb/npm.hlb"
 }
 
-fs publish() {
-	publishMkdocs src
+import go from fs {
+	image "openllb/go.hlb"
 }
 
-fs testSSH() {
+fs mkdocsMaterial() {
 	image "python:alpine"
+	run "apk add -U git git-fast-import openssh-client build-base"
+	sshKeyScan "github.com"
+	run "pip install --upgrade pip"
+	run "pip install mkdocs-material pymdown-extensions pygments"
+}
+
+fs _runMkdocsBuild() {
+	mkdocsMaterial
+	run "mkdocs build -d /site" with option {
+		dir "/mkdocs"
+		mount fs {
+			local "." with option {
+				includePatterns "mkdocs.yml" "docs/" ".git"
+			}
+		} "/mkdocs" as readonly
+		mount generatedMarkdown "/mkdocs/docs/reference.md" with option {
+			sourcePath "reference.md"
+			readonly
+		}
+		mount scratch "/site" as build
+	}
+}
+
+# Note this only publishes master on github, it does
+# not publish local files
+fs publish() {
+	mkdocsMaterial
+	run "mkdocs gh-deploy" with option {
+		dir "/src"
+		mount gitSource "/src"
+		ssh
+	}
+}
+
+fs _runHandleBars() {
+	image "node:alpine"
+	run "node src/compile.js" with option {
+		dir "src"
+		mount fs {
+			local "docs/templates" with option {
+				includePatterns "src" "reference"
+			}
+		} "/src" with readonly
+		mount fs { 
+			npm.nodeModules fs {
+				local "docs/templates" with option {
+					includePatterns "package.json" "package-lock.json"
+				}
+			}
+		} "/src/node_modules" with readonly
+		mount referenceJson "/src/data" with readonly
+		mount scratch "/src/dist" as generatedMarkdown
+	}
+}
+
+fs _runDocGen() {
+	scratch
+	run "/docgen" "/language/builtin.hlb" "/out/reference.json" with option {
+		mount fs { 
+			staticGoBuild "./cmd/docgen" fs {
+				local "." with option {
+					includePatterns "./cmd/docgen" "parser" "gen" "vendor" "go.mod" "go.sum"
+				}
+			}
+		 } "/" with readonly
+		mount fs {
+			local "language" with option {
+				 includePatterns "builtin.hlb"
+			 }
+		} "language" with readonly
+		mount scratch "/out" as referenceJson
+	}
+}
+
+fs _runBuiltinGen() {
+	scratch
+	run "/builtingen" "/language/builtin.hlb" "/out/builtin.go" with option {
+		mount fs { 
+			staticGoBuild "./cmd/builtingen" fs {
+				local "." with option {
+					includePatterns "./cmd/builtingen" "gen" "parser" "vendor" "go.mod" "go.sum"
+				}
+			}
+		 } "/" with readonly
+		mount fs {
+			local "language" with option {
+				 includePatterns "builtin.hlb"
+			 }
+		} "language" with readonly
+		mount scratch "/out" as generatedBuiltin
+	}
+}
+
+fs staticGoBuild(string package, fs src) {
+	go.build src package option::template {
+		stringField "goBuildFlags" <<~EOM
+			-ldflags "-extldflags -static" -mod=vendor
+		EOM
+		stringField "platform" "linux"
+		stringField "arch" "amd64"
+		stringField "cgoEnabled" "0"
+	}
+}
+
+# TODO add this to a generic util module?
+fs testSSH() {
+	image "alpine"
 	run "apk add -U openssh-client"
-	mkdir "/root/.ssh" 0o700
-        run "ssh-keyscan github.com >> ~/.ssh/known_hosts"
+	sshKeyScan "github.com"
 	run "ssh -q -T git@github.com" with option {
 		ssh
 	}
 }
 
-fs mkdocsMaterial() {
-	image "python:alpine"
-	run "apk add -U git git-fast-import openssh-client"
+# TODO add this to a generic util moduile
+fs sshKeyScan(string host) {
 	mkdir "/root/.ssh" 0o700
-        run "ssh-keyscan github.com >> ~/.ssh/known_hosts"
-	run "pip install --upgrade pip"
-	run "pip install mkdocs-material pymdown-extensions"
-	run "pip install -e git+https://github.com/hinshun/pygments.git@hlb-lexer#egg=pygments"
-}
-
-fs src() {
-	local "." with option {
-		includePatterns "mkdocs.yml" "docs/" ".git"
+	run string {
+		format "ssh-keyscan %s >> ~/.ssh/known_hosts" host 
 	}
 }
 
-fs runMkdocsBuild(fs src) {
-	mkdocsMaterial
-	run "mkdocs build -d /out" with option {
-		dir "/mkdocs"
-		mount src "/mkdocs"
-		mount fs { scratch; } "/out" as buildMkdocs
-	}
-}
-
-fs publishMkdocs(fs src) {
-	mkdocsMaterial
-	run "mkdocs gh-deploy" with option {
+# TODO can we add this logic to a generic util module for publishing gh-pages?
+fs _fetchGhPagesBranch() {
+	image "alpine/git"
+	sshKeyScan "github.com"
+	run "git fetch origin gh-pages" with option {
+		dir "/src"
+		mount fs {
+			git "git://github.com/openllb/hlb.git" "master" with option {
+				keepGitDir
+			}
+			# we have to recreate the .git/config because the one that 
+			# comes from buildkit has invalid remote.origin.url and
+			# no branch.master properties
+			mkfile ".git/config" 0o644 <<-EOM
+				[core]
+					repositoryformatversion = 0
+					filemode = true
+					bare = false
+					logallrefupdates = true
+				[remote "origin"]
+					url = git@github.com:openllb/hlb.git
+					fetch = +refs/heads/*:refs/remotes/origin/*
+				[branch "master"]
+					remote = origin
+					merge = refs/heads/master
+			EOM
+		} "/src" as gitSource
 		ssh
-		dir "/mkdocs"
-		mount src "/mkdocs"
 	}
 }
