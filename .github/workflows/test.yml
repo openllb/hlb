@@ -13,16 +13,25 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: buildkitd
+    # expression language does not support ternary, so hack it via indexing boolean keys of an json object
+    runs-on: ${{ fromJSON('{true:"buildkitd",false:"ubuntu-latest"}')[github.repository == 'openllb/hlb'] }}
     steps:
-    - name: Set up Go 1.13.10
-      uses: actions/setup-go@v1
+    - name: Set up Go 1.13
+      uses: actions/setup-go@v2
       with:
-        go-version: 1.13.10
+        go-version: ^1.13
       id: go
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
+
+    - name: Restore Cache
+      uses: actions/cache@v1
+      if: github.repository != 'openllb/hlb'
+      id: cache
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-${{ hashFiles('**/go.sum') }}
 
     - name: Get dependencies
       run: go get
@@ -35,6 +44,15 @@ jobs:
 
     - name: Go Tests
       run: go test -v ./...
+
+    - name: Start BuildkitD
+      if: github.repository != 'openllb/hlb'
+      run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
+
+    - name: BuildkitD Wait
+      if: github.repository != 'openllb/hlb'
+      # waiting for buildkitd to report 1 worker (2 lines, 1 for column titles, one for the worker details)
+      run: while true; do lineCount=$(docker exec buildkitd buildctl debug workers | wc -l); if [ $lineCount -gt 1 ]; then break; fi; sleep 1; done
 
     - name: GoLint
       run: ./build/hlb run -t lint
