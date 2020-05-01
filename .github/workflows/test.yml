@@ -8,11 +8,12 @@ on:
 
 env:
   GO111MODULE: on
+  BUILDKIT_HOST: docker-container://buildkitd
 
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: buildkitd
     steps:
     - name: Set up Go 1.13.10
       uses: actions/setup-go@v1
@@ -22,13 +23,6 @@ jobs:
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
-
-    - name: Restore Cache
-      uses: actions/cache@v1
-      id: cache
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-${{ hashFiles('**/go.sum') }}
 
     - name: Get dependencies
       run: go get
@@ -42,17 +36,22 @@ jobs:
     - name: Go Tests
       run: go test -v ./...
 
-    - name: Start BuildkitD
-      run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
-
-    - name: BuildkitD Wait
-      # waiting for buildkitd to report 1 worker (2 lines, 1 for column titles, one for the worker details)
-      run: while true; do lineCount=$(docker exec buildkitd buildctl debug workers | wc -l); if [ $lineCount -gt 1 ]; then break; fi; sleep 1; done
-
     - name: GoLint
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain -t lint ./build.hlb
+      run: ./build/hlb run -t lint
+
+    - name: Ensure generated files
+      run: |
+        ./build/hlb run -t gen
+        if ! git diff --quiet; then
+          echo "ERROR: Generated files need updating:" >&2
+          echo "" >&2
+          git ls-files -m | sed 's/^/	/g' >&2
+          echo "" >&2
+          echo "To resolve run:" >&2
+          echo "	./hlb run -t gen" >&2
+          echo "and add changes to the git branch" >&2
+          exit 1
+        fi
 
     - name: Crosscompile
-      run: ./build/hlb --addr docker-container://buildkitd run --log-output plain ./build.hlb
-
-
+      run: ./build/hlb run
