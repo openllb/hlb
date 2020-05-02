@@ -2,11 +2,13 @@ package codegen
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/entitlements"
@@ -35,10 +37,7 @@ type testCase struct {
 }
 
 func cleanup(value string) string {
-	result := strings.TrimSpace(value)
-	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
-	result = strings.ReplaceAll(result, "|\n", "| \n")
-	return result
+	return dedent.Dedent(value)
 }
 
 func TestCodeGen(t *testing.T) {
@@ -166,7 +165,7 @@ func TestCodeGen(t *testing.T) {
 		fs default() {
 			scratch
 			env "TEST_VAR" "test value"
-			run "echo Hello"
+			run "echo Hello" with shlex
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -179,7 +178,7 @@ func TestCodeGen(t *testing.T) {
 		fs default() {
 			scratch
 			dir "testDir"
-			run "echo Hello"
+			run "echo Hello" with shlex
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -192,7 +191,7 @@ func TestCodeGen(t *testing.T) {
 		fs default() {
 			scratch
 			user "testUser"
-			run "echo Hello"
+			run "echo Hello" with shlex
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -373,6 +372,7 @@ func TestCodeGen(t *testing.T) {
 			image "alpine"
 			run "touch /out/foo" with option {
 				mount scratch "/out" as default
+				shlex
 			}
 		}
 		`,
@@ -531,11 +531,11 @@ func TestCodeGen(t *testing.T) {
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return Expect(t, llb.Image("busybox").Run(
-				llb.Shlex("echo hi"),
+				llb.Args([]string{"/bin/sh", "-c", "echo hi"}),
 			).Run(
-				llb.Shlex("echo hi"),
+				llb.Args([]string{"/bin/sh", "-c", "echo hi"}),
 			).Run(
-				llb.Shlex("\techo hi"),
+				llb.Args([]string{"/bin/sh", "-c", "\techo hi"}),
 			).Root())
 		},
 	}, {
@@ -554,7 +554,7 @@ func TestCodeGen(t *testing.T) {
 
 		fs default() {
 			image "busybox"
-			run cmd 
+			run cmd with shlex
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -577,7 +577,7 @@ func TestCodeGen(t *testing.T) {
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return Expect(t,
 				llb.Image("busybox").Run(
-					llb.Shlex("entitlements"),
+					llb.Args([]string{"/bin/sh", "-c", "entitlements"}),
 					llb.Network(pb.NetMode_HOST),
 					llb.Security(pb.SecurityMode_INSECURE),
 				).Root(),
@@ -592,6 +592,7 @@ func TestCodeGen(t *testing.T) {
 		fs default() {
 			image "busybox"
 			run "find ." with option {
+				shlex
 				dir "/foo"
 				mount fs {
 					local "."
@@ -659,6 +660,48 @@ func TestCodeGen(t *testing.T) {
 						Group: &llb.UserOpt{UID: 1001},
 					},
 				}),
+			))
+		},
+	}, {
+		"localRun",
+		[]string{"default"},
+		`
+		fs default() {
+			mkfile "./just-stdout" 0o644 string {
+				localRun "echo stdout; echo stderr >&2"
+			}
+			mkfile "./just-stderr" 0o644 string {
+				localRun "echo stdout; echo stderr >&2" with onlyStderr
+			}
+			mkfile "./stdio" 0o644 string {
+				localRun "echo stdout; echo stderr >&2" with includeStderr
+			}
+			mkfile "./goterror" 0o644 string {
+				localRun "echo stdout; exit 1" with ignoreError
+			}
+			# this will write evaluate the $HOME env var because run as ["/bin/sh", "-c", "echo $HOME"]
+			mkfile "./noshlex" 0o644 string {
+				localRun "echo $HOME"
+			}
+			# this will write the literal string "$HOME" because run as ["/bin/echo", "$HOME"]
+			mkfile "./shlex" 0o644 string {
+				localRun "echo $HOME" with shlex
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, llb.Scratch().File(
+				llb.Mkfile("just-stdout", os.FileMode(0644), []byte("stdout\n")),
+			).File(
+				llb.Mkfile("just-stderr", os.FileMode(0644), []byte("stderr\n")),
+			).File(
+				llb.Mkfile("stdio", os.FileMode(0644), []byte("stdout\nstderr\n")),
+			).File(
+				llb.Mkfile("goterror", os.FileMode(0644), []byte("stdout\n")),
+			).File(
+				llb.Mkfile("noshlex", os.FileMode(0644), []byte(fmt.Sprintf("%s\n", os.Getenv("HOME")))),
+			).File(
+				llb.Mkfile("shlex", os.FileMode(0644), []byte("$HOME\n")),
 			))
 		},
 	}} {

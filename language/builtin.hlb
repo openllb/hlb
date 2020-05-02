@@ -113,12 +113,10 @@ fs shell(variadic string arg)
 #
 # If no arguments are given, it will execute the current args set on the
 # filesystem.
-# If exactly one arg is given, it will attempt to parse as a command with
-# shell-style quoting. If it remains a single element, it is executed directly,
-# otherwise it is run with the current shell.
+# If exactly one arg is given it will be wrapped with /bin/sh -c 'arg'.
 # If more than one arg is given, it will be executed directly, without a shell.
 #
-# @param arg a command to execute.
+# @param arg are optional arguments to execute.
 # @return the filesystem after the command has executed.
 fs run(variadic string arg)
 
@@ -170,6 +168,12 @@ option::run network(string networkmode)
 # - sandbox: use the default containerd seccomp profile.
 # - insecure: enables all capabilities.
 option::run security(string securitymode)
+
+# Attempt to lex the single-argument shell command provided to `run`
+# to determine if a `/bin/sh -c '...'` wrapper needs to be added.
+#
+# @return an option to attempt to optimize the command execution remoiving the /bin/sh -c "..." wrapper when possible.
+option::run shlex()
 
 # Adds a host entry to /etc/hosts for the duration of the run command.
 #
@@ -532,6 +536,38 @@ string localEnv(string key)
 #
 # @return the OS
 string localOs()
+
+# Executes an command in the local environment.
+#
+# If exactly one arg is given it will be wrapped with /bin/sh -c 'arg'.
+# If more than one arg is given, it will be executed directly, without a shell.
+#
+# @param command a command to execute.
+# @param args optional arguments to the command.
+# @return the string output from the command
+string localRun(string command, variadic string args)
+
+# If the command returns a non-zero status code ignore
+# the failure and continue processing the hlb file.
+#
+# @return an option to ignore errors on the command
+option::localRun ignoreError()
+
+# Capture stderr intermixed with stdout on the command.
+#
+# @return an option to capture stderr along with stdout on the command.
+option::localRun includeStderr()
+
+# Only capture the stderr from the command, ignore stdout.
+#
+# @return an option to ignore stdout on the command
+option::localRun onlyStderr()
+
+# Attempt to lex the single-argument shell command provided to `localRun`
+# to determine if a `/bin/sh -c '...'` wrapper needs to be added.
+#
+# @return an option to attempt to optimize the command execution remoiving the /bin/sh -c "..." wrapper when possible.
+option::localRun shlex()
 
 # Process text as a Go text template.
 # For template syntax documentation see:
