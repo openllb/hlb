@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -125,6 +126,39 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 	return fc, nil
 }
+
+func (cg *CodeGen) EmitShellCommand(ctx context.Context, scope *parser.Scope, args []*parser.Expr, wantShlex bool) ([]string, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+
+	if len(args) == 1 {
+		commandStr, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		if wantShlex {
+			parts, err := shellquote.Split(commandStr)
+			if err != nil {
+				return nil, err
+			}
+			return parts, nil
+		}
+
+		return []string{"/bin/sh", "-c", commandStr}, nil
+	}
+	var runArgs []string
+	for _, arg := range args {
+		runArg, err := cg.EmitStringExpr(ctx, scope, arg)
+		if err != nil {
+			return nil, err
+		}
+		runArgs = append(runArgs, runArg)
+	}
+	return runArgs, nil
+}
+
 func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, with *parser.WithOpt, ac aliasCallback, chainStart interface{}) (fc FilesystemChain, err error) {
 	var iopts []interface{}
 	if with != nil {
@@ -287,39 +321,20 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			}), nil
 		}
 	case "run":
-		var shlex string
-		if len(args) == 1 {
-			commandStr, err := cg.EmitStringExpr(ctx, scope, args[0])
-			if err != nil {
-				return fc, err
-			}
-
-			parts, err := shellquote.Split(commandStr)
-			if err != nil {
-				return fc, err
-			}
-
-			if len(parts) == 1 {
-				shlex = commandStr
-			} else {
-				shlex = shellquote.Join("/bin/sh", "-c", commandStr)
-			}
-		} else {
-			var runArgs []string
-			for _, arg := range args {
-				runArg, err := cg.EmitStringExpr(ctx, scope, arg)
-				if err != nil {
-					return fc, err
-				}
-				runArgs = append(runArgs, runArg)
-			}
-			shlex = shellquote.Join(runArgs...)
-		}
-
+		wantShlex := false
 		var opts []llb.RunOption
 		for _, iopt := range iopts {
-			opt := iopt.(llb.RunOption)
-			opts = append(opts, opt)
+			switch opt := iopt.(type) {
+			case llb.RunOption:
+				opts = append(opts, opt)
+			case *shlexOption:
+				wantShlex = true
+			}
+		}
+
+		cmd, err := cg.EmitShellCommand(ctx, scope, args, wantShlex)
+		if err != nil {
+			return fc, err
 		}
 
 		var targets []string
@@ -351,8 +366,8 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			}
 		}
 
-		customName := strings.ReplaceAll(shlex, "\n", "")
-		opts = append(opts, llb.Shlex(shlex), llb.WithCustomName(customName))
+		customName := strings.ReplaceAll(shellquote.Join(cmd...), "\n", "")
+		opts = append(opts, llb.Args(cmd), llb.WithCustomName(customName))
 
 		err = fixReadonlyMounts(opts)
 		if err != nil {
@@ -828,6 +843,46 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 	case "localOs":
 		return func(_ string) (string, error) {
 			return local.Os(ctx), nil
+		}, nil
+	case "localRun":
+		wantShlex := false
+		execOpts := &LocalRunOptions{}
+		for _, iopt := range iopts {
+			switch opt := iopt.(type) {
+			case func(*LocalRunOptions):
+				opt(execOpts)
+			case *shlexOption:
+				wantShlex = true
+			}
+		}
+
+		cmd, err := cg.EmitShellCommand(ctx, scope, args, wantShlex)
+		if err != nil {
+			return nil, err
+		}
+
+		c := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+		c.Env = local.Environ(ctx)
+		c.Dir, err = local.Cwd(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		var buf strings.Builder
+		if execOpts.OnlyStderr {
+			c.Stderr = &buf
+		} else {
+			c.Stdout = &buf
+		}
+		if execOpts.IncludeStderr {
+			c.Stderr = &buf
+		}
+		err = c.Run()
+		if err != nil && !execOpts.IgnoreError {
+			return nil, err
+		}
+		return func(_ string) (string, error) {
+			return buf.String(), nil
 		}, nil
 	case "template":
 		text, err := cg.EmitStringExpr(ctx, scope, args[0])

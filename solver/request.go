@@ -121,12 +121,7 @@ func (o op) Tree(tree treeprint.Tree) error {
 		branch = tree.AddMetaBranch("source", v.Source)
 	case *pb.Op_Exec:
 		meta := v.Exec.Meta
-		cmd := ""
-		if len(meta.Args) == 3 && meta.Args[0] == "/bin/sh" && meta.Args[1] == "-c" {
-			cmd = meta.Args[2]
-		} else {
-			cmd = shellquote.Join(meta.Args...)
-		}
+		cmd := shellquote.Join(meta.Args...)
 		if o.meta[o.dgst].IgnoreCache {
 			cmd += " [ignoreCache]"
 		}

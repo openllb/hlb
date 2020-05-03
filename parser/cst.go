@@ -20,7 +20,7 @@ var (
 		HereDoc = <<[-~]?
 		Keyword  = \b(with|as|import|export|from)\b
 		Modifier = \b(variadic)\b
-		Type     = \b(string|int|bool|fs|option|group)(::[a-z][a-z]*)?\b
+		Type     = \b(string|int|bool|fs|option|group)(::[a-z][a-zA-Z]*)?\b
 		Numeric  = \b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b
 		Decimal  = \b(0|[1-9][0-9]*)\b
 		String   = "(\\.|[^"])*"|'[^']*'

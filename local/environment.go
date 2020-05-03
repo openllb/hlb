@@ -65,6 +65,13 @@ func Env(ctx context.Context, key string) string {
 	return os.Getenv(key)
 }
 
+func Environ(ctx context.Context) []string {
+	if environ, ok := ctx.Value(environContextKey).([]string); ok {
+		return environ
+	}
+	return os.Environ()
+}
+
 func Cwd(ctx context.Context) (string, error) {
 	if workdir, ok := ctx.Value(cwdContextKey).(string); ok {
 		return workdir, nil

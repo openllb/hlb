@@ -469,14 +469,12 @@ Allows wildcards in the path to remove.
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>run</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>arg</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>arg</span>"
-	a command to execute.
+	are optional arguments to execute.
 
 Executes an command in the current filesystem.
 If no arguments are given, it will execute the current args set on the
 filesystem.
-If exactly one arg is given, it will attempt to parse as a command with
-shell-style quoting. If it remains a single element, it is executed directly,
-otherwise it is run with the current shell.
+If exactly one arg is given it will be wrapped with /bin/sh -c &#x27;arg&#x27;.
 If more than one arg is given, it will be executed directly, without a shell.
 
 	#!hlb
@@ -492,6 +490,7 @@ If more than one arg is given, it will be executed directly, without a shell.
 			readonlyRootfs
 			secret "localPath" "mountPoint"
 			security "securitymode"
+			shlex
 			ssh
 			user "name"
 		}
@@ -580,6 +579,12 @@ attached via a tmpfs mount, so all the data stays in volatile memory.
 
 Sets the security mode for the duration of the run command. By default, the
 value is &#x60;sandbox&#x60;.
+
+#### <span class='hlb-type'>option::run</span> <span class='hlb-name'>shlex</span>()
+
+
+Attempt to lex the single-argument shell command provided to &#x60;run&#x60;
+to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be added.
 
 #### <span class='hlb-type'>option::run</span> <span class='hlb-name'>ssh</span>()
 
@@ -703,6 +708,51 @@ The OS from the clients local environment.
 		localOs
 	}
 
+
+
+### <span class='hlb-type'>string</span> <span class='hlb-name'>localRun</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>"
+	a command to execute.
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>"
+	optional arguments to the command.
+
+Executes an command in the local environment.
+If exactly one arg is given it will be wrapped with /bin/sh -c &#x27;arg&#x27;.
+If more than one arg is given, it will be executed directly, without a shell.
+
+	#!hlb
+	string myString() {
+		localRun "command" "args" with option {
+			ignoreError
+			includeStderr
+			onlyStderr
+			shlex
+		}
+	}
+
+
+#### <span class='hlb-type'>option::localRun</span> <span class='hlb-name'>ignoreError</span>()
+
+
+If the command returns a non-zero status code ignore
+the failure and continue processing the hlb file.
+
+#### <span class='hlb-type'>option::localRun</span> <span class='hlb-name'>includeStderr</span>()
+
+
+Capture stderr intermixed with stdout on the command.
+
+#### <span class='hlb-type'>option::localRun</span> <span class='hlb-name'>onlyStderr</span>()
+
+
+Only capture the stderr from the command, ignore stdout.
+
+#### <span class='hlb-type'>option::localRun</span> <span class='hlb-name'>shlex</span>()
+
+
+Attempt to lex the single-argument shell command provided to &#x60;localRun&#x60;
+to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be added.
 
 
 ### <span class='hlb-type'>string</span> <span class='hlb-name'>template</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>)

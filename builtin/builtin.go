@@ -248,6 +248,22 @@ var (
 					},
 				},
 			},
+			"option::localRun": LookupByType{
+				Func: map[string]FuncLookup{
+					"ignoreError": FuncLookup{
+						Params: []*parser.Field{},
+					},
+					"includeStderr": FuncLookup{
+						Params: []*parser.Field{},
+					},
+					"onlyStderr": FuncLookup{
+						Params: []*parser.Field{},
+					},
+					"shlex": FuncLookup{
+						Params: []*parser.Field{},
+					},
+				},
+			},
 			"option::mkdir": LookupByType{
 				Func: map[string]FuncLookup{
 					"createParents": FuncLookup{
@@ -343,6 +359,9 @@ var (
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "securitymode", false),
 						},
+					},
+					"shlex": FuncLookup{
+						Params: []*parser.Field{},
 					},
 					"host": FuncLookup{
 						Params: []*parser.Field{
@@ -462,6 +481,12 @@ var (
 					},
 					"localOs": FuncLookup{
 						Params: []*parser.Field{},
+					},
+					"localRun": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "command", false),
+							parser.NewField(parser.Str, "args", true),
+						},
 					},
 					"template": FuncLookup{
 						Params: []*parser.Field{
