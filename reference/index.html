@@ -770,6 +770,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#optionrun-shlex" class="md-nav__link">
+    option::run shlex()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#optionrun-ssh" class="md-nav__link">
     option::run ssh()
   </a>
@@ -854,6 +861,47 @@
   <a href="#string-localos" class="md-nav__link">
     string localOs()
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#string-localrunstring-command-string-args" class="md-nav__link">
+    string localRun(string command, string args)
+  </a>
+  
+    <nav class="md-nav" aria-label="string localRun(string command, string args)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-ignoreerror" class="md-nav__link">
+    option::localRun ignoreError()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-includestderr" class="md-nav__link">
+    option::localRun includeStderr()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-onlystderr" class="md-nav__link">
+    option::localRun onlyStderr()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-shlex" class="md-nav__link">
+    option::localRun shlex()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1366,6 +1414,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#optionrun-shlex" class="md-nav__link">
+    option::run shlex()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#optionrun-ssh" class="md-nav__link">
     option::run ssh()
   </a>
@@ -1450,6 +1505,47 @@
   <a href="#string-localos" class="md-nav__link">
     string localOs()
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#string-localrunstring-command-string-args" class="md-nav__link">
+    string localRun(string command, string args)
+  </a>
+  
+    <nav class="md-nav" aria-label="string localRun(string command, string args)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-ignoreerror" class="md-nav__link">
+    option::localRun ignoreError()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-includestderr" class="md-nav__link">
+    option::localRun includeStderr()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-onlystderr" class="md-nav__link">
+    option::localRun onlyStderr()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optionlocalrun-shlex" class="md-nav__link">
+    option::localRun shlex()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1977,14 +2073,12 @@ local system.</p>
 <h3 id="fs-runstring-arg"><span class='hlb-type'>fs</span> <span class='hlb-name'>run</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>arg</span>)<a class="headerlink" href="#fs-runstring-arg" title="Permanent link">&para;</a></h3>
 <div class="admonition info">
 <p class="admonition-title"><span class='hlb-type'>string</span> <span class='hlb-variable'>arg</span></p>
-<p>a command to execute.</p>
+<p>are optional arguments to execute.</p>
 </div>
 <p>Executes an command in the current filesystem.
 If no arguments are given, it will execute the current args set on the
 filesystem.
-If exactly one arg is given, it will attempt to parse as a command with
-shell-style quoting. If it remains a single element, it is executed directly,
-otherwise it is run with the current shell.
+If exactly one arg is given it will be wrapped with /bin/sh -c &#x27;arg&#x27;.
 If more than one arg is given, it will be executed directly, without a shell.</p>
 <table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
  2
@@ -2001,7 +2095,8 @@ If more than one arg is given, it will be executed directly, without a shell.</p
 13
 14
 15
-16</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
+16
+17</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>fs default() {
     run &quot;arg&quot; with option {
         dir &quot;path&quot;
         env &quot;key&quot; &quot;value&quot;
@@ -2013,6 +2108,7 @@ If more than one arg is given, it will be executed directly, without a shell.</p
         readonlyRootfs
         secret &quot;localPath&quot; &quot;mountPoint&quot;
         security &quot;securitymode&quot;
+        shlex
         ssh
         user &quot;name&quot;
     }
@@ -2099,6 +2195,9 @@ attached via a tmpfs mount, so all the data stays in volatile memory.</p>
 </div>
 <p>Sets the security mode for the duration of the run command. By default, the
 value is &#x60;sandbox&#x60;.</p>
+<h4 id="optionrun-shlex"><span class='hlb-type'>option::run</span> <span class='hlb-name'>shlex</span>()<a class="headerlink" href="#optionrun-shlex" title="Permanent link">&para;</a></h4>
+<p>Attempt to lex the single-argument shell command provided to &#x60;run&#x60;
+to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be added.</p>
 <h4 id="optionrun-ssh"><span class='hlb-type'>option::run</span> <span class='hlb-name'>ssh</span>()<a class="headerlink" href="#optionrun-ssh" title="Permanent link">&para;</a></h4>
 <p>Mounts a SSH socket for the duration of the run command. By default, it will
 try to use the SSH socket found from $SSH_AUTH_SOCK. Otherwise, an option
@@ -2212,6 +2311,46 @@ methods. By default, this is [&quot;sh&quot;, &quot;-c&quot;].</p>
 </code></pre></div>
 </td></tr></table>
 
+<h3 id="string-localrunstring-command-string-args"><span class='hlb-type'>string</span> <span class='hlb-name'>localRun</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>)<a class="headerlink" href="#string-localrunstring-command-string-args" title="Permanent link">&para;</a></h3>
+<div class="admonition info">
+<p class="admonition-title"><span class='hlb-type'>string</span> <span class='hlb-variable'>command</span></p>
+<p>a command to execute.</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title"><span class='hlb-type'>string</span> <span class='hlb-variable'>args</span></p>
+<p>optional arguments to the command.</p>
+</div>
+<p>Executes an command in the local environment.
+If exactly one arg is given it will be wrapped with /bin/sh -c &#x27;arg&#x27;.
+If more than one arg is given, it will be executed directly, without a shell.</p>
+<table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7
+8</pre></div></td><td class="code"><div class="codehilite"><pre><span></span><code>string myString() {
+    localRun &quot;command&quot; &quot;args&quot; with option {
+        ignoreError
+        includeStderr
+        onlyStderr
+        shlex
+    }
+}
+</code></pre></div>
+</td></tr></table>
+
+<h4 id="optionlocalrun-ignoreerror"><span class='hlb-type'>option::localRun</span> <span class='hlb-name'>ignoreError</span>()<a class="headerlink" href="#optionlocalrun-ignoreerror" title="Permanent link">&para;</a></h4>
+<p>If the command returns a non-zero status code ignore
+the failure and continue processing the hlb file.</p>
+<h4 id="optionlocalrun-includestderr"><span class='hlb-type'>option::localRun</span> <span class='hlb-name'>includeStderr</span>()<a class="headerlink" href="#optionlocalrun-includestderr" title="Permanent link">&para;</a></h4>
+<p>Capture stderr intermixed with stdout on the command.</p>
+<h4 id="optionlocalrun-onlystderr"><span class='hlb-type'>option::localRun</span> <span class='hlb-name'>onlyStderr</span>()<a class="headerlink" href="#optionlocalrun-onlystderr" title="Permanent link">&para;</a></h4>
+<p>Only capture the stderr from the command, ignore stdout.</p>
+<h4 id="optionlocalrun-shlex"><span class='hlb-type'>option::localRun</span> <span class='hlb-name'>shlex</span>()<a class="headerlink" href="#optionlocalrun-shlex" title="Permanent link">&para;</a></h4>
+<p>Attempt to lex the single-argument shell command provided to &#x60;localRun&#x60;
+to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be added.</p>
 <h3 id="string-templatestring-text"><span class='hlb-type'>string</span> <span class='hlb-name'>template</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>)<a class="headerlink" href="#string-templatestring-text" title="Permanent link">&para;</a></h3>
 <div class="admonition info">
 <p class="admonition-title"><span class='hlb-type'>string</span> <span class='hlb-variable'>text</span></p>
