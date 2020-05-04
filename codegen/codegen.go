@@ -1075,6 +1075,8 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				opts = append(opts, llb.Security(securityMode))
 			case "shlex":
 				opts = append(opts, &shlexOption{})
+			case "capture":
+				// no op, only relevant if aliased, handled in alias callback
 			case "host":
 				host, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {

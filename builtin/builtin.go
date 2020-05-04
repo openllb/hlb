@@ -328,6 +328,9 @@ var (
 			},
 			"option::run": LookupByType{
 				Func: map[string]FuncLookup{
+					"capture": FuncLookup{
+						Params: []*parser.Field{},
+					},
 					"readonlyRootfs": FuncLookup{
 						Params: []*parser.Field{},
 					},

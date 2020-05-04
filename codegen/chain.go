@@ -349,13 +349,22 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 				// to be in the context of a specific function run is in.
 			case with.Expr.FuncLit != nil:
 				for _, stmt := range with.Expr.FuncLit.Body.NonEmptyStmts() {
-					if stmt.Call.Func.Name() != "mount" || stmt.Call.Alias == nil {
+					if stmt.Call.Alias == nil {
 						continue
 					}
 
-					target, err := cg.EmitStringExpr(ctx, scope, stmt.Call.Args[1])
-					if err != nil {
-						return fc, err
+					var target string
+					switch stmt.Call.Func.Name() {
+					case "mount":
+						target, err = cg.EmitStringExpr(ctx, scope, stmt.Call.Args[1])
+						if err != nil {
+							return fc, err
+						}
+					case "capture":
+						target = "capture"
+					}
+					if target == "" {
+						continue
 					}
 
 					calls[target] = stmt.Call
@@ -381,7 +390,43 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 				for _, target := range targets {
 					// Mounts are unique by its mountpoint, and its vertex representing the
 					// mount after execing can be aliased.
-					cont := ac(calls[target], exec.GetMount(target))
+					var cont bool
+					switch calls[target].Func.Name() {
+					case "mount":
+						cont = ac(calls[target], exec.GetMount(target))
+					case "capture":
+						cont = ac(calls[target], func() (string, error) {
+							st := exec.Root()
+							pw := cg.mw.WithPrefix("", false)
+
+							s, err := cg.newSession(ctx)
+							if err != nil {
+								return "", err
+							}
+
+							g, ctx := errgroup.WithContext(ctx)
+
+							g.Go(func() error {
+								return s.Run(ctx, cg.cln.Dialer())
+							})
+
+							var captureBuf strings.Builder
+							g.Go(func() error {
+								opts, err := cg.SolveOptions(ctx, st)
+								if err != nil {
+									return err
+								}
+								opts = append(opts, solver.WithOutputCapture(&captureBuf))
+								def, err := st.Marshal(ctx, llb.LinuxAmd64)
+								if err != nil {
+									return err
+								}
+								return solver.Solve(ctx, cg.cln, s, pw, def, opts...)
+							})
+							err = g.Wait()
+							return captureBuf.String(), err
+						})
+					}
 					if !cont {
 						return exec.Root(), ErrAliasReached
 					}
@@ -940,11 +985,13 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			return nil, err
 		}
 		return func(_ string) (string, error) {
-			str, ok := v.(string)
-			if !ok {
-				return str, errors.WithStack(ErrCodeGen{obj.Node, ErrBadCast})
+			switch s := v.(type) {
+			case string:
+				return s, nil
+			case func() (string, error):
+				return s()
 			}
-			return str, nil
+			return "", errors.WithStack(ErrCodeGen{obj.Node, ErrBadCast})
 		}, nil
 	}
 }

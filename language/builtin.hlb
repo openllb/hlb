@@ -120,6 +120,8 @@ fs shell(variadic string arg)
 # @return the filesystem after the command has executed.
 fs run(variadic string arg)
 
+option::run capture()
+
 # Sets the rootfs as read-only for the duration of the run command.
 #
 # @return an option to set the rootfs as read-only.
