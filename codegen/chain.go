@@ -82,7 +82,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		// Must be a named reference.
 		obj := scope.Lookup(expr.Name())
 		if obj == nil {
-			return fc, errors.WithStack(ErrCodeGen{expr, errors.Errorf("could not find reference")})
+			return fc, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
 		}
 
 		var v interface{}
@@ -96,7 +96,7 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(expr.Selector.Select.Name)
 			if importObj == nil {
-				return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("could not find reference")})
+				return nil, errors.WithStack(ErrCodeGen{expr.Selector, ErrUndefinedReference})
 			}
 
 			switch m := importObj.Node.(type) {
@@ -910,7 +910,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		// Must be a named reference.
 		obj := scope.Lookup(expr.Name())
 		if obj == nil {
-			return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("could not find reference")})
+			return nil, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
 		}
 
 		var v interface{}
@@ -923,6 +923,10 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(expr.Selector.Select.Name)
+			if importObj == nil {
+				return nil, errors.WithStack(ErrCodeGen{expr.Selector, ErrUndefinedReference})
+			}
+
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
 				v, err = cg.EmitFuncDecl(ctx, scope, m, args, noopAliasCallback, chainStart)
@@ -974,7 +978,7 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 		// Must be a named reference.
 		obj := scope.Lookup(expr.Name())
 		if obj == nil {
-			return gc, errors.WithStack(ErrCodeGen{expr, errors.Errorf("could not find reference")})
+			return gc, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
 		}
 
 		var v interface{}
@@ -986,6 +990,10 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(expr.Selector.Select.Name)
+			if importObj == nil {
+				return gc, errors.WithStack(ErrCodeGen{expr.Selector, ErrUndefinedReference})
+			}
+
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
 				v, err = cg.EmitFuncDecl(ctx, scope, m, args, ac, chainStart)

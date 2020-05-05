@@ -33,7 +33,11 @@ func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, expr
 func (cg *CodeGen) EmitIntExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (int, error) {
 	switch {
 	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
+		obj := scope.Lookup(expr.Name())
+		if obj == nil {
+			return 0, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
+		}
+
 		switch obj.Kind {
 		case parser.DeclKind:
 			panic("unimplemented")
@@ -61,7 +65,11 @@ func (cg *CodeGen) EmitIntExpr(ctx context.Context, scope *parser.Scope, expr *p
 func (cg *CodeGen) EmitBoolExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (bool, error) {
 	switch {
 	case expr.Ident != nil:
-		obj := scope.Lookup(expr.Ident.Name)
+		obj := scope.Lookup(expr.Name())
+		if obj == nil {
+			return false, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
+		}
+
 		switch obj.Kind {
 		case parser.DeclKind:
 			panic("unimplemented")
