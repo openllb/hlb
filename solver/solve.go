@@ -12,6 +12,7 @@ import (
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/util/entitlements"
+	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/errgroup"
 )
@@ -28,6 +29,7 @@ type SolveInfo struct {
 	ImageSpec             *specs.Image
 	Entitlements          []entitlements.Entitlement
 	OutputCapture         io.Writer
+	OutputCaptureDigest   digest.Digest
 }
 
 func WithDownloadDockerTarball(ref string) SolveOption {
@@ -65,8 +67,9 @@ func WithDownloadOCITarball() SolveOption {
 	}
 }
 
-func WithOutputCapture(w io.Writer) SolveOption {
+func WithOutputCapture(dgst digest.Digest, w io.Writer) SolveOption {
 	return func(info *SolveInfo) error {
+		info.OutputCaptureDigest = dgst
 		info.OutputCapture = w
 		return nil
 	}
@@ -202,7 +205,9 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 						return
 					}
 					for _, log := range status.Logs {
-						info.OutputCapture.Write(log.Data)
+						if log.Vertex.String() == info.OutputCaptureDigest.String() {
+							info.OutputCapture.Write(log.Data)
+						}
 					}
 					if origStatusCh != nil {
 						origStatusCh <- status

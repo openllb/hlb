@@ -15,6 +15,7 @@ import (
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/solver/pb"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -416,11 +417,15 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 								if err != nil {
 									return err
 								}
-								opts = append(opts, solver.WithOutputCapture(&captureBuf))
 								def, err := st.Marshal(ctx, llb.LinuxAmd64)
 								if err != nil {
 									return err
 								}
+
+								// * last def is for constraint
+								// * second to last def is for the vertex we are capturing
+								dgst := digest.FromBytes(def.Def[len(def.Def)-2])
+								opts = append(opts, solver.WithOutputCapture(dgst, &captureBuf))
 								return solver.Solve(ctx, cg.cln, s, pw, def, opts...)
 							})
 							err = g.Wait()
