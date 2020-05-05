@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,10 +20,11 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/report"
+	"github.com/pkg/errors"
 )
 
 var (
-	ErrDebugExit = errors.New("exiting debugger")
+	ErrDebugExit = errors.Errorf("exiting debugger")
 )
 
 type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, value interface{}) error
@@ -288,8 +288,12 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 					if fun != nil {
 						args := fun.Params.List
 						for _, arg := range args {
-							data := s.scope.Lookup(arg.Name.Name).Data
-							fmt.Fprintf(w, "%s %s = %#v\n", arg.Type, arg.Name, data)
+							obj := s.scope.Lookup(arg.Name.Name)
+							if obj == nil {
+								fmt.Fprintf(w, "err: %s\n", errors.WithStack(ErrCodeGen{arg, ErrUndefinedReference}))
+								continue
+							}
+							fmt.Fprintf(w, "%s %s = %#v\n", arg.Type, arg.Name, obj.Data)
 						}
 					}
 				case "next", "n":

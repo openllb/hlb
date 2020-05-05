@@ -485,6 +485,10 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 
 func (cg *CodeGen) EmitOptionLookup(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []*parser.Expr, op string) (opts []interface{}, err error) {
 	obj := scope.Lookup(expr.Name())
+	if obj == nil {
+		return opts, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
+	}
+
 	switch obj.Kind {
 	case parser.DeclKind:
 		switch n := obj.Node.(type) {
@@ -493,6 +497,10 @@ func (cg *CodeGen) EmitOptionLookup(ctx context.Context, scope *parser.Scope, ex
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(expr.Selector.Select.Name)
+			if importObj == nil {
+				return opts, errors.WithStack(ErrCodeGen{expr.Selector, ErrUndefinedReference})
+			}
+
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
 				return cg.EmitOptionFuncDecl(ctx, scope, m, args)
