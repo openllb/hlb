@@ -328,10 +328,10 @@ and entrypoint.
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>local</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>"
-	the local path to the directory to sync up.
+	the local path to a file or directory to sync up.
 
-A filesystem with the files synced up from a directory on the
-local system.
+A filesystem with the files synced up from a file or directory on the local
+system.
 
 	#!hlb
 	fs default() {
@@ -348,7 +348,8 @@ local system.
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>"
 	a list of patterns for files that should not be synced.
 
-Sync only files that do not match any of the excluded patterns.
+Sync only files that do not match any of the excluded patterns. If local
+path is for a file, then exclude patterns are ignored.
 
 #### <span class='hlb-type'>option::local</span> <span class='hlb-name'>followPaths</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
 
@@ -362,7 +363,8 @@ Sync the targets of symlinks if path is to a symlink.
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>"
 	a list of patterns for files that should be synced.
 
-Sync only files that match any of the included patterns.
+Sync only files that match any of the included patterns. If local path is
+for a file, then include patterns are ignored.
 
 
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>mkdir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>, <span class='hlb-type'>int</span> <span class='hlb-variable'>filemode</span>)
