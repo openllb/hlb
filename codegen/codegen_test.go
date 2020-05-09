@@ -29,6 +29,18 @@ func Expect(t *testing.T, st llb.State, opts ...solver.SolveOption) solver.Reque
 	})
 }
 
+func (cg *CodeGen) Local(t *testing.T, path string, opts ...llb.LocalOption) llb.State {
+	id, err := cg.LocalID(context.Background(), ".", opts...)
+	require.NoError(t, err)
+
+	opts = append([]llb.LocalOption{
+		llb.SessionID(cg.SessionID()),
+		llb.SharedKeyHint(path),
+	}, opts...)
+
+	return llb.Local(id, opts...)
+}
+
 type testCase struct {
 	name    string
 	targets []string
@@ -42,7 +54,6 @@ func cleanup(value string) string {
 
 func TestCodeGen(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	for _, tc := range []testCase{{
 		"image",
 		[]string{"default"},
@@ -343,10 +354,36 @@ func TestCodeGen(t *testing.T) {
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			id, err := cg.LocalID(ctx, ".")
-			require.NoError(t, err)
-
-			return Expect(t, llb.Local(id, llb.SessionID(cg.SessionID()), llb.SharedKeyHint(".")))
+			return Expect(t, cg.Local(t, "."))
+		},
+	}, {
+		"local file",
+		[]string{"default"},
+		`
+		fs default() {
+			local "codegen_test.go"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, cg.Local(t, ".",
+				llb.IncludePatterns([]string{"codegen_test.go"}),
+			))
+		},
+	}, {
+		"local file with patterns",
+		[]string{"default"},
+		`
+		fs default() {
+			local "codegen_test.go" with option {
+				includePatterns "ignored"
+				excludePatterns "ignored"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, cg.Local(t, ".",
+				llb.IncludePatterns([]string{"codegen_test.go"}),
+			))
 		},
 	}, {
 		"local env",
@@ -603,19 +640,15 @@ func TestCodeGen(t *testing.T) {
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
-			id, err := cg.LocalID(ctx, ".")
-			require.NoError(t, err)
 			sid := SecretID("codegen_test.go")
-
 			return Expect(t, llb.Image("busybox").Run(
 				llb.Shlex("find ."),
 				llb.Dir("/foo"),
 				llb.AddMount(
 					"/foo",
-					llb.Local(
-						id,
-						llb.SessionID(cg.SessionID()),
-						llb.SharedKeyHint("."),
+					cg.Local(
+						t,
+						".",
 					).File(
 						// this Mkdir is made implicitly due to /foo/secret
 						// secret over readonly FS

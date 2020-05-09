@@ -232,10 +232,24 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fc, err
+		}
+
 		var opts []llb.LocalOption
 		for _, iopt := range iopts {
 			opt := iopt.(llb.LocalOption)
 			opts = append(opts, opt)
+		}
+
+		if !fi.IsDir() {
+			filename := filepath.Base(path)
+			path = filepath.Dir(path)
+
+			// When path is a filename instead of a directory, include and exclude
+			// patterns should be ignored.
+			opts = append(opts, llb.IncludePatterns([]string{filename}), llb.ExcludePatterns([]string{}))
 		}
 
 		id, err := cg.LocalID(ctx, path, opts...)

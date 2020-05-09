@@ -54,20 +54,22 @@ fs git(string remote, string ref)
 # @return the option to keep the `.git` directory.
 option::git keepGitDir()
 
-# A filesystem with the files synced up from a directory on the
-# local system.
+# A filesystem with the files synced up from a file or directory on the local
+# system.
 #
-# @param path the local path to the directory to sync up.
+# @param path the local path to a file or directory to sync up.
 # @return a filesystem containing local files.
 fs local(string path)
 
-# Sync only files that match any of the included patterns.
+# Sync only files that match any of the included patterns. If local path is
+# for a file, then include patterns are ignored.
 #
 # @param pattern a list of patterns for files that should be synced.
 # @return an option to sync files that match any pattern.
 option::local includePatterns(variadic string pattern)
 
-# Sync only files that do not match any of the excluded patterns.
+# Sync only files that do not match any of the excluded patterns. If local
+# path is for a file, then exclude patterns are ignored.
 #
 # @param pattern a list of patterns for files that should not be synced.
 # @return an option to sync files that don't match any pattern.
