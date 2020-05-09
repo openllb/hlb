@@ -371,6 +371,23 @@ func TestCodeGen(t *testing.T) {
 			))
 		},
 	}, {
+		"local file with patterns",
+		[]string{"default"},
+		`
+		fs default() {
+			local "codegen_test.go" with option {
+				includePatterns "ignored"
+				excludePatterns "ignored"
+			}
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return Expect(t, cg.Local(t, ".",
+				llb.IncludePatterns([]string{"codegen_test.go"}),
+				llb.ExcludePatterns([]string{}),
+			))
+		},
+	}, {
 		"local env",
 		[]string{"default"},
 		`
