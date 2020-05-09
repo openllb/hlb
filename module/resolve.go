@@ -178,7 +178,7 @@ type remoteResolver struct {
 }
 
 func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	cg, err := codegen.New()
+	cg, err := codegen.New(codegen.WithClient(r.cln), codegen.WithMultiWriter(r.mw))
 	if err != nil {
 		return nil, err
 	}
