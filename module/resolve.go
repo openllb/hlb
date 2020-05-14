@@ -216,11 +216,6 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 
 	var ref gateway.Reference
 
-	opts, err := cg.SolveOptions(ctx, st)
-	if err != nil {
-		return nil, err
-	}
-
 	g.Go(func() error {
 		return solver.Build(ctx, r.cln, nil, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 			res, err := c.Solve(ctx, gateway.SolveRequest{
@@ -239,7 +234,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 			<-closed
 
 			return gateway.NewResult(), nil
-		}, opts...)
+		}, cg.SolveOpts...)
 	})
 
 	<-resolved

@@ -2,6 +2,7 @@ package solver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -210,6 +211,13 @@ func (o op) Tree(tree treeprint.Tree) error {
 	}
 	if o.info.OutputLocalOCITarball {
 		solve.AddNode("downloadOCITarball")
+	}
+	if o.info.ImageSpec != nil {
+		dt, err := json.Marshal(o.info.ImageSpec)
+		if err != nil {
+			return err
+		}
+		solve.AddMetaNode("imageSpec", string(dt))
 	}
 	if len(o.info.Entitlements) > 0 {
 		ent := solve.AddBranch("entitlements")

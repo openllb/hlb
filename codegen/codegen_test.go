@@ -12,6 +12,7 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/entitlements"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -736,6 +737,56 @@ func TestCodeGen(t *testing.T) {
 			).File(
 				llb.Mkfile("shlex", os.FileMode(0644), []byte("$HOME\n")),
 			))
+		},
+	}, {
+		"dockerfile meta",
+		[]string{"default"},
+		`
+		fs default() {
+			image "busybox"
+			env "myenv1" "value1"
+			env "myenv2" "value2"
+			env "myenv1" "value3"
+			dir "myworkdir"
+			entrypoint "my" "entrypoint"
+			cmd "my" "cmd"
+			label "mylabel1" "value1"
+			label "mylabel2" "value2"
+			label "mylabel1" "value3"
+			expose "8080/tcp" "9001/udp"
+			volumes "/var/log" "/var/db"
+			stopSignal "SIGKILL"
+			dockerPush "myimage"
+		}
+		`,
+		func(t *testing.T, cg *CodeGen) solver.Request {
+			return solver.Parallel(
+				Expect(t, llb.Image("busybox")),
+				Expect(t, llb.Image("busybox"),
+					solver.WithPushImage("myimage"),
+					solver.WithImageSpec(&specs.Image{
+						Config: specs.ImageConfig{
+							Env:        []string{"myenv2=value2", "myenv1=value3"},
+							WorkingDir: "/myworkdir",
+							Entrypoint: []string{"my", "entrypoint"},
+							Cmd:        []string{"my", "cmd"},
+							Labels: map[string]string{
+								"mylabel1": "value3",
+								"mylabel2": "value2",
+							},
+							ExposedPorts: map[string]struct{}{
+								"8080/tcp": {},
+								"9001/udp": {},
+							},
+							Volumes: map[string]struct{}{
+								"/var/log": {},
+								"/var/db":  {},
+							},
+							StopSignal: "SIGKILL",
+						},
+					}),
+				),
+			)
 		},
 	}} {
 		tc := tc

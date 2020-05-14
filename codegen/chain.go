@@ -529,6 +529,107 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 				llb.Copy(input, src, dest, info),
 			), nil
 		}
+	case "entrypoint":
+		var entrypoint []string
+		for _, arg := range args {
+			entrypointArg, err := cg.EmitStringExpr(ctx, scope, arg)
+			if err != nil {
+				return fc, err
+			}
+			entrypoint = append(entrypoint, entrypointArg)
+		}
+
+		cg.image.Config.Entrypoint = entrypoint
+
+		fc = func(st llb.State) (llb.State, error) {
+			// TODO: Expose SetArgs in upstream `llb` package.
+			return st, nil
+		}
+	case "cmd":
+		var cmd []string
+		for _, arg := range args {
+			cmdArg, err := cg.EmitStringExpr(ctx, scope, arg)
+			if err != nil {
+				return fc, err
+			}
+			cmd = append(cmd, cmdArg)
+		}
+
+		cg.image.Config.Cmd = cmd
+
+		fc = func(st llb.State) (llb.State, error) {
+			// TODO: Expose SetArgs in upstream `llb` package.
+			return st, nil
+		}
+	case "label":
+		key, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return fc, err
+		}
+
+		value, err := cg.EmitStringExpr(ctx, scope, args[1])
+		if err != nil {
+			return fc, err
+		}
+
+		if cg.image.Config.Labels == nil {
+			cg.image.Config.Labels = make(map[string]string)
+		}
+		cg.image.Config.Labels[key] = value
+
+		fc = func(st llb.State) (llb.State, error) {
+			return st, nil
+		}
+	case "expose":
+		var ports []string
+		for _, arg := range args {
+			port, err := cg.EmitStringExpr(ctx, scope, arg)
+			if err != nil {
+				return fc, err
+			}
+			ports = append(ports, port)
+		}
+
+		if cg.image.Config.ExposedPorts == nil {
+			cg.image.Config.ExposedPorts = make(map[string]struct{})
+		}
+		for _, port := range ports {
+			cg.image.Config.ExposedPorts[port] = struct{}{}
+		}
+
+		fc = func(st llb.State) (llb.State, error) {
+			return st, nil
+		}
+	case "volumes":
+		var mountpoints []string
+		for _, arg := range args {
+			mountpoint, err := cg.EmitStringExpr(ctx, scope, arg)
+			if err != nil {
+				return fc, err
+			}
+			mountpoints = append(mountpoints, mountpoint)
+		}
+
+		if cg.image.Config.Volumes == nil {
+			cg.image.Config.Volumes = make(map[string]struct{})
+		}
+		for _, mountpoint := range mountpoints {
+			cg.image.Config.Volumes[mountpoint] = struct{}{}
+		}
+
+		fc = func(st llb.State) (llb.State, error) {
+			return st, nil
+		}
+	case "stopSignal":
+		signal, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return fc, err
+		}
+
+		cg.image.Config.StopSignal = signal
+		fc = func(st llb.State) (llb.State, error) {
+			return st, nil
+		}
 	case "dockerPush":
 		ref, err := cg.EmitStringExpr(ctx, scope, args[0])
 		if err != nil {
