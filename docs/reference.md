@@ -537,7 +537,6 @@ Adds a host entry to /etc/hosts for the duration of the run command.
 
 
 Ignore any previously cached results for the run command.
-@ return an option to ignore existing cache for the run command.
 
 #### <span class='hlb-type'>option::run</span> <span class='hlb-name'>mount</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>)
 
