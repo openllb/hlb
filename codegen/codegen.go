@@ -15,7 +15,6 @@ import (
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/client/llb/imagemetaresolver"
@@ -39,9 +38,11 @@ import (
 )
 
 type CodeGen struct {
-	Debug     Debugger
-	cln       *client.Client
-	sessionID string
+	Debug      Debugger
+	cln        *client.Client
+	sessionID  string
+	fbs        map[string]*parser.FileBuffer
+	stacktrace []Frame
 
 	values map[parser.Binding]interface{}
 
@@ -76,6 +77,13 @@ func WithMultiWriter(mw *progress.MultiWriter) CodeGenOption {
 func WithClient(cln *client.Client) CodeGenOption {
 	return func(i *CodeGen) error {
 		i.cln = cln
+		return nil
+	}
+}
+
+func WithFileBuffers(fbs map[string]*parser.FileBuffer) CodeGenOption {
+	return func(i *CodeGen) error {
+		i.fbs = fbs
 		return nil
 	}
 }
@@ -133,7 +141,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				v, err = cg.EmitFuncDecl(ctx, mod.Scope, n, nil, nil)
+				v, err = cg.EmitFuncDecl(ctx, mod.Scope, n.Name, n, nil, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -144,7 +152,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				v, err = cg.EmitBinding(ctx, mod.Scope, b, nil, nil)
+				v, err = cg.EmitBinding(ctx, mod.Scope, n.Ident, b, nil, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -459,7 +467,7 @@ func (cg *CodeGen) EmitOptionLookup(ctx context.Context, scope *parser.Scope, ex
 	case parser.DeclKind:
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			return cg.EmitOptionFuncDecl(ctx, scope, n, args)
+			return cg.EmitOptionFuncDecl(ctx, scope, expr, n, args)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importObj := importScope.Lookup(expr.Selector.Select.Name)
@@ -469,7 +477,7 @@ func (cg *CodeGen) EmitOptionLookup(ctx context.Context, scope *parser.Scope, ex
 
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				return cg.EmitOptionFuncDecl(ctx, scope, m, args)
+				return cg.EmitOptionFuncDecl(ctx, scope, expr, m, args)
 			default:
 				return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option decl kind")})
 			}
@@ -1109,7 +1117,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 				)
 				switch srcUri.Scheme {
 				case "unix":
-					path, err = ResolvePathForNode(scope.Node, srcUri.Path)
+					path, err = parser.ResolvePath(scope.Node, srcUri.Path)
 					if err != nil {
 						return opts, err
 					}
@@ -1175,7 +1183,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					return opts, err
 				}
 
-				localPathArg, err = ResolvePathForNode(scope.Node, localPathArg)
+				localPathArg, err = parser.ResolvePath(scope.Node, localPathArg)
 				if err != nil {
 					return opts, err
 				}
@@ -1402,7 +1410,7 @@ func (cg *CodeGen) EmitSSHOptions(ctx context.Context, scope *parser.Scope, op s
 						return opts, err
 					}
 
-					localPath, err = ResolvePathForNode(scope.Node, localPath)
+					localPath, err = parser.ResolvePath(scope.Node, localPath)
 					if err != nil {
 						return opts, err
 					}
@@ -1651,17 +1659,4 @@ func outputFromWriter(w io.WriteCloser) func(map[string]string) (io.WriteCloser,
 	return func(map[string]string) (io.WriteCloser, error) {
 		return w, nil
 	}
-}
-
-func ResolvePathForNode(node parser.Node, path string) (string, error) {
-	path, err := homedir.Expand(path)
-	if err != nil {
-		return path, err
-	}
-
-	if filepath.IsAbs(path) {
-		return path, nil
-	}
-
-	return filepath.Join(filepath.Dir(node.Position().Filename), path), nil
 }

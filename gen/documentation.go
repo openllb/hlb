@@ -36,7 +36,7 @@ type Field struct {
 }
 
 func GenerateDocumentation(r io.Reader) (*Documentation, error) {
-	file, err := parser.Parse(r)
+	file, _, err := parser.Parse(r)
 	if err != nil {
 		return nil, err
 	}

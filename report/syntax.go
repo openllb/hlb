@@ -6,9 +6,10 @@ import (
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
+	"github.com/openllb/hlb/parser"
 )
 
-func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
+func NewSyntaxError(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
 	perr, ok := err.(participle.Error)
 	if !ok {
 		return nil, err
@@ -29,24 +30,24 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 		case "":
 			if !Contains(Types, unexpected.Value) {
 				// Invalid function type.
-				group, err = errFunc(color, ib, lex, unexpected)
+				group, err = errFunc(color, fb, lex, unexpected)
 			} else {
 				// Valid decl type but invalid name.
-				group, err = errFuncName(color, ib, lex, unexpected)
+				group, err = errFuncName(color, fb, lex, unexpected)
 			}
 		case `"("`:
 			// Missing signature.
-			group, err = errSignatureStart(color, ib, lex, unexpected)
+			group, err = errSignatureStart(color, fb, lex, unexpected)
 		case `")"`, "<ident>":
 			// Invalid signature.
-			group, err = errSignatureEnd(color, ib, lex, unexpected)
+			group, err = errSignatureEnd(color, fb, lex, unexpected)
 		case `"{"`:
 			// Missing block.
-			group, err = errBlockStart(color, ib, lex, unexpected)
+			group, err = errBlockStart(color, fb, lex, unexpected)
 		case `"}"`:
-			group, err = errBlockEnd(color, ib, lex, unexpected)
+			group, err = errBlockEnd(color, fb, lex, unexpected)
 		default:
-			group, err = errDefault(color, ib, lex, perr, unexpected)
+			group, err = errDefault(color, fb, lex, perr, unexpected)
 		}
 		if err != nil {
 			return nil, err
@@ -61,7 +62,7 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 			return nil, err
 		}
 
-		group, err := errDefault(color, ib, lex, perr, token)
+		group, err := errDefault(color, fb, lex, perr, token)
 		if err != nil {
 			return nil, err
 		}
@@ -75,8 +76,8 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 	return Error{Groups: groups}, nil
 }
 
-func errFunc(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
-	segment, err := getSegment(ib, token)
+func errFunc(color aurora.Aurora, fb *parser.FileBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
+	segment, err := getSegment(fb, token)
 	if err != nil {
 		return group, err
 	}
@@ -102,8 +103,8 @@ func errFunc(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, toke
 	}, nil
 }
 
-func errFuncName(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
-	startSegment, startToken, n, err := getSegmentAndToken(ib, lex, unexpected)
+func errFuncName(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	startSegment, startToken, n, err := getSegmentAndToken(fb, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
@@ -114,10 +115,10 @@ func errFuncName(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 	}
 
 	if isSymbol(endToken, "Type") {
-		return errKeyword(color, ib, lex, endToken)
+		return errKeyword(color, fb, lex, endToken)
 	}
 
-	endSegment, err := getSegment(ib, endToken)
+	endSegment, err := getSegment(fb, endToken)
 	if err != nil {
 		return group, err
 	}
@@ -145,8 +146,8 @@ func errFuncName(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 	}, nil
 }
 
-func errKeyword(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
-	segment, err := getSegment(ib, token)
+func errKeyword(color aurora.Aurora, fb *parser.FileBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
+	segment, err := getSegment(fb, token)
 	if err != nil {
 		return group, err
 	}
@@ -166,8 +167,8 @@ func errKeyword(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, t
 	}, nil
 }
 
-func errSignatureStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
-	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
+func errSignatureStart(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	endSegment, endToken, n, err := getSegmentAndToken(fb, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
@@ -177,7 +178,7 @@ func errSignatureStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.Peekin
 		return group, err
 	}
 
-	startSegment, err := getSegment(ib, startToken)
+	startSegment, err := getSegment(fb, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -204,8 +205,8 @@ func errSignatureStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.Peekin
 	}, nil
 }
 
-func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
-	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
+func errSignatureEnd(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	endSegment, endToken, n, err := getSegmentAndToken(fb, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
@@ -232,11 +233,11 @@ func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingL
 		if (expected == "," && token.Value != ",") || (expected != "," && !isSymbol(token, expected)) {
 			switch expected {
 			case "Type":
-				return errArgType(color, ib, lex, m)
+				return errArgType(color, fb, lex, m)
 			case "Ident":
-				return errArgIdent(color, ib, lex, m)
+				return errArgIdent(color, fb, lex, m)
 			case ",":
-				return errArgDelim(color, ib, lex, m)
+				return errArgDelim(color, fb, lex, m)
 			}
 		}
 
@@ -250,7 +251,7 @@ func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingL
 		}
 	}
 
-	startSegment, err := getSegment(ib, startToken)
+	startSegment, err := getSegment(fb, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -282,13 +283,13 @@ func errSignatureEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingL
 	}, nil
 }
 
-func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
+func errArgType(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
 	startToken, err := lex.Peek(n - 1)
 	if err != nil {
 		return group, err
 	}
 
-	startSegment, err := getSegment(ib, startToken)
+	startSegment, err := getSegment(fb, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -298,7 +299,7 @@ func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer,
 		return group, err
 	}
 
-	endSegment, err := getSegment(ib, endToken)
+	endSegment, err := getSegment(fb, endToken)
 	if err != nil {
 		return group, err
 	}
@@ -328,13 +329,13 @@ func errArgType(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer,
 	}, nil
 }
 
-func errArgIdent(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
+func errArgIdent(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
 	startToken, err := lex.Peek(n - 1)
 	if err != nil {
 		return group, err
 	}
 
-	startSegment, err := getSegment(ib, startToken)
+	startSegment, err := getSegment(fb, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -345,10 +346,10 @@ func errArgIdent(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 	}
 
 	if isSymbol(endToken, "Type") {
-		return errKeyword(color, ib, lex, endToken)
+		return errKeyword(color, fb, lex, endToken)
 	}
 
-	endSegment, err := getSegment(ib, endToken)
+	endSegment, err := getSegment(fb, endToken)
 	if err != nil {
 		return group, err
 	}
@@ -379,13 +380,13 @@ func errArgIdent(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 	}, nil
 }
 
-func errArgDelim(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
+func errArgDelim(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, n int) (group AnnotationGroup, err error) {
 	token, err := lex.Peek(n - 1)
 	if err != nil {
 		return group, err
 	}
 
-	segment, err := getSegment(ib, token)
+	segment, err := getSegment(fb, token)
 	if err != nil {
 		return group, err
 	}
@@ -406,8 +407,8 @@ func errArgDelim(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 	}, nil
 }
 
-func errBlockStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
-	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
+func errBlockStart(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	endSegment, endToken, n, err := getSegmentAndToken(fb, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
@@ -417,7 +418,7 @@ func errBlockStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 		return group, err
 	}
 
-	startSegment, err := getSegment(ib, startToken)
+	startSegment, err := getSegment(fb, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -445,8 +446,8 @@ func errBlockStart(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 	}, nil
 }
 
-func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
-	endSegment, endToken, n, err := getSegmentAndToken(ib, lex, unexpected)
+func errBlockEnd(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	endSegment, endToken, n, err := getSegmentAndToken(fb, lex, unexpected)
 	if err != nil {
 		return group, err
 	}
@@ -456,7 +457,7 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 		return group, err
 	}
 
-	startSegment, err := getSegment(ib, startToken)
+	startSegment, err := getSegment(fb, startToken)
 	if err != nil {
 		return group, err
 	}
@@ -484,8 +485,8 @@ func errBlockEnd(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer
 	}, nil
 }
 
-func errDefault(_ aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, perr participle.Error, unexpected lexer.Token) (group AnnotationGroup, err error) {
-	segment, token, _, err := getSegmentAndToken(ib, lex, unexpected)
+func errDefault(_ aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, perr participle.Error, unexpected lexer.Token) (group AnnotationGroup, err error) {
+	segment, token, _, err := getSegmentAndToken(fb, lex, unexpected)
 	if err != nil {
 		return group, err
 	}

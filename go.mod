@@ -7,19 +7,20 @@ require (
 	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
 	github.com/docker/cli v1.14.0-0.20190523191156-ab688a9a79a1
+	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/moby/buildkit v0.7.1-0.20200409032528-226a5db9ad3d
-	github.com/opencontainers/go-digest v1.0.0-rc1
+	github.com/moby/buildkit v0.7.1-0.20200525141520-d6f5e972def2
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.1
 	github.com/openllb/doxygen-parser v0.0.0-20200128221307-2aa2d8be1c35
 	github.com/pkg/errors v0.9.1
 	github.com/sourcegraph/go-lsp v0.0.0-20200117082640-b19bb38222e2
-	github.com/stretchr/testify v1.4.0
-	github.com/tonistiigi/fsutil v0.0.0-20200326231323-c2c7d7b0e144
+	github.com/stretchr/testify v1.5.1
+	github.com/tonistiigi/fsutil v0.0.0-20200512175118-ae3a8d753069
 	github.com/urfave/cli/v2 v2.1.1
 	github.com/xlab/treeprint v1.0.0
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d

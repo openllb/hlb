@@ -10,6 +10,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/codegen"
@@ -67,6 +68,7 @@ var runCommand = &cli.Command{
 			Targets:   c.StringSlice("target"),
 			LLB:       c.Bool("llb"),
 			LogOutput: c.String("log-output"),
+			ErrOutput: os.Stderr,
 			Output:    os.Stdout,
 		})
 	},
@@ -78,6 +80,7 @@ type RunOptions struct {
 	Targets   []string
 	LLB       bool
 	LogOutput string
+	ErrOutput io.Writer
 	Output    io.Writer
 
 	// override defaults sources as necessary
@@ -205,7 +208,14 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return solveReq.Solve(ctx, cln, p.MultiWriter())
 	})
 
-	return p.Wait()
+	err = p.Wait()
+	if err != nil {
+		for _, source := range errdefs.Sources(err) {
+			source.Print(opts.ErrOutput)
+		}
+		return err
+	}
+	return nil
 }
 
 func ModuleReadCloser(args []string) (io.ReadCloser, error) {

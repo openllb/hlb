@@ -793,7 +793,7 @@ func TestCodeGen(t *testing.T) {
 			cg, err := New()
 			require.NoError(t, err, tc.name)
 
-			mod, err := parser.Parse(strings.NewReader(cleanup(tc.input)))
+			mod, _, err := parser.Parse(strings.NewReader(cleanup(tc.input)))
 			require.NoError(t, err, tc.name)
 
 			err = checker.Check(mod)

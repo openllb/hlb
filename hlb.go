@@ -13,7 +13,7 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/module"
-	"github.com/openllb/hlb/report"
+	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 )
 
@@ -26,12 +26,12 @@ func DefaultParseOpts() []ParseOption {
 }
 
 func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets []codegen.Target, r io.Reader) (solver.Request, error) {
-	mod, ib, err := Parse(r, DefaultParseOpts()...)
+	mod, fb, err := Parse(r, DefaultParseOpts()...)
 	if err != nil {
 		return nil, err
 	}
-	ibs := map[string]*report.IndexedBuffer{
-		mod.Pos.Filename: ib,
+	fbs := map[string]*parser.FileBuffer{
+		mod.Pos.Filename: fb,
 	}
 
 	err = checker.Check(mod)
@@ -51,7 +51,7 @@ func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets
 	}
 	defer res.Close()
 
-	err = module.ResolveGraph(ctx, resolver, res, mod, nil)
+	err = module.ResolveGraph(ctx, resolver, res, mod, fbs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +69,12 @@ func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets
 		names = append(names, target.Name)
 	}
 
-	var opts []codegen.CodeGenOption
+	opts := []codegen.CodeGenOption{codegen.WithFileBuffers(fbs)}
 	if mw != nil {
 		opts = append(opts, codegen.WithMultiWriter(mw), codegen.WithClient(cln))
 	} else {
 		r := bufio.NewReader(os.Stdin)
-		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r, ibs)))
+		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r, fbs)))
 	}
 
 	var request solver.Request

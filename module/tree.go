@@ -37,7 +37,7 @@ func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, 
 	tree.SetValue(mod.Pos.Filename)
 	nodeByModule[mod] = tree
 
-	err = ResolveGraph(ctx, resolver, res, mod, func(decl *parser.ImportDecl, dgst digest.Digest, mod, importMod *parser.Module) error {
+	err = ResolveGraph(ctx, resolver, res, mod, nil, func(decl *parser.ImportDecl, dgst digest.Digest, mod, importMod *parser.Module) error {
 		var prefix string
 		if dgst != "" {
 			encoded := dgst.Encoded()

@@ -91,10 +91,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, args, chainStart)
+			v, err = cg.EmitFuncDecl(ctx, scope, expr, n, args, chainStart)
 		case *parser.BindClause:
 			b := n.TargetBinding(expr.Name())
-			v, err = cg.EmitBinding(ctx, scope, b, args, chainStart)
+			v, err = cg.EmitBinding(ctx, scope, expr, b, args, chainStart)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importName := expr.Selector.Select.Name
@@ -105,10 +105,10 @@ func (cg *CodeGen) EmitFilesystemChainStmt(ctx context.Context, scope *parser.Sc
 
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, args, chainStart)
+				v, err = cg.EmitFuncDecl(ctx, scope, expr, m, args, chainStart)
 			case *parser.BindClause:
 				b := m.TargetBinding(importName)
-				v, err = cg.EmitBinding(ctx, scope, b, args, chainStart)
+				v, err = cg.EmitBinding(ctx, scope, expr, b, args, chainStart)
 			default:
 				return fc, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
 			}
@@ -189,6 +189,9 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			opt := iopt.(llb.ImageOption)
 			opts = append(opts, opt)
 		}
+		for _, opt := range cg.SourceMap(expr) {
+			opts = append(opts, opt)
+		}
 
 		fc = func(_ llb.State) (llb.State, error) {
 			return llb.Image(ref, opts...), nil
@@ -202,6 +205,9 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		var opts []llb.HTTPOption
 		for _, iopt := range iopts {
 			opt := iopt.(llb.HTTPOption)
+			opts = append(opts, opt)
+		}
+		for _, opt := range cg.SourceMap(expr) {
 			opts = append(opts, opt)
 		}
 
@@ -223,6 +229,10 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			opt := iopt.(llb.GitOption)
 			opts = append(opts, opt)
 		}
+		for _, opt := range cg.SourceMap(expr) {
+			opts = append(opts, opt)
+		}
+
 		fc = func(_ llb.State) (llb.State, error) {
 			return llb.Git(remote, ref, opts...), nil
 		}
@@ -232,7 +242,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
-		path, err = ResolvePathForNode(scope.Node, path)
+		path, err = parser.ResolvePath(scope.Node, path)
 		if err != nil {
 			return fc, err
 		}
@@ -245,6 +255,9 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		var opts []llb.LocalOption
 		for _, iopt := range iopts {
 			opt := iopt.(llb.LocalOption)
+			opts = append(opts, opt)
+		}
+		for _, opt := range cg.SourceMap(expr) {
 			opts = append(opts, opt)
 		}
 
@@ -349,6 +362,9 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			case *shlexOption:
 				wantShlex = true
 			}
+		}
+		for _, opt := range cg.SourceMap(expr) {
+			opts = append(opts, opt)
 		}
 
 		cmd, err := cg.EmitShellCommand(ctx, scope, args, wantShlex)
@@ -461,6 +477,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		fc = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Mkdir(path, os.FileMode(mode), opts...),
+				cg.SourceMap(expr)...,
 			), nil
 		}
 	case "mkfile":
@@ -488,6 +505,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		fc = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Mkfile(path, os.FileMode(mode), []byte(content), opts...),
+				cg.SourceMap(expr)...,
 			), nil
 		}
 	case "rm":
@@ -505,6 +523,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		fc = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Rm(path, opts...),
+				cg.SourceMap(expr)...,
 			), nil
 		}
 	case "copy":
@@ -532,6 +551,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		fc = func(st llb.State) (llb.State, error) {
 			return st.File(
 				llb.Copy(input, src, dest, info),
+				cg.SourceMap(expr)...,
 			), nil
 		}
 	case "entrypoint":
@@ -696,7 +716,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
-		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		localPath, err = parser.ResolvePath(scope.Node, localPath)
 		if err != nil {
 			return fc, err
 		}
@@ -715,7 +735,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
-		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		localPath, err = parser.ResolvePath(scope.Node, localPath)
 		if err != nil {
 			return fc, err
 		}
@@ -734,7 +754,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
-		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		localPath, err = parser.ResolvePath(scope.Node, localPath)
 		if err != nil {
 			return fc, err
 		}
@@ -753,7 +773,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 			return fc, err
 		}
 
-		localPath, err = ResolvePathForNode(scope.Node, localPath)
+		localPath, err = parser.ResolvePath(scope.Node, localPath)
 		if err != nil {
 			return fc, err
 		}
@@ -1064,10 +1084,10 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		var err error
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, args, chainStart)
+			v, err = cg.EmitFuncDecl(ctx, scope, expr, n, args, chainStart)
 		case *parser.BindClause:
 			b := n.TargetBinding(expr.Name())
-			v, err = cg.EmitBinding(ctx, scope, b, args, chainStart)
+			v, err = cg.EmitBinding(ctx, scope, expr, b, args, chainStart)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importName := expr.Selector.Select.Name
@@ -1078,10 +1098,10 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, args, chainStart)
+				v, err = cg.EmitFuncDecl(ctx, scope, expr, m, args, chainStart)
 			case *parser.BindClause:
 				b := m.TargetBinding(importName)
-				v, err = cg.EmitBinding(ctx, scope, b, args, chainStart)
+				v, err = cg.EmitBinding(ctx, scope, expr, b, args, chainStart)
 			default:
 				return nil, errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
 			}
@@ -1136,10 +1156,10 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 		var v interface{}
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
-			v, err = cg.EmitFuncDecl(ctx, scope, n, args, chainStart)
+			v, err = cg.EmitFuncDecl(ctx, scope, expr, n, args, chainStart)
 		case *parser.BindClause:
 			b := n.TargetBinding(expr.Name())
-			v, err = cg.EmitBinding(ctx, scope, b, args, chainStart)
+			v, err = cg.EmitBinding(ctx, scope, expr, b, args, chainStart)
 		case *parser.ImportDecl:
 			importScope := obj.Data.(*parser.Scope)
 			importName := expr.Selector.Select.Name
@@ -1150,10 +1170,10 @@ func (cg *CodeGen) EmitGroupChainStmt(ctx context.Context, scope *parser.Scope, 
 
 			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				v, err = cg.EmitFuncDecl(ctx, scope, m, args, chainStart)
+				v, err = cg.EmitFuncDecl(ctx, scope, expr, m, args, chainStart)
 			case *parser.BindClause:
 				b := m.TargetBinding(importName)
-				v, err = cg.EmitBinding(ctx, scope, b, args, chainStart)
+				v, err = cg.EmitBinding(ctx, scope, expr, b, args, chainStart)
 			default:
 				return gc, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
 			}

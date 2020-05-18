@@ -513,7 +513,7 @@ func TestChecker_Check(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(cleanup(tc.input))
 
-			mod, err := parser.Parse(in)
+			mod, _, err := parser.Parse(in)
 			require.NoError(t, err)
 
 			err = Check(mod)
@@ -611,14 +611,14 @@ func TestChecker_CheckSelectors(t *testing.T) {
 				option::image resolveImage() { resolve; }
 			`
 
-			importedModule, err := parser.Parse(strings.NewReader(importedModuleDefinition))
+			importedModule, _, err := parser.Parse(strings.NewReader(importedModuleDefinition))
 			require.NoError(t, err)
 			err = Check(importedModule)
 			require.NoError(t, err)
 
 			in := strings.NewReader(cleanup(tc.input))
 
-			module, err := parser.Parse(in)
+			module, _, err := parser.Parse(in)
 			require.NoError(t, err)
 
 			err = Check(module)

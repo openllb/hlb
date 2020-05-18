@@ -11,9 +11,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ParseMultiple(rs []io.Reader, opts ...ParseOption) ([]*parser.Module, map[string]*report.IndexedBuffer, error) {
+func ParseMultiple(rs []io.Reader, opts ...ParseOption) ([]*parser.Module, map[string]*parser.FileBuffer, error) {
 	mods := make([]*parser.Module, len(rs))
-	buffers := make([]*report.IndexedBuffer, len(rs))
+	buffers := make([]*parser.FileBuffer, len(rs))
 
 	var g errgroup.Group
 	for i, r := range rs {
@@ -35,15 +35,15 @@ func ParseMultiple(rs []io.Reader, opts ...ParseOption) ([]*parser.Module, map[s
 		return nil, nil, err
 	}
 
-	ibs := make(map[string]*report.IndexedBuffer)
+	fbs := make(map[string]*parser.FileBuffer)
 	for i, mod := range mods {
-		ibs[mod.Pos.Filename] = buffers[i]
+		fbs[mod.Pos.Filename] = buffers[i]
 	}
 
-	return mods, ibs, nil
+	return mods, fbs, nil
 }
 
-func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuffer, error) {
+func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *parser.FileBuffer, error) {
 	info := ParseInfo{
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -63,40 +63,40 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 	}
 	r = &parser.NewlinedReader{Reader: r}
 
-	ib := report.NewIndexedBuffer()
-	r = io.TeeReader(r, ib)
+	fb := parser.NewFileBuffer(name)
+	r = io.TeeReader(r, fb)
 
 	lex, err := parser.Parser.Lexer().Lex(&parser.NamedReader{
 		Reader: r,
 		Value:  name,
 	})
 	if err != nil {
-		return nil, ib, err
+		return nil, fb, err
 	}
 
 	mod := &parser.Module{}
 	peeker, err := lexer.Upgrade(lex)
 	if err != nil {
-		nerr, err := report.NewLexerError(info.Color, ib, peeker, err)
+		nerr, err := report.NewLexerError(info.Color, fb, peeker, err)
 		if err != nil {
-			return mod, ib, err
+			return mod, fb, err
 		}
 
 		parser.Parser.ParseFromLexer(peeker, mod)
-		return mod, ib, nerr
+		return mod, fb, nerr
 	}
 
 	err = parser.Parser.ParseFromLexer(peeker, mod)
 	if err != nil {
-		nerr, err := report.NewSyntaxError(info.Color, ib, peeker, err)
+		nerr, err := report.NewSyntaxError(info.Color, fb, peeker, err)
 		if err != nil {
-			return mod, ib, err
+			return mod, fb, err
 		}
 
-		return mod, ib, nerr
+		return mod, fb, nerr
 	}
 
-	return mod, ib, nil
+	return mod, fb, nil
 }
 
 type ParseOption func(*ParseInfo) error

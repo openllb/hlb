@@ -7,31 +7,34 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
-func Parse(r io.Reader) (*Module, error) {
+func Parse(r io.Reader) (*Module, *FileBuffer, error) {
 	name := lexer.NameOfReader(r)
 	if name == "" {
 		name = "<stdin>"
 	}
 	r = &NewlinedReader{Reader: r}
 
+	fb := NewFileBuffer(name)
+	r = io.TeeReader(r, fb)
+
 	mod := &Module{}
 	lex, err := Parser.Lexer().Lex(&NamedReader{r, name})
 	if err != nil {
-		return mod, err
+		return mod, fb, err
 	}
 
 	peeker, err := lexer.Upgrade(lex)
 	if err != nil {
-		return mod, err
+		return mod, fb, err
 	}
 
 	err = Parser.ParseFromLexer(peeker, mod)
 	if err != nil {
-		return mod, err
+		return mod, fb, err
 	}
 	AssignDocStrings(mod)
 
-	return mod, nil
+	return mod, fb, nil
 }
 
 type NamedReader struct {
@@ -41,6 +44,10 @@ type NamedReader struct {
 
 func (nr *NamedReader) Name() string {
 	return nr.Value
+}
+
+func (nr NamedReader) Close() error {
+	return nil
 }
 
 // NewlinedReader appends one more newline after an EOF is reached, so that
