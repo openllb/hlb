@@ -148,7 +148,7 @@ option::run user(string name)
 
 # Ignore any previously cached results for the run command.
 #
-# @ return an option to ignore existing cache for the run command.
+# @return an option to ignore existing cache for the run command.
 option::run ignoreCache()
 
 # Sets the networking mode for the duration of the run command. By default, the

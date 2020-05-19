@@ -1042,7 +1042,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 				opts = append(opts, llb.User(name))
 			case "ignoreCache":
-				opts = append(opts, llb.IgnoreCache)
+				opts = append(opts, llb.AddEnv("HLB_IGNORE_CACHE", identity.NewID()))
 			case "network":
 				mode, err := cg.EmitStringExpr(ctx, scope, args[0])
 				if err != nil {
