@@ -1,4 +1,18 @@
 ## <span class='hlb-type'>fs</span> functions
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>cmd</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>"
+	the default arguments
+
+Sets the default arguments to the entrypoint of the container.
+
+	#!hlb
+	fs default() {
+		cmd "args"
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>copy</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>src</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>dst</span>)
 
 !!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>"
@@ -186,6 +200,21 @@ Downloads the filesystem as a tarball to a local path.
 
 
 
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>entrypoint</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>"
+	the command to execute.
+
+Defines a list of arguments to use as the command to execute when the
+container starts.
+
+	#!hlb
+	fs default() {
+		entrypoint "args"
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>env</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>"
@@ -199,6 +228,22 @@ block.
 	#!hlb
 	fs default() {
 		env "key" "value"
+	}
+
+
+
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>expose</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>ports</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>ports</span>"
+	the set of ports to expose.
+
+Exposes a set of network ports at runtime. The default is TCP if the protocol
+is not specified.
+This metadata is only useful when exporting as a Docker image.
+
+	#!hlb
+	fs default() {
+		expose "ports"
 	}
 
 
@@ -323,6 +368,22 @@ An OCI image&#x27;s filesystem.
 
 Resolves the OCI Image Config and inherit its environment, working directory,
 and entrypoint.
+
+
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>label</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>"
+	the metadata key.
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>"
+	the metadata value.
+
+Sets arbitrary metadata for the container.
+
+	#!hlb
+	fs default() {
+		label "key" "value"
+	}
+
 
 
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>local</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
@@ -630,6 +691,24 @@ methods. By default, this is [&quot;sh&quot;, &quot;-c&quot;].
 
 
 
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>stopSignal</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>signal</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>signal</span>"
+	
+
+Sets the system call signal that will be sent to the container to exit.
+This signal can be a valid unsigned number that matches a position in the
+kernel&#x27;s syscall table, for instance 9, or a signal in the format SIGNAME,
+for instance SIGKILL.
+This metadata is only useful when exporting as a Docker image.
+
+	#!hlb
+	fs default() {
+		stopSignal "signal"
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>user</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>"
@@ -640,6 +719,22 @@ Sets the current user for all subsequent calls in this filesystem block.
 	#!hlb
 	fs default() {
 		user "name"
+	}
+
+
+
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>volumes</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>mountpoints</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountpoints</span>"
+	the set of mountpoints to mark.
+
+Defines a set of mount points and marks it as holding externally mounted
+volumes from native host or other containers.
+This metadata is only useful when exporting as a Docker image.
+
+	#!hlb
+	fs default() {
+		volumes "mountpoints"
 	}
 
 

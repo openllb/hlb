@@ -510,6 +510,56 @@ fs downloadOCITarball(string localPath)
 # image tarball.
 fs downloadDockerTarball(string localPath, string ref)
 
+# Defines a list of arguments to use as the command to execute when the
+# container starts.
+#
+# @param args the command to execute.
+# @return the filesystem with the entrypoint set.
+fs entrypoint(variadic string args)
+
+# Sets the default arguments to the entrypoint of the container.
+#
+# @param args the default arguments
+# @return the filesystem with default arguments to entrypoint set.
+fs cmd(variadic string args)
+
+# Sets arbitrary metadata for the container.
+#
+# @param key the metadata key.
+# @param value the metadata value.
+# @return a filesystem with a metadata key pair set.
+fs label(string key, string value)
+
+# Exposes a set of network ports at runtime. The default is TCP if the protocol
+# is not specified.
+#
+# This metadata is only useful when exporting as a Docker image.
+#
+# @param ports the set of ports to expose.
+# @return the filesystem with exposed ports set.
+fs expose(variadic string ports)
+
+# Defines a set of mount points and marks it as holding externally mounted
+# volumes from native host or other containers.
+#
+# This metadata is only useful when exporting as a Docker image.
+#
+# @param mountpoints the set of mountpoints to mark.
+# @return the filesystem with volumes set.
+fs volumes(variadic string mountpoints)
+
+# Sets the system call signal that will be sent to the container to exit.
+#
+# This signal can be a valid unsigned number that matches a position in the
+# kernel's syscall table, for instance 9, or a signal in the format SIGNAME,
+# for instance SIGKILL.
+#
+# This metadata is only useful when exporting as a Docker image.
+#
+# @param string the stop signal to send to the container.
+# @return the filesystem with the stop signal set.
+fs stopSignal(string signal)
+
 # A format specifier that is interpolated with values.
 #
 # @param formatString the format specifier.

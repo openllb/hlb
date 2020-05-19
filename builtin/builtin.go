@@ -132,6 +132,37 @@ var (
 							parser.NewField(parser.Str, "ref", false),
 						},
 					},
+					"entrypoint": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "args", true),
+						},
+					},
+					"cmd": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "args", true),
+						},
+					},
+					"label": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "key", false),
+							parser.NewField(parser.Str, "value", false),
+						},
+					},
+					"expose": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "ports", true),
+						},
+					},
+					"volumes": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "mountpoints", true),
+						},
+					},
+					"stopSignal": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "signal", false),
+						},
+					},
 				},
 			},
 			"group": LookupByType{

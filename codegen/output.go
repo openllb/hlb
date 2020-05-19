@@ -11,6 +11,7 @@ import (
 	"github.com/docker/cli/cli/flags"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/session/filesync"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 )
@@ -29,7 +30,8 @@ type Output struct {
 type OutputType int
 
 const (
-	OutputDockerPush OutputType = iota
+	OutputNone OutputType = iota
+	OutputDockerPush
 	OutputDockerLoad
 	OutputDownload
 	OutputDownloadTarball
@@ -37,10 +39,32 @@ const (
 	OutputDownloadDockerTarball
 )
 
-func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output) (solver.Request, error) {
-	opts, err := cg.SolveOptions(ctx, st)
+func (cg *CodeGen) imageSpec(ctx context.Context, st llb.State) (*specs.Image, error) {
+	var err error
+	cg.image.Config.Env, err = st.Env(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	cg.image.Config.WorkingDir, err = st.GetDir(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cg.image, nil
+}
+
+func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output) (solver.Request, error) {
+	opts := cg.SolveOpts
+
+	// Only add image spec when exporting as a Docker image.
+	switch output.Type {
+	case OutputDockerPush, OutputDockerLoad, OutputDownloadDockerTarball:
+		cfg, err := cg.imageSpec(ctx, st)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, solver.WithImageSpec(cfg))
 	}
 
 	s, err := cg.newSession(ctx)

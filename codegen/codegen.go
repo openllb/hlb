@@ -52,9 +52,11 @@ type CodeGen struct {
 	fileSourceByID  map[string]secretsprovider.FileSource
 	agentConfigByID map[string]sockprovider.AgentConfig
 
+	image *specs.Image
+
 	mw        *progress.MultiWriter
 	dockerCli *command.DockerCli
-	solveOpts []solver.SolveOption
+	SolveOpts []solver.SolveOption
 }
 
 type CodeGenOption func(*CodeGen) error
@@ -100,34 +102,6 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 
 func (cg *CodeGen) SessionID() string {
 	return cg.sessionID
-}
-
-func (cg *CodeGen) SolveOptions(ctx context.Context, st llb.State) (opts []solver.SolveOption, err error) {
-	env, err := st.Env(ctx)
-	if err != nil {
-		return opts, err
-	}
-
-	args, err := st.GetArgs(ctx)
-	if err != nil {
-		return opts, err
-	}
-
-	dir, err := st.GetDir(ctx)
-	if err != nil {
-		return opts, err
-	}
-
-	opts = append(opts, solver.WithImageSpec(&specs.Image{
-		Config: specs.ImageConfig{
-			Env:        env,
-			Entrypoint: args,
-			WorkingDir: dir,
-		},
-	}))
-
-	opts = append(opts, cg.solveOpts...)
-	return opts, nil
 }
 
 func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (solver.Request, error) {
@@ -227,10 +201,11 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 // If we ever need to parallelize compilation we can revisit this.
 func (cg *CodeGen) reset() {
 	cg.requests = []solver.Request{}
-	cg.solveOpts = []solver.SolveOption{}
+	cg.SolveOpts = []solver.SolveOption{}
 	cg.syncedDirByID = map[string]filesync.SyncedDir{}
 	cg.fileSourceByID = map[string]secretsprovider.FileSource{}
 	cg.agentConfigByID = map[string]sockprovider.AgentConfig{}
+	cg.image = &specs.Image{}
 }
 
 func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
@@ -1055,7 +1030,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					netMode = pb.NetMode_UNSET
 				case "host":
 					netMode = pb.NetMode_HOST
-					cg.solveOpts = append(cg.solveOpts, solver.WithEntitlement(entitlements.EntitlementNetworkHost))
+					cg.SolveOpts = append(cg.SolveOpts, solver.WithEntitlement(entitlements.EntitlementNetworkHost))
 				case "node":
 					netMode = pb.NetMode_NONE
 				default:
@@ -1075,7 +1050,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					securityMode = pb.SecurityMode_SANDBOX
 				case "insecure":
 					securityMode = pb.SecurityMode_INSECURE
-					cg.solveOpts = append(cg.solveOpts, solver.WithEntitlement(entitlements.EntitlementSecurityInsecure))
+					cg.SolveOpts = append(cg.SolveOpts, solver.WithEntitlement(entitlements.EntitlementSecurityInsecure))
 				default:
 					return opts, errors.WithStack(ErrCodeGen{args[0], errors.Errorf("unknown security mode")})
 				}
@@ -1170,7 +1145,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 					g, _ := errgroup.WithContext(ctx)
 
-					cg.solveOpts = append(cg.solveOpts, solver.WithCallback(func() error {
+					cg.SolveOpts = append(cg.SolveOpts, solver.WithCallback(func() error {
 						defer os.RemoveAll(dir)
 
 						err := l.Close()
