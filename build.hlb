@@ -1,24 +1,65 @@
-# TODO replace with openllb/go.hlb
-import go "./go.hlb"
+import go from fs {
+    image "openllb/go.hlb"
+}
+
 import mkdocs "./mkdocs.hlb"
 
-fs default() {
+group default() {
 	crossHLB
 }
 
-fs crossHLB() {
-	go.crossBinaries src "github.com/openllb/hlb/cmd/hlb" "github.com/openllb/hlb"
-	download "./build/dist"
+group crossHLB() {
+	go.buildCommonWithOptions src "github.com/openllb/hlb/cmd/hlb" commonBuildArgs option::run{}
+}
+
+string version() {
+	localRun "git describe --match 'v[0-9]*' --tags --dirty='.dirty' --always | sed 's/^v//'"
+}
+
+option::template commonBuildArgs() {
+	stringField "goBuildFlags" string {
+		template <<~EOM
+			-ldflags "-w -s -extldflags -static -X github.com/openllb/hlb.Version={{.version}}"
+		EOM with option {
+			stringField "version" version
+		}
+	}
+}
+
+fs build() {
+	go.buildWithOptions src "github.com/openllb/hlb/cmd/hlb" commonBuildArgs option::run{}
+	download "."
 }
 
 fs lint() {
-	go.lint src
+	go.lint fs {
+		testSrc
+		copy fs {
+			local ".golangci.yml"
+		} "." "."
+	}
+}
+
+fs test() {
+	go.test testSrc
 }
 
 fs src() {
 	local "." with option {
-		excludePatterns "build"
+		includePatterns "**/*.go" "go.mod" "go.sum"
+		excludePatterns "**/*_test.go" "vendor"
 	}
+}
+
+fs testSrc() {
+	# TODO update to use merge-op once available upstream
+	src
+	copy fs {
+		local "." with option {
+			includePatterns "**/*_test.go"
+			excludePatterns "vendor"
+		}
+	} "." "."
 }
 
 fs gen() {
