@@ -352,6 +352,23 @@ func TestChecker_Check(t *testing.T) {
 				Name: "image",
 			},
 		},
+	}, {
+		"errors when non-zero arg builtin is used as arg",
+		`
+		fs default() {
+			env localEnv "TEST"
+		}
+		`,
+		ErrFuncArg{
+			Ident: &parser.Ident{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     2,
+					Column:   5,
+				},
+				Name: "localEnv",
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
