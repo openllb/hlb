@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
@@ -121,7 +122,12 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 		s.Allow(filesync.NewFSSyncTargetDir(output.LocalPath))
 		opts = append(opts, solver.WithDownload(output.LocalPath))
 	case OutputDownloadTarball, OutputDownloadOCITarball, OutputDownloadDockerTarball:
-		f, err := os.Open(output.LocalPath)
+		err = os.MkdirAll(filepath.Dir(output.LocalPath), 0755)
+		if err != nil {
+			return nil, err
+		}
+
+		f, err := os.Create(output.LocalPath)
 		if err != nil {
 			return nil, err
 		}

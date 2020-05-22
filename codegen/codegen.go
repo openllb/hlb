@@ -321,7 +321,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 			}
 		}
 		if cerr != nil {
-			return v, err
+			return v, cerr
 		}
 
 		if call.Alias != nil {
