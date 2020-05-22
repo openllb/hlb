@@ -128,11 +128,12 @@ func (e ErrImportNotExist) Error() string {
 }
 
 type ErrBadParse struct {
-	Node parser.Node
+	Node   parser.Node
+	Lexeme string
 }
 
 func (e ErrBadParse) Error() string {
-	return fmt.Sprintf("%s unable to parse", FormatPos(e.Node.Position()))
+	return fmt.Sprintf("%s unable to parse %q", FormatPos(e.Node.Position()), e.Lexeme)
 }
 
 type ErrUseModuleWithoutSelector struct {

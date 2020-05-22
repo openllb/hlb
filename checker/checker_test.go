@@ -373,6 +373,23 @@ func TestChecker_Check(t *testing.T) {
 		"no error when input doesn't end with newline",
 		`# comment\nfs default() {\n  scratch\n}\n# comment`,
 		nil,
+	}, {
+		"errors when go-style filemode is used as arg",
+		`
+		fs default() {
+			mkfile "foo" 0644 "content"
+		}
+		`,
+		ErrBadParse{
+			Node: &parser.Bad{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     2,
+					Column:   14,
+				},
+			},
+			Lexeme: "0644",
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
