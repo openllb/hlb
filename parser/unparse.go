@@ -14,21 +14,6 @@ func (m *Module) String() string {
 		doc = fmt.Sprintf("%s\n", m.Doc)
 	}
 
-	hasNewline := false
-
-	for _, decl := range m.Decls {
-		if decl.Pos == (lexer.Position{}) {
-			hasNewline = true
-			break
-		}
-
-		str := decl.String()
-		if strings.Contains(str, "\n") {
-			hasNewline = true
-			break
-		}
-	}
-
 	skipNewlines := true
 
 	var decls []string
@@ -47,7 +32,7 @@ func (m *Module) String() string {
 			skipNewlines = false
 		}
 
-		if hasNewline && len(prevDecl) > 0 && prevDecl[len(prevDecl)-1] != '\n' {
+		if len(prevDecl) > 0 && prevDecl[len(prevDecl)-1] != '\n' {
 			switch {
 			case strings.HasPrefix(str, "#"):
 				str = fmt.Sprintf(" %s", str)
@@ -62,21 +47,17 @@ func (m *Module) String() string {
 		prevDecl = str
 	}
 
-	var sep string
-	if hasNewline {
-		// Strip trailing newlines
-		for i := len(decls) - 1; i > 0; i-- {
-			if len(decls[i]) == 1 {
-				decls = decls[:i]
-			} else {
-				break
-			}
+	// Strip trailing newlines
+	for i := len(decls) - 1; i > 0; i-- {
+		if len(decls[i]) == 1 {
+			decls = decls[:i]
+		} else {
+			break
 		}
-	} else {
-		sep = " "
 	}
 
-	return fmt.Sprintf("%s%s", doc, strings.Join(decls, sep))
+	module := fmt.Sprintf("%s%s", doc, strings.Join(decls, ""))
+	return fmt.Sprintf("%s\n", strings.TrimSpace(module))
 }
 
 func (b *Bad) String() string {

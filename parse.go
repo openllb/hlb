@@ -61,6 +61,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *report.IndexedBuf
 	if name == "" {
 		name = "<stdin>"
 	}
+	r = &parser.NewlinedReader{Reader: r}
 
 	ib := report.NewIndexedBuffer()
 	r = io.TeeReader(r, ib)
