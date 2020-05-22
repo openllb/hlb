@@ -30,7 +30,7 @@ var (
 		Newline  = \n
 		Operator = {|}|\(|\)|,|;
 		Comment  = #[^\n]*\n
-		Bad      = .*
+		Bad      = [^\r\t\n ]*
 	`)))
 
 	// Parser parses HLB into a concrete syntax tree rooted from a Module.

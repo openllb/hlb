@@ -35,7 +35,7 @@ func (c *checker) Check(mod *parser.Module) error {
 		switch n := node.(type) {
 		case *parser.Decl:
 			if n.Bad != nil {
-				c.errs = append(c.errs, ErrBadParse{n})
+				c.errs = append(c.errs, ErrBadParse{n, n.Bad.Lexeme})
 				return false
 			}
 		case *parser.ImportDecl:
@@ -286,7 +286,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 
 	for _, stmt := range block.NonEmptyStmts() {
 		if stmt.Bad != nil {
-			c.errs = append(c.errs, ErrBadParse{stmt})
+			c.errs = append(c.errs, ErrBadParse{stmt, stmt.Bad.Lexeme})
 			continue
 		}
 
@@ -476,7 +476,7 @@ func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parse
 	var err error
 	switch {
 	case expr.Bad != nil:
-		err = ErrBadParse{expr}
+		err = ErrBadParse{expr, expr.Bad.Lexeme}
 	case expr.Selector != nil:
 		// Do nothing for now.
 	case expr.Ident != nil:
