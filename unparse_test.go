@@ -1,6 +1,7 @@
 package hlb
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -14,7 +15,7 @@ type testCase struct {
 }
 
 func cleanup(value string) string {
-	result := strings.TrimSpace(value)
+	result := fmt.Sprintf("%s\n", strings.TrimSpace(value))
 	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
 	result = strings.ReplaceAll(result, "|\n", "| \n")
 	return result
@@ -257,7 +258,9 @@ func TestUnparse(t *testing.T) {
 			fs foo() { scratch; } fs bar() { scratch; }
 			`,
 			`
-			fs foo() { scratch; } fs bar() { scratch; }
+			fs foo() { scratch; }
+
+			fs bar() { scratch; }
 			`,
 		},
 		{
