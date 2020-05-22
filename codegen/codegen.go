@@ -444,7 +444,11 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 					return opts, err
 				}
 				if v {
-					opts = append(opts, imagemetaresolver.WithDefault)
+					opts = append(opts, llb.WithMetaResolver(
+						imagemetaresolver.New(
+							imagemetaresolver.WithDefaultPlatform(&specs.Platform{OS: "linux", Architecture: "amd64"}),
+						),
+					))
 				}
 			default:
 				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
