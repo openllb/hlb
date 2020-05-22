@@ -369,6 +369,10 @@ func TestChecker_Check(t *testing.T) {
 				Name: "localEnv",
 			},
 		},
+	}, {
+		"no error when input doesn't end with newline",
+		`# comment\nfs default() {\n  scratch\n}\n# comment`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
