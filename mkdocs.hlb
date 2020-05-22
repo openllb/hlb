@@ -107,14 +107,13 @@ fs _runBuiltinGen() {
 }
 
 fs staticGoBuild(string package, fs src) {
-	go.build src package option::template {
+	go.buildWithOptions src package option::template {
 		stringField "goBuildFlags" <<~EOM
 			-ldflags "-extldflags -static"
 		EOM
 		stringField "platform" "linux"
 		stringField "arch" "amd64"
-		stringField "cgoEnabled" "0"
-	}
+	} option::run{}
 }
 
 # TODO add this to a generic util module?
