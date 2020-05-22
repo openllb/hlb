@@ -2,7 +2,6 @@ package codegen
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -725,17 +724,17 @@ func TestCodeGen(t *testing.T) {
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
 			return Expect(t, llb.Scratch().File(
-				llb.Mkfile("just-stdout", os.FileMode(0644), []byte("stdout\n")),
+				llb.Mkfile("just-stdout", os.FileMode(0644), []byte("stdout")),
 			).File(
-				llb.Mkfile("just-stderr", os.FileMode(0644), []byte("stderr\n")),
+				llb.Mkfile("just-stderr", os.FileMode(0644), []byte("stderr")),
 			).File(
-				llb.Mkfile("stdio", os.FileMode(0644), []byte("stdout\nstderr\n")),
+				llb.Mkfile("stdio", os.FileMode(0644), []byte("stdout\nstderr")),
 			).File(
-				llb.Mkfile("goterror", os.FileMode(0644), []byte("stdout\n")),
+				llb.Mkfile("goterror", os.FileMode(0644), []byte("stdout")),
 			).File(
-				llb.Mkfile("noshlex", os.FileMode(0644), []byte(fmt.Sprintf("%s\n", os.Getenv("HOME")))),
+				llb.Mkfile("noshlex", os.FileMode(0644), []byte(os.Getenv("HOME"))),
 			).File(
-				llb.Mkfile("shlex", os.FileMode(0644), []byte("$HOME\n")),
+				llb.Mkfile("shlex", os.FileMode(0644), []byte("$HOME")),
 			))
 		},
 	}, {

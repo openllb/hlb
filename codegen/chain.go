@@ -997,7 +997,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			return nil, err
 		}
 		return func(_ string) (string, error) {
-			return buf.String(), nil
+			return strings.TrimRight(buf.String(), "\n"), nil
 		}, nil
 	case "template":
 		text, err := cg.EmitStringExpr(ctx, scope, args[0])
