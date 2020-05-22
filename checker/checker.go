@@ -492,8 +492,11 @@ func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parse
 }
 
 func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *parser.Ident) error {
-	_, ok := builtin.Lookup.ByType[typ].Func[ident.Name]
+	fun, ok := builtin.Lookup.ByType[typ].Func[ident.Name]
 	if ok {
+		if len(fun.Params) > 0 {
+			return ErrFuncArg{ident}
+		}
 		return nil
 	}
 
