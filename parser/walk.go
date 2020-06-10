@@ -63,15 +63,11 @@ func Walk(node Node, v Visitor) {
 		if n.Params != nil {
 			Walk(n.Params, v)
 		}
+		if n.SideEffects != nil {
+			Walk(n.SideEffects, v)
+		}
 		if n.Body != nil {
 			Walk(n.Body, v)
-		}
-	case *AliasDecl:
-		if n.As != nil {
-			Walk(n.As, v)
-		}
-		if n.Ident != nil {
-			Walk(n.Ident, v)
 		}
 	case *FieldList:
 		walkFieldList(n.List, v)
@@ -127,8 +123,8 @@ func Walk(node Node, v Visitor) {
 			Walk(n.Func, v)
 		}
 		walkExprList(n.Args, v)
-		if n.Alias != nil {
-			Walk(n.Alias, v)
+		if n.Binds != nil {
+			Walk(n.Binds, v)
 		}
 		if n.WithOpt != nil {
 			Walk(n.WithOpt, v)
@@ -138,6 +134,17 @@ func Walk(node Node, v Visitor) {
 				Walk(n.StmtEnd.Comment, v)
 			}
 		}
+	case *BindClause:
+		if n.As != nil {
+			Walk(n.As, v)
+		}
+		if n.Ident != nil {
+			Walk(n.Ident, v)
+		}
+		if n.List != nil {
+			Walk(n.List, v)
+		}
+
 	case *WithOpt:
 		if n.With != nil {
 			Walk(n.With, v)

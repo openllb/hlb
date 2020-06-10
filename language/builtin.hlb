@@ -3,6 +3,11 @@
 # @return a scratch filesystem.
 fs scratch()
 
+# A reference to the current filesystem state.
+#
+# @return the current fs state unchanged
+fs state() as (fs current)
+
 # An OCI image's filesystem.
 #
 # @param ref a docker registry reference. if not fully qualified, it will be 
@@ -215,7 +220,7 @@ option::run secret(string localPath, string mountPoint)
 # becomes available from the mountPoint directory.
 # @param mountPoint the directory where the mount is attached.
 # @param an option to mount an additional filesystem.
-option::run mount(fs input, string mountPoint)
+option::run mount(fs input, string mountPoint) as (fs target)
 
 # Sets the target directory to mount the SSH agent socket. By default, it is
 # mounted to `/run/buildkit/ssh_agent.${N}`, where N is the index of the 
@@ -469,7 +474,7 @@ option::copy createdTime(string created)
 # @param ref a distribution reference. if not fully qualified, it will be
 # expanded the same as the docker CLI.
 # @return an option to push the filesystem to a registry.
-fs dockerPush(string ref)
+fs dockerPush(string ref) as (string digest)
 
 # Loads the filesystem as a Docker image to the docker client found in your
 # environment.
@@ -559,6 +564,11 @@ fs volumes(variadic string mountpoints)
 # @param string the stop signal to send to the container.
 # @return the filesystem with the stop signal set.
 fs stopSignal(string signal)
+
+# A reference to the current string state.
+#
+# @return the current string state unchanged
+string state() as (string current)
 
 # A format specifier that is interpolated with values.
 #

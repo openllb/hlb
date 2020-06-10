@@ -278,7 +278,8 @@ func TestCodeGen(t *testing.T) {
 		[]string{"default"},
 		`
 		fs default() {
-			scratch as this
+			scratch
+			state as this
 			copy this "testSource" "testDest"
 		}
 		`,
@@ -291,7 +292,8 @@ func TestCodeGen(t *testing.T) {
 		[]string{"default"},
 		`
 		fs default() {
-			scratch as this
+			scratch
+			state as this
 			copy this "testSource" "testDest" with option {
 				followSymlinks
 				contentsOnly
@@ -579,7 +581,7 @@ func TestCodeGen(t *testing.T) {
 		"templates",
 		[]string{"default"},
 		`
-		string cmd() {
+		string command() {
 			template <<-EOM
 				echo hi {{.user}}
 			EOM with option {
@@ -591,7 +593,7 @@ func TestCodeGen(t *testing.T) {
 
 		fs default() {
 			image "busybox"
-			run cmd with shlex
+			run command with shlex
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -755,7 +757,7 @@ func TestCodeGen(t *testing.T) {
 			expose "8080/tcp" "9001/udp"
 			volumes "/var/log" "/var/db"
 			stopSignal "SIGKILL"
-			dockerPush "myimage"
+			dockerPush "myimage" as digest
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -791,13 +793,13 @@ func TestCodeGen(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			cg, err := New()
-			require.NoError(t, err)
+			require.NoError(t, err, tc.name)
 
 			mod, err := parser.Parse(strings.NewReader(cleanup(tc.input)))
-			require.NoError(t, err)
+			require.NoError(t, err, tc.name)
 
 			err = checker.Check(mod)
-			require.NoError(t, err)
+			require.NoError(t, err, tc.name)
 
 			var targets []Target
 			for _, target := range tc.targets {
@@ -805,20 +807,22 @@ func TestCodeGen(t *testing.T) {
 			}
 
 			request, err := cg.Generate(context.Background(), mod, targets)
-			require.NoError(t, err)
+			require.NoError(t, err, tc.name)
 
 			testRequest := tc.fn(t, cg)
 
 			expected := treeprint.New()
-			testRequest.Tree(expected)
+			err = testRequest.Tree(expected)
+			require.NoError(t, err, tc.name)
 			t.Logf("expected: %s", expected)
 
 			actual := treeprint.New()
-			request.Tree(actual)
+			err = request.Tree(actual)
+			require.NoError(t, err, tc.name)
 			t.Logf("actual: %s", actual)
 
 			// Compare trees.
-			require.Equal(t, expected.String(), actual.String())
+			require.Equal(t, expected.String(), actual.String(), tc.name)
 		})
 	}
 }

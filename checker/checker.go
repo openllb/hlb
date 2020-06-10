@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/parser"
 )
 
@@ -26,7 +25,7 @@ func (c *checker) Check(mod *parser.Module) error {
 	//
 	// HLB is mod-scoped, so HLBs in the same directory will have separate
 	// scopes and must be imported to be used.
-	mod.Scope = parser.NewScope(mod, nil)
+	mod.Scope = parser.NewScope(mod, Builtin)
 
 	// We have to make a pass first to construct scopes because later checks
 	// depend on having scopes available. While constructing scopes, we can also
@@ -65,35 +64,36 @@ func (c *checker) Check(mod *parser.Module) error {
 				}
 			}
 
-			// Aliases may be declared inside the body of a function, and alias
+			// Create scope entries for the functions side effects
+			if fun.SideEffects != nil && fun.SideEffects.Effects != nil {
+				for _, effect := range fun.SideEffects.Effects.List {
+					fun.Scope.Insert(&parser.Object{
+						Kind:  parser.FieldKind,
+						Ident: effect.Name,
+						Node:  effect,
+					})
+				}
+			}
+
+			// Binds may be declared inside the body of a function, and their target
 			// identifiers will also collide with any other declarations, so we must
 			// check if there are any duplicate declarations there.
 			parser.Inspect(fun, func(node parser.Node) bool {
-				if n, ok := node.(*parser.CallStmt); ok {
-					alias := n.Alias
-					if alias == nil {
-						return true
+				switch n := node.(type) {
+				case *parser.BindClause:
+					// mount scratch "/" as default
+					if n.Ident != nil {
+						c.registerDecl(mod.Scope, n.Ident, n)
 					}
-
-					alias.Func = fun
-					alias.Call = n
-
-					if alias.Ident != nil {
-						obj := mod.Scope.Lookup(alias.Ident.Name)
-						if obj != nil {
-							if len(c.duplicateDecls) == 0 {
-								c.duplicateDecls = append(c.duplicateDecls, obj.Ident)
-							}
-							c.duplicateDecls = append(c.duplicateDecls, alias.Ident)
-							return true
+					// mount scratch "/" as (target default)
+					if n.List != nil {
+						for _, b := range n.List.List {
+							c.registerDecl(mod.Scope, b.Target, n)
 						}
-
-						mod.Scope.Insert(&parser.Object{
-							Kind:  parser.DeclKind,
-							Ident: alias.Ident,
-							Node:  alias,
-						})
 					}
+					// Link this Bind to its lexical scope
+					n.Lexical = fun
+					return false
 				}
 				return true
 			})
@@ -108,7 +108,7 @@ func (c *checker) Check(mod *parser.Module) error {
 		c.errs = append(c.errs, ErrDuplicateDecls{c.duplicateDecls})
 	}
 
-	// Now we have scopes constructed, we walk again to check everything else.
+	// Now its safe to check everything else.
 	parser.Inspect(mod, func(node parser.Node) bool {
 		switch n := node.(type) {
 		case *parser.ImportDecl:
@@ -139,6 +139,14 @@ func (c *checker) Check(mod *parser.Module) error {
 			fun := n
 			if fun.Params != nil {
 				err := c.checkFieldList(fun.Params.List)
+				if err != nil {
+					c.errs = append(c.errs, err)
+					return false
+				}
+			}
+
+			if fun.SideEffects != nil && fun.SideEffects.Effects != nil {
+				err := c.checkFieldList(fun.SideEffects.Effects.List)
 				if err != nil {
 					c.errs = append(c.errs, err)
 					return false
@@ -328,49 +336,92 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 			panic("implementation error")
 		}
 
-		// If the function is not a builtin, retrieve it from the scope and then
-		// type check it.
-		_, ok := builtin.Lookup.ByType[typ].Func[name]
-		if !ok {
-			obj := scope.Lookup(name)
-			if obj == nil {
-				return ErrIdentNotDefined{Ident: call.Func.IdentNode()}
-			}
+		// Retrieve the function from the scope and then type check it.
+		obj := scope.Lookup(name)
+		if obj == nil {
+			return ErrIdentNotDefined{Ident: call.Func.IdentNode()}
+		}
 
-			// The retrieved object may be either a function declaration or a field
-			// in the current scope's function parameters.
-			var callType *parser.Type
-			switch obj.Kind {
-			case parser.DeclKind:
-				switch n := obj.Node.(type) {
-				case *parser.FuncDecl:
-					callType = n.Type
-				case *parser.AliasDecl:
-					callType = n.Func.Type
-				case *parser.ImportDecl:
-					c.errs = append(c.errs, ErrUseModuleWithoutSelector{Ident: call.Func.IdentNode()})
+		// The retrieved object may be either a function declaration, a field
+		// in the current scope's function parameters, a bound side effect, or
+		// a builtin.
+		var callType *parser.Type
+		switch obj.Kind {
+		case parser.DeclKind:
+			switch n := obj.Node.(type) {
+			case *parser.FuncDecl:
+				callType = n.Type
+			case *parser.BindClause:
+				b := n.TargetBinding(name)
+				callType = b.Field.Type
+			case *parser.ImportDecl:
+				c.errs = append(c.errs, ErrUseModuleWithoutSelector{Ident: call.Func.IdentNode()})
+				continue
+			case *BuiltinDecl:
+				fun, err := c.checkBuiltinCall(call, typ, n)
+				if err != nil {
+					c.errs = append(c.errs, err)
 					continue
 				}
-			case parser.FieldKind:
-				field, ok := obj.Node.(*parser.Field)
-				if ok {
-					callType = field.Type
-				}
+				callType = fun.Type
 			}
-
-			err := c.checkType(call, typ, callType)
-			if err != nil {
-				return err
+		case parser.FieldKind:
+			field, ok := obj.Node.(*parser.Field)
+			if ok {
+				callType = field.Type
 			}
 		}
 
-		err := c.checkCallStmt(scope, typ, call)
+		err := c.checkType(call, typ, callType)
+		if err != nil {
+			return err
+		}
+
+		err = c.checkCallStmt(scope, typ, call)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (c *checker) checkBuiltinCall(call *parser.CallStmt, typ parser.ObjType, decl *BuiltinDecl) (*parser.FuncDecl, error) {
+	fun, ok := decl.Func[typ]
+	if !ok {
+		return nil, ErrWrongBuiltinType{call.Pos, typ, decl}
+	}
+
+	binds := call.Binds
+	if binds == nil {
+		return fun, nil
+	}
+
+	if fun.SideEffects == nil ||
+		fun.SideEffects.Effects == nil ||
+		fun.SideEffects.Effects.NumFields() == 0 {
+		return nil, ErrBindBadSource{call}
+	}
+	binds.Effects = fun.SideEffects.Effects
+
+	// Match each Bind to a Field on call's EffectsClause.
+	if binds.List != nil {
+		for _, b := range binds.List.List {
+			var field *parser.Field
+			for _, f := range binds.Effects.List {
+				if f.Name.String() == b.Source.String() {
+					field = f
+					break
+				}
+			}
+			if field == nil {
+				return nil, ErrBindBadTarget{call, b}
+			}
+			b.Field = field
+		}
+	}
+
+	return fun, nil
 }
 
 func (c *checker) checkCallStmt(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) error {
@@ -383,51 +434,53 @@ func (c *checker) checkCallStmt(scope *parser.Scope, typ parser.ObjType, call *p
 		return err
 	}
 
-	return c.checkCallArgs(scope, call.Func, call.Args, call.WithOpt, params)
+	err = c.checkCallArgs(scope, call.Func, call.Args, call.WithOpt, params)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *checker) checkCallSignature(scope *parser.Scope, typ parser.ObjType, expr *parser.Expr, args []*parser.Expr) ([]*parser.Field, error) {
 	var signature []*parser.Field
-	fun, ok := builtin.Lookup.ByType[typ].Func[expr.Name()]
-	if !ok && typ == parser.Group {
-		fun, ok = builtin.Lookup.ByType[parser.Filesystem].Func[expr.Name()]
+
+	obj := scope.Lookup(expr.Name())
+	if obj == nil {
+		return nil, ErrIdentUndefined{expr.IdentNode()}
 	}
 
-	if ok {
-		signature = fun.Params
-	} else {
-		obj := scope.Lookup(expr.Name())
-		if obj == nil {
-			return nil, ErrIdentUndefined{expr.IdentNode()}
-		}
+	if obj.Kind == parser.DeclKind {
+		switch n := obj.Node.(type) {
+		case *parser.FuncDecl:
+			signature = n.Params.List
+		case *parser.BindClause:
+			signature = n.Lexical.Params.List
+		case *BuiltinDecl:
+			fun, ok := n.Func[typ]
+			if !ok {
+				return nil, ErrWrongBuiltinType{expr.Pos, typ, n}
+			}
+			signature = fun.Params.List
+		case *parser.ImportDecl:
+			importScope := obj.Data.(*parser.Scope)
+			importObj := importScope.Lookup(expr.Selector.Select.Name)
+			if importObj == nil {
+				return nil, ErrIdentUndefined{expr.Selector.Select}
+			}
+			if !importObj.Exported {
+				return nil, ErrCallUnexported{expr.Selector}
+			}
 
-		if obj.Kind == parser.DeclKind {
-			switch n := obj.Node.(type) {
+			switch m := importObj.Node.(type) {
 			case *parser.FuncDecl:
-				signature = n.Params.List
-			case *parser.AliasDecl:
-				signature = n.Func.Params.List
-			case *parser.ImportDecl:
-				importScope := obj.Data.(*parser.Scope)
-				importObj := importScope.Lookup(expr.Selector.Select.Name)
-				if importObj == nil {
-					return nil, ErrIdentUndefined{expr.Selector.Select}
-				}
-				if !importObj.Exported {
-					return nil, ErrCallUnexported{expr.Selector}
-				}
-
-				switch m := importObj.Node.(type) {
-				case *parser.FuncDecl:
-					signature = m.Params.List
-				case *parser.AliasDecl:
-					signature = m.Func.Params.List
-				default:
-					panic("implementation error")
-				}
+				signature = m.Params.List
+			case *parser.BindClause:
+				signature = m.Lexical.Params.List
 			default:
 				panic("implementation error")
 			}
+		default:
+			panic("implementation error")
 		}
 	}
 
@@ -492,14 +545,6 @@ func (c *checker) checkExpr(scope *parser.Scope, typ parser.ObjType, expr *parse
 }
 
 func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *parser.Ident) error {
-	fun, ok := builtin.Lookup.ByType[typ].Func[ident.Name]
-	if ok {
-		if len(fun.Params) > 0 {
-			return ErrFuncArg{ident}
-		}
-		return nil
-	}
-
 	obj := scope.Lookup(ident.Name)
 	if obj == nil {
 		return ErrIdentNotDefined{ident}
@@ -512,8 +557,16 @@ func (c *checker) checkIdentArg(scope *parser.Scope, typ parser.ObjType, ident *
 			if n.Params.NumFields() > 0 {
 				return ErrFuncArg{ident}
 			}
-		case *parser.AliasDecl:
-			if n.Func.Params.NumFields() > 0 {
+		case *parser.BindClause:
+			if n.Lexical.Params.NumFields() > 0 {
+				return ErrFuncArg{ident}
+			}
+		case *BuiltinDecl:
+			fun, ok := n.Func[typ]
+			if !ok {
+				return ErrWrongBuiltinType{ident.Pos, typ, n}
+			}
+			if fun.Params.NumFields() > 0 {
 				return ErrFuncArg{ident}
 			}
 		default:
@@ -574,6 +627,19 @@ func (c *checker) checkOptionBlockStmt(scope *parser.Scope, typ parser.ObjType, 
 		call := stmt.Call
 		if call == nil || call.Func == nil {
 			continue
+		}
+
+		// check builtin options
+		name := call.Func.Name()
+		obj := scope.Lookup(name)
+		if obj != nil {
+			decl, ok := obj.Node.(*BuiltinDecl)
+			if ok {
+				_, err := c.checkBuiltinCall(call, typ, decl)
+				if err != nil {
+					return err
+				}
+			}
 		}
 
 		err := c.checkCallStmt(scope, typ, call)

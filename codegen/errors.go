@@ -18,6 +18,10 @@ var (
 	// object for a scope. Lexical scope checking should occur in the checker so
 	// that's often where the bug shuold be fixed, but it may be in the codegen.
 	ErrUndefinedReference = errors.Errorf("undefined reference")
+
+	// ErrNoValue is returned when codegen is expecting a side effect value, but
+	// none is available. This is usually caused by bad external dependencies.
+	ErrNoValue = errors.Errorf("no value")
 )
 
 type ErrCodeGen struct {

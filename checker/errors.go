@@ -49,6 +49,25 @@ func (e ErrInvalidFunc) Error() string {
 	return fmt.Sprintf("%s invalid func %s", FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
 }
 
+type ErrBindBadSource struct {
+	CallStmt *parser.CallStmt
+}
+
+func (e ErrBindBadSource) Error() string {
+	return fmt.Sprintf("%s cannot bind: %s has no side effects",
+		FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
+}
+
+type ErrBindBadTarget struct {
+	CallStmt *parser.CallStmt
+	Bind     *parser.Bind
+}
+
+func (e ErrBindBadTarget) Error() string {
+	return fmt.Sprintf("%s cannot bind: %s is not a side effect of %s",
+		FormatPos(e.Bind.Pos), e.Bind.Source, e.CallStmt.Func)
+}
+
 type ErrNumArgs struct {
 	Node     parser.Node
 	Expected int
@@ -83,6 +102,17 @@ type ErrWrongArgType struct {
 
 func (e ErrWrongArgType) Error() string {
 	return fmt.Sprintf("%s expected arg to be type %s, found %s", FormatPos(e.Pos), e.Expected, e.Found)
+}
+
+type ErrWrongBuiltinType struct {
+	Pos      lexer.Position
+	Expected parser.ObjType
+	Builtin  *BuiltinDecl
+}
+
+func (e ErrWrongBuiltinType) Error() string {
+	return fmt.Sprintf("%s builtin %s does not provide type %s",
+		FormatPos(e.Pos), e.Builtin.Name, e.Expected)
 }
 
 type ErrInvalidTarget struct {
