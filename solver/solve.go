@@ -3,6 +3,7 @@ package solver
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
@@ -11,6 +12,7 @@ import (
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/util/entitlements"
+	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sync/errgroup"
 )
@@ -26,6 +28,8 @@ type SolveInfo struct {
 	Callbacks             []func() error `json:"-"`
 	ImageSpec             *specs.Image
 	Entitlements          []entitlements.Entitlement
+	OutputCapture         io.Writer
+	OutputCaptureDigest   digest.Digest
 }
 
 func WithDownloadDockerTarball(ref string) SolveOption {
@@ -59,6 +63,14 @@ func WithDownloadTarball() SolveOption {
 func WithDownloadOCITarball() SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputLocalOCITarball = true
+		return nil
+	}
+}
+
+func WithOutputCapture(dgst digest.Digest, w io.Writer) SolveOption {
+	return func(info *SolveInfo) error {
+		info.OutputCaptureDigest = dgst
+		info.OutputCapture = w
 		return nil
 	}
 }
@@ -172,6 +184,38 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 	if pw != nil {
 		pw = progress.ResetTime(pw)
 		statusCh = pw.Status()
+	}
+
+	if info.OutputCapture != nil {
+		captureStatusCh := make(chan *client.SolveStatus)
+		go func(origStatusCh chan *client.SolveStatus) {
+			defer func() {
+				if origStatusCh != nil {
+					close(origStatusCh)
+				}
+			}()
+			for {
+				select {
+				case <-pw.Done():
+					return
+				case <-ctx.Done():
+					return
+				case status, ok := <-captureStatusCh:
+					if !ok {
+						return
+					}
+					for _, log := range status.Logs {
+						if log.Vertex.String() == info.OutputCaptureDigest.String() {
+							info.OutputCapture.Write(log.Data)
+						}
+					}
+					if origStatusCh != nil {
+						origStatusCh <- status
+					}
+				}
+			}
+		}(statusCh)
+		statusCh = captureStatusCh
 	}
 
 	g.Go(func() error {

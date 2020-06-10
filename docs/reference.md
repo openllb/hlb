@@ -543,6 +543,7 @@ If more than one arg is given, it will be executed directly, without a shell.
 	#!hlb
 	fs default() {
 		run "arg" with option {
+			capture
 			dir "path"
 			env "key" "value"
 			forward "src" "dest"
@@ -558,6 +559,11 @@ If more than one arg is given, it will be executed directly, without a shell.
 			user "name"
 		}
 	}
+
+
+#### <span class='hlb-type'>option::run</span> <span class='hlb-name'>capture</span>()
+
+
 
 
 #### <span class='hlb-type'>option::run</span> <span class='hlb-name'>dir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
