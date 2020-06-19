@@ -45,6 +45,8 @@ func NewSyntaxError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLe
 			group, err = errBlockStart(color, ib, lex, unexpected)
 		case `"}"`:
 			group, err = errBlockEnd(color, ib, lex, unexpected)
+		default:
+			group, err = errDefault(color, ib, lex, perr, unexpected)
 		}
 		if err != nil {
 			return nil, err
