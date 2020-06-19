@@ -15,7 +15,7 @@ import (
 
 var (
 	// Lexer lexes HLB into tokens for the parser.
-	Lexer = lexer.Must(regex.New(fmt.Sprintf(`
+	Lexer = lexer.Must(regex.New(`
 		Whitespace = [\r\t ]+
 		HereDoc = <<[-~]?
 		Keyword  = \b(with|as|import|export|from)\b
@@ -31,7 +31,7 @@ var (
 		Operator = {|}|\(|\)|,|;
 		Comment  = #[^\n]*\n
 		Bad      = [^\r\t\n ]*
-	`)))
+	`))
 
 	// Parser parses HLB into a concrete syntax tree rooted from a Module.
 	Parser = participle.MustBuild(

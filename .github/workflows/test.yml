@@ -42,9 +42,6 @@ jobs:
         go build -o build/docgen ./cmd/docgen
         go build -o build/builtingen ./cmd/builtingen
 
-    - name: Go Tests
-      run: go test -v ./...
-
     - name: Start BuildkitD
       if: github.repository != 'openllb/hlb'
       run: docker run --name buildkitd --rm -d --privileged openllb/buildkit:experimental
@@ -53,6 +50,9 @@ jobs:
       if: github.repository != 'openllb/hlb'
       # waiting for buildkitd to report 1 worker (2 lines, 1 for column titles, one for the worker details)
       run: while true; do lineCount=$(docker exec buildkitd buildctl debug workers | wc -l); if [ $lineCount -gt 1 ]; then break; fi; sleep 1; done
+
+    - name: Go Tests
+      run: ./build/hlb run -t test
 
     - name: GoLint
       run: ./build/hlb run -t lint
