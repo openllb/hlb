@@ -29,6 +29,7 @@ fs crossBuild(fs src, string package, string verPackage) {
 	run string {
 		format "v=$(%s) && LDFLAGS=\"-X %s.Version=$v\" /cross/build %q" versionCmd verPackage package 
 	} with option {
+		env "CGO_ENABLED" "0"
 		cacheMounts src
 		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
 			sourcePath "/scripts"

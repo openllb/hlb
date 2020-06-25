@@ -113,7 +113,9 @@ fs staticGoBuild(string package, fs src) {
 		EOM
 		stringField "platform" "linux"
 		stringField "arch" "amd64"
-	} option::run{}
+	} option::run{
+		env "CGO_ENABLED" "0"
+	}
 }
 
 # TODO add this to a generic util module?
