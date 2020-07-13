@@ -27,7 +27,7 @@ fs _runMkdocsBuild() {
 			local "." with option {
 				includePatterns "mkdocs.yml" "docs/" ".git"
 			}
-		} "/mkdocs" as readonly
+		} "/mkdocs" with readonly
 		mount generatedMarkdown "/mkdocs/docs/reference.md" with option {
 			sourcePath "reference.md"
 			readonly

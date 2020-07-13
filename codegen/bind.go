@@ -48,18 +48,21 @@ func (cg *CodeGen) EmitBinding(ctx context.Context, scope *parser.Scope, b parse
 
 		// Codegen can short-circuit control flow by returning ErrBindingCycle up the
 		// stack. If it matches b then we've finished early and the error is ignored.
-		v, err := cg.EmitFuncDecl(ctx, scope, b.Bind.Lexical, args, chainStart)
+		var err error
+		v, err = cg.EmitFuncDecl(ctx, scope, b.Bind.Lexical, args, chainStart)
 		if errors.As(err, &cycle) && cycle.Binding == b {
 			err = nil
+			v = cg.values[b]
+		} else {
+			cg.values[b] = v
 		}
 		if err != nil {
 			return nil, err
 		}
-		cg.values[b] = v
 	}
 
-	switch val := v.(type) {
-	case error: // an error value usually means a cycle
+	// An error value usually means a cycle.
+	if val, ok := v.(error); ok {
 		return nil, val
 	}
 	return v, nil

@@ -79,22 +79,39 @@ func (c *checker) Check(mod *parser.Module) error {
 			// identifiers will also collide with any other declarations, so we must
 			// check if there are any duplicate declarations there.
 			parser.Inspect(fun, func(node parser.Node) bool {
-				switch n := node.(type) {
-				case *parser.BindClause:
-					// mount scratch "/" as default
-					if n.Ident != nil {
-						c.registerDecl(mod.Scope, n.Ident, n)
+				n, ok := node.(parser.Block)
+				if !ok {
+					return true
+				}
+
+				for _, stmt := range n.List() {
+					call := stmt.Call
+					binds := call.Binds
+					if binds == nil {
+						continue
 					}
+
+					// mount scratch "/" as default
+					if binds.Ident != nil {
+						c.registerDecl(mod.Scope, binds.Ident, binds)
+					}
+
 					// mount scratch "/" as (target default)
-					if n.List != nil {
-						for _, b := range n.List.List {
-							c.registerDecl(mod.Scope, b.Target, n)
+					if binds.List != nil {
+						for _, b := range binds.List.List {
+							c.registerDecl(mod.Scope, b.Target, binds)
 						}
 					}
-					// Link this Bind to its lexical scope
-					n.Lexical = fun
-					return false
+
+					// Link to its lexical scope.
+					binds.Lexical = fun
+
+					err := c.bindEffects(mod.Scope, n.ObjType(), call)
+					if err != nil {
+						c.errs = append(c.errs, err)
+					}
 				}
+
 				return true
 			})
 
@@ -243,7 +260,9 @@ func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node pa
 	obj := scope.Lookup(ident.Name)
 	if obj != nil {
 		if len(c.duplicateDecls) == 0 {
-			c.duplicateDecls = append(c.duplicateDecls, obj.Ident)
+			if _, ok := obj.Node.(*BuiltinDecl); !ok {
+				c.duplicateDecls = append(c.duplicateDecls, obj.Ident)
+			}
 		}
 		c.duplicateDecls = append(c.duplicateDecls, ident)
 		return
@@ -386,22 +405,35 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 	return nil
 }
 
-func (c *checker) checkBuiltinCall(call *parser.CallStmt, typ parser.ObjType, decl *BuiltinDecl) (*parser.FuncDecl, error) {
-	fun, ok := decl.Func[typ]
+func (c *checker) bindEffects(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) error {
+	if call.Binds == nil {
+		return nil
+	}
+
+	ident := call.Func.IdentNode()
+	obj := scope.Lookup(ident.String())
+	if obj == nil {
+		return ErrIdentNotDefined{ident}
+	}
+
+	decl, ok := obj.Node.(*BuiltinDecl)
 	if !ok {
-		return nil, ErrWrongBuiltinType{call.Pos, typ, decl}
+		return ErrBindBadSource{call}
 	}
 
 	binds := call.Binds
-	if binds == nil {
-		return fun, nil
+	fun, ok := decl.Func[typ]
+	if !ok {
+		return ErrWrongBuiltinType{call.Pos, typ, decl}
 	}
 
 	if fun.SideEffects == nil ||
 		fun.SideEffects.Effects == nil ||
 		fun.SideEffects.Effects.NumFields() == 0 {
-		return nil, ErrBindBadSource{call}
+		return ErrBindBadSource{call}
 	}
+
+	// Link its side effects.
 	binds.Effects = fun.SideEffects.Effects
 
 	// Match each Bind to a Field on call's EffectsClause.
@@ -415,10 +447,19 @@ func (c *checker) checkBuiltinCall(call *parser.CallStmt, typ parser.ObjType, de
 				}
 			}
 			if field == nil {
-				return nil, ErrBindBadTarget{call, b}
+				return ErrBindBadTarget{call, b}
 			}
 			b.Field = field
 		}
+	}
+
+	return nil
+}
+
+func (c *checker) checkBuiltinCall(call *parser.CallStmt, typ parser.ObjType, decl *BuiltinDecl) (*parser.FuncDecl, error) {
+	fun, ok := decl.Func[typ]
+	if !ok {
+		return nil, ErrWrongBuiltinType{call.Pos, typ, decl}
 	}
 
 	return fun, nil

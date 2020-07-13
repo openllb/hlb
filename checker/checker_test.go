@@ -136,21 +136,6 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		nil,
 	}, {
-		"compose fs",
-		`
-		fs default() {
-			image "alpine"
-			myfunc this
-			image "busybox"
-		}
-		fs myfunc(fs base) {
-			base
-			mkfile "/foo" 0o644 "contents"
-			run "echo hi"
-		}
-		`,
-		nil,
-	}, {
 		"empty variadic options",
 		`
 		fs default() {
@@ -236,7 +221,9 @@ func TestChecker_Check(t *testing.T) {
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
 				Pos: lexer.Position{
-					Filename: "<builtin>",
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   4,
 				},
 				Name: "image",
 			}},
@@ -253,7 +240,9 @@ func TestChecker_Check(t *testing.T) {
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
 				Pos: lexer.Position{
-					Filename: "<builtin>",
+					Filename: "<stdin>",
+					Line:     3,
+					Column:   23,
 				},
 				Name: "image",
 			}},

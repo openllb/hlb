@@ -275,6 +275,20 @@ func NewFuncDecl(typ ObjType, name string, params []*Field, effects []*Field, st
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 
+func (d *FuncDecl) ObjType() ObjType {
+	return d.Type.ObjType
+}
+
+func (d *FuncDecl) List() []*Stmt {
+	return d.Body.NonEmptyStmts()
+}
+
+// Block represents a group of statements of a specific type.
+type Block interface {
+	ObjType() ObjType
+	List() []*Stmt
+}
+
 // EffectsClause represents the side effect "as ..." clause for a function.
 type EffectsClause struct {
 	Pos     lexer.Position
@@ -768,19 +782,34 @@ type CallStmt struct {
 	Callee  *FuncDecl
 }
 
-func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, Binds *BindClause) *Stmt {
+func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, binds *BindClause) *Stmt {
 	return &Stmt{
 		Call: &CallStmt{
 			Func:    NewIdentExpr(name),
 			Args:    args,
 			WithOpt: withOpt,
-			Binds:   Binds,
+			Binds:   binds,
 		},
 	}
 }
 
 func (s *CallStmt) Position() lexer.Position { return s.Pos }
 func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
+
+func (s *CallStmt) ObjType() ObjType {
+	if s.WithOpt == nil || s.WithOpt.Expr == nil || s.WithOpt.Expr.FuncLit == nil {
+		return None
+	}
+
+	return ObjType(fmt.Sprintf("%s::%s", Option, s.Func.Name()))
+}
+
+func (s *CallStmt) List() []*Stmt {
+	if s.WithOpt == nil || s.WithOpt.Expr == nil || s.WithOpt.Expr.FuncLit == nil {
+		return nil
+	}
+	return s.WithOpt.Expr.FuncLit.Body.NonEmptyStmts()
+}
 
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {

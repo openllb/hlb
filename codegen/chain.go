@@ -651,10 +651,10 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		}
 
 		fc = func(st llb.State) (llb.State, error) {
-			var digest string
+			var dgst string
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDockerPush, Ref: ref},
 				solver.WithCallback(func(resp *client.SolveResponse) error {
-					digest = resp.ExporterResponse[keyContainerImageDigest]
+					dgst = resp.ExporterResponse[keyContainerImageDigest]
 					return nil
 				}),
 			)
@@ -662,32 +662,25 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 				return st, err
 			}
 
-			// XXX will this be de-duped if already solved by the binding?
-			cg.requests = append(cg.requests, request)
-
-			// If there are no binds, its safe to return immediately. Otherwise, we need to solve the
-			// request before the binding value will be available.
+			// If there are no binds, its safe to return immediately and add the output
+			// request to the queue.
+			// Otherwise, we need to solve the request before the binding value will be
+			// available.
 			if binds == nil {
+				cg.requests = append(cg.requests, request)
 				return st, nil
 			}
+
+			g, ctx := errgroup.WithContext(ctx)
+
+			g.Go(func() error {
+				return request.Solve(ctx, cg.cln, cg.mw)
+			})
 
 			err = cg.setBindingValue(
 				binds.SourceBinding("digest"),
 				func() (string, error) {
-					s, err := cg.newSession(ctx)
-					if err != nil {
-						return "", err
-					}
-
-					g, ctx := errgroup.WithContext(ctx)
-					g.Go(func() error {
-						return s.Run(ctx, cg.cln.Dialer())
-					})
-					g.Go(func() error {
-						return request.Solve(ctx, cg.cln, cg.mw)
-					})
-					err = g.Wait()
-					return digest, err
+					return dgst, g.Wait()
 				},
 			)
 			return st, err

@@ -279,8 +279,7 @@ func TestCodeGen(t *testing.T) {
 		`
 		fs default() {
 			scratch
-			state as this
-			copy this "testSource" "testDest"
+			copy scratch "testSource" "testDest"
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {
@@ -293,8 +292,7 @@ func TestCodeGen(t *testing.T) {
 		`
 		fs default() {
 			scratch
-			state as this
-			copy this "testSource" "testDest" with option {
+			copy scratch "testSource" "testDest" with option {
 				followSymlinks
 				contentsOnly
 				unpack
@@ -757,7 +755,7 @@ func TestCodeGen(t *testing.T) {
 			expose "8080/tcp" "9001/udp"
 			volumes "/var/log" "/var/db"
 			stopSignal "SIGKILL"
-			dockerPush "myimage" as digest
+			dockerPush "myimage"
 		}
 		`,
 		func(t *testing.T, cg *CodeGen) solver.Request {

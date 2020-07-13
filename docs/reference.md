@@ -691,6 +691,18 @@ methods. By default, this is [&quot;sh&quot;, &quot;-c&quot;].
 
 
 
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>state</span>()
+
+
+A reference to the current filesystem state.
+
+	#!hlb
+	fs default() {
+		state
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>stopSignal</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>signal</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>signal</span>"
@@ -849,6 +861,18 @@ Only capture the stderr from the command, ignore stdout.
 
 Attempt to lex the single-argument shell command provided to &#x60;localRun&#x60;
 to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be added.
+
+
+### <span class='hlb-type'>string</span> <span class='hlb-name'>state</span>()
+
+
+A reference to the current string state.
+
+	#!hlb
+	string myString() {
+		state
+	}
+
 
 
 ### <span class='hlb-type'>string</span> <span class='hlb-name'>template</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>)
