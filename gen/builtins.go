@@ -22,8 +22,9 @@ type BuiltinData struct {
 }
 
 type ParsedFunc struct {
-	Name   string
-	Params []*parser.Field
+	Name    string
+	Params  []*parser.Field
+	Effects []*parser.Field
 }
 
 func GenerateBuiltins(r io.Reader) ([]byte, error) {
@@ -39,10 +40,16 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 			continue
 		}
 
+		var effects []*parser.Field
+		if fun.SideEffects != nil && fun.SideEffects.Effects != nil {
+			effects = fun.SideEffects.Effects.List
+		}
+
 		typ := fun.Type.ObjType
 		funcsByType[typ] = append(funcsByType[typ], ParsedFunc{
-			Name:   fun.Name.Name,
-			Params: fun.Params.List,
+			Name:    fun.Name.Name,
+			Params:  fun.Params.List,
+			Effects: effects,
 		})
 	}
 
@@ -101,6 +108,7 @@ type LookupByType struct {
 
 type FuncLookup struct {
 	Params []*parser.Field
+	Effects []*parser.Field
 }
 
 var (
@@ -109,8 +117,12 @@ var (
 			{{range $typ, $funcs := .FuncsByType}}{{objType $typ}}: LookupByType{
 				Func: map[string]FuncLookup{
 					{{range $i, $func := $funcs}}"{{$func.Name}}": FuncLookup{
-						Params: []*parser.Field{
+						Params:  []*parser.Field{
 							{{range $i, $param := $func.Params}}parser.NewField({{objType $param.Type.ObjType}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
+							{{end}}
+						},
+						Effects: []*parser.Field{
+							{{range $i, $effect := $func.Effects}}parser.NewField({{objType $effect.Type.ObjType}}, "{{$effect.Name}}", {{if $effect.Variadic}}true{{else}}false{{end}}),
 							{{end}}
 						},
 					},

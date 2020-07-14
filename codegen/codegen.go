@@ -38,14 +38,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var (
-	ErrAliasReached = errors.New("alias reached")
-)
-
 type CodeGen struct {
 	Debug     Debugger
 	cln       *client.Client
 	sessionID string
+
+	values map[parser.Binding]interface{}
 
 	requests        []solver.Request
 	syncedDirByID   map[string]filesync.SyncedDir
@@ -135,17 +133,18 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				v, err = cg.EmitFuncDecl(ctx, mod.Scope, n, nil, noopAliasCallback, nil)
+				v, err = cg.EmitFuncDecl(ctx, mod.Scope, n, nil, nil)
 				if err != nil {
 					return nil, err
 				}
-			case *parser.AliasDecl:
-				typ = n.Func.Type
+			case *parser.BindClause:
+				b := n.TargetBinding(target.Name)
+				typ = b.Field.Type
 				if typ.Primary() != parser.Group && typ.Primary() != parser.Filesystem {
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
-				v, err = cg.EmitAliasDecl(ctx, mod.Scope, n, nil, nil)
+				v, err = cg.EmitBinding(ctx, mod.Scope, b, nil, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -206,6 +205,7 @@ func (cg *CodeGen) reset() {
 	cg.fileSourceByID = map[string]secretsprovider.FileSource{}
 	cg.agentConfigByID = map[string]sockprovider.AgentConfig{}
 	cg.image = &specs.Image{}
+	cg.values = make(map[parser.Binding]interface{})
 }
 
 func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
@@ -260,18 +260,14 @@ func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
 }
 
 func (cg *CodeGen) GenerateImport(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit) (llb.State, error) {
-	return cg.EmitFilesystemBlock(ctx, scope, lit.Body, nil, nil)
+	return cg.EmitFilesystemBlock(ctx, scope, lit.Body, nil)
 }
-
-type aliasCallback func(*parser.CallStmt, interface{}) bool
-
-func noopAliasCallback(_ *parser.CallStmt, _ interface{}) bool { return true }
 
 func isBreakpoint(call *parser.CallStmt) bool {
 	return call.Func.Name() == "breakpoint"
 }
 
-func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, ac aliasCallback, chainStart interface{}) (interface{}, error) {
+func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, chainStart interface{}) (interface{}, error) {
 	var v = chainStart
 	switch typ {
 	case parser.Filesystem:
@@ -305,14 +301,14 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 			return v, err
 		}
 
-		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, ac, v)
+		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, v)
 		if err != nil {
 			return v, err
 		}
 
 		var cerr error
 		v, cerr = chain(v)
-		if cerr == nil || cerr == ErrAliasReached {
+		if cerr == nil || errors.As(cerr, &ErrBindingCycle{}) {
 			if st, ok := v.(llb.State); ok && st.Output() != nil {
 				err = st.Validate(ctx)
 				if err != nil {
@@ -323,34 +319,25 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		if cerr != nil {
 			return v, cerr
 		}
-
-		if call.Alias != nil {
-			// Chain statements may be aliased.
-			cont := ac(call, v)
-			if !cont {
-				return v, ErrAliasReached
-			}
-		}
 	}
 
 	return v, nil
 }
 
-func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, ac aliasCallback, chainStart interface{}) (st llb.State, err error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, body.NonEmptyStmts(), ac, chainStart)
-	if err != nil {
-		return
+func (cg *CodeGen) EmitFilesystemBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, chainStart interface{}) (llb.State, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Filesystem, body.NonEmptyStmts(), chainStart)
+	if errors.As(err, &ErrBindingCycle{}) || err == nil {
+		st, ok := v.(llb.State)
+		if !ok {
+			return st, errors.WithStack(ErrCodeGen{body, ErrBadCast})
+		}
+		return st, err
 	}
-
-	st, ok := v.(llb.State)
-	if !ok {
-		return st, errors.WithStack(ErrCodeGen{body, ErrBadCast})
-	}
-	return
+	return llb.State{}, err
 }
 
 func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, chainStart interface{}) (str string, err error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Str, body.NonEmptyStmts(), noopAliasCallback, chainStart)
+	v, err := cg.EmitBlock(ctx, scope, parser.Str, body.NonEmptyStmts(), chainStart)
 	if err != nil {
 		return
 	}
@@ -362,8 +349,8 @@ func (cg *CodeGen) EmitStringBlock(ctx context.Context, scope *parser.Scope, bod
 	return
 }
 
-func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
-	v, err := cg.EmitBlock(ctx, scope, parser.Group, body.NonEmptyStmts(), ac, chainStart)
+func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, body *parser.BlockStmt, chainStart interface{}) (solver.Request, error) {
+	v, err := cg.EmitBlock(ctx, scope, parser.Group, body.NonEmptyStmts(), chainStart)
 	if err != nil {
 		return nil, err
 	}
@@ -378,24 +365,24 @@ func (cg *CodeGen) EmitGroupBlock(ctx context.Context, scope *parser.Scope, body
 	return solver.Sequential(requests...), nil
 }
 
-func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, op string, ac aliasCallback) (interface{}, error) {
+func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, op string) (interface{}, error) {
 	switch lit.Type.Primary() {
 	case parser.Int, parser.Bool:
 		panic("unimplemented")
 	case parser.Filesystem:
-		return cg.EmitFilesystemBlock(ctx, scope, lit.Body, ac, nil)
+		return cg.EmitFilesystemBlock(ctx, scope, lit.Body, nil)
 	case parser.Str:
 		return cg.EmitStringBlock(ctx, scope, lit.Body, nil)
 	case parser.Option:
-		return cg.EmitOptionBlock(ctx, scope, op, lit.Body, ac)
+		return cg.EmitOptionBlock(ctx, scope, op, lit.Body)
 	case parser.Group:
-		return cg.EmitGroupBlock(ctx, scope, lit.Body, ac, nil)
+		return cg.EmitGroupBlock(ctx, scope, lit.Body, nil)
 	default:
 		return nil, errors.WithStack(ErrCodeGen{lit, errors.Errorf("unknown func lit")})
 	}
 }
 
-func (cg *CodeGen) EmitOptionBlock(ctx context.Context, scope *parser.Scope, op string, body *parser.BlockStmt, ac aliasCallback) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitOptionBlock(ctx context.Context, scope *parser.Scope, op string, body *parser.BlockStmt) (opts []interface{}, err error) {
 	stmts := body.NonEmptyStmts()
 	switch op {
 	case "image":
@@ -407,9 +394,9 @@ func (cg *CodeGen) EmitOptionBlock(ctx context.Context, scope *parser.Scope, op 
 	case "local":
 		return cg.EmitLocalOptions(ctx, scope, op, stmts)
 	case "frontend":
-		return cg.EmitFrontendOptions(ctx, scope, op, stmts, ac)
+		return cg.EmitFrontendOptions(ctx, scope, op, stmts)
 	case "run":
-		return cg.EmitExecOptions(ctx, scope, op, stmts, ac)
+		return cg.EmitExecOptions(ctx, scope, op, stmts)
 	case "ssh":
 		return cg.EmitSSHOptions(ctx, scope, op, stmts)
 	case "secret":
@@ -617,7 +604,7 @@ func withFrontendOpt(key, value string) gatewayOption {
 	}
 }
 
-func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			args := stmt.Call.Args
@@ -627,7 +614,7 @@ func (cg *CodeGen) EmitFrontendOptions(ctx context.Context, scope *parser.Scope,
 				if err != nil {
 					return opts, err
 				}
-				st, err := cg.EmitFilesystemExpr(ctx, scope, args[1], ac)
+				st, err := cg.EmitFilesystemExpr(ctx, scope, args[1])
 				if err != nil {
 					return opts, err
 				}
@@ -969,7 +956,7 @@ func (cg *CodeGen) EmitLocalExecOptions(ctx context.Context, scope *parser.Scope
 
 type shlexOption struct{}
 
-func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt, ac aliasCallback) (opts []interface{}, err error) {
+func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
 	for _, stmt := range stmts {
 		if stmt.Call != nil {
 			var (
@@ -1149,7 +1136,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 					g, _ := errgroup.WithContext(ctx)
 
-					cg.SolveOpts = append(cg.SolveOpts, solver.WithCallback(func() error {
+					cg.SolveOpts = append(cg.SolveOpts, solver.WithCallback(func(*client.SolveResponse) error {
 						defer os.RemoveAll(dir)
 
 						err := l.Close()
@@ -1299,7 +1286,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					))
 				}
 			case "mount":
-				input, err := cg.EmitFilesystemExpr(ctx, scope, args[0], ac)
+				input, err := cg.EmitFilesystemExpr(ctx, scope, args[0])
 				if err != nil {
 					return opts, err
 				}

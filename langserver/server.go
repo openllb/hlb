@@ -240,6 +240,19 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 					}
 				}
 			}
+			if n.SideEffects != nil {
+				if n.SideEffects.As != nil {
+					highlightNode(lines, n.SideEffects.As, Keyword)
+				}
+				for _, field := range n.SideEffects.Effects.List {
+					if field.Type != nil {
+						highlightNode(lines, field.Type, Type)
+					}
+					if field.Name != nil {
+						highlightNode(lines, field.Name, Parameter)
+					}
+				}
+			}
 			if n.Type != nil && n.Body != nil {
 				highlightBlock(lines, n.Type.ObjType, n.Body)
 			}
@@ -335,12 +348,18 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, typ parser.Obj
 				}
 			}
 
-			if n.Alias != nil {
-				if n.Alias.As != nil {
-					highlightNode(lines, n.Alias.As, Keyword)
+			if n.Binds != nil {
+				if n.Binds.As != nil {
+					highlightNode(lines, n.Binds.As, Keyword)
 				}
-				if n.Alias.Ident != nil {
-					highlightNode(lines, n.Alias.Ident, Function)
+				if n.Binds.Ident != nil {
+					highlightNode(lines, n.Binds.Ident, Function)
+				}
+				if n.Binds.List != nil {
+					for _, b := range n.Binds.List.List {
+						highlightNode(lines, b.Source, Parameter)
+						highlightNode(lines, b.Target, Function)
+					}
 				}
 			}
 
@@ -598,8 +617,21 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 		switch n := obj.Node.(type) {
 		case *parser.FuncDecl:
 			loc = newLocationFromNode(uri, n.Name)
-		case *parser.AliasDecl:
-			loc = newLocationFromNode(uri, n.Ident)
+		case *parser.BindClause:
+			if n.Ident != nil {
+				loc = newLocationFromNode(uri, n.Ident)
+			}
+			if n.List != nil {
+				for _, b := range n.List.List {
+					if b.Target.String() == name {
+						loc = newLocationFromNode(uri, b.Target)
+						break
+					}
+				}
+				if loc == nil {
+					loc = newLocationFromNode(uri, n)
+				}
+			}
 		case *parser.ImportDecl:
 			loc = newLocationFromNode(uri, n.Ident)
 		default:

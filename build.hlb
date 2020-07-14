@@ -21,12 +21,15 @@ fs src() {
 	}
 }
 
-fs gen() {
-	mkdocs.generatedBuiltin
-	download "./builtin/."
-
-	mkdocs.generatedMarkdown
-	download "./docs/."
+group gen() {
+	parallel fs {
+        	mkdocs.generatedBuiltin
+        	download "./builtin/."
+	}
+	parallel fs {
+        	mkdocs.generatedMarkdown
+        	download "./docs/."
+	}
 }
 
 fs docs() {

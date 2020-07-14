@@ -10,11 +10,13 @@ import (
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
+	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/session/filesync"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
+
+	"github.com/openllb/hlb/solver"
 )
 
 type Target struct {
@@ -40,6 +42,10 @@ const (
 	OutputDownloadDockerTarball
 )
 
+const (
+	keyContainerImageDigest = "containerimage.digest"
+)
+
 func (cg *CodeGen) imageSpec(ctx context.Context, st llb.State) (*specs.Image, error) {
 	var err error
 	cg.image.Config.Env, err = st.Env(ctx)
@@ -55,8 +61,8 @@ func (cg *CodeGen) imageSpec(ctx context.Context, st llb.State) (*specs.Image, e
 	return cg.image, nil
 }
 
-func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output) (solver.Request, error) {
-	opts := cg.SolveOpts
+func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output, solveOpts ...solver.SolveOption) (solver.Request, error) {
+	opts := append(cg.SolveOpts, solveOpts...)
 
 	// Only add image spec when exporting as a Docker image.
 	switch output.Type {
@@ -98,7 +104,7 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(w)))
 
 		done := make(chan struct{})
-		opts = append(opts, solver.WithCallback(func() error {
+		opts = append(opts, solver.WithCallback(func(*client.SolveResponse) error {
 			<-done
 			return nil
 		}))

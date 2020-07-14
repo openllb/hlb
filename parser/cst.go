@@ -250,21 +250,23 @@ func (e *Export) End() lexer.Position      { return shiftPosition(e.Pos, len(e.K
 
 // FuncDecl represents a function declaration.
 type FuncDecl struct {
-	Pos    lexer.Position
-	Scope  *Scope
-	Doc    *CommentGroup
-	Type   *Type      `parser:"@@"`
-	Name   *Ident     `parser:"@@"`
-	Params *FieldList `parser:"@@"`
-	Body   *BlockStmt `parser:"( @@ )?"`
+	Pos         lexer.Position
+	Scope       *Scope
+	Doc         *CommentGroup
+	Type        *Type          `parser:"@@"`
+	Name        *Ident         `parser:"@@"`
+	Params      *FieldList     `parser:"@@"`
+	SideEffects *EffectsClause `parser:"( @@ )?"`
+	Body        *BlockStmt     `parser:"( @@ )?"`
 }
 
-func NewFuncDecl(typ ObjType, name string, params []*Field, stmts ...*Stmt) *Decl {
+func NewFuncDecl(typ ObjType, name string, params []*Field, effects []*Field, stmts ...*Stmt) *Decl {
 	fun := &FuncDecl{
-		Type:   NewType(typ),
-		Name:   NewIdent(name),
-		Params: NewFieldList(params...),
-		Body:   NewBlockStmt(stmts...),
+		Type:        NewType(typ),
+		Name:        NewIdent(name),
+		Params:      NewFieldList(params...),
+		Body:        NewBlockStmt(stmts...),
+		SideEffects: NewEffectsClause(effects...),
 	}
 
 	return &Decl{Func: fun}
@@ -272,6 +274,37 @@ func NewFuncDecl(typ ObjType, name string, params []*Field, stmts ...*Stmt) *Dec
 
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
+
+func (d *FuncDecl) ObjType() ObjType {
+	return d.Type.ObjType
+}
+
+func (d *FuncDecl) List() []*Stmt {
+	return d.Body.NonEmptyStmts()
+}
+
+// Block represents a group of statements of a specific type.
+type Block interface {
+	ObjType() ObjType
+	List() []*Stmt
+}
+
+// EffectsClause represents the side effect "as ..." clause for a function.
+type EffectsClause struct {
+	Pos     lexer.Position
+	As      *As        `parser:"@@"`
+	Effects *FieldList `parser:"@@"`
+}
+
+func NewEffectsClause(effect ...*Field) *EffectsClause {
+	return &EffectsClause{
+		As:      &As{Keyword: "as"},
+		Effects: NewFieldList(effect...),
+	}
+}
+
+func (e *EffectsClause) Position() lexer.Position { return e.Pos }
+func (e *EffectsClause) End() lexer.Position      { return e.Effects.End() }
 
 // FieldList represents a list of Fields, enclosed by parentheses.
 type FieldList struct {
@@ -741,26 +774,42 @@ func (s *Stmt) End() lexer.Position {
 type CallStmt struct {
 	Pos     lexer.Position
 	Doc     *CommentGroup
-	Func    *Expr      `parser:"@@"`
-	Args    []*Expr    `parser:"( @@ )*"`
-	WithOpt *WithOpt   `parser:"( @@ )?"`
-	Alias   *AliasDecl `parser:"( @@ )?"`
-	StmtEnd *StmtEnd   `parser:"@@"`
+	Func    *Expr       `parser:"@@"`
+	Args    []*Expr     `parser:"( @@ )*"`
+	WithOpt *WithOpt    `parser:"( @@ )?"`
+	Binds   *BindClause `parser:"( @@ )?"`
+	StmtEnd *StmtEnd    `parser:"@@"`
+	Callee  *FuncDecl
 }
 
-func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, alias *AliasDecl) *Stmt {
+func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, binds *BindClause) *Stmt {
 	return &Stmt{
 		Call: &CallStmt{
 			Func:    NewIdentExpr(name),
 			Args:    args,
 			WithOpt: withOpt,
-			Alias:   alias,
+			Binds:   binds,
 		},
 	}
 }
 
 func (s *CallStmt) Position() lexer.Position { return s.Pos }
 func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
+
+func (s *CallStmt) ObjType() ObjType {
+	if s.WithOpt == nil || s.WithOpt.Expr == nil || s.WithOpt.Expr.FuncLit == nil {
+		return None
+	}
+
+	return ObjType(fmt.Sprintf("%s::%s", Option, s.Func.Name()))
+}
+
+func (s *CallStmt) List() []*Stmt {
+	if s.WithOpt == nil || s.WithOpt.Expr == nil || s.WithOpt.Expr.FuncLit == nil {
+		return nil
+	}
+	return s.WithOpt.Expr.FuncLit.Body.NonEmptyStmts()
+}
 
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
@@ -795,17 +844,88 @@ type With struct {
 func (w *With) Position() lexer.Position { return w.Pos }
 func (w *With) End() lexer.Position      { return shiftPosition(w.Pos, len(w.Keyword), 0) }
 
-// AliasDecl represents a declaration of an alias for a CallStmt.
-type AliasDecl struct {
-	Pos   lexer.Position
-	As    *As    `parser:"@@"`
-	Ident *Ident `parser:"@@"`
-	Func  *FuncDecl
-	Call  *CallStmt
+// Binding is a value type that represents the call site where a single side effect is bound.
+type Binding struct {
+	Bind  *BindClause
+	Field *Field
 }
 
-func (d *AliasDecl) Position() lexer.Position { return d.Pos }
-func (d *AliasDecl) End() lexer.Position      { return d.Ident.End() }
+// BindClause represents the entire "as ..." clause on a CallStmt, with either a
+// default side effect or a list of Binds.
+type BindClause struct {
+	Pos     lexer.Position
+	As      *As       `parser:"@@"`
+	Ident   *Ident    `parser:"( @@"`
+	List    *BindList `parser:"| @@ )?"`
+	Lexical *FuncDecl
+	Effects *FieldList
+}
+
+func (b *BindClause) Bindings() []Binding {
+	var bs []Binding
+	for _, bb := range b.Effects.List {
+		bs = append(bs, Binding{b, bb})
+	}
+	return bs
+}
+
+func (b *BindClause) SourceBinding(source string) Binding {
+	for _, bb := range b.Effects.List {
+		if bb.Name.String() == source {
+			return Binding{b, bb}
+		}
+	}
+	panic("no such source")
+}
+
+func (b *BindClause) TargetBinding(target string) Binding {
+	if b.Ident != nil || target == "" {
+		// The default bind is the first.
+		return Binding{b, b.Effects.List[0]}
+	}
+	if b.List != nil {
+		for _, bb := range b.List.List {
+			if bb.Target.Name == target {
+				return Binding{b, bb.Field}
+			}
+		}
+	}
+	panic("no such target")
+}
+
+func (b *BindClause) Position() lexer.Position { return b.Pos }
+func (b *BindClause) End() lexer.Position {
+	switch {
+	case b.Ident != nil:
+		return b.Ident.End()
+	case b.List != nil:
+		return b.List.End()
+	default:
+		panic("missing ident or list")
+	}
+}
+
+// BindList is a parenthetical list of Binds.
+type BindList struct {
+	Pos        lexer.Position
+	OpenParen  *OpenParen  `parser:"@@"`
+	List       []*Bind     `parser:"( ( Newline )? @@ ( \",\" ( Newline )?  @@ )* ( \",\" Newline )? )?"`
+	CloseParen *CloseParen `parser:"@@"`
+}
+
+func (b *BindList) Position() lexer.Position { return b.Pos }
+func (b *BindList) End() lexer.Position      { return b.CloseParen.End() }
+
+// Bind represents the binding of a CallStmt's side effect Source to the identifier Target.
+type Bind struct {
+	Pos    lexer.Position
+	Source *Ident `parser:"@@"`
+	Target *Ident `parser:"@@"`
+	Field  *Field
+}
+
+func (b *Bind) Position() lexer.Position { return b.Pos }
+func (b *Bind) End() lexer.Position      { return b.Target.End() }
 
 // As represents the keyword "as".
 type As struct {

@@ -126,12 +126,21 @@ func (d *FuncDecl) String() string {
 		params = d.Params.String()
 	}
 
+	effects := ""
+	if d.SideEffects != nil {
+		effects = fmt.Sprintf(" %s", d.SideEffects)
+	}
+
 	body := ""
 	if d.Body != nil {
 		body = fmt.Sprintf(" %s", d.Body)
 	}
 
-	return fmt.Sprintf("%s %s%s%s", d.Type, d.Name, params, body)
+	return fmt.Sprintf("%s %s%s%s%s", d.Type, d.Name, params, effects, body)
+}
+
+func (e *EffectsClause) String() string {
+	return fmt.Sprintf("%s %s", e.As, e.Effects)
 }
 
 func (f *FieldList) String() string {
@@ -258,9 +267,9 @@ func (s *CallStmt) String() string {
 		withOpt = fmt.Sprintf(" %s", s.WithOpt)
 	}
 
-	alias := ""
-	if s.Alias != nil {
-		alias = fmt.Sprintf(" %s", s.Alias)
+	binds := ""
+	if s.Binds != nil {
+		binds = fmt.Sprintf(" %s", s.Binds)
 	}
 
 	end := ""
@@ -272,11 +281,30 @@ func (s *CallStmt) String() string {
 		}
 	}
 
-	return fmt.Sprintf("%s%s%s%s%s", s.Func, args, withOpt, alias, end)
+	return fmt.Sprintf("%s%s%s%s%s", s.Func, args, withOpt, binds, end)
 }
 
-func (d *AliasDecl) String() string {
-	return fmt.Sprintf("%s %s", d.As, d.Ident)
+func (b *BindClause) String() string {
+	switch {
+	case b.Ident != nil:
+		return fmt.Sprintf("%s %s", b.As, b.Ident)
+	case b.List != nil:
+		return fmt.Sprintf("%s %s", b.As, b.List)
+	default:
+		return fmt.Sprintf("%s _", b.As)
+	}
+}
+
+func (b *BindList) String() string {
+	var binds []string
+	for _, bind := range b.List {
+		binds = append(binds, bind.String())
+	}
+	return fmt.Sprintf("(%s)", strings.Join(binds, ", "))
+}
+
+func (b *Bind) String() string {
+	return fmt.Sprintf("%s %s", b.Source, b.Target)
 }
 
 func (a *As) String() string {

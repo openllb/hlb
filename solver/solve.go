@@ -17,13 +17,15 @@ import (
 
 type SolveOption func(*SolveInfo) error
 
+type SolveCallback func(resp *client.SolveResponse) error
+
 type SolveInfo struct {
 	OutputDockerRef       string
 	OutputPushImage       string
 	OutputLocal           string
 	OutputLocalTarball    bool
 	OutputLocalOCITarball bool
-	Callbacks             []func() error `json:"-"`
+	Callbacks             []SolveCallback `json:"-"`
 	ImageSpec             *specs.Image
 	Entitlements          []entitlements.Entitlement
 }
@@ -63,7 +65,7 @@ func WithDownloadOCITarball() SolveOption {
 	}
 }
 
-func WithCallback(fn func() error) SolveOption {
+func WithCallback(fn SolveCallback) SolveOption {
 	return func(info *SolveInfo) error {
 		info.Callbacks = append(info.Callbacks, fn)
 		return nil
@@ -168,14 +170,17 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	var statusCh chan *client.SolveStatus
+	var (
+		statusCh chan *client.SolveStatus
+		resp     *client.SolveResponse
+	)
 	if pw != nil {
 		pw = progress.ResetTime(pw)
 		statusCh = pw.Status()
 	}
 
-	g.Go(func() error {
-		_, err := c.Build(ctx, solveOpt, "", f, statusCh)
+	g.Go(func() (err error) {
+		resp, err = c.Build(ctx, solveOpt, "", f, statusCh)
 		return err
 	})
 
@@ -188,7 +193,9 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 
 	for _, fn := range info.Callbacks {
 		fn := fn
-		g.Go(fn)
+		g.Go(func() error {
+			return fn(resp)
+		})
 	}
 
 	return g.Wait()

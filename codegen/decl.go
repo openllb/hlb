@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback, chainStart interface{}) (interface{}, error) {
+func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (interface{}, error) {
 	nonVariadicArgs := 0
 	for _, field := range fun.Params.List {
 		if field.Variadic == nil {
@@ -21,7 +21,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 		return nil, errors.WithStack(errors.Errorf("%s expected args %s, found %s", fun.Name, fun.Params.List, args))
 	}
 
-	err := cg.ParameterizedScope(ctx, scope, fun, args, ac)
+	err := cg.ParameterizedScope(ctx, scope, fun, args)
 	if err != nil {
 		return nil, err
 	}
@@ -34,20 +34,20 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 
 	switch fun.Type.Primary() {
 	case parser.Filesystem:
-		return cg.EmitFilesystemBlock(ctx, fun.Scope, fun.Body, ac, chainStart)
+		return cg.EmitFilesystemBlock(ctx, fun.Scope, fun.Body, chainStart)
 	case parser.Option:
-		return cg.EmitOptionBlock(ctx, fun.Scope, string(fun.Type.Secondary()), fun.Body, ac)
+		return cg.EmitOptionBlock(ctx, fun.Scope, string(fun.Type.Secondary()), fun.Body)
 	case parser.Str:
 		return cg.EmitStringBlock(ctx, fun.Scope, fun.Body, chainStart)
 	case parser.Group:
-		return cg.EmitGroupBlock(ctx, fun.Scope, fun.Body, ac, chainStart)
+		return cg.EmitGroupBlock(ctx, fun.Scope, fun.Body, chainStart)
 	default:
 		return chainStart, checker.ErrInvalidTarget{Node: fun}
 	}
 }
 
-func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback, chainStart interface{}) (st llb.State, err error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, ac, chainStart)
+func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (st llb.State, err error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, chainStart)
 	if err != nil {
 		return
 	}
@@ -60,7 +60,7 @@ func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Sco
 }
 
 func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr) (opts []interface{}, err error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, noopAliasCallback, nil)
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, nil)
 	if err != nil {
 		return
 	}
@@ -72,8 +72,8 @@ func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, 
 	return
 }
 
-func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback, chainStart interface{}) (str string, err error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, ac, chainStart)
+func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (str string, err error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, chainStart)
 	if err != nil {
 		return
 	}
@@ -85,8 +85,8 @@ func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, 
 	return
 }
 
-func (cg *CodeGen) EmitGroupFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback, chainStart interface{}) (solver.Request, error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, ac, chainStart)
+func (cg *CodeGen) EmitGroupFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (solver.Request, error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, chainStart)
 	if v == nil {
 		return nil, err
 	}
@@ -113,61 +113,7 @@ func (cg *CodeGen) EmitGroupFuncDecl(ctx context.Context, scope *parser.Scope, f
 	return request, err
 }
 
-func (cg *CodeGen) EmitAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, args []*parser.Expr, chainStart interface{}) (interface{}, error) {
-	var v interface{}
-	_, err := cg.EmitFuncDecl(ctx, scope, alias.Func, args, func(aliasCall *parser.CallStmt, aliasValue interface{}) bool {
-		if alias.Call == aliasCall {
-			v = aliasValue
-			return false
-		}
-		return true
-	}, chainStart)
-	if err == ErrAliasReached {
-		err = nil
-	}
-	return v, err
-}
-
-func (cg *CodeGen) EmitFilesystemAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, args []*parser.Expr, chainStart interface{}) (st llb.State, err error) {
-	v, err := cg.EmitAliasDecl(ctx, scope, alias, args, chainStart)
-	if err != nil {
-		return
-	}
-
-	st, ok := v.(llb.State)
-	if !ok {
-		return st, errors.WithStack(ErrCodeGen{alias, ErrBadCast})
-	}
-	return
-}
-
-func (cg *CodeGen) EmitStringAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, args []*parser.Expr, chainStart interface{}) (str string, err error) {
-	v, err := cg.EmitAliasDecl(ctx, scope, alias, args, chainStart)
-	if err != nil {
-		return
-	}
-
-	str, ok := v.(string)
-	if !ok {
-		return str, errors.WithStack(ErrCodeGen{alias, ErrBadCast})
-	}
-	return
-}
-
-func (cg *CodeGen) EmitGroupAliasDecl(ctx context.Context, scope *parser.Scope, alias *parser.AliasDecl, args []*parser.Expr, chainStart interface{}) (request solver.Request, err error) {
-	v, err := cg.EmitAliasDecl(ctx, scope, alias, args, chainStart)
-	if err != nil {
-		return
-	}
-
-	request, ok := v.(solver.Request)
-	if !ok {
-		return request, errors.WithStack(ErrCodeGen{alias, ErrBadCast})
-	}
-	return
-}
-
-func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, ac aliasCallback) error {
+func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr) error {
 	for i, field := range fun.Params.List {
 		var (
 			data interface{}
@@ -190,7 +136,7 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		case parser.Filesystem:
 			var v llb.State
-			v, err = cg.EmitFilesystemExpr(ctx, scope, args[i], ac)
+			v, err = cg.EmitFilesystemExpr(ctx, scope, args[i])
 			data = v
 		case parser.Option:
 			var v []interface{}
@@ -209,7 +155,7 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			data = v
 		case parser.Group:
 			var v solver.Request
-			v, err = cg.EmitGroupExpr(ctx, scope, args[i], ac)
+			v, err = cg.EmitGroupExpr(ctx, scope, args[i])
 			data = v
 		}
 		if err != nil {

@@ -246,8 +246,8 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 						switch n := obj.Node.(type) {
 						case *parser.FuncDecl:
 							fmt.Fprintf(w, "%s\n", n.Name)
-						case *parser.AliasDecl:
-							fmt.Fprintf(w, "%s\n", n.Ident)
+						case *parser.BindClause:
+							fmt.Fprintf(w, "%s\n", obj.Ident)
 						}
 					}
 				case "help":

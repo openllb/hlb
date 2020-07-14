@@ -12,7 +12,7 @@ import (
 func (cg *CodeGen) EmitStringExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (string, error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-		sc, err := cg.EmitStringChainStmt(ctx, scope, expr, nil, nil, nil)
+		sc, err := cg.EmitStringChainStmt(ctx, scope, expr, nil, nil, nil, nil)
 		if err != nil {
 			return "", err
 		}
@@ -99,10 +99,10 @@ func (cg *CodeGen) MaybeEmitBoolExpr(ctx context.Context, scope *parser.Scope, a
 	return v, nil
 }
 
-func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback) (st llb.State, err error) {
+func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (st llb.State, err error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-		so, err := cg.EmitFilesystemChainStmt(ctx, scope, expr, nil, nil, ac, nil)
+		so, err := cg.EmitFilesystemChainStmt(ctx, scope, expr, nil, nil, nil, nil)
 		if err != nil {
 			return st, err
 		}
@@ -111,7 +111,7 @@ func (cg *CodeGen) EmitFilesystemExpr(ctx context.Context, scope *parser.Scope, 
 	case expr.BasicLit != nil:
 		return llb.Scratch(), errors.WithStack(ErrCodeGen{expr, errors.Errorf("fs expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body, ac, nil)
+		return cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body, nil)
 	default:
 		return st, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown fs expr")})
 	}
@@ -125,20 +125,20 @@ func (cg *CodeGen) EmitOptionExpr(ctx context.Context, scope *parser.Scope, expr
 				Func: expr,
 				Args: args,
 			},
-		}), noopAliasCallback)
+		}))
 	case expr.BasicLit != nil:
 		return nil, errors.WithStack(ErrCodeGen{expr, errors.Errorf("option expr cannot be basic lit")})
 	case expr.FuncLit != nil:
-		return cg.EmitOptionBlock(ctx, scope, op, expr.FuncLit.Body, noopAliasCallback)
+		return cg.EmitOptionBlock(ctx, scope, op, expr.FuncLit.Body)
 	default:
 		return opts, errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown option expr")})
 	}
 }
 
-func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, ac aliasCallback) (solver.Request, error) {
+func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr) (solver.Request, error) {
 	switch {
 	case expr.Ident != nil, expr.Selector != nil:
-		gc, err := cg.EmitGroupChainStmt(ctx, scope, expr, nil, nil, ac, nil)
+		gc, err := cg.EmitGroupChainStmt(ctx, scope, expr, nil, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -158,9 +158,9 @@ func (cg *CodeGen) EmitGroupExpr(ctx context.Context, scope *parser.Scope, expr 
 	case expr.FuncLit != nil:
 		switch expr.FuncLit.Type.Primary() {
 		case parser.Group:
-			return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body, ac, nil)
+			return cg.EmitGroupBlock(ctx, scope, expr.FuncLit.Body, nil)
 		case parser.Filesystem:
-			st, err := cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body, ac, nil)
+			st, err := cg.EmitFilesystemBlock(ctx, scope, expr.FuncLit.Body, nil)
 			if err != nil {
 				return nil, err
 			}

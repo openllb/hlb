@@ -46,4 +46,4 @@ replace k8s.io/client-go => k8s.io/client-go v0.0.0-20180806134042-1f13a808da65
 // necessary for langserver with vscode
 replace github.com/sourcegraph/go-lsp => github.com/radeksimko/go-lsp v0.0.0-20200223162147-9f2c54f29c9f
 
-replace github.com/tonistiigi/fsutil => github.com/coryb/fsutil v0.0.0-20200508061958-7d16a3dcbd1d
+replace github.com/tonistiigi/fsutil => github.com/slushie/fsutil v0.0.0-20200508061958-7d16a3dcbd1d

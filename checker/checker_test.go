@@ -119,7 +119,9 @@ func TestChecker_Check(t *testing.T) {
 		`
 		fs default() {
 			scratch
-			mkfile "/foo" 0o644 "foo" as this
+			run "cmd" with option {
+				mount scratch "/" as this
+			}
 			copy this "/foo" "/bar"
 		}
 		`,
@@ -130,21 +132,6 @@ func TestChecker_Check(t *testing.T) {
 		fs default() {
 			image "alpine"
 			image "busybox"
-		}
-		`,
-		nil,
-	}, {
-		"compose fs",
-		`
-		fs default() {
-			image "alpine" as this
-			myfunc this
-			image "busybox"
-		}
-		fs myfunc(fs base) {
-			base
-			mkfile "/foo" 0o644 "contents"
-			run "echo hi"
 		}
 		`,
 		nil,
@@ -222,6 +209,42 @@ func TestChecker_Check(t *testing.T) {
 					Column:   4,
 				},
 				Name: "duplicateName",
+			}},
+		},
+	}, {
+		"errors with function and builtin name collisions",
+		`
+		fs image() {
+			run "echo Hello"
+		}
+		`,
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     1,
+					Column:   4,
+				},
+				Name: "image",
+			}},
+		},
+	}, {
+		"errors with alias and builtin name collisions",
+		`
+		fs default() {
+			run "echo Hello" with option {
+				mount scratch "/" as image
+			}
+		}
+		`,
+		ErrDuplicateDecls{
+			Idents: []*parser.Ident{{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     3,
+					Column:   23,
+				},
+				Name: "image",
 			}},
 		},
 	}, {
@@ -342,21 +365,22 @@ func TestChecker_Check(t *testing.T) {
 			image "alpine"
 		}
 		`,
-		ErrIdentNotDefined{
-			Ident: &parser.Ident{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     2,
-					Column:   1,
-				},
-				Name: "image",
+		ErrWrongBuiltinType{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     2,
+				Column:   1,
+			},
+			Expected: "group",
+			Builtin: &BuiltinDecl{
+				Ident: parser.NewIdent("image"),
 			},
 		},
 	}, {
 		"errors when non-zero arg builtin is used as arg",
 		`
 		fs default() {
-			env localEnv "TEST"
+			run localEnv
 		}
 		`,
 		ErrFuncArg{
@@ -390,6 +414,100 @@ func TestChecker_Check(t *testing.T) {
 			},
 			Lexeme: "0644",
 		},
+	}, {
+		"errors without bind target",
+		`
+		fs default() {
+			dockerPush "some/ref" as
+		}
+		`,
+		ErrBindNoTarget{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     2,
+				Column:   23,
+			},
+		},
+	}, {
+		"no error when bind list is empty",
+		`
+		fs default() {
+			dockerPush "some/ref" as ()
+		}
+		`,
+		nil,
+	}, {
+		"errors with wrong type for default bind",
+		`
+		fs default() {
+			dockerPush "some/ref:latest" as imageID
+			imageID
+		}
+		`,
+		ErrWrongArgType{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     3,
+				Column:   1,
+			},
+			Expected: "fs",
+			Found:    "string",
+		},
+	}, {
+		"errors with wrong type for named bind",
+		`
+		fs default() {
+			dockerPush "some/ref:latest" as (digest imageID)
+			imageID
+		}
+		`,
+		ErrWrongArgType{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     3,
+				Column:   1,
+			},
+			Expected: "fs",
+			Found:    "string",
+		},
+	}, {
+		"errors when binding without side effects",
+		`
+		fs default() {
+			run "cmd" as nothing
+		}
+		`,
+		ErrBindBadSource{
+			CallStmt: &parser.CallStmt{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     2,
+					Column:   1,
+				},
+				Func: parser.NewIdentExpr("run"),
+			},
+		},
+	}, {
+		"errors when binding unknown side effects",
+		`
+		fs default() {
+			dockerPush "some/ref:latest" as (badSource nothing)
+		}
+		`,
+		ErrBindBadTarget{
+			CallStmt: &parser.CallStmt{
+				Func: parser.NewIdentExpr("dockerPush"),
+			},
+			Bind: &parser.Bind{
+				Pos: lexer.Position{
+					Filename: "<stdin>",
+					Line:     2,
+					Column:   34,
+				},
+				Source: parser.NewIdent("badSource"),
+				Target: parser.NewIdent("nothing"),
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -399,7 +517,7 @@ func TestChecker_Check(t *testing.T) {
 			require.NoError(t, err)
 
 			err = Check(mod)
-			validateError(t, tc.errType, err)
+			validateError(t, tc.errType, err, tc.name)
 		})
 	}
 }
@@ -513,15 +631,18 @@ func TestChecker_CheckSelectors(t *testing.T) {
 			obj.Data = importedModule.Scope
 
 			err = CheckSelectors(module)
-			validateError(t, tc.errType, err)
+			validateError(t, tc.errType, err, tc.name)
 		})
 	}
 }
 
-func validateError(t *testing.T, expected error, actual error) {
-	if expected == nil {
-		require.NoError(t, actual)
-	} else {
-		require.Equal(t, expected.Error(), actual.Error())
+func validateError(t *testing.T, expected error, actual error, name string) {
+	switch {
+	case expected == nil:
+		require.NoError(t, actual, name)
+	case actual == nil:
+		require.NotNil(t, actual, name)
+	default:
+		require.Equal(t, expected.Error(), actual.Error(), name)
 	}
 }
