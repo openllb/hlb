@@ -174,15 +174,6 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 	}
 
 	switch expr.Name() {
-	case "state":
-		fc = func(st llb.State) (llb.State, error) {
-			var err error
-			if binds != nil {
-				b := binds.SourceBinding("current")
-				err = cg.setBindingValue(b, st)
-			}
-			return st, err
-		}
 	case "scratch":
 		fc = func(_ llb.State) (llb.State, error) {
 			return llb.Scratch(), nil

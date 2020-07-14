@@ -34,7 +34,7 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 					},
 				}
 			}
-			node, ok := obj.Node.(*BuiltinDecl)
+			decl, ok := obj.Node.(*BuiltinDecl)
 			if !ok {
 				panic("implementation error")
 			}
@@ -42,7 +42,7 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 			fun := parser.NewFuncDecl(typ, name, fn.Params, fn.Effects).Func
 			fun.Pos.Filename = "<builtin>"      // for errors attached to func
 			fun.Name.Pos.Filename = "<builtin>" // for errors attached to Name
-			node.Func[typ] = fun
+			decl.Func[typ] = fun
 			scope.Insert(obj)
 		}
 	}

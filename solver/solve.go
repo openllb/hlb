@@ -17,13 +17,15 @@ import (
 
 type SolveOption func(*SolveInfo) error
 
+type SolveCallback func(resp *client.SolveResponse) error
+
 type SolveInfo struct {
 	OutputDockerRef       string
 	OutputPushImage       string
 	OutputLocal           string
 	OutputLocalTarball    bool
 	OutputLocalOCITarball bool
-	Callbacks             []func(resp *client.SolveResponse) error `json:"-"`
+	Callbacks             []SolveCallback `json:"-"`
 	ImageSpec             *specs.Image
 	Entitlements          []entitlements.Entitlement
 }
@@ -63,7 +65,7 @@ func WithDownloadOCITarball() SolveOption {
 	}
 }
 
-func WithCallback(fn func(resp *client.SolveResponse) error) SolveOption {
+func WithCallback(fn SolveCallback) SolveOption {
 	return func(info *SolveInfo) error {
 		info.Callbacks = append(info.Callbacks, fn)
 		return nil
