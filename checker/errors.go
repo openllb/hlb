@@ -49,6 +49,14 @@ func (e ErrInvalidFunc) Error() string {
 	return fmt.Sprintf("%s invalid func %s", FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
 }
 
+type ErrBindNoTarget struct {
+	Pos lexer.Position
+}
+
+func (e ErrBindNoTarget) Error() string {
+	return fmt.Sprintf("%s cannot bind: has no target", FormatPos(e.Pos))
+}
+
 type ErrBindBadSource struct {
 	CallStmt *parser.CallStmt
 }

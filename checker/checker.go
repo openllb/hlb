@@ -406,8 +406,13 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, typ parser.ObjType, block 
 }
 
 func (c *checker) bindEffects(scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt) error {
-	if call.Binds == nil {
+	binds := call.Binds
+	if binds == nil {
 		return nil
+	}
+
+	if binds.Ident == nil && binds.List == nil {
+		return ErrBindNoTarget{binds.As.Pos}
 	}
 
 	ident := call.Func.IdentNode()
@@ -421,7 +426,6 @@ func (c *checker) bindEffects(scope *parser.Scope, typ parser.ObjType, call *par
 		return ErrBindBadSource{call}
 	}
 
-	binds := call.Binds
 	fun, ok := decl.Func[typ]
 	if !ok {
 		return ErrWrongBuiltinType{call.Pos, typ, decl}

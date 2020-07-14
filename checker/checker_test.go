@@ -415,6 +415,28 @@ func TestChecker_Check(t *testing.T) {
 			Lexeme: "0644",
 		},
 	}, {
+		"errors without bind target",
+		`
+		fs default() {
+			dockerPush "some/ref" as
+		}
+		`,
+		ErrBindNoTarget{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     2,
+				Column:   23,
+			},
+		},
+	}, {
+		"no error when bind list is empty",
+		`
+		fs default() {
+			dockerPush "some/ref" as ()
+		}
+		`,
+		nil,
+	}, {
 		"errors with wrong type for default bind",
 		`
 		fs default() {
@@ -615,9 +637,12 @@ func TestChecker_CheckSelectors(t *testing.T) {
 }
 
 func validateError(t *testing.T, expected error, actual error, name string) {
-	if expected == nil {
+	switch {
+	case expected == nil:
 		require.NoError(t, actual, name)
-	} else {
+	case actual == nil:
+		require.NotNil(t, actual, name)
+	default:
 		require.Equal(t, expected.Error(), actual.Error(), name)
 	}
 }
