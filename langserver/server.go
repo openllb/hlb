@@ -240,6 +240,19 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 					}
 				}
 			}
+			if n.SideEffects != nil {
+				if n.SideEffects.As != nil {
+					highlightNode(lines, n.SideEffects.As, Keyword)
+				}
+				for _, field := range n.SideEffects.Effects.List {
+					if field.Type != nil {
+						highlightNode(lines, field.Type, Type)
+					}
+					if field.Name != nil {
+						highlightNode(lines, field.Name, Parameter)
+					}
+				}
+			}
 			if n.Type != nil && n.Body != nil {
 				highlightBlock(lines, n.Type.ObjType, n.Body)
 			}
