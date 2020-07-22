@@ -82,7 +82,7 @@ styles [] {
 __TYPE \= (\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)
 __WHITESPACE \= (?:[\t ]+)
 __IDENT \= (\b[a-zA-Z_][a-zA-Z0-9]*\b)
-__KEYWORD \= (\b(with|as|variadic)\b)
+__KEYWORD \= (\b(import|export|from|as|with|variadic)\b)
 __BOOL \= (\b(true|false)\b)
 __NUMERIC \= (\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b)
 __DECIMAL \= (\b(0|[1-9][0-9]*)\b)
@@ -98,8 +98,21 @@ contexts [] {
          regex \= $${__TYPE}
          styles [] = .type;
       }
+      : pattern {
+         regex \= $${__KEYWORD}
+         styles [] = .keyword;
+      }
       : push {
          regex \= $${__IDENT}(\()
+         styles [] = .variable, .punctuation;
+         context [] = params;
+      }
+      : pattern {
+         regex \= (\))
+         styles [] = .illegal;
+      }
+      : push {
+         regex \= ($${__WHITESPACE}as$${__WHITESPACE})(\()
          styles [] = .keyword, .punctuation;
          context [] = params;
       }
@@ -115,6 +128,10 @@ contexts [] {
       :pattern {
          regex \= (\})
          styles [] = .illegal;
+      }
+      : pattern {
+         regex \= $${__IDENT}
+         styles [] = .variable;
       }
    }
    
@@ -153,6 +170,10 @@ contexts [] {
          styles [] = .punctuation;
       }
       : pattern {
+         regex \= (variadic)
+         styles [] = .keyword;
+      }
+      : pattern {
          regex \= $${__TYPE}
          styles [] = .type;
       }
@@ -161,7 +182,17 @@ contexts [] {
          styles [] = .variable;
       }
    }
-   
+   binding : context {
+      : pop {
+         regex \= (\))
+         styles [] = .punctuation;
+      }
+      : pattern {
+         regex \= $${__IDENT}($${__WHITESPACE})$${__IDENT}
+         styles [] = .builtin, .punctuation, .variable;
+      }
+   }
+
    block : context {
       : pop {
          regex \= (\})
@@ -169,18 +200,30 @@ contexts [] {
       }
       : include "common";
       : pattern {
-         regex \= $${__KEYWORD}
-         styles [] = .builtin;
+         regex \= ($${__WHITESPACE}with$${__WHITESPACE})
+         styles [] = .keyword;
+      }
+      : pattern {
+         regex \= (as)($${__WHITESPACE})$${__IDENT}
+         styles [] = .keyword, .punctuation, .variable;
       }
       : push {
-         regex \= $${__TYPE}$${__WHITESPACE}(\{)
-         styles [] = .type, .punctuation;
+         regex \= (as)($${__WHITESPACE})(\()
+         styles [] = .keyword, .punctuation, .punctuation;
+         context [] = binding;
+      }
+      : push {
+         regex \= $${__TYPE}($${__WHITESPACE})(\{)
+         styles [] = .type, .punctuation, .punctuation;
          context [] = block;
       }
       : pattern {
          regex \= $${__NOT_BUILTIN}
          styles [] = .variable;
       }
+      : pattern {
+         regex \= $${__IDENT}
+         styles [] = .builtin;
+      }
    }
-   
 }
