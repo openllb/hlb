@@ -20,7 +20,37 @@
         'name' : 'entity.name.type.hlb'
       }
       {
+        'match' : '(\\b(import|export|from|as|with|variadic)\\b)'
+        'name' : 'keyword.hlb'
+      }
+      {
         'begin' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)(\\()'
+        'beginCaptures' : {
+          '1' : {
+            'name' : 'variable.hlb'
+          }
+          '2' : {
+            'name' : 'punctuation.hlb'
+          }
+        }
+        'patterns' : [
+          {
+            'include' : '#params'
+          }
+        ]
+        'end' : '(\\))'
+        'endCaptures' : {
+          '1' : {
+            'name' : 'punctuation.hlb'
+          }
+        }
+      }
+      {
+        'match' : '(\\))'
+        'name' : 'invalid.hlb'
+      }
+      {
+        'begin' : '((?:[\\t\\x{0020}]+)as(?:[\\t\\x{0020}]+))(\\()'
         'beginCaptures' : {
           '1' : {
             'name' : 'keyword.hlb'
@@ -68,6 +98,28 @@
         'match' : '(\\})'
         'name' : 'invalid.hlb'
       }
+      {
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'name' : 'variable.hlb'
+      }
+    ]
+  }
+  'binding' : {
+    'patterns' : [
+      {
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)((?:[\\t\\x{0020}]+))(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'captures' : {
+          '1' : {
+            'name' : 'variable.language.hlb'
+          }
+          '2' : {
+            'name' : 'punctuation.hlb'
+          }
+          '3' : {
+            'name' : 'variable.hlb'
+          }
+        }
+      }
     ]
   }
   'block' : {
@@ -76,16 +128,58 @@
         'include' : '#common'
       }
       {
-        'match' : '(\\b(with|as|variadic)\\b)'
-        'name' : 'variable.language.hlb'
+        'match' : '((?:[\\t\\x{0020}]+)with(?:[\\t\\x{0020}]+))'
+        'name' : 'keyword.hlb'
       }
       {
-        'begin' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\bgroup\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\\b)(?:[\\t\\x{0020}]+)(\\{)'
+        'match' : '(as)((?:[\\t\\x{0020}]+))(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'captures' : {
+          '1' : {
+            'name' : 'keyword.hlb'
+          }
+          '2' : {
+            'name' : 'punctuation.hlb'
+          }
+          '3' : {
+            'name' : 'variable.hlb'
+          }
+        }
+      }
+      {
+        'begin' : '(as)((?:[\\t\\x{0020}]+))(\\()'
+        'beginCaptures' : {
+          '1' : {
+            'name' : 'keyword.hlb'
+          }
+          '2' : {
+            'name' : 'punctuation.hlb'
+          }
+          '3' : {
+            'name' : 'punctuation.hlb'
+          }
+        }
+        'patterns' : [
+          {
+            'include' : '#binding'
+          }
+        ]
+        'end' : '(\\))'
+        'endCaptures' : {
+          '1' : {
+            'name' : 'punctuation.hlb'
+          }
+        }
+      }
+      {
+        'begin' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\bgroup\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\\b)((?:[\\t\\x{0020}]+))(\\{)'
         'beginCaptures' : {
           '1' : {
             'name' : 'entity.name.type.hlb'
           }
           '2' : {
+            'name' : 'punctuation.hlb'
+          }
+          '3' : {
             'name' : 'punctuation.hlb'
           }
         }
@@ -104,6 +198,10 @@
       {
         'match' : '(\\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localEnv|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|parallel|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|stringField|target|template|tmpfs|uid|unix|unpack|unset|user|value)\\b)[a-zA-Z_][a-zA-Z0-9]*\\b))'
         'name' : 'variable.hlb'
+      }
+      {
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'name' : 'variable.language.hlb'
       }
     ]
   }
@@ -162,6 +260,10 @@
   }
   'params' : {
     'patterns' : [
+      {
+        'match' : '(variadic)'
+        'name' : 'keyword.hlb'
+      }
       {
         'match' : '(\\bstring\\b|\\bint\\b|\\bbool\\b|\\bfs\\b|\\bgroup\\b|\\boption(?!::)\\b|\\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\\b)'
         'name' : 'entity.name.type.hlb'

@@ -10,7 +10,18 @@ contexts:
     - match: '(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)'
       captures:
         0: entity.name.type.hlb
+    - match: '(\b(import|export|from|as|with|variadic)\b)'
+      captures:
+        0: keyword.hlb
     - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)(\()'
+      push: params
+      captures:
+        0: variable.hlb
+        1: punctuation.hlb
+    - match: '(\))'
+      captures:
+        0: invalid.hlb
+    - match: '((?:[\t\x{0020}]+)as(?:[\t\x{0020}]+))(\()'
       push: params
       captures:
         0: keyword.hlb
@@ -25,6 +36,9 @@ contexts:
     - match: '(\})'
       captures:
         0: invalid.hlb
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+      captures:
+        0: variable.hlb
     - match: '(.)'
       captures:
         0: text.hlb
@@ -38,7 +52,7 @@ contexts:
     - match: '(")'
       captures:
         0: punctuation.hlb
-      push: 
+      push:
         - match: '(")'
           pop: true
           captures:
@@ -50,7 +64,7 @@ contexts:
       captures:
         0: punctuation.hlb
         1: constant.hlb
-      push: 
+      push:
         - match: '(\2)'
           pop: true
           captures:
@@ -66,6 +80,9 @@ contexts:
       pop: true
       captures:
         0: punctuation.hlb
+    - match: '(variadic)'
+      captures:
+        0: keyword.hlb
     - match: '(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)'
       captures:
         0: entity.name.type.hlb
@@ -75,23 +92,51 @@ contexts:
     - match: '(.)'
       captures:
         0: text.hlb
+  binding:
+    - match: '(\))'
+      pop: true
+      captures:
+        0: punctuation.hlb
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)((?:[\t\x{0020}]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+      captures:
+        0: variable.language.hlb
+        1: punctuation.hlb
+        2: variable.hlb
+    - match: '(.)'
+      captures:
+        0: text.hlb
   block:
     - match: '(\})'
       pop: true
       captures:
         0: punctuation.hlb
     - include: common
-    - match: '(\b(with|as|variadic)\b)'
+    - match: '((?:[\t\x{0020}]+)with(?:[\t\x{0020}]+))'
       captures:
-        0: variable.language.hlb
-    - match: '(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)(?:[\t\x{0020}]+)(\{)'
+        0: keyword.hlb
+    - match: '(as)((?:[\t\x{0020}]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+      captures:
+        0: keyword.hlb
+        1: punctuation.hlb
+        2: variable.hlb
+    - match: '(as)((?:[\t\x{0020}]+))(\()'
+      push: binding
+      captures:
+        0: keyword.hlb
+        1: punctuation.hlb
+        2: punctuation.hlb
+    - match: '(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)((?:[\t\x{0020}]+))(\{)'
       push: block
       captures:
         0: entity.name.type.hlb
         1: punctuation.hlb
+        2: punctuation.hlb
     - match: '(\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localEnv|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|parallel|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|stringField|target|template|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))'
       captures:
         0: variable.hlb
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+      captures:
+        0: variable.language.hlb
     - match: '(.)'
       captures:
         0: text.hlb
