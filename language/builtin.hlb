@@ -3,11 +3,6 @@
 # @return a scratch filesystem.
 fs scratch()
 
-# A reference to the current filesystem state.
-#
-# @return the current fs state unchanged
-fs state() as (fs current)
-
 # An OCI image's filesystem.
 #
 # @param ref a docker registry reference. if not fully qualified, it will be 
@@ -564,11 +559,6 @@ fs volumes(variadic string mountpoints)
 # @param string the stop signal to send to the container.
 # @return the filesystem with the stop signal set.
 fs stopSignal(string signal)
-
-# A reference to the current string state.
-#
-# @return the current string state unchanged
-string state() as (string current)
 
 # A format specifier that is interpolated with values.
 #

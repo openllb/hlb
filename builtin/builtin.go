@@ -26,12 +26,6 @@ var (
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"state": FuncLookup{
-						Params: []*parser.Field{},
-						Effects: []*parser.Field{
-							parser.NewField(parser.Filesystem, "current", false),
-						},
-					},
 					"image": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "ref", false),
@@ -590,12 +584,6 @@ var (
 			},
 			parser.Str: LookupByType{
 				Func: map[string]FuncLookup{
-					"state": FuncLookup{
-						Params: []*parser.Field{},
-						Effects: []*parser.Field{
-							parser.NewField(parser.Str, "current", false),
-						},
-					},
 					"format": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "formatString", false),
