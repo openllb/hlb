@@ -52,11 +52,6 @@ type Resolved interface {
 // NewResolver returns a resolver based on whether the modules path exists in
 // the current working directory.
 func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error) {
-	_, err := filepath.Abs(ModulesPath)
-	if err != nil {
-		return nil, err
-	}
-
 	root, exist, err := modulesPathExist()
 	if err != nil {
 		return nil, err
@@ -77,12 +72,8 @@ func ModulesPathExist() (bool, error) {
 }
 
 func modulesPathExist() (string, bool, error) {
-	root, err := filepath.Abs(ModulesPath)
-	if err != nil {
-		return root, false, err
-	}
-
-	_, err = os.Stat(root)
+	root := ModulesPath
+	_, err := os.Stat(root)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return root, false, nil
@@ -125,7 +116,7 @@ func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit,
 		return nil, err
 	}
 
-	dgst, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	dgst, _, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +179,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, err
 	}
 
-	dgst, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	dgst, _, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
 	if err != nil {
 		return nil, err
 	}
@@ -246,10 +237,12 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		return nil, g.Wait()
 	}
 
-	return &remoteResolved{dgst, ref, g, ctx, closed}, nil
+	root := fmt.Sprintf("%s#%s", decl.Pos.Filename, decl.Ident)
+	return &remoteResolved{root, dgst, ref, g, ctx, closed}, nil
 }
 
 type remoteResolved struct {
+	root   string
 	dgst   digest.Digest
 	ref    gateway.Reference
 	g      *errgroup.Group
@@ -276,19 +269,16 @@ func (r *remoteResolved) Open(filename string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return &noopCloser{bytes.NewReader(data)}, nil
+	return &parser.NamedReader{
+		Reader: bytes.NewReader(data),
+		Value:  filepath.Join(r.root, filename),
+	}, nil
 }
 
 func (r *remoteResolved) Close() error {
 	close(r.closed)
 	return r.g.Wait()
 }
-
-type noopCloser struct {
-	io.Reader
-}
-
-func (nc *noopCloser) Close() error { return nil }
 
 type tidyResolver struct {
 	remote *remoteResolver
@@ -364,7 +354,7 @@ func VendorPath(root string, dgst digest.Digest) string {
 type Visitor func(decl *parser.ImportDecl, dgst digest.Digest, mod, importMod *parser.Module) error
 
 // ResolveGraph traverses the import graph of a given module.
-func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *parser.Module, visitor Visitor) error {
+func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *parser.Module, fbs map[string]*parser.FileBuffer, visitor Visitor) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	var (
@@ -392,7 +382,14 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					filename = ModuleFilename
 				case n.ImportPath != nil:
 					importRes = res
+
 					filename = n.ImportPath.Path.Unquoted()
+					if res.Digest() == "" {
+						filename, err = parser.ResolvePath(mod, filename)
+						if err != nil {
+							return err
+						}
+					}
 				}
 
 				rc, err := importRes.Open(filename)
@@ -404,7 +401,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				}
 				defer rc.Close()
 
-				importMod, err := parser.Parse(rc)
+				importMod, fb, err := parser.Parse(rc)
 				if err != nil {
 					return err
 				}
@@ -421,13 +418,16 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					}
 				}
 
-				err = ResolveGraph(ctx, resolver, importRes, importMod, visitor)
+				err = ResolveGraph(ctx, resolver, importRes, importMod, fbs, visitor)
 				if err != nil {
 					return err
 				}
 
 				mu.Lock()
 				imports[n.Ident.Name] = importMod
+				if fbs != nil {
+					fbs[importMod.Pos.Filename] = fb
+				}
 				mu.Unlock()
 				return nil
 			})

@@ -41,7 +41,7 @@ type snapshot struct {
 	value interface{}
 }
 
-func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]*report.IndexedBuffer) Debugger {
+func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]*parser.FileBuffer) Debugger {
 	color := aurora.NewAurora(true)
 
 	var (
@@ -100,7 +100,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 			}
 
 			if showList && !cont {
-				err := printList(color, ibs, w, s.node)
+				err := printList(color, fbs, w, s.node)
 				if err != nil {
 					return err
 				}
@@ -277,7 +277,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 					fmt.Fprintf(w, "security - print security mode\n")
 				case "list", "l":
 					if showList {
-						err = printList(color, ibs, w, s.node)
+						err = printList(color, fbs, w, s.node)
 						if err != nil {
 							return err
 						}
@@ -386,9 +386,9 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, ibs map[string]
 	}
 }
 
-func printList(color aurora.Aurora, ibs map[string]*report.IndexedBuffer, w io.Writer, node parser.Node) error {
+func printList(color aurora.Aurora, fbs map[string]*parser.FileBuffer, w io.Writer, node parser.Node) error {
 	pos := node.Position()
-	ib := ibs[pos.Filename]
+	fb := fbs[pos.Filename]
 
 	var lines []string
 
@@ -398,8 +398,8 @@ func printList(color aurora.Aurora, ibs map[string]*report.IndexedBuffer, w io.W
 	}
 
 	end := start + 10
-	if end > ib.Len() {
-		end = ib.Len()
+	if end > fb.Len() {
+		end = fb.Len()
 	}
 
 	length := 1
@@ -419,7 +419,7 @@ func printList(color aurora.Aurora, ibs map[string]*report.IndexedBuffer, w io.W
 	lines = append(lines, header)
 
 	for i := start; i < end; i++ {
-		line, err := ib.Line(i)
+		line, err := fb.Line(i)
 		if err != nil {
 			return err
 		}

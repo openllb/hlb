@@ -7,15 +7,16 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
+	"github.com/openllb/hlb/parser"
 )
 
-func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
+func NewLexerError(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
 	lerr, ok := err.(*lexer.Error)
 	if !ok {
 		return nil, err
 	}
 
-	r := bytes.NewReader(ib.buf.Bytes())
+	r := bytes.NewReader(fb.Bytes())
 	_, err = r.Seek(int64(lerr.Token().Pos.Offset), io.SeekStart)
 	if err != nil {
 		return nil, err
@@ -35,9 +36,9 @@ func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 
 	unexpected := strings.TrimPrefix(lerr.Msg, "invalid token ")
 	if unexpected == `'"'` {
-		group, err = errLiteral(color, ib, lex, token)
+		group, err = errLiteral(color, fb, lex, token)
 	} else {
-		group, err = errToken(color, ib, lex, token)
+		group, err = errToken(color, fb, lex, token)
 	}
 	if err != nil {
 		return nil, err
@@ -47,8 +48,8 @@ func NewLexerError(color aurora.Aurora, ib *IndexedBuffer, lex *lexer.PeekingLex
 	return Error{Groups: []AnnotationGroup{group}}, nil
 }
 
-func errLiteral(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
-	segment, err := getSegment(ib, token)
+func errLiteral(color aurora.Aurora, fb *parser.FileBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
+	segment, err := getSegment(fb, token)
 	if err != nil {
 		return group, err
 	}
@@ -66,8 +67,8 @@ func errLiteral(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, t
 	}, nil
 }
 
-func errToken(color aurora.Aurora, ib *IndexedBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
-	segment, err := getSegment(ib, token)
+func errToken(color aurora.Aurora, fb *parser.FileBuffer, _ *lexer.PeekingLexer, token lexer.Token) (group AnnotationGroup, err error) {
+	segment, err := getSegment(fb, token)
 	if err != nil {
 		return group, err
 	}

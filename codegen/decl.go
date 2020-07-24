@@ -10,7 +10,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (interface{}, error) {
+func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, caller parser.Node, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (interface{}, error) {
+	cg.stacktrace = append(cg.stacktrace, Frame{Node: caller})
+	defer func() {
+		cg.stacktrace = cg.stacktrace[:len(cg.stacktrace)-1]
+	}()
+
 	nonVariadicArgs := 0
 	for _, field := range fun.Params.List {
 		if field.Variadic == nil {
@@ -46,21 +51,8 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, scope *parser.Scope, fun *p
 	}
 }
 
-func (cg *CodeGen) EmitFilesystemFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (st llb.State, err error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, chainStart)
-	if err != nil {
-		return
-	}
-
-	st, ok := v.(llb.State)
-	if !ok {
-		return st, errors.WithStack(ErrCodeGen{fun, ErrBadCast})
-	}
-	return
-}
-
-func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr) (opts []interface{}, err error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, nil)
+func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, caller parser.Node, fun *parser.FuncDecl, args []*parser.Expr) (opts []interface{}, err error) {
+	v, err := cg.EmitFuncDecl(ctx, scope, caller, fun, args, nil)
 	if err != nil {
 		return
 	}
@@ -70,47 +62,6 @@ func (cg *CodeGen) EmitOptionFuncDecl(ctx context.Context, scope *parser.Scope, 
 		return opts, errors.WithStack(ErrCodeGen{fun, ErrBadCast})
 	}
 	return
-}
-
-func (cg *CodeGen) EmitStringFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (str string, err error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, chainStart)
-	if err != nil {
-		return
-	}
-
-	str, ok := v.(string)
-	if !ok {
-		return str, errors.WithStack(ErrCodeGen{fun, ErrBadCast})
-	}
-	return
-}
-
-func (cg *CodeGen) EmitGroupFuncDecl(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr, chainStart interface{}) (solver.Request, error) {
-	v, err := cg.EmitFuncDecl(ctx, scope, fun, args, chainStart)
-	if v == nil {
-		return nil, err
-	}
-
-	var request solver.Request
-	switch t := v.(type) {
-	case solver.Request:
-		request = t
-	case llb.State:
-		request, err = cg.outputRequest(ctx, t, Output{})
-		if err != nil {
-			return request, err
-		}
-
-		if len(cg.requests) > 0 {
-			request = solver.Parallel(append([]solver.Request{request}, cg.requests...)...)
-		}
-
-		cg.reset()
-	default:
-		return request, errors.WithStack(ErrCodeGen{fun, errors.Errorf("unknown group func decl")})
-	}
-
-	return request, err
 }
 
 func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, fun *parser.FuncDecl, args []*parser.Expr) error {

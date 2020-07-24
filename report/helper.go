@@ -71,13 +71,13 @@ func findMatchingStart(lex *lexer.PeekingLexer, start, end string, n int) (lexer
 	return token, n, nil
 }
 
-func getSegmentAndToken(ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (segment []byte, token lexer.Token, n int, err error) {
+func getSegmentAndToken(fb *parser.FileBuffer, lex *lexer.PeekingLexer, unexpected lexer.Token) (segment []byte, token lexer.Token, n int, err error) {
 	token, n, err = searchToken(lex, unexpected.Pos.Offset)
 	if err != nil {
 		return
 	}
 
-	segment, err = getSegment(ib, token)
+	segment, err = getSegment(fb, token)
 	if err != nil {
 		return
 	}
@@ -85,12 +85,12 @@ func getSegmentAndToken(ib *IndexedBuffer, lex *lexer.PeekingLexer, unexpected l
 	return
 }
 
-func getSegment(ib *IndexedBuffer, token lexer.Token) ([]byte, error) {
+func getSegment(fb *parser.FileBuffer, token lexer.Token) ([]byte, error) {
 	if token.EOF() {
 		return []byte(token.String()), nil
 	}
 
-	segment, err := ib.Segment(token.Pos.Offset)
+	segment, err := fb.Segment(token.Pos.Offset)
 	if err != nil {
 		return segment, err
 	}

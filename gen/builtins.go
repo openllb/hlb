@@ -28,7 +28,7 @@ type ParsedFunc struct {
 }
 
 func GenerateBuiltins(r io.Reader) ([]byte, error) {
-	file, err := parser.Parse(r)
+	file, _, err := parser.Parse(r)
 	if err != nil {
 		return nil, err
 	}

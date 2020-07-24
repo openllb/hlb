@@ -37,7 +37,7 @@ func (cg *CodeGen) setBindingValue(b parser.Binding, value interface{}) error {
 	}
 }
 
-func (cg *CodeGen) EmitBinding(ctx context.Context, scope *parser.Scope, b parser.Binding, args []*parser.Expr, chainStart interface{}) (interface{}, error) {
+func (cg *CodeGen) EmitBinding(ctx context.Context, scope *parser.Scope, caller parser.Node, b parser.Binding, args []*parser.Expr, chainStart interface{}) (interface{}, error) {
 	v, ok := cg.values[b]
 
 	// When the binding value is not yet set, emit the containing func to compute a value.
@@ -49,7 +49,7 @@ func (cg *CodeGen) EmitBinding(ctx context.Context, scope *parser.Scope, b parse
 		// Codegen can short-circuit control flow by returning ErrBindingCycle up the
 		// stack. If it matches b then we've finished early and the error is ignored.
 		var err error
-		v, err = cg.EmitFuncDecl(ctx, scope, b.Bind.Lexical, args, chainStart)
+		v, err = cg.EmitFuncDecl(ctx, scope, caller, b.Bind.Lexical, args, chainStart)
 		if errors.As(err, &cycle) && cycle.Binding == b {
 			err = nil
 			v = cg.values[b]
