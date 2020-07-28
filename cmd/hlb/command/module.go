@@ -130,13 +130,11 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 	}
 
 	hasImports := false
-	parser.Inspect(mod, func(node parser.Node) bool {
-		if _, ok := node.(*parser.ImportDecl); ok {
+	parser.Match(mod, parser.MatchOpts{},
+		func(imp *parser.ImportDecl) {
 			hasImports = true
-			return false
-		}
-		return !hasImports
-	})
+		},
+	)
 
 	if !hasImports {
 		fmt.Printf("No imports found in %s\n", mod.Pos.Filename)

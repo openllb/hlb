@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	Sources = []string{"scratch", "image", "http", "git", "local", "generate"}
+	Sources = []string{"scratch", "image", "http", "git", "local", "frontend"}
 	Ops     = []string{"shell", "run", "env", "dir", "user", "entrypoint", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
 	Types   = []string{"string", "int", "bool", "fs", "option"}

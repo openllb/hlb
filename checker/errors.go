@@ -57,6 +57,14 @@ func (e ErrBindNoTarget) Error() string {
 	return fmt.Sprintf("%s cannot bind: has no target", FormatPos(e.Pos))
 }
 
+type ErrBindNoClosure struct {
+	Pos lexer.Position
+}
+
+func (e ErrBindNoClosure) Error() string {
+	return fmt.Sprintf("%s cannot bind: no function register in scope", FormatPos(e.Pos))
+}
+
 type ErrBindBadSource struct {
 	CallStmt *parser.CallStmt
 }

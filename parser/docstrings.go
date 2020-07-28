@@ -7,31 +7,29 @@ func AssignDocStrings(mod *Module) {
 		lastCG *CommentGroup
 	)
 
-	Inspect(mod, func(node Node) bool {
-		switch n := node.(type) {
-		case *Decl:
-			if n.Doc != nil {
-				lastCG = n.Doc
+	Match(mod, MatchOpts{},
+		func(decl *Decl) {
+			if decl.Doc != nil {
+				lastCG = decl.Doc
 			}
-		case *FuncDecl:
-			if lastCG != nil && lastCG.End().Line == n.Pos.Line-1 {
-				n.Doc = lastCG
+		},
+		func(fun *FuncDecl) {
+			if lastCG != nil && lastCG.End().Line == fun.Pos.Line-1 {
+				fun.Doc = lastCG
 			}
 
-			Inspect(n, func(node Node) bool {
-				switch n := node.(type) {
-				case *CommentGroup:
-					lastCG = n
-				case *CallStmt:
-					if lastCG != nil && lastCG.End().Line == n.Pos.Line-1 {
-						n.Doc = lastCG
-					}
-					return false
-				}
-				return true
-			})
-			return false
-		}
-		return true
-	})
+			if fun.Body != nil {
+				Match(fun.Body, MatchOpts{},
+					func(cg *CommentGroup) {
+						lastCG = cg
+					},
+					func(call *CallStmt) {
+						if lastCG != nil && lastCG.End().Line == call.Pos.Line-1 {
+							call.Doc = lastCG
+						}
+					},
+				)
+			}
+		},
+	)
 }

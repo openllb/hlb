@@ -178,57 +178,52 @@ func (ls *LangServer) publishSemanticHighlighting(ctx context.Context, td TextDo
 }
 
 func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.Module) {
-	parser.Inspect(mod, func(node parser.Node) bool {
-		if node == nil {
-			return false
-		}
-
-		switch n := node.(type) {
-		case *parser.Comment:
-			highlightNode(lines, node, Comment)
-			return false
-		case *parser.ImportDecl:
-			if n.Import != nil {
-				highlightNode(lines, n.Import, Keyword)
+	parser.Match(mod, parser.MatchOpts{},
+		func(comment *parser.Comment) {
+			highlightNode(lines, comment, Comment)
+		},
+		func(imp *parser.ImportDecl) {
+			if imp.Import != nil {
+				highlightNode(lines, imp.Import, Keyword)
 			}
-			if n.Ident != nil {
-				highlightNode(lines, n.Ident, Module)
+			if imp.Ident != nil {
+				highlightNode(lines, imp.Ident, Module)
 			}
 			switch {
-			case n.ImportFunc != nil:
-				if n.ImportFunc.From != nil {
-					highlightNode(lines, n.ImportFunc.From, Keyword)
+			case imp.ImportFunc != nil:
+				if imp.ImportFunc.From != nil {
+					highlightNode(lines, imp.ImportFunc.From, Keyword)
 				}
-				if n.ImportFunc.Func != nil {
-					lit := n.ImportFunc.Func
+				if imp.ImportFunc.Func != nil {
+					lit := imp.ImportFunc.Func
 					if lit.Type != nil {
 						highlightNode(lines, lit.Type, Type)
 					}
 					if lit.Type != nil && lit.Body != nil {
-						highlightBlock(lines, lit.Type.ObjType, lit.Body)
+						highlightBlock(lines, lit.Body)
 					}
 				}
-			case n.ImportPath != nil:
-				highlightNode(lines, n.ImportPath, String)
+			case imp.ImportPath != nil:
+				highlightNode(lines, imp.ImportPath, String)
 			}
-			return false
-		case *parser.ExportDecl:
-			if n.Export != nil {
-				highlightNode(lines, n.Export, Keyword)
+		},
+		func(exp *parser.ExportDecl) {
+			if exp.Export != nil {
+				highlightNode(lines, exp.Export, Keyword)
 			}
-			if n.Ident != nil {
-				highlightNode(lines, n.Ident, Variable)
+			if exp.Ident != nil {
+				highlightNode(lines, exp.Ident, Variable)
 			}
-			return false
-		case *parser.FuncDecl:
-			if n.Type != nil {
-				highlightNode(lines, n.Type, Type)
+		},
+		func(fun *parser.FuncDecl) {
+			if fun.Type != nil {
+				highlightNode(lines, fun.Type, Type)
 			}
-			if n.Name != nil {
-				highlightNode(lines, n.Name, Function)
+			if fun.Name != nil {
+				highlightNode(lines, fun.Name, Function)
 			}
-			if n.Params != nil {
-				for _, field := range n.Params.List {
+			if fun.Params != nil {
+				for _, field := range fun.Params.List {
 					if field.Variadic != nil {
 						highlightNode(lines, field.Variadic, Modifier)
 					}
@@ -240,11 +235,11 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 					}
 				}
 			}
-			if n.SideEffects != nil {
-				if n.SideEffects.As != nil {
-					highlightNode(lines, n.SideEffects.As, Keyword)
+			if fun.SideEffects != nil {
+				if fun.SideEffects.Binds != nil {
+					highlightNode(lines, fun.SideEffects.Binds, Keyword)
 				}
-				for _, field := range n.SideEffects.Effects.List {
+				for _, field := range fun.SideEffects.Effects.List {
 					if field.Type != nil {
 						highlightNode(lines, field.Type, Type)
 					}
@@ -253,50 +248,38 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 					}
 				}
 			}
-			if n.Type != nil && n.Body != nil {
-				highlightBlock(lines, n.Type.ObjType, n.Body)
+			if fun.Body != nil {
+				highlightBlock(lines, fun.Body)
 			}
-			return false
-		}
-
-		return true
-	})
+		},
+	)
 }
 
-func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, typ parser.ObjType, block *parser.BlockStmt) {
-	parser.Inspect(block, func(node parser.Node) bool {
-		if node == nil {
-			return false
-		}
-
-		switch n := node.(type) {
-		case *parser.Comment:
-			highlightNode(lines, node, Comment)
-		case *parser.CallStmt:
+func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.BlockStmt) {
+	parser.Match(block, parser.MatchOpts{},
+		func(call *parser.CallStmt) {
 			var ident *parser.Ident
 			switch {
-			case n.Func.Ident != nil:
-				ident = n.Func.Ident
-				lookupByType, ok := builtin.Lookup.ByType[typ]
+			case call.Func.Ident != nil:
+				ident = call.Func.Ident
+				lookupByType, ok := builtin.Lookup.ByType[block.ObjType]
 				if ok {
 					_, ok = lookupByType.Func[ident.Name]
 					if !ok {
 						highlightNode(lines, ident, Variable)
 					}
 				}
-			case n.Func.Selector != nil:
-				ident = n.Func.Selector.Ident
+			case call.Func.Selector != nil:
+				ident = call.Func.Selector.Ident
 				if ident != nil {
 					highlightNode(lines, ident, Module)
 				}
-				if n.Func.Selector.Select != nil {
-					highlightNode(lines, n.Func.Selector.Select, Variable)
+				if call.Func.Selector.Select != nil {
+					highlightNode(lines, call.Func.Selector.Select, Variable)
 				}
-			default:
-				return true
 			}
 
-			for _, arg := range n.Args {
+			for _, arg := range call.Args {
 				switch {
 				case arg.Bad != nil:
 				case arg.Selector != nil:
@@ -322,51 +305,42 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, typ parser.Obj
 						highlightNode(lines, arg.FuncLit.Type, Type)
 					}
 
-					if arg.FuncLit.Type != nil && arg.FuncLit.Body != nil {
-						highlightBlock(lines, arg.FuncLit.Type.ObjType, arg.FuncLit.Body)
+					if arg.FuncLit.Body != nil {
+						highlightBlock(lines, arg.FuncLit.Body)
 					}
 				}
 			}
 
-			if n.WithOpt != nil {
-				if n.WithOpt.With != nil {
-					highlightNode(lines, n.WithOpt.With, Keyword)
+			if call.WithOpt != nil {
+				if call.WithOpt.With != nil {
+					highlightNode(lines, call.WithOpt.With, Keyword)
 				}
 
 				switch {
-				case n.WithOpt.Expr.Ident != nil:
-				case n.WithOpt.Expr.FuncLit != nil:
-					lit := n.WithOpt.Expr.FuncLit
-					highlightNode(lines, lit.Type, Type)
-
-					if lit.Type.Primary() == parser.Option {
-						typ := parser.ObjType(fmt.Sprintf("%s::%s", lit.Type.Primary(), ident))
-						highlightBlock(lines, typ, lit.Body)
-					} else {
-						highlightBlock(lines, lit.Type.ObjType, lit.Body)
-					}
+				case call.WithOpt.Expr.Ident != nil:
+				case call.WithOpt.Expr.FuncLit != nil:
+					lit := call.WithOpt.Expr.FuncLit
+					highlightBlock(lines, lit.Body)
 				}
 			}
 
-			if n.Binds != nil {
-				if n.Binds.As != nil {
-					highlightNode(lines, n.Binds.As, Keyword)
+			if call.Binds != nil {
+				if call.Binds.As != nil {
+					highlightNode(lines, call.Binds.As, Keyword)
 				}
-				if n.Binds.Ident != nil {
-					highlightNode(lines, n.Binds.Ident, Function)
+				if call.Binds.Ident != nil {
+					highlightNode(lines, call.Binds.Ident, Function)
 				}
-				if n.Binds.List != nil {
-					for _, b := range n.Binds.List.List {
+				if call.Binds.List != nil {
+					for _, b := range call.Binds.List.List {
 						highlightNode(lines, b.Source, Parameter)
 						highlightNode(lines, b.Target, Function)
 					}
 				}
 			}
 
-			return false
-		}
-		return true
-	})
+		},
+	)
 }
 
 func highlightNode(lines map[int]lsp.SemanticHighlightingTokens, node parser.Node, s Scope) {
@@ -488,114 +462,94 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 	}
 	ls.tmu.RUnlock()
 
-	var loc *lsp.Location
+	var (
+		loc *lsp.Location
+		pos = params.Position
+	)
 
-	pos := params.Position
-
-	parser.Inspect(td.Module, func(node parser.Node) bool {
-		if node == nil || !isPositionWithinNode(pos, node) {
-			return false
-		}
-
-		switch n := node.(type) {
-		case *parser.ExportDecl:
-			if isPositionWithinNode(pos, n.Ident) {
-				loc = newLocationFromIdent(td.Module.Scope, uri, n.Ident.Name)
+	parser.Match(td.Module,
+		parser.MatchOpts{
+			Filter: func(node parser.Node) bool {
+				return isPositionWithinNode(pos, node)
+			},
+		},
+		func(_ *parser.ExportDecl, ident *parser.Ident) {
+			loc = newLocationFromIdent(td.Module.Scope, uri, ident.Name)
+		},
+		func(fun *parser.FuncDecl, expr *parser.Expr) {
+			if expr.Ident != nil {
+				loc = newLocationFromIdent(fun.Scope, uri, expr.Ident.Name)
 			}
-		case *parser.FuncDecl:
-			fun := n
-			parser.Inspect(fun, func(node parser.Node) bool {
-				if node == nil || !isPositionWithinNode(pos, node) {
-					return false
+		},
+		func(fun *parser.FuncDecl, selector *parser.Selector) {
+			if isPositionWithinNode(pos, selector.Ident) {
+				loc = newLocationFromIdent(fun.Scope, uri, selector.Ident.Name)
+				return
+			} else if !isPositionWithinNode(pos, selector.Select) {
+				return
+			}
+
+			obj := fun.Scope.Lookup(selector.Ident.Name)
+			if obj == nil {
+				return
+			}
+
+			decl, ok := obj.Node.(*parser.ImportDecl)
+			if !ok {
+				return
+			}
+
+			rootDir := filepath.Dir(strings.TrimPrefix(string(uri), "file://"))
+
+			var filename string
+
+			switch {
+			case decl.ImportFunc != nil:
+				cg, err := codegen.New()
+				if err != nil {
+					log.Printf("failed to create codegen: %s", err)
+					return
 				}
 
-				if n, ok := node.(*parser.Expr); ok {
-					switch {
-					case n.Ident != nil, n.Selector != nil:
-						var name string
-						switch {
-						case n.Ident != nil:
-							name = n.Ident.Name
-						case n.Selector != nil:
-							if isPositionWithinNode(pos, n.Selector.Ident) {
-								name = n.Selector.Ident.Name
-							} else if isPositionWithinNode(pos, n.Selector.Select) {
-								obj := fun.Scope.Lookup(n.Selector.Ident.Name)
-								if obj == nil {
-									return false
-								}
-
-								decl, ok := obj.Node.(*parser.ImportDecl)
-								if !ok {
-									return false
-								}
-
-								rootDir := filepath.Dir(strings.TrimPrefix(string(uri), "file://"))
-
-								var filename string
-
-								switch {
-								case decl.ImportFunc != nil:
-									cg, err := codegen.New()
-									if err != nil {
-										log.Printf("failed to create codegen: %s", err)
-										return false
-									}
-
-									st, err := cg.GenerateImport(ctx, td.Module.Scope, decl.ImportFunc.Func)
-									if err != nil {
-										log.Printf("failed to generate import: %s", err)
-										return false
-									}
-
-									def, err := st.Marshal(ctx, llb.LinuxAmd64)
-									if err != nil {
-										log.Printf("failed to marshal import vertex: %s", err)
-										return false
-									}
-
-									dgst := digest.FromBytes(def.Def[len(def.Def)-1])
-									vp := module.VendorPath(filepath.Join(rootDir, module.ModulesPath), dgst)
-									filename = filepath.Join(vp, module.ModuleFilename)
-								case decl.ImportPath != nil:
-									filename = filepath.Join(rootDir, decl.ImportPath.Path.Unquoted())
-								}
-
-								importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filename))
-
-								ls.tmu.Lock()
-								importTD, ok := ls.tds[importUri]
-								if !ok {
-									data, err := ioutil.ReadFile(filename)
-									if err != nil {
-										log.Printf("failed to read file: %s", err)
-										return false
-									}
-
-									importTD = NewTextDocument(importUri, string(data))
-									ls.tds[importUri] = importTD
-								}
-								ls.tmu.Unlock()
-
-								loc = newLocationFromIdent(importTD.Module.Scope, importUri, n.Selector.Select.Name)
-								return false
-							}
-						}
-
-						loc = newLocationFromIdent(fun.Scope, uri, name)
-						return false
-					case n.FuncLit != nil:
-						return true
-					default:
-						return false
-					}
+				st, err := cg.GenerateImport(ctx, td.Module.Scope, decl.ImportFunc.Func)
+				if err != nil {
+					log.Printf("failed to generate import: %s", err)
+					return
 				}
-				return true
-			})
-			return false
-		}
-		return true
-	})
+
+				def, err := st.Marshal(ctx, llb.LinuxAmd64)
+				if err != nil {
+					log.Printf("failed to marshal import vertex: %s", err)
+					return
+				}
+
+				dgst := digest.FromBytes(def.Def[len(def.Def)-1])
+				vp := module.VendorPath(filepath.Join(rootDir, module.ModulesPath), dgst)
+				filename = filepath.Join(vp, module.ModuleFilename)
+			case decl.ImportPath != nil:
+				filename = filepath.Join(rootDir, decl.ImportPath.Path.Unquoted())
+			}
+
+			importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filename))
+
+			ls.tmu.Lock()
+			importTD, ok := ls.tds[importUri]
+			if !ok {
+				data, err := ioutil.ReadFile(filename)
+				if err != nil {
+					log.Printf("failed to read file: %s", err)
+					ls.tmu.Unlock()
+					return
+				}
+
+				importTD = NewTextDocument(importUri, string(data))
+				ls.tds[importUri] = importTD
+			}
+			ls.tmu.Unlock()
+
+			loc = newLocationFromIdent(importTD.Module.Scope, importUri, selector.Select.Name)
+		},
+	)
 
 	var locs []lsp.Location
 	if loc != nil {
@@ -661,48 +615,56 @@ func (ls *LangServer) textDocumentHoverHandler(ctx context.Context, params lsp.T
 
 	pos := params.Position
 
-	var (
-		h   lsp.Hover
-		typ parser.ObjType
-	)
+	var h lsp.Hover
 
-	parser.Inspect(td.Module, func(node parser.Node) bool {
-		if node == nil || !isPositionWithinNode(pos, node) {
-			return false
-		}
+	parser.Match(td.Module,
+		parser.MatchOpts{
+			AllowDuplicates: true,
+			Filter: func(node parser.Node) bool {
+				return isPositionWithinNode(pos, node)
+			},
+		},
+		func(block *parser.BlockStmt, ident *parser.Ident) {
+			lookupByType, ok := builtin.Lookup.ByType[block.ObjType]
+			if !ok {
+				return
+			}
 
-		switch n := node.(type) {
-		case *parser.FuncDecl:
-			if n.Type != nil {
-				typ = n.Type.ObjType
+			fun, ok := lookupByType.Func[ident.Name]
+			if !ok {
+				return
 			}
-		case *parser.FuncLit:
-			if n.Type != nil {
-				typ = n.Type.ObjType
+
+			paramsBlock := ""
+			if len(fun.Params) > 0 {
+				var params []string
+				for _, param := range fun.Params {
+					params = append(params, fmt.Sprintf("%s %s", param.Type, param.Name))
+				}
+
+				paramsBlock = fmt.Sprintf("(%s)", strings.Join(params, ", "))
 			}
-		case *parser.Ident:
-			r := newRangeFromNode(node)
+
+			effectsBlock := ""
+			if len(fun.Effects) > 0 {
+				var effects []string
+				for _, effect := range fun.Effects {
+					effects = append(effects, fmt.Sprintf("%s %s", effect.Type, effect.Name))
+				}
+
+				effectsBlock = fmt.Sprintf(" as (%s)", strings.Join(effects, ", "))
+			}
+
+			r := newRangeFromNode(ident)
 			h.Range = &r
-
-			lookupByType, ok := builtin.Lookup.ByType[typ]
-			if !ok {
-				return false
-			}
-
-			_, ok = lookupByType.Func[n.Name]
-			if !ok {
-				return false
-			}
-
 			h.Contents = []lsp.MarkedString{
 				{
 					Language: "hlb",
-					Value:    n.Name,
+					Value:    fmt.Sprintf("%s%s%s", ident, paramsBlock, effectsBlock),
 				},
 			}
-		}
-		return true
-	})
+		},
+	)
 	return &h, nil
 }
 

@@ -17,7 +17,7 @@ module Rouge
             push :common__2
           end
           rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)/, Keyword::Type
-          rule /(\b(import|export|from|as|with|variadic)\b)/, Keyword
+          rule /(\b(import|export|from|binds|as|with|variadic)\b)/, Keyword
           rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)(\()/ do
             groups Name::Variable, Punctuation
             push :params
@@ -55,7 +55,7 @@ module Rouge
           rule /(as)((?:[\t ]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)/ do
             groups Keyword, Punctuation, Name::Variable
           end
-          rule /(as)((?:[\t ]+))(\()/ do
+          rule /(binds)((?:[\t ]+))(\()/ do
             groups Keyword, Punctuation, Punctuation
             push :binding
           end
