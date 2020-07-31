@@ -362,8 +362,8 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 		mu      sync.Mutex
 	)
 
-	parser.Inspect(mod, func(node parser.Node) bool {
-		if n, ok := node.(*parser.ImportDecl); ok {
+	parser.Match(mod, parser.MatchOpts{},
+		func(imp *parser.ImportDecl) {
 			g.Go(func() error {
 				var (
 					importRes Resolved
@@ -372,18 +372,18 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				)
 
 				switch {
-				case n.ImportFunc != nil:
-					importRes, err = resolver.Resolve(ctx, mod.Scope, n)
+				case imp.ImportFunc != nil:
+					importRes, err = resolver.Resolve(ctx, mod.Scope, imp)
 					if err != nil {
 						return err
 					}
 					defer importRes.Close()
 
 					filename = ModuleFilename
-				case n.ImportPath != nil:
+				case imp.ImportPath != nil:
 					importRes = res
 
-					filename = n.ImportPath.Path.Unquoted()
+					filename = imp.ImportPath.Path.Unquoted()
 					if res.Digest() == "" {
 						filename, err = parser.ResolvePath(mod, filename)
 						if err != nil {
@@ -397,7 +397,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					if !os.IsNotExist(err) {
 						return err
 					}
-					return checker.ErrImportNotExist{Import: n, Filename: filename}
+					return checker.ErrImportNotExist{Import: imp, Filename: filename}
 				}
 				defer rc.Close()
 
@@ -412,7 +412,7 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				}
 
 				if visitor != nil {
-					err = visitor(n, importRes.Digest(), mod, importMod)
+					err = visitor(imp, importRes.Digest(), mod, importMod)
 					if err != nil {
 						return err
 					}
@@ -424,17 +424,15 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 				}
 
 				mu.Lock()
-				imports[n.Ident.Name] = importMod
+				imports[imp.Ident.Name] = importMod
 				if fbs != nil {
 					fbs[importMod.Pos.Filename] = fb
 				}
 				mu.Unlock()
 				return nil
 			})
-			return false
-		}
-		return true
-	})
+		},
+	)
 
 	err := g.Wait()
 	if err != nil {

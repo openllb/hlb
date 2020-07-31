@@ -10,7 +10,7 @@ contexts:
     - match: '(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)'
       captures:
         0: entity.name.type.hlb
-    - match: '(\b(import|export|from|as|with|variadic)\b)'
+    - match: '(\b(import|export|from|binds|as|with|variadic)\b)'
       captures:
         0: keyword.hlb
     - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)(\()'
@@ -52,7 +52,7 @@ contexts:
     - match: '(")'
       captures:
         0: punctuation.hlb
-      push:
+      push: 
         - match: '(")'
           pop: true
           captures:
@@ -64,7 +64,7 @@ contexts:
       captures:
         0: punctuation.hlb
         1: constant.hlb
-      push:
+      push: 
         - match: '(\2)'
           pop: true
           captures:
@@ -119,7 +119,7 @@ contexts:
         0: keyword.hlb
         1: punctuation.hlb
         2: variable.hlb
-    - match: '(as)((?:[\t\x{0020}]+))(\()'
+    - match: '(binds)((?:[\t\x{0020}]+))(\()'
       push: binding
       captures:
         0: keyword.hlb

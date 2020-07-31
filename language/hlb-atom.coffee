@@ -20,7 +20,7 @@
         'name' : 'entity.name.type.hlb'
       }
       {
-        'match' : '(\\b(import|export|from|as|with|variadic)\\b)'
+        'match' : '(\\b(import|export|from|binds|as|with|variadic)\\b)'
         'name' : 'keyword.hlb'
       }
       {
@@ -146,7 +146,7 @@
         }
       }
       {
-        'begin' : '(as)((?:[\\t\\x{0020}]+))(\\()'
+        'begin' : '(binds)((?:[\\t\\x{0020}]+))(\\()'
         'beginCaptures' : {
           '1' : {
             'name' : 'keyword.hlb'

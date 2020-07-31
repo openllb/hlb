@@ -18,7 +18,7 @@ var (
 	Lexer = lexer.Must(regex.New(`
 		Whitespace = [\r\t ]+
 		HereDoc = <<[-~]?
-		Keyword  = \b(with|as|import|export|from)\b
+		Keyword  = \b(with|binds|as|import|export|from)\b
 		Modifier = \b(variadic)\b
 		Type     = \b(string|int|bool|fs|option|group)(::[a-z][a-zA-Z]*)?\b
 		Numeric  = \b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b
@@ -42,7 +42,7 @@ var (
 
 // hereDocDefinition allows for a lexer that optionally
 // emits whitespace depending on if it lexing the contents
-// of a here-doc
+// of a here-doc.
 type hereDocDefinition struct {
 	def lexer.Definition
 }
@@ -75,14 +75,14 @@ func (s *hereDocLexer) Next() (lexer.Token, error) {
 	switch t.Type {
 	case s.sym["Whitespace"]:
 		if !s.keepSpace {
-			// not preserving spsace, so move on to next token
+			// Not preserving spsace, so move on to next token.
 			return s.Next()
 		}
 	case s.sym["HereDoc"]:
 		s.foundHere = true
 	case s.sym["Ident"]:
 		if s.foundHere && s.hereIdent.Value == t.Value {
-			// end of heredoc
+			// End of HereDoc.
 			s.foundHere = false
 			s.keepSpace = false
 			s.hereIdent = lexer.Token{}
@@ -275,36 +275,31 @@ func NewFuncDecl(typ ObjType, name string, params []*Field, effects []*Field, st
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 
-func (d *FuncDecl) ObjType() ObjType {
-	return d.Type.ObjType
-}
-
-func (d *FuncDecl) List() []*Stmt {
-	return d.Body.NonEmptyStmts()
-}
-
-// Block represents a group of statements of a specific type.
-type Block interface {
-	ObjType() ObjType
-	List() []*Stmt
-}
-
-// EffectsClause represents the side effect "as ..." clause for a function.
+// EffectsClause represents the side effect "binds ..." clause for a function.
 type EffectsClause struct {
 	Pos     lexer.Position
-	As      *As        `parser:"@@"`
+	Binds   *Binds     `parser:"@@"`
 	Effects *FieldList `parser:"@@"`
 }
 
 func NewEffectsClause(effect ...*Field) *EffectsClause {
 	return &EffectsClause{
-		As:      &As{Keyword: "as"},
+		Binds:   &Binds{Keyword: "binds"},
 		Effects: NewFieldList(effect...),
 	}
 }
 
 func (e *EffectsClause) Position() lexer.Position { return e.Pos }
 func (e *EffectsClause) End() lexer.Position      { return e.Effects.End() }
+
+// Binds represents the keyword "binds".
+type Binds struct {
+	Pos     lexer.Position
+	Keyword string `parser:"@\"binds\""`
+}
+
+func (b *Binds) Position() lexer.Position { return b.Pos }
+func (b *Binds) End() lexer.Position      { return shiftPosition(b.Pos, len(b.Keyword), 0) }
 
 // FieldList represents a list of Fields, enclosed by parentheses.
 type FieldList struct {
@@ -796,26 +791,12 @@ func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, binds *BindClause)
 func (s *CallStmt) Position() lexer.Position { return s.Pos }
 func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
 
-func (s *CallStmt) ObjType() ObjType {
-	if s.WithOpt == nil || s.WithOpt.Expr == nil || s.WithOpt.Expr.FuncLit == nil {
-		return None
-	}
-
-	return ObjType(fmt.Sprintf("%s::%s", Option, s.Func.Name()))
-}
-
-func (s *CallStmt) List() []*Stmt {
-	if s.WithOpt == nil || s.WithOpt.Expr == nil || s.WithOpt.Expr.FuncLit == nil {
-		return nil
-	}
-	return s.WithOpt.Expr.FuncLit.Body.NonEmptyStmts()
-}
-
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
-	Pos  lexer.Position
-	With *With `parser:"@@"`
-	Expr *Expr `parser:"@@"`
+	Pos     lexer.Position
+	With    *With `parser:"@@"`
+	Expr    *Expr `parser:"@@"`
+	Closure *FuncDecl
 }
 
 func NewWithIdent(name string) *WithOpt {
@@ -857,7 +838,7 @@ type BindClause struct {
 	As      *As       `parser:"@@"`
 	Ident   *Ident    `parser:"( @@"`
 	List    *BindList `parser:"| @@ )?"`
-	Lexical *FuncDecl
+	Closure *FuncDecl
 	Effects *FieldList
 }
 
@@ -964,6 +945,9 @@ type BlockStmt struct {
 	OpenBrace  *OpenBrace  `parser:"@@"`
 	List       []*Stmt     `parser:"( @@ )*"`
 	CloseBrace *CloseBrace `parser:"@@"`
+	Scope      *Scope
+	ObjType    ObjType
+	Closure    *FuncDecl
 }
 
 func NewBlockStmt(stmts ...*Stmt) *BlockStmt {
@@ -993,7 +977,7 @@ func (s *BlockStmt) NonEmptyStmts() []*Stmt {
 	}
 	var stmts []*Stmt
 	for _, stmt := range s.List {
-		if stmt.Newline != nil || stmt.Doc != nil {
+		if stmt.Call == nil {
 			continue
 		}
 		stmts = append(stmts, stmt)

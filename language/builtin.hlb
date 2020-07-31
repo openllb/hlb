@@ -215,7 +215,7 @@ option::run secret(string localPath, string mountPoint)
 # becomes available from the mountPoint directory.
 # @param mountPoint the directory where the mount is attached.
 # @param an option to mount an additional filesystem.
-option::run mount(fs input, string mountPoint) as (fs target)
+option::run mount(fs input, string mountPoint) binds (fs target)
 
 # Sets the target directory to mount the SSH agent socket. By default, it is
 # mounted to `/run/buildkit/ssh_agent.${N}`, where N is the index of the 
@@ -469,7 +469,7 @@ option::copy createdTime(string created)
 # @param ref a distribution reference. if not fully qualified, it will be
 # expanded the same as the docker CLI.
 # @return an option to push the filesystem to a registry.
-fs dockerPush(string ref) as (string digest)
+fs dockerPush(string ref) binds (string digest)
 
 # Loads the filesystem as a Docker image to the docker client found in your
 # environment.

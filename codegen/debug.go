@@ -457,21 +457,19 @@ type Breakpoint struct {
 func findStaticBreakpoints(mod *parser.Module) []*Breakpoint {
 	var breakpoints []*Breakpoint
 
-	parser.Inspect(mod, func(node parser.Node) bool {
-		if n, ok := node.(*parser.FuncDecl); ok {
-			for _, stmt := range n.Body.NonEmptyStmts() {
-				fun := stmt.Call.Func
-				if fun.Ident != nil && fun.Ident.Name == "breakpoint" {
-					bp := &Breakpoint{
-						Func: n,
-						Call: stmt.Call,
-					}
-					breakpoints = append(breakpoints, bp)
-				}
+	parser.Match(mod, parser.MatchOpts{},
+		func(fun *parser.FuncDecl, call *parser.CallStmt) {
+			if fun.Name == nil || fun.Name.Name != "breakpoint" {
+				return
 			}
-		}
-		return true
-	})
+
+			bp := &Breakpoint{
+				Func: fun,
+				Call: call,
+			}
+			breakpoints = append(breakpoints, bp)
+		},
+	)
 
 	return breakpoints
 }

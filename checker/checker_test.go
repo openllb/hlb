@@ -508,6 +508,40 @@ func TestChecker_Check(t *testing.T) {
 				Target: parser.NewIdent("nothing"),
 			},
 		},
+	}, {
+		"errors when binding inside an option function declaration",
+		`
+		option::run foo() {
+			mount scratch "/out" as default
+		}
+		`,
+		ErrBindNoClosure{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     2,
+				Column:   22,
+			},
+		},
+	}, {
+		"errors when binding inside an argument expression",
+		`
+		fs default() {
+			foo option::run {
+				mount scratch "/tmp" as bar
+			}
+		}
+
+		fs foo(option::run opts) {
+			run with opts
+		}
+		`,
+		ErrBindNoClosure{
+			Pos: lexer.Position{
+				Filename: "<stdin>",
+				Line:     3,
+				Column:   23,
+			},
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

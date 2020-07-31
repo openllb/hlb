@@ -140,7 +140,11 @@ func (d *FuncDecl) String() string {
 }
 
 func (e *EffectsClause) String() string {
-	return fmt.Sprintf("%s %s", e.As, e.Effects)
+	return fmt.Sprintf("%s %s", e.Binds, e.Effects)
+}
+
+func (b *Binds) String() string {
+	return b.Keyword
 }
 
 func (f *FieldList) String() string {
