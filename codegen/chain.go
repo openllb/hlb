@@ -344,7 +344,12 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 							return res, err
 						}
 
-						st, err = ref.ToState()
+						if ref == nil {
+							st = llb.Scratch()
+						} else {
+							st, err = ref.ToState()
+						}
+
 						return res, err
 					})
 				})
