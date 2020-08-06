@@ -317,7 +317,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 		var cerr error
 		v, cerr = chain(v)
 		if cerr == nil || errors.As(cerr, &ErrBindingCycle{}) {
-			if st, ok := v.(llb.State); ok && st.Output() != nil {
+			if st, ok := v.(llb.State); ok && st.Output() != nil && st.Output().Vertex(ctx) != nil {
 				err = st.Validate(ctx)
 				if err != nil {
 					return v, ErrCodeGen{Node: stmt, Err: err}
