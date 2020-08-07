@@ -19,7 +19,7 @@ go get -u github.com/openllb/hlb/cmd/hlb
 
 You'll also need to run `buildkitd` somewhere you can connect to. The easiest way if you have [Docker](https://www.docker.com/get-started), is to run a local buildkit container:
 ```sh
-docker run -d --name buildkitd --privileged moby/buildkit:v0.7.0
+docker run -d --name buildkitd --privileged moby/buildkit:master
 ```
 
 Then you can run one of the examples in `./examples`:

@@ -48,7 +48,7 @@ type CodeGen struct {
 
 	requests        []solver.Request
 	syncedDirByID   map[string]filesync.SyncedDir
-	fileSourceByID  map[string]secretsprovider.FileSource
+	fileSourceByID  map[string]secretsprovider.Source
 	agentConfigByID map[string]sockprovider.AgentConfig
 
 	image *specs.Image
@@ -93,7 +93,7 @@ func New(opts ...CodeGenOption) (*CodeGen, error) {
 		Debug:           NewNoopDebugger(),
 		sessionID:       identity.NewID(),
 		syncedDirByID:   make(map[string]filesync.SyncedDir),
-		fileSourceByID:  make(map[string]secretsprovider.FileSource),
+		fileSourceByID:  make(map[string]secretsprovider.Source),
 		agentConfigByID: make(map[string]sockprovider.AgentConfig),
 	}
 	for _, opt := range opts {
@@ -210,7 +210,7 @@ func (cg *CodeGen) reset() {
 	cg.requests = []solver.Request{}
 	cg.SolveOpts = []solver.SolveOption{}
 	cg.syncedDirByID = map[string]filesync.SyncedDir{}
-	cg.fileSourceByID = map[string]secretsprovider.FileSource{}
+	cg.fileSourceByID = map[string]secretsprovider.Source{}
 	cg.agentConfigByID = map[string]sockprovider.AgentConfig{}
 	cg.image = &specs.Image{}
 	cg.values = make(map[parser.Binding]interface{})
@@ -243,12 +243,12 @@ func (cg *CodeGen) newSession(ctx context.Context) (*session.Session, error) {
 	}
 
 	// Attach secret providers to the session.
-	var fileSources []secretsprovider.FileSource
+	var fileSources []secretsprovider.Source
 	for _, cfg := range cg.fileSourceByID {
 		fileSources = append(fileSources, cfg)
 	}
 	if len(fileSources) > 0 {
-		fileStore, err := secretsprovider.NewFileStore(fileSources)
+		fileStore, err := secretsprovider.NewStore(fileSources)
 		if err != nil {
 			return nil, err
 		}
@@ -1283,7 +1283,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 					id := SecretID(localPath)
 
 					// Register path as an allowed file source for the session.
-					cg.fileSourceByID[id] = secretsprovider.FileSource{
+					cg.fileSourceByID[id] = secretsprovider.Source{
 						ID:       id,
 						FilePath: localPath,
 					}
