@@ -3,7 +3,7 @@ module github.com/openllb/hlb
 go 1.12
 
 require (
-	github.com/alecthomas/participle v0.4.2-0.20191230055107-1fbf95471489
+	github.com/alecthomas/participle v0.5.1-0.20200805035213-5b536bedbb9d
 	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
 	github.com/docker/cli v0.0.0-20200227165822-2298e6a3fe24
@@ -27,8 +27,6 @@ require (
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/grpc v1.28.0
 )
-
-replace github.com/alecthomas/participle => github.com/hinshun/participle v0.4.2-0.20200115220927-0afe0602c1fc
 
 replace github.com/hashicorp/go-immutable-radix => github.com/tonistiigi/go-immutable-radix v0.0.0-20170803185627-826af9ccf0fe
 
