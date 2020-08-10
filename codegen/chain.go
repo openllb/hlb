@@ -380,26 +380,54 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		mounts := make(map[string]*parser.CallStmt)
 
 		if with != nil {
+			var stmts []*parser.Stmt
+
 			switch {
 			case with.Expr.Ident != nil:
 				// Do nothing.
 				//
 				// Mounts inside option functions cannot be aliased because they need
 				// to be in the context of a specific function run is in.
-			case with.Expr.FuncLit != nil:
-				for _, stmt := range with.Expr.FuncLit.Body.NonEmptyStmts() {
-					if stmt.Call.Func.Name() != "mount" || stmt.Call.Binds == nil {
-						continue
+			case with.Expr.Selector != nil:
+				obj := scope.Lookup(with.Expr.Name())
+				if obj == nil {
+					return fc, errors.WithStack(ErrCodeGen{expr.IdentNode(), ErrUndefinedReference})
+				}
+
+				switch obj.Node.(type) {
+				case *parser.ImportDecl:
+					importScope := obj.Data.(*parser.Scope)
+					importName := with.Expr.Selector.Select.Name
+					importObj := importScope.Lookup(importName)
+					if importObj == nil {
+						return nil, errors.WithStack(ErrCodeGen{with.Expr.Selector, ErrUndefinedReference})
 					}
 
-					path, err := cg.EmitStringExpr(ctx, scope, stmt.Call.Args[1])
-					if err != nil {
-						return fc, err
+					switch m := importObj.Node.(type) {
+					case *parser.FuncDecl:
+						stmts = m.Body.NonEmptyStmts()
+					default:
+						return nil, errors.WithStack(ErrCodeGen{m, errors.Errorf("unknown obj type")})
 					}
-					mounts[path] = stmt.Call
+				default:
+					return nil, errors.WithStack(ErrCodeGen{with, errors.Errorf("unknown selector")})
 				}
+			case with.Expr.FuncLit != nil:
+				stmts = with.Expr.FuncLit.Body.NonEmptyStmts()
 			default:
 				return nil, errors.WithStack(ErrCodeGen{with, errors.Errorf("unknown with option")})
+			}
+
+			for _, stmt := range stmts {
+				if stmt.Call.Func.Name() != "mount" || stmt.Call.Binds == nil {
+					continue
+				}
+
+				path, err := cg.EmitStringExpr(ctx, scope, stmt.Call.Args[1])
+				if err != nil {
+					return fc, err
+				}
+				mounts[path] = stmt.Call
 			}
 		}
 
