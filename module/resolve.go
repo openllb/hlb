@@ -228,7 +228,11 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		}, cg.SolveOpts...)
 	})
 
-	<-resolved
+	select {
+	case <-ctx.Done():
+		return nil, g.Wait()
+	case <-resolved:
+	}
 
 	// If ref is nil, then an error has occurred when solving, clean up and
 	// return.
@@ -384,12 +388,6 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 					importRes = res
 
 					filename = imp.ImportPath.Path.Unquoted()
-					if res.Digest() == "" {
-						filename, err = parser.ResolvePath(mod, filename)
-						if err != nil {
-							return err
-						}
-					}
 				}
 
 				rc, err := importRes.Open(filename)

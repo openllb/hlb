@@ -168,8 +168,6 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		})
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-
 	var (
 		statusCh chan *client.SolveStatus
 		resp     *client.SolveResponse
@@ -179,17 +177,12 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		statusCh = pw.Status()
 	}
 
-	g.Go(func() (err error) {
-		resp, err = c.Build(ctx, solveOpt, "", f, statusCh)
-		return err
-	})
-
-	err := g.Wait()
+	resp, err := c.Build(ctx, solveOpt, "", f, statusCh)
 	if err != nil {
 		return err
 	}
 
-	g, ctx = errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 
 	for _, fn := range info.Callbacks {
 		fn := fn
