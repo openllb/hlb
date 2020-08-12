@@ -1142,9 +1142,9 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 						return opts, errors.Wrap(err, "failed to listen on forwarding sock")
 					}
 
-					g, _ := errgroup.WithContext(ctx)
+					g, ctx := errgroup.WithContext(ctx)
 
-					cg.SolveOpts = append(cg.SolveOpts, solver.WithCallback(func(*client.SolveResponse) error {
+					cg.SolveOpts = append(cg.SolveOpts, solver.WithCallback(func(context.Context, *client.SolveResponse) error {
 						defer os.RemoveAll(dir)
 
 						err := l.Close()
@@ -1160,7 +1160,7 @@ func (cg *CodeGen) EmitExecOptions(ctx context.Context, scope *parser.Scope, op 
 
 						// ErrNetClosing is hidden in an internal golang package:
 						// https://golang.org/src/internal/poll/fd.go
-						err := RunSockProxy(conn, l)
+						err := RunSockProxy(ctx, conn, l)
 						if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 							return err
 						}

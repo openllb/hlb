@@ -669,7 +669,7 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 		fc = func(st llb.State) (llb.State, error) {
 			var dgst string
 			request, err := cg.outputRequest(ctx, st, Output{Type: OutputDockerPush, Ref: ref},
-				solver.WithCallback(func(resp *client.SolveResponse) error {
+				solver.WithCallback(func(_ context.Context, resp *client.SolveResponse) error {
 					dgst = resp.ExporterResponse[keyContainerImageDigest]
 					return nil
 				}),

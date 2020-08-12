@@ -17,7 +17,7 @@ import (
 
 type SolveOption func(*SolveInfo) error
 
-type SolveCallback func(resp *client.SolveResponse) error
+type SolveCallback func(ctx context.Context, resp *client.SolveResponse) error
 
 type SolveInfo struct {
 	OutputDockerRef       string
@@ -187,7 +187,7 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 	for _, fn := range info.Callbacks {
 		fn := fn
 		g.Go(func() error {
-			return fn(resp)
+			return fn(ctx, resp)
 		})
 	}
 
