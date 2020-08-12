@@ -104,8 +104,12 @@ func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Outpu
 		s.Allow(filesync.NewFSSyncTarget(outputFromWriter(w)))
 
 		done := make(chan struct{})
-		opts = append(opts, solver.WithCallback(func(*client.SolveResponse) error {
-			<-done
+		opts = append(opts, solver.WithCallback(func(ctx context.Context, _ *client.SolveResponse) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-done:
+			}
 			return nil
 		}))
 

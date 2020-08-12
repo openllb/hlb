@@ -1,12 +1,19 @@
 package codegen
 
 import (
+	"context"
 	"io"
 	"net"
 )
 
-func RunSockProxy(conn net.Conn, l net.Listener) error {
+func RunSockProxy(ctx context.Context, conn net.Conn, l net.Listener) error {
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		proxy, err := l.Accept()
 		if err != nil {
 			return err
