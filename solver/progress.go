@@ -216,13 +216,6 @@ func write(pw progress.Writer, name string, fn func() error) error {
 				})
 			}
 		}
-
-		// Add a line for root cause at the end.
-		logs = append(logs, &client.VertexLog{
-			Vertex:    dgst,
-			Data:      []byte(fmt.Sprintf("Caused by: %s", err)),
-			Timestamp: tm2,
-		})
 	}
 
 	status <- &client.SolveStatus{
@@ -230,7 +223,7 @@ func write(pw progress.Writer, name string, fn func() error) error {
 		Logs:     logs,
 	}
 
-	return nil
+	return err
 }
 
 func (p *progressUI) Release() {
