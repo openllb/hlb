@@ -214,7 +214,8 @@ option::run secret(string localPath, string mountPoint)
 # @param input the additional filesystem to mount. the input's root filesystem
 # becomes available from the mountPoint directory.
 # @param mountPoint the directory where the mount is attached.
-# @param an option to mount an additional filesystem.
+# @param target the output filesystem after run executes
+# @return an option to mount an additional filesystem.
 option::run mount(fs input, string mountPoint) binds (fs target)
 
 # Sets the target directory to mount the SSH agent socket. By default, it is
@@ -620,6 +621,16 @@ option::localRun onlyStderr()
 #
 # @return an option to attempt to optimize the command execution remoiving the /bin/sh -c "..." wrapper when possible.
 option::localRun shlex()
+
+# Fetch an OCI image's manifest from the registry.
+#
+# @param ref a docker registry reference. if not fully qualified, it will be
+# expanded the same as the docker CLI.
+# @param digest the image digest as recorded by the registry
+# @param size the size of the image as recorded by the registry
+# @param mediaType the MIME type of the image manifest served by the registry
+# @return a json string as returned by the registry
+string manifest(string ref) binds (string digest, int size, string mediaType)
 
 # Process text as a Go text template.
 # For template syntax documentation see:

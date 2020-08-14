@@ -616,6 +616,16 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
+					"manifest": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "ref", false),
+						},
+						Effects: []*parser.Field{
+							parser.NewField(parser.Str, "digest", false),
+							parser.NewField(parser.Int, "size", false),
+							parser.NewField(parser.Str, "mediaType", false),
+						},
+					},
 					"template": FuncLookup{
 						Params: []*parser.Field{
 							parser.NewField(parser.Str, "text", false),

@@ -851,6 +851,20 @@ Attempt to lex the single-argument shell command provided to &#x60;localRun&#x60
 to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be added.
 
 
+### <span class='hlb-type'>string</span> <span class='hlb-name'>manifest</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>ref</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>ref</span>"
+	a docker registry reference. if not fully qualified, it will be expanded the same as the docker CLI.
+
+Fetch an OCI image&#x27;s manifest from the registry.
+
+	#!hlb
+	string myString() {
+		manifest "ref"
+	}
+
+
+
 ### <span class='hlb-type'>string</span> <span class='hlb-name'>template</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>"
