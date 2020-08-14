@@ -18,7 +18,7 @@ import (
 
 type BuiltinData struct {
 	Command     string
-	FuncsByType map[parser.ObjType][]ParsedFunc
+	FuncsByKind map[parser.Kind][]ParsedFunc
 }
 
 type ParsedFunc struct {
@@ -33,7 +33,7 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 
-	funcsByType := make(map[parser.ObjType][]ParsedFunc)
+	funcsByKind := make(map[parser.Kind][]ParsedFunc)
 	for _, decl := range file.Decls {
 		fun := decl.Func
 		if fun == nil {
@@ -45,8 +45,8 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 			effects = fun.SideEffects.Effects.List
 		}
 
-		typ := fun.Type.ObjType
-		funcsByType[typ] = append(funcsByType[typ], ParsedFunc{
+		kind := fun.Type.Kind
+		funcsByKind[kind] = append(funcsByKind[kind], ParsedFunc{
 			Name:    fun.Name.Name,
 			Params:  fun.Params.List,
 			Effects: effects,
@@ -55,7 +55,7 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 
 	data := BuiltinData{
 		Command:     fmt.Sprintf("builtingen %s", strings.Join(os.Args[1:], " ")),
-		FuncsByType: funcsByType,
+		FuncsByKind: funcsByKind,
 	}
 
 	var buf bytes.Buffer
@@ -75,8 +75,8 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 }
 
 var tmplFunctions = template.FuncMap{
-	"objType": func(typ parser.ObjType) template.HTML {
-		switch typ {
+	"objType": func(kind parser.Kind) template.HTML {
+		switch kind {
 		case parser.Str:
 			return template.HTML("parser.Str")
 		case parser.Int:
@@ -86,7 +86,7 @@ var tmplFunctions = template.FuncMap{
 		case parser.Filesystem:
 			return template.HTML("parser.Filesystem")
 		default:
-			return template.HTML(strconv.Quote(string(typ)))
+			return template.HTML(strconv.Quote(string(kind)))
 		}
 	},
 }
@@ -99,10 +99,10 @@ package builtin
 import "github.com/openllb/hlb/parser"
 
 type BuiltinLookup struct {
-	ByType map[parser.ObjType]LookupByType
+	ByKind map[parser.Kind]LookupByKind
 }
 
-type LookupByType struct {
+type LookupByKind struct {
 	 Func map[string]FuncLookup
 }
 
@@ -113,16 +113,16 @@ type FuncLookup struct {
 
 var (
 	Lookup = BuiltinLookup{
-		ByType: map[parser.ObjType]LookupByType{
-			{{range $typ, $funcs := .FuncsByType}}{{objType $typ}}: LookupByType{
+		ByKind: map[parser.Kind]LookupByKind{
+			{{range $kind, $funcs := .FuncsByKind}}{{objType $kind}}: LookupByKind{
 				Func: map[string]FuncLookup{
 					{{range $i, $func := $funcs}}"{{$func.Name}}": FuncLookup{
 						Params:  []*parser.Field{
-							{{range $i, $param := $func.Params}}parser.NewField({{objType $param.Type.ObjType}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
+							{{range $i, $param := $func.Params}}parser.NewField({{objType $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
 							{{end}}
 						},
 						Effects: []*parser.Field{
-							{{range $i, $effect := $func.Effects}}parser.NewField({{objType $effect.Type.ObjType}}, "{{$effect.Name}}", {{if $effect.Variadic}}true{{else}}false{{end}}),
+							{{range $i, $effect := $func.Effects}}parser.NewField({{objType $effect.Type.Kind}}, "{{$effect.Name}}", {{if $effect.Variadic}}true{{else}}false{{end}}),
 							{{end}}
 						},
 					},

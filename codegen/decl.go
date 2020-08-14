@@ -71,8 +71,8 @@ func (cg *CodeGen) ParameterizedScope(ctx context.Context, scope *parser.Scope, 
 			err  error
 		)
 
-		typ := field.Type.Primary()
-		switch typ {
+		kind := field.Type.Primary()
+		switch kind {
 		case parser.Str:
 			var v string
 			v, err = cg.EmitStringExpr(ctx, scope, args[i])

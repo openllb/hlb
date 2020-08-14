@@ -14,7 +14,7 @@ var (
 	Sources = []string{"scratch", "image", "http", "git", "local", "frontend"}
 	Ops     = []string{"shell", "run", "env", "dir", "user", "entrypoint", "mkdir", "mkfile", "rm", "copy"}
 	Debugs  = []string{"breakpoint"}
-	Types   = []string{"string", "int", "bool", "fs", "option"}
+	Kinds   = []string{"string", "int", "bool", "fs", "option"}
 
 	CommonOptions   = []string{"no-cache"}
 	ImageOptions    = []string{"resolve"}
@@ -38,11 +38,11 @@ var (
 	Options          = flatMap(ImageOptions, HTTPOptions, GitOptions, RunOptions, SSHOptions, SecretOptions, MountOptions, MkdirOptions, MkfileOptions, RmOptions, CopyOptions)
 	Enums            = flatMap(NetworkModes, SecurityModes, CacheSharingModes)
 	Fields           = flatMap(Sources, Ops, Options)
-	Keywords         = flatMap(Types, Sources, Fields, Enums)
-	ReservedKeywords = flatMap(Types, []string{"with"})
+	Keywords         = flatMap(Kinds, Sources, Fields, Enums)
+	ReservedKeywords = flatMap(Kinds, []string{"with"})
 
 	KeywordsWithOptions = []string{"image", "http", "git", "run", "ssh", "secret", "mount", "mkdir", "mkfile", "rm", "copy"}
-	KeywordsWithBlocks  = flatMap(Types, KeywordsWithOptions)
+	KeywordsWithBlocks  = flatMap(Kinds, KeywordsWithOptions)
 
 	KeywordsByName = map[string][]string{
 		"fs":       Ops,
