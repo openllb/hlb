@@ -21,7 +21,7 @@ class HlbLexer(RegexLexer):
             (u'(\\b(import|export|from|binds|as|with|variadic)\\b)', bygroups(Keyword)),
             (u'(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)(\\()', bygroups(Name.Variable, Punctuation), 'params'),
             (u'(\\))', bygroups(Generic.Error)),
-            (u'((?:[\\t ]+)as(?:[\\t ]+))(\\()', bygroups(Keyword, Punctuation), 'params'),
+            (u'((?:[\\t ]+)binds(?:[\\t ]+))(\\()', bygroups(Keyword, Punctuation), 'params'),
             (u'(\\))', bygroups(Generic.Error)),
             (u'(\\{)', bygroups(Punctuation), 'block'),
             (u'(\\})', bygroups(Generic.Error)),

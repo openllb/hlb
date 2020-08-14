@@ -21,7 +21,7 @@ contexts:
     - match: '(\))'
       captures:
         0: invalid.hlb
-    - match: '((?:[\t\x{0020}]+)as(?:[\t\x{0020}]+))(\()'
+    - match: '((?:[\t\x{0020}]+)binds(?:[\t\x{0020}]+))(\()'
       push: params
       captures:
         0: keyword.hlb
@@ -52,7 +52,7 @@ contexts:
     - match: '(")'
       captures:
         0: punctuation.hlb
-      push: 
+      push:
         - match: '(")'
           pop: true
           captures:
@@ -64,7 +64,7 @@ contexts:
       captures:
         0: punctuation.hlb
         1: constant.hlb
-      push: 
+      push:
         - match: '(\2)'
           pop: true
           captures:
