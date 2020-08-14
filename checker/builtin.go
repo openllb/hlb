@@ -12,14 +12,14 @@ var Builtin = NewBuiltinScope(builtin.Lookup)
 // apply to builtins.
 type BuiltinDecl struct {
 	*parser.Ident
-	Func map[parser.ObjType]*parser.FuncDecl
+	Func map[parser.Kind]*parser.FuncDecl
 }
 
 // NewBuiltinScope returns a new Scope containing synthetic FuncDecl Objects for
 // builtins.
 func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 	scope := parser.NewScope(nil, nil)
-	for typ, entries := range builtins.ByType {
+	for kind, entries := range builtins.ByKind {
 		for name, fn := range entries.Func {
 			obj := scope.Lookup(name)
 			if obj == nil {
@@ -30,7 +30,7 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 					Ident: ident,
 					Node: &BuiltinDecl{
 						Ident: ident,
-						Func:  make(map[parser.ObjType]*parser.FuncDecl),
+						Func:  make(map[parser.Kind]*parser.FuncDecl),
 					},
 				}
 			}
@@ -39,10 +39,10 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 				panic("implementation error")
 			}
 
-			fun := parser.NewFuncDecl(typ, name, fn.Params, fn.Effects).Func
+			fun := parser.NewFuncDecl(kind, name, fn.Params, fn.Effects).Func
 			fun.Pos.Filename = "<builtin>"      // for errors attached to func
 			fun.Name.Pos.Filename = "<builtin>" // for errors attached to Name
-			decl.Func[typ] = fun
+			decl.Func[kind] = fun
 			scope.Insert(obj)
 		}
 	}

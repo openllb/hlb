@@ -42,7 +42,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 	}
 
 	var (
-		funcsByType   = make(map[string][]*Func)
+		funcsByKind   = make(map[string][]*Func)
 		optionsByFunc = make(map[string][]*Func)
 	)
 
@@ -54,7 +54,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 
 		var (
 			group  *doxygen.Group
-			typ    string
+			kind   string
 			name   string
 			fields []Field
 		)
@@ -73,7 +73,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 		}
 
 		if fun.Type != nil {
-			typ = fun.Type.String()
+			kind = fun.Type.String()
 		}
 
 		if fun.Name != nil {
@@ -116,7 +116,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 		}
 
 		funcDoc := &Func{
-			Type:   typ,
+			Type:   kind,
 			Name:   name,
 			Params: fields,
 		}
@@ -129,10 +129,10 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 			subtype := string(fun.Type.Secondary())
 			optionsByFunc[subtype] = append(optionsByFunc[subtype], funcDoc)
 		}
-		funcsByType[typ] = append(funcsByType[typ], funcDoc)
+		funcsByKind[kind] = append(funcsByKind[kind], funcDoc)
 	}
 
-	for _, funcs := range funcsByType {
+	for _, funcs := range funcsByKind {
 		for _, fun := range funcs {
 			options, ok := optionsByFunc[fun.Name]
 			if !ok {
@@ -145,8 +145,8 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 
 	var doc Documentation
 
-	for _, typ := range []string{"fs", "string"} {
-		funcs := funcsByType[typ]
+	for _, kind := range []string{"fs", "string"} {
+		funcs := funcsByKind[kind]
 		for _, fun := range funcs {
 			fun := fun
 			sort.SliceStable(fun.Options, func(i, j int) bool {
@@ -159,7 +159,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 		})
 
 		builtin := Builtin{
-			Type: typ,
+			Type: kind,
 		}
 
 		builtin.Funcs = append(builtin.Funcs, funcs...)

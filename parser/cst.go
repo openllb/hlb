@@ -260,9 +260,9 @@ type FuncDecl struct {
 	Body        *BlockStmt     `parser:"( @@ )?"`
 }
 
-func NewFuncDecl(typ ObjType, name string, params []*Field, effects []*Field, stmts ...*Stmt) *Decl {
+func NewFuncDecl(kind Kind, name string, params []*Field, effects []*Field, stmts ...*Stmt) *Decl {
 	fun := &FuncDecl{
-		Type:        NewType(typ),
+		Type:        NewType(kind),
 		Name:        NewIdent(name),
 		Params:      NewFieldList(params...),
 		Body:        NewBlockStmt(stmts...),
@@ -332,9 +332,9 @@ type Field struct {
 	Name     *Ident    `parser:"@@"`
 }
 
-func NewField(typ ObjType, name string, variadic bool) *Field {
+func NewField(kind Kind, name string, variadic bool) *Field {
 	f := &Field{
-		Type: NewType(typ),
+		Type: NewType(kind),
 		Name: NewIdent(name),
 	}
 	if variadic {
@@ -401,53 +401,53 @@ func (e *Expr) IdentNode() *Ident {
 
 // Type represents an object type.
 type Type struct {
-	Pos     lexer.Position
-	ObjType ObjType `parser:"@Type"`
+	Pos  lexer.Position
+	Kind Kind `parser:"@Type"`
 }
 
-func NewType(typ ObjType) *Type {
-	return &Type{ObjType: typ}
+func NewType(kind Kind) *Type {
+	return &Type{Kind: kind}
 }
 
 func (t *Type) Position() lexer.Position { return t.Pos }
-func (t *Type) End() lexer.Position      { return shiftPosition(t.Pos, len(string(t.ObjType)), 0) }
+func (t *Type) End() lexer.Position      { return shiftPosition(t.Pos, len(string(t.Kind)), 0) }
 
-func (t *Type) Primary() ObjType {
-	parts := typeParts(t.ObjType)
-	return ObjType(parts[0])
+func (t *Type) Primary() Kind {
+	parts := typeParts(t.Kind)
+	return Kind(parts[0])
 }
 
-func (t *Type) Secondary() ObjType {
-	parts := typeParts(t.ObjType)
+func (t *Type) Secondary() Kind {
+	parts := typeParts(t.Kind)
 	if len(parts) == 1 {
 		return None
 	}
-	return ObjType(parts[1])
+	return Kind(parts[1])
 }
 
-func typeParts(typ ObjType) []string {
-	return strings.Split(string(typ), "::")
+func typeParts(kind Kind) []string {
+	return strings.Split(string(kind), "::")
 }
 
-// Equals returns whether type equals another ObjType.
-func (t *Type) Equals(typ ObjType) bool {
+// Equals returns whether type equals another Kind.
+func (t *Type) Equals(kind Kind) bool {
 	if t.Primary() == Option && t.Secondary() == None {
-		parts := typeParts(typ)
-		return ObjType(parts[0]) == Option
+		parts := typeParts(kind)
+		return Kind(parts[0]) == Option
 	}
-	return t.ObjType == typ
+	return t.Kind == kind
 }
 
-type ObjType string
+type Kind string
 
 const (
-	None       ObjType = ""
-	Str        ObjType = "string"
-	Int        ObjType = "int"
-	Bool       ObjType = "bool"
-	Filesystem ObjType = "fs"
-	Option     ObjType = "option"
-	Group      ObjType = "group"
+	None       Kind = ""
+	Str        Kind = "string"
+	Int        Kind = "int"
+	Bool       Kind = "bool"
+	Filesystem Kind = "fs"
+	Option     Kind = "option"
+	Group      Kind = "group"
 )
 
 // Ident represents an identifier.
@@ -657,8 +657,8 @@ func (l *NumericLit) Capture(tokens []string) error {
 	return err
 }
 
-// ObjType returns the type of the basic literal.
-func (l *BasicLit) ObjType() ObjType {
+// Kind returns the type of the basic literal.
+func (l *BasicLit) Kind() Kind {
 	switch {
 	case l.Str != nil, l.HereDoc != nil:
 		return Str
@@ -714,18 +714,18 @@ type FuncLit struct {
 	Body *BlockStmt `parser:"@@"`
 }
 
-func NewFuncLit(typ ObjType, stmts ...*Stmt) *FuncLit {
+func NewFuncLit(kind Kind, stmts ...*Stmt) *FuncLit {
 	return &FuncLit{
-		Type: NewType(typ),
+		Type: NewType(kind),
 		Body: &BlockStmt{
 			List: stmts,
 		},
 	}
 }
 
-func NewFuncLitExpr(typ ObjType, stmts ...*Stmt) *Expr {
+func NewFuncLitExpr(kind Kind, stmts ...*Stmt) *Expr {
 	return &Expr{
-		FuncLit: NewFuncLit(typ, stmts...),
+		FuncLit: NewFuncLit(kind, stmts...),
 	}
 }
 
@@ -946,7 +946,7 @@ type BlockStmt struct {
 	List       []*Stmt     `parser:"( @@ )*"`
 	CloseBrace *CloseBrace `parser:"@@"`
 	Scope      *Scope
-	ObjType    ObjType
+	Kind       Kind
 	Closure    *FuncDecl
 }
 

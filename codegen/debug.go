@@ -345,8 +345,8 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 				case "stepout":
 					fmt.Fprintf(w, "unimplemented\n")
 				case "types":
-					for _, typ := range report.Types {
-						fmt.Fprintf(w, "%s\n", typ)
+					for _, kind := range report.Kinds {
+						fmt.Fprintf(w, "%s\n", kind)
 					}
 				case "whatis":
 					fmt.Fprintf(w, "unimplemented\n")

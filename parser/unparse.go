@@ -168,7 +168,7 @@ func (v *Variadic) String() string {
 }
 
 func (t *Type) String() string {
-	return string(t.ObjType)
+	return string(t.Kind)
 }
 
 func (e *Expr) String() string {

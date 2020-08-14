@@ -5,10 +5,10 @@ package builtin
 import "github.com/openllb/hlb/parser"
 
 type BuiltinLookup struct {
-	ByType map[parser.ObjType]LookupByType
+	ByKind map[parser.Kind]LookupByKind
 }
 
-type LookupByType struct {
+type LookupByKind struct {
 	Func map[string]FuncLookup
 }
 
@@ -19,8 +19,8 @@ type FuncLookup struct {
 
 var (
 	Lookup = BuiltinLookup{
-		ByType: map[parser.ObjType]LookupByType{
-			parser.Filesystem: LookupByType{
+		ByKind: map[parser.Kind]LookupByKind{
+			parser.Filesystem: LookupByKind{
 				Func: map[string]FuncLookup{
 					"scratch": FuncLookup{
 						Params:  []*parser.Field{},
@@ -195,7 +195,7 @@ var (
 					},
 				},
 			},
-			"group": LookupByType{
+			"group": LookupByKind{
 				Func: map[string]FuncLookup{
 					"parallel": FuncLookup{
 						Params: []*parser.Field{
@@ -205,7 +205,7 @@ var (
 					},
 				},
 			},
-			"option::copy": LookupByType{
+			"option::copy": LookupByKind{
 				Func: map[string]FuncLookup{
 					"followSymlinks": FuncLookup{
 						Params:  []*parser.Field{},
@@ -251,7 +251,7 @@ var (
 					},
 				},
 			},
-			"option::frontend": LookupByType{
+			"option::frontend": LookupByKind{
 				Func: map[string]FuncLookup{
 					"input": FuncLookup{
 						Params: []*parser.Field{
@@ -269,7 +269,7 @@ var (
 					},
 				},
 			},
-			"option::git": LookupByType{
+			"option::git": LookupByKind{
 				Func: map[string]FuncLookup{
 					"keepGitDir": FuncLookup{
 						Params:  []*parser.Field{},
@@ -277,7 +277,7 @@ var (
 					},
 				},
 			},
-			"option::http": LookupByType{
+			"option::http": LookupByKind{
 				Func: map[string]FuncLookup{
 					"checksum": FuncLookup{
 						Params: []*parser.Field{
@@ -299,7 +299,7 @@ var (
 					},
 				},
 			},
-			"option::image": LookupByType{
+			"option::image": LookupByKind{
 				Func: map[string]FuncLookup{
 					"resolve": FuncLookup{
 						Params:  []*parser.Field{},
@@ -307,7 +307,7 @@ var (
 					},
 				},
 			},
-			"option::local": LookupByType{
+			"option::local": LookupByKind{
 				Func: map[string]FuncLookup{
 					"includePatterns": FuncLookup{
 						Params: []*parser.Field{
@@ -329,7 +329,7 @@ var (
 					},
 				},
 			},
-			"option::localRun": LookupByType{
+			"option::localRun": LookupByKind{
 				Func: map[string]FuncLookup{
 					"ignoreError": FuncLookup{
 						Params:  []*parser.Field{},
@@ -349,7 +349,7 @@ var (
 					},
 				},
 			},
-			"option::mkdir": LookupByType{
+			"option::mkdir": LookupByKind{
 				Func: map[string]FuncLookup{
 					"createParents": FuncLookup{
 						Params:  []*parser.Field{},
@@ -369,7 +369,7 @@ var (
 					},
 				},
 			},
-			"option::mkfile": LookupByType{
+			"option::mkfile": LookupByKind{
 				Func: map[string]FuncLookup{
 					"chown": FuncLookup{
 						Params: []*parser.Field{
@@ -385,7 +385,7 @@ var (
 					},
 				},
 			},
-			"option::mount": LookupByType{
+			"option::mount": LookupByKind{
 				Func: map[string]FuncLookup{
 					"readonly": FuncLookup{
 						Params:  []*parser.Field{},
@@ -410,7 +410,7 @@ var (
 					},
 				},
 			},
-			"option::rm": LookupByType{
+			"option::rm": LookupByKind{
 				Func: map[string]FuncLookup{
 					"allowNotFound": FuncLookup{
 						Params:  []*parser.Field{},
@@ -422,7 +422,7 @@ var (
 					},
 				},
 			},
-			"option::run": LookupByType{
+			"option::run": LookupByKind{
 				Func: map[string]FuncLookup{
 					"readonlyRootfs": FuncLookup{
 						Params:  []*parser.Field{},
@@ -503,7 +503,7 @@ var (
 					},
 				},
 			},
-			"option::secret": LookupByType{
+			"option::secret": LookupByKind{
 				Func: map[string]FuncLookup{
 					"uid": FuncLookup{
 						Params: []*parser.Field{
@@ -537,7 +537,7 @@ var (
 					},
 				},
 			},
-			"option::ssh": LookupByType{
+			"option::ssh": LookupByKind{
 				Func: map[string]FuncLookup{
 					"target": FuncLookup{
 						Params: []*parser.Field{
@@ -571,7 +571,7 @@ var (
 					},
 				},
 			},
-			"option::template": LookupByType{
+			"option::template": LookupByKind{
 				Func: map[string]FuncLookup{
 					"stringField": FuncLookup{
 						Params: []*parser.Field{
@@ -582,7 +582,7 @@ var (
 					},
 				},
 			},
-			parser.Str: LookupByType{
+			parser.Str: LookupByKind{
 				Func: map[string]FuncLookup{
 					"format": FuncLookup{
 						Params: []*parser.Field{

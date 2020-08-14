@@ -129,15 +129,15 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		}
 
 		var (
-			v   interface{}
-			typ *parser.Type
+			v    interface{}
+			kind *parser.Type
 		)
 		switch obj.Kind {
 		case parser.DeclKind:
 			switch n := obj.Node.(type) {
 			case *parser.FuncDecl:
-				typ = n.Type
-				if typ.Primary() != parser.Group && typ.Primary() != parser.Filesystem {
+				kind = n.Type
+				if kind.Primary() != parser.Group && kind.Primary() != parser.Filesystem {
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
@@ -147,8 +147,8 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 				}
 			case *parser.BindClause:
 				b := n.TargetBinding(target.Name)
-				typ = b.Field.Type
-				if typ.Primary() != parser.Group && typ.Primary() != parser.Filesystem {
+				kind = b.Field.Type
+				if kind.Primary() != parser.Group && kind.Primary() != parser.Filesystem {
 					return nil, checker.ErrInvalidTarget{Node: n, Target: target.Name}
 				}
 
@@ -163,7 +163,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 
 		var request solver.Request
 
-		switch typ.Primary() {
+		switch kind.Primary() {
 		case parser.Group:
 			var ok bool
 			request, ok = v.(solver.Request)
@@ -275,9 +275,9 @@ func isBreakpoint(call *parser.CallStmt) bool {
 	return call.Func.Name() == "breakpoint"
 }
 
-func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parser.ObjType, stmts []*parser.Stmt, chainStart interface{}) (interface{}, error) {
+func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, kind parser.Kind, stmts []*parser.Stmt, chainStart interface{}) (interface{}, error) {
 	var v = chainStart
-	switch typ {
+	switch kind {
 	case parser.Filesystem:
 		if _, ok := v.(llb.State); v == nil || !ok {
 			v = llb.Scratch()
@@ -309,7 +309,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, typ parse
 			return v, err
 		}
 
-		chain, err := cg.EmitChainStmt(ctx, scope, typ, call, v)
+		chain, err := cg.EmitChainStmt(ctx, scope, kind, call, v)
 		if err != nil {
 			return v, err
 		}

@@ -28,7 +28,7 @@ func NewSyntaxError(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.Peeki
 		// panic(fmt.Sprintf("%s:%d:%d: expected %q unexpected %q", unexpected.Pos.Filename, unexpected.Pos.Line, unexpected.Pos.Column, expected, unexpected))
 		switch expected {
 		case "":
-			if !Contains(Types, unexpected.Value) {
+			if !Contains(Kinds, unexpected.Value) {
 				// Invalid function type.
 				group, err = errFunc(color, fb, lex, unexpected)
 			} else {
@@ -82,8 +82,8 @@ func errFunc(color aurora.Aurora, fb *parser.FileBuffer, _ *lexer.PeekingLexer, 
 		return group, err
 	}
 
-	suggestion, _ := getSuggestion(color, Types, token.Value)
-	help := helpValidKeywords(color, Types, "type")
+	suggestion, _ := getSuggestion(color, Kinds, token.Value)
+	help := helpValidKeywords(color, Kinds, "type")
 
 	return AnnotationGroup{
 		Pos: token.Pos,
@@ -304,7 +304,7 @@ func errArgType(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLe
 		return group, err
 	}
 
-	suggestion, _ := getSuggestion(color, Types, endToken.Value)
+	suggestion, _ := getSuggestion(color, Kinds, endToken.Value)
 
 	return AnnotationGroup{
 		Pos: endToken.Pos,
@@ -325,7 +325,7 @@ func errArgType(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLe
 					suggestion),
 			},
 		},
-		Help: helpValidKeywords(color, Types, "argument type"),
+		Help: helpValidKeywords(color, Kinds, "argument type"),
 	}, nil
 }
 

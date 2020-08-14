@@ -262,9 +262,9 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.
 			switch {
 			case call.Func.Ident != nil:
 				ident = call.Func.Ident
-				lookupByType, ok := builtin.Lookup.ByType[block.ObjType]
+				lookupByKind, ok := builtin.Lookup.ByKind[block.Kind]
 				if ok {
-					_, ok = lookupByType.Func[ident.Name]
+					_, ok = lookupByKind.Func[ident.Name]
 					if !ok {
 						highlightNode(lines, ident, Variable)
 					}
@@ -625,12 +625,12 @@ func (ls *LangServer) textDocumentHoverHandler(ctx context.Context, params lsp.T
 			},
 		},
 		func(block *parser.BlockStmt, ident *parser.Ident) {
-			lookupByType, ok := builtin.Lookup.ByType[block.ObjType]
+			lookupByKind, ok := builtin.Lookup.ByKind[block.Kind]
 			if !ok {
 				return
 			}
 
-			fun, ok := lookupByType.Func[ident.Name]
+			fun, ok := lookupByKind.Func[ident.Name]
 			if !ok {
 				return
 			}

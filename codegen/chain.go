@@ -31,8 +31,8 @@ type GroupChain func([]solver.Request) ([]solver.Request, error)
 
 type StringChain func(string) (string, error)
 
-func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, typ parser.ObjType, call *parser.CallStmt, chainStart interface{}) (func(v interface{}) (interface{}, error), error) {
-	switch typ {
+func (cg *CodeGen) EmitChainStmt(ctx context.Context, scope *parser.Scope, kind parser.Kind, call *parser.CallStmt, chainStart interface{}) (func(v interface{}) (interface{}, error), error) {
+	switch kind {
 	case parser.Filesystem:
 		chain, err := cg.EmitFilesystemChainStmt(ctx, scope, call.Func, call.Args, call.WithOpt, call.Binds, chainStart)
 		if err != nil {

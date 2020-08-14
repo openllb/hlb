@@ -112,8 +112,8 @@ func (e ErrFuncArg) Error() string {
 
 type ErrWrongArgType struct {
 	Pos      lexer.Position
-	Expected parser.ObjType
-	Found    parser.ObjType
+	Expected parser.Kind
+	Found    parser.Kind
 }
 
 func (e ErrWrongArgType) Error() string {
@@ -122,7 +122,7 @@ func (e ErrWrongArgType) Error() string {
 
 type ErrWrongBuiltinType struct {
 	Pos      lexer.Position
-	Expected parser.ObjType
+	Expected parser.Kind
 	Builtin  *BuiltinDecl
 }
 
