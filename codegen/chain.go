@@ -10,6 +10,14 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/opencontainers/go-digest"
+
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/docker/distribution/reference"
+
+	"github.com/moby/buildkit/client/llb/imagemetaresolver"
+
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
@@ -1110,6 +1118,67 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			err = t.Execute(buf, data)
 			return buf.String(), err
 		}, nil
+	case "manifest":
+		ref, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		r, err := reference.ParseNormalizedNamed(ref)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			dgst digest.Digest
+			cfg  []byte
+		)
+
+		r = reference.TagNameOnly(r)
+		ref = r.String()
+		resolver := imagemetaresolver.Default()
+		platform := &specs.Platform{OS: "linux", Architecture: "amd64"}
+
+		st := llb.Scratch().Async(func(context.Context, llb.State) (llb.State, error) {
+			var err error
+			dgst, cfg, err = resolver.ResolveImageConfig(context.TODO(), ref,
+				llb.ResolveImageConfigOpt{Platform: platform})
+			if err != nil {
+				return llb.State{}, err
+			}
+			if dgst == "" {
+				return llb.State{}, fmt.Errorf("no digest available for ref %q", ref)
+			}
+			return llb.State{}, nil
+		})
+		req, err := cg.outputRequest(ctx, st, Output{}, solver.WithCallback(
+			func(ctx context.Context, resp *client.SolveResponse) error {
+				return nil
+			},
+		))
+		if err != nil {
+			return nil, err
+		}
+
+		g, ctx := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			return req.Solve(ctx, cg.cln, cg.mw)
+		})
+
+		err = cg.setBindingValue(
+			binds.SourceBinding("digest"),
+			func() (string, error) {
+				return dgst.String(), g.Wait()
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return func(string) (string, error) {
+			return string(cfg), g.Wait()
+		}, nil
+
 	default:
 		// Must be a named reference.
 		obj := scope.Lookup(expr.Name())
