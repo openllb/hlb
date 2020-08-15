@@ -622,15 +622,13 @@ option::localRun onlyStderr()
 # @return an option to attempt to optimize the command execution remoiving the /bin/sh -c "..." wrapper when possible.
 option::localRun shlex()
 
-# Fetch an OCI image's manifest from the registry.
+# Fetch an OCI image's manifest config from the registry.
 #
 # @param ref a docker registry reference. if not fully qualified, it will be
 # expanded the same as the docker CLI.
 # @param digest the image digest as recorded by the registry
-# @param size the size of the image as recorded by the registry
-# @param mediaType the MIME type of the image manifest served by the registry
 # @return a json string as returned by the registry
-string manifest(string ref) binds (string digest, int size, string mediaType)
+string manifest(string ref) binds (string digest)
 
 # Process text as a Go text template.
 # For template syntax documentation see:

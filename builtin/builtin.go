@@ -622,8 +622,6 @@ var (
 						},
 						Effects: []*parser.Field{
 							parser.NewField(parser.Str, "digest", false),
-							parser.NewField(parser.Int, "size", false),
-							parser.NewField(parser.Str, "mediaType", false),
 						},
 					},
 					"template": FuncLookup{

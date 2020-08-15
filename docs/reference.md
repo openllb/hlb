@@ -856,7 +856,7 @@ to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be add
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>ref</span>"
 	a docker registry reference. if not fully qualified, it will be expanded the same as the docker CLI.
 
-Fetch an OCI image&#x27;s manifest from the registry.
+Fetch an OCI image&#x27;s manifest config from the registry.
 
 	#!hlb
 	string myString() {
