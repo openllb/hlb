@@ -1151,11 +1151,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			}
 			return llb.State{}, nil
 		})
-		req, err := cg.outputRequest(ctx, st, Output{}, solver.WithCallback(
-			func(ctx context.Context, resp *client.SolveResponse) error {
-				return nil
-			},
-		))
+		req, err := cg.outputRequest(ctx, st, Output{})
 		if err != nil {
 			return nil, err
 		}
