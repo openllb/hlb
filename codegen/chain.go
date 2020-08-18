@@ -350,6 +350,10 @@ func (cg *CodeGen) EmitFilesystemBuiltinChainStmt(ctx context.Context, scope *pa
 							st, err = ref.ToState()
 						}
 
+						// apply image from the frontend into the current state
+						if spec, ok := res.Metadata[keyContainerImageConfig]; ok {
+							st, err = cg.stateFromImageSpec(st, spec)
+						}
 						return res, err
 					})
 				})

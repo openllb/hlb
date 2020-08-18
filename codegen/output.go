@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -44,9 +45,10 @@ const (
 
 const (
 	keyContainerImageDigest = "containerimage.digest"
+	keyContainerImageConfig = "containerimage.config"
 )
 
-func (cg *CodeGen) imageSpec(ctx context.Context, st llb.State) (*specs.Image, error) {
+func (cg *CodeGen) imageSpecFromState(ctx context.Context, st llb.State) (*specs.Image, error) {
 	var err error
 	cg.image.Config.Env, err = st.Env(ctx)
 	if err != nil {
@@ -61,13 +63,31 @@ func (cg *CodeGen) imageSpec(ctx context.Context, st llb.State) (*specs.Image, e
 	return cg.image, nil
 }
 
+func (cg *CodeGen) stateFromImageSpec(st llb.State, imageSpec []byte) (llb.State, error) {
+	var err error
+
+	img := *cg.image
+	err = json.Unmarshal(imageSpec, &img)
+	if err != nil {
+		return st, err
+	}
+
+	st, err = st.WithImageConfig(imageSpec)
+	if err != nil {
+		return st, err
+	}
+
+	cg.image = &img
+	return st, nil
+}
+
 func (cg *CodeGen) outputRequest(ctx context.Context, st llb.State, output Output, solveOpts ...solver.SolveOption) (solver.Request, error) {
 	opts := append(cg.SolveOpts, solveOpts...)
 
 	// Only add image spec when exporting as a Docker image.
 	switch output.Type {
 	case OutputDockerPush, OutputDockerLoad, OutputDownloadDockerTarball:
-		cfg, err := cg.imageSpec(ctx, st)
+		cfg, err := cg.imageSpecFromState(ctx, st)
 		if err != nil {
 			return nil, err
 		}
