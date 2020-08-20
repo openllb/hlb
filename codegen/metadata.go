@@ -20,7 +20,8 @@ import (
 // llb.ImageMetaResolver, content.Provider, and content.Ingester interfaces.
 type BufferedImageResolver struct {
 	contentutil.Buffer
-	resolver remotes.Resolver
+	resolver        remotes.Resolver
+	defaultPlatform specs.Platform
 }
 
 type ResolverOpt func(*BufferedImageResolver)
@@ -31,12 +32,19 @@ func WithBuffer(buffer contentutil.Buffer) ResolverOpt {
 	}
 }
 
+func WithDefaultPlatform(p specs.Platform) ResolverOpt {
+	return func(bir *BufferedImageResolver) {
+		bir.defaultPlatform = p
+	}
+}
+
 // NewBufferedImageResolver returns a resolver that exposes its content so that the consumers can read manifests
 // and other descriptors from the fetched index.
 func NewBufferedImageResolver(with ...ResolverOpt) *BufferedImageResolver {
 	ir := &BufferedImageResolver{
-		Buffer:   contentutil.NewBuffer(),
-		resolver: docker.NewResolver(docker.ResolverOptions{}),
+		Buffer:          contentutil.NewBuffer(),
+		resolver:        docker.NewResolver(docker.ResolverOptions{}),
+		defaultPlatform: specs.Platform{OS: "linux", Architecture: "amd64"},
 	}
 	for _, o := range with {
 		o(ir)
@@ -71,7 +79,7 @@ func (bir *BufferedImageResolver) ResolveImageConfig(ctx context.Context, ref st
 
 	var p platforms.MatchComparer
 	if opt.Platform == nil {
-		p = platforms.Default()
+		p = bir.MatchDefaultPlatform()
 	} else {
 		p = platforms.Only(*opt.Platform)
 	}
@@ -87,6 +95,10 @@ func (bir *BufferedImageResolver) ResolveImageConfig(ctx context.Context, ref st
 	}
 
 	return desc.Digest, dt, nil
+}
+
+func (bir *BufferedImageResolver) MatchDefaultPlatform() platforms.MatchComparer {
+	return platforms.Only(bir.defaultPlatform)
 }
 
 // ResolveDescriptor returns a specs.Descriptor by first trying to load by digest from the local store, or

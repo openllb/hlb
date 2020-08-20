@@ -1136,8 +1136,8 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			dgst     digest.Digest
 			desc     specs.Descriptor
 			config   []byte
-			matcher  = platforms.Default()
 			resolver = NewBufferedImageResolver()
+			matcher  = resolver.MatchDefaultPlatform()
 		)
 
 		var platform *specs.Platform
