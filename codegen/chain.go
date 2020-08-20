@@ -3,6 +3,7 @@ package codegen
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,13 +11,15 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/containerd/containerd/platforms"
+
+	"github.com/containerd/containerd/images"
+
 	"github.com/opencontainers/go-digest"
 
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/docker/distribution/reference"
-
-	"github.com/moby/buildkit/client/llb/imagemetaresolver"
 
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
@@ -1119,29 +1122,35 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			return buf.String(), err
 		}, nil
 	case "manifest":
-		ref, err := cg.EmitStringExpr(ctx, scope, args[0])
+		str, err := cg.EmitStringExpr(ctx, scope, args[0])
 		if err != nil {
 			return nil, err
 		}
 
-		r, err := reference.ParseNormalizedNamed(ref)
+		ref, err := reference.ParseNormalizedNamed(str)
 		if err != nil {
 			return nil, err
 		}
 
 		var (
-			dgst digest.Digest
-			cfg  []byte
+			dgst     digest.Digest
+			desc     specs.Descriptor
+			config   []byte
+			matcher  = platforms.Default()
+			resolver = NewSharedImageResolver()
 		)
 
-		r = reference.TagNameOnly(r)
-		ref = r.String()
-		resolver := imagemetaresolver.Default()
-		platform := &specs.Platform{OS: "linux", Architecture: "amd64"}
+		var platform *specs.Platform
+		for _, opt := range iopts {
+			if p, ok := opt.(*specs.Platform); ok {
+				matcher = platforms.Only(*p)
+				platform = p
+			}
+		}
 
-		st := llb.Scratch().Async(func(context.Context, llb.State) (llb.State, error) {
+		st := llb.Scratch().Async(func(ctx context.Context, _ llb.State) (llb.State, error) {
 			var err error
-			dgst, cfg, err = resolver.ResolveImageConfig(context.TODO(), ref,
+			dgst, config, err = resolver.ResolveImageConfig(ctx, ref.String(),
 				llb.ResolveImageConfigOpt{Platform: platform})
 			if err != nil {
 				return llb.State{}, err
@@ -1149,6 +1158,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			if dgst == "" {
 				return llb.State{}, fmt.Errorf("no digest available for ref %q", ref)
 			}
+			desc = specs.Descriptor{Digest: dgst}
 			return llb.State{}, nil
 		})
 		req, err := cg.outputRequest(ctx, st, Output{})
@@ -1163,8 +1173,30 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 
 		err = cg.setBindingValue(
 			binds.SourceBinding("digest"),
-			func() (string, error) {
-				return dgst.String(), g.Wait()
+			func() (string, error) { return dgst.String(), g.Wait() },
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		err = cg.setBindingValue(
+			binds.SourceBinding("config"),
+			func() (string, error) { return string(config), g.Wait() },
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		err = cg.setBindingValue(
+			binds.SourceBinding("size"),
+			func() (int, error) {
+				err := g.Wait()
+				if err != nil {
+					return 0, err
+				}
+				img := images.Image{Target: desc}
+				sz, err := img.Size(ctx, resolver, matcher)
+				return int(sz), err
 			},
 		)
 		if err != nil {
@@ -1172,7 +1204,16 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 		}
 
 		return func(string) (string, error) {
-			return string(cfg), g.Wait()
+			err := g.Wait()
+			if err != nil {
+				return "", err
+			}
+			m, err := images.Manifest(ctx, resolver, desc, matcher)
+			if err != nil {
+				return "", err
+			}
+			p, err := json.Marshal(m)
+			return string(p), err
 		}, nil
 
 	default:
