@@ -629,7 +629,7 @@ option::localRun shlex()
 # expanded the same as the docker CLI.
 # @param digest the image digest as recorded by the registry
 # @return a json string as returned by the registry
-string manifest(string ref) binds (string digest, int size, string config)
+string manifest(string ref) binds (string digest, string config, string index)
 
 # Specify the platform whose manifest should be returned instead of the default.
 #

@@ -349,6 +349,17 @@ var (
 					},
 				},
 			},
+			"option::manifest": LookupByKind{
+				Func: map[string]FuncLookup{
+					"platform": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Str, "os", false),
+							parser.NewField(parser.Str, "arch", false),
+						},
+						Effects: []*parser.Field{},
+					},
+				},
+			},
 			"option::mkdir": LookupByKind{
 				Func: map[string]FuncLookup{
 					"createParents": FuncLookup{
@@ -622,6 +633,8 @@ var (
 						},
 						Effects: []*parser.Field{
 							parser.NewField(parser.Str, "digest", false),
+							parser.NewField(parser.Str, "config", false),
+							parser.NewField(parser.Str, "index", false),
 						},
 					},
 					"template": FuncLookup{

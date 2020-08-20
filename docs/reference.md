@@ -856,13 +856,25 @@ to determine if a &#x60;/bin/sh -c &#x27;...&#x27;&#x60; wrapper needs to be add
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>ref</span>"
 	a docker registry reference. if not fully qualified, it will be expanded the same as the docker CLI.
 
-Fetch an OCI image&#x27;s manifest config from the registry.
+Fetch an OCI image&#x27;s manifest from the registry. This uses the current platform
+by default.
 
 	#!hlb
 	string myString() {
-		manifest "ref"
+		manifest "ref" with option {
+			platform "os" "arch"
+		}
 	}
 
+
+#### <span class='hlb-type'>option::manifest</span> <span class='hlb-name'>platform</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>os</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>arch</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>os</span>"
+	operating system name, eg &quot;linux&quot;
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>arch</span>"
+	architecture name, eg &quot;amd64&quot;
+
+Specify the platform whose manifest should be returned instead of the default.
 
 
 ### <span class='hlb-type'>string</span> <span class='hlb-name'>template</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>)

@@ -1137,7 +1137,7 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			desc     specs.Descriptor
 			config   []byte
 			matcher  = platforms.Default()
-			resolver = NewSharedImageResolver()
+			resolver = NewBufferedImageResolver()
 		)
 
 		var platform *specs.Platform
@@ -1158,8 +1158,8 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			if dgst == "" {
 				return llb.State{}, fmt.Errorf("no digest available for ref %q", ref)
 			}
-			desc = specs.Descriptor{Digest: dgst}
-			return llb.State{}, nil
+			desc, err = resolver.DigestDescriptor(ctx, dgst)
+			return llb.State{}, err
 		})
 		req, err := cg.outputRequest(ctx, st, Output{})
 		if err != nil {
@@ -1171,36 +1171,53 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			return req.Solve(ctx, cg.cln, cg.mw)
 		})
 
-		err = cg.setBindingValue(
-			binds.SourceBinding("digest"),
-			func() (string, error) { return dgst.String(), g.Wait() },
-		)
-		if err != nil {
-			return nil, err
-		}
+		if binds != nil && binds.Effects != nil {
+			err = cg.setBindingValue(
+				binds.SourceBinding("digest"),
+				func() (string, error) { return dgst.String(), g.Wait() },
+			)
+			if err != nil {
+				return nil, err
+			}
 
-		err = cg.setBindingValue(
-			binds.SourceBinding("config"),
-			func() (string, error) { return string(config), g.Wait() },
-		)
-		if err != nil {
-			return nil, err
-		}
+			err = cg.setBindingValue(
+				binds.SourceBinding("config"),
+				func() (string, error) { return string(config), g.Wait() },
+			)
+			if err != nil {
+				return nil, err
+			}
 
-		err = cg.setBindingValue(
-			binds.SourceBinding("size"),
-			func() (int, error) {
-				err := g.Wait()
-				if err != nil {
-					return 0, err
-				}
-				img := images.Image{Target: desc}
-				sz, err := img.Size(ctx, resolver, matcher)
-				return int(sz), err
-			},
-		)
-		if err != nil {
-			return nil, err
+			err = cg.setBindingValue(
+				binds.SourceBinding("index"),
+				func() (string, error) {
+					err := g.Wait()
+					if err != nil {
+						return "", err
+					}
+					switch desc.MediaType {
+					case images.MediaTypeDockerSchema2ManifestList,
+						specs.MediaTypeImageIndex:
+						ra, err := resolver.ReaderAt(ctx, desc)
+						if err != nil {
+							return "", err
+						}
+						defer ra.Close()
+
+						dt := make([]byte, ra.Size())
+						if _, err := ra.ReadAt(dt, 0); err != nil {
+							return "", err
+						}
+						return string(dt), nil
+
+					default:
+						return "", fmt.Errorf("ref %v has no index", ref)
+					}
+				},
+			)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return func(string) (string, error) {
