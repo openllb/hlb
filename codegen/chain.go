@@ -3,12 +3,23 @@ package codegen
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/containerd/containerd/platforms"
+
+	"github.com/containerd/containerd/images"
+
+	"github.com/opencontainers/go-digest"
+
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/docker/distribution/reference"
 
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
@@ -1110,6 +1121,118 @@ func (cg *CodeGen) EmitStringChainStmt(ctx context.Context, scope *parser.Scope,
 			err = t.Execute(buf, data)
 			return buf.String(), err
 		}, nil
+	case "manifest":
+		str, err := cg.EmitStringExpr(ctx, scope, args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		ref, err := reference.ParseNormalizedNamed(str)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			dgst     digest.Digest
+			desc     specs.Descriptor
+			config   []byte
+			resolver = NewBufferedImageResolver()
+			matcher  = resolver.MatchDefaultPlatform()
+		)
+
+		var platform *specs.Platform
+		for _, opt := range iopts {
+			if p, ok := opt.(*specs.Platform); ok {
+				matcher = platforms.Only(*p)
+				platform = p
+			}
+		}
+
+		st := llb.Scratch().Async(func(ctx context.Context, _ llb.State) (llb.State, error) {
+			var err error
+			dgst, config, err = resolver.ResolveImageConfig(ctx, ref.String(),
+				llb.ResolveImageConfigOpt{Platform: platform})
+			if err != nil {
+				return llb.State{}, err
+			}
+			if dgst == "" {
+				return llb.State{}, fmt.Errorf("no digest available for ref %q", ref)
+			}
+			desc, err = resolver.DigestDescriptor(ctx, dgst)
+			return llb.State{}, err
+		})
+		req, err := cg.outputRequest(ctx, st, Output{})
+		if err != nil {
+			return nil, err
+		}
+
+		g, ctx := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			return req.Solve(ctx, cg.cln, cg.mw)
+		})
+
+		if binds != nil && binds.Effects != nil {
+			err = cg.setBindingValue(
+				binds.SourceBinding("digest"),
+				func() (string, error) { return dgst.String(), g.Wait() },
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			err = cg.setBindingValue(
+				binds.SourceBinding("config"),
+				func() (string, error) { return string(config), g.Wait() },
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			err = cg.setBindingValue(
+				binds.SourceBinding("index"),
+				func() (string, error) {
+					err := g.Wait()
+					if err != nil {
+						return "", err
+					}
+					switch desc.MediaType {
+					case images.MediaTypeDockerSchema2ManifestList,
+						specs.MediaTypeImageIndex:
+						ra, err := resolver.ReaderAt(ctx, desc)
+						if err != nil {
+							return "", err
+						}
+						defer ra.Close()
+
+						dt := make([]byte, ra.Size())
+						if _, err := ra.ReadAt(dt, 0); err != nil {
+							return "", err
+						}
+						return string(dt), nil
+
+					default:
+						return "", fmt.Errorf("ref %v has no index", ref)
+					}
+				},
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return func(string) (string, error) {
+			err := g.Wait()
+			if err != nil {
+				return "", err
+			}
+			m, err := images.Manifest(ctx, resolver, desc, matcher)
+			if err != nil {
+				return "", err
+			}
+			p, err := json.Marshal(m)
+			return string(p), err
+		}, nil
+
 	default:
 		// Must be a named reference.
 		obj := scope.Lookup(expr.Name())

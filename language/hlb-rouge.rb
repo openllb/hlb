@@ -23,7 +23,7 @@ module Rouge
             push :params
           end
           rule /(\))/, Generic::Error
-          rule /((?:[\t ]+)as(?:[\t ]+))(\()/ do
+          rule /((?:[\t ]+)binds(?:[\t ]+))(\()/ do
             groups Keyword, Punctuation
             push :params
           end

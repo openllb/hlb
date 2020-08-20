@@ -112,7 +112,7 @@ contexts [] {
          styles [] = .illegal;
       }
       : push {
-         regex \= ($${__WHITESPACE}as$${__WHITESPACE})(\()
+         regex \= ($${__WHITESPACE}binds$${__WHITESPACE})(\()
          styles [] = .keyword, .punctuation;
          context [] = params;
       }

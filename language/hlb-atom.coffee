@@ -50,7 +50,7 @@
         'name' : 'invalid.hlb'
       }
       {
-        'begin' : '((?:[\\t\\x{0020}]+)as(?:[\\t\\x{0020}]+))(\\()'
+        'begin' : '((?:[\\t\\x{0020}]+)binds(?:[\\t\\x{0020}]+))(\\()'
         'beginCaptures' : {
           '1' : {
             'name' : 'keyword.hlb'

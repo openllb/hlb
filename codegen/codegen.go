@@ -423,6 +423,8 @@ func (cg *CodeGen) EmitOptionBlock(ctx context.Context, scope *parser.Scope, op 
 		return cg.EmitTemplateOptions(ctx, scope, op, stmts)
 	case "localRun":
 		return cg.EmitLocalExecOptions(ctx, scope, op, stmts)
+	case "manifest":
+		return cg.EmitManifestOptions(ctx, scope, op, stmts)
 	default:
 		return opts, errors.Errorf("call stmt does not support options: %s", op)
 	}
@@ -445,6 +447,36 @@ func (cg *CodeGen) EmitImageOptions(ctx context.Context, scope *parser.Scope, op
 						),
 					))
 				}
+			default:
+				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, iopts...)
+			}
+		}
+	}
+	return
+}
+
+func (cg *CodeGen) EmitManifestOptions(ctx context.Context, scope *parser.Scope, op string, stmts []*parser.Stmt) (opts []interface{}, err error) {
+	for _, stmt := range stmts {
+		if stmt.Call != nil {
+			args := stmt.Call.Args
+			switch stmt.Call.Func.Name() {
+			case "platform":
+				os, err := cg.EmitStringExpr(ctx, scope, args[0])
+				if err != nil {
+					return opts, err
+				}
+				arch, err := cg.EmitStringExpr(ctx, scope, args[1])
+				if err != nil {
+					return opts, err
+				}
+				opts = append(opts, &specs.Platform{
+					OS:           os,
+					Architecture: arch,
+				})
 			default:
 				iopts, err := cg.EmitOptionLookup(ctx, scope, stmt.Call.Func, args, op)
 				if err != nil {
