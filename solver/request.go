@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
+	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/xlab/treeprint"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,10 +36,24 @@ type Request interface {
 	Tree(tree treeprint.Tree) error
 }
 
+type nilRequest struct{}
+
+func NilRequest() Request {
+	return &nilRequest{}
+}
+
+func (r *nilRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
+	return nil
+}
+
+func (r *nilRequest) Tree(tree treeprint.Tree) error {
+	return nil
+}
+
 type Params struct {
-	Def       *llb.Definition
-	SolveOpts []SolveOption
-	Session   *session.Session
+	Def         *llb.Definition
+	SolveOpts   []SolveOption
+	SessionOpts []llbutil.SessionOption
 }
 
 type singleRequest struct {
@@ -56,14 +71,19 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progr
 		pw = mw.WithPrefix("", false)
 	}
 
+	s, err := llbutil.NewSession(ctx, r.params.SessionOpts...)
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return r.params.Session.Run(ctx, cln.Dialer())
+		return s.Run(ctx, cln.Dialer())
 	})
 
 	g.Go(func() error {
-		return Solve(ctx, cln, r.params.Session, pw, r.params.Def, r.params.SolveOpts...)
+		return Solve(ctx, cln, s, pw, r.params.Def, r.params.SolveOpts...)
 	})
 
 	return g.Wait()
@@ -119,7 +139,16 @@ func (o op) Tree(tree treeprint.Tree) error {
 
 	switch v := pbOp.Op.(type) {
 	case *pb.Op_Source:
-		branch = tree.AddMetaBranch("source", v.Source)
+		var attrs []string
+		for key, attr := range v.Source.Attrs {
+			attrs = append(attrs, fmt.Sprintf("attrs:<key:%q value:%q >", key, attr))
+		}
+		sort.Strings(attrs)
+		var attrStr string
+		if len(attrs) > 0 {
+			attrStr = fmt.Sprintf("@%s", strings.Join(attrs, " "))
+		}
+		branch = tree.AddMetaBranch("source", fmt.Sprintf("identifier:%q%s", v.Source.Identifier, attrStr))
 	case *pb.Op_Exec:
 		meta := v.Exec.Meta
 		cmd := shellquote.Join(meta.Args...)
@@ -243,7 +272,23 @@ type parallelRequest struct {
 	reqs []Request
 }
 
-func Parallel(reqs ...Request) Request {
+func Parallel(candidates ...Request) Request {
+	var reqs []Request
+	for _, req := range candidates {
+		switch r := req.(type) {
+		case *nilRequest:
+			continue
+		case *parallelRequest:
+			reqs = append(reqs, r.reqs...)
+			continue
+		}
+		reqs = append(reqs, req)
+	}
+	if len(reqs) == 0 {
+		return NilRequest()
+	} else if len(reqs) == 1 {
+		return reqs[0]
+	}
 	return &parallelRequest{reqs: reqs}
 }
 
@@ -273,7 +318,23 @@ type sequentialRequest struct {
 	reqs []Request
 }
 
-func Sequential(reqs ...Request) Request {
+func Sequential(candidates ...Request) Request {
+	var reqs []Request
+	for _, req := range candidates {
+		switch r := req.(type) {
+		case *nilRequest:
+			continue
+		case *sequentialRequest:
+			reqs = append(reqs, r.reqs...)
+			continue
+		}
+		reqs = append(reqs, req)
+	}
+	if len(reqs) == 0 {
+		return NilRequest()
+	} else if len(reqs) == 1 {
+		return reqs[0]
+	}
 	return &sequentialRequest{reqs: reqs}
 }
 

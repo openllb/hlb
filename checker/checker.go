@@ -31,7 +31,10 @@ func (c *checker) Check(mod *parser.Module) error {
 	//
 	// HLB is module-scoped, so HLBs in the same directory will have separate
 	// scopes and must be imported to be used.
-	mod.Scope = parser.NewScope(mod, Builtin)
+	//
+	// A module scope is a child of the global scope where builtin functions are
+	// defined.
+	mod.Scope = parser.NewScope(mod, GlobalScope)
 
 	// We make three passes over the CST in the checker.
 	// 1. Build lexical scopes and memoize semantic data into the CST.
@@ -96,31 +99,30 @@ func (c *checker) Check(mod *parser.Module) error {
 				}
 			}
 		},
+		// Function literals propagate its return type to its BlockStmt.
+		func(lit *parser.FuncLit) {
+			if lit.Type.Kind != parser.Option {
+				lit.Body.Kind = lit.Type.Kind
+			}
+		},
 		// ImportDecl's BlockStmts have module-level scope and inherits the function
 		// literal type.
 		func(_ *parser.ImportDecl, lit *parser.FuncLit) {
 			lit.Body.Scope = mod.Scope
-			lit.Body.Kind = lit.Type.Kind
 		},
 		// FuncDecl's BlockStmts have function-level scope and inherits the function
 		// literal's type.
 		func(fun *parser.FuncDecl, lit *parser.FuncLit) {
-			if lit.Type.Kind == parser.Option {
-				return
-			}
 			lit.Body.Scope = fun.Scope
-			lit.Body.Kind = lit.Type.Kind
 		},
 		// Function literals propagate its scope to its children.
 		func(parentLit *parser.FuncLit, lit *parser.FuncLit) {
 			lit.Body.Scope = parentLit.Body.Scope
-			lit.Body.Kind = parentLit.Body.Kind
 		},
 		// WithOpt's function literals need to infer its secondary type from its
 		// parent call statement. For example, `run with option { ... }` has a
 		// `option` type function literal, but infers its type as `option::run`.
-		func(fun *parser.FuncDecl, call *parser.CallStmt, with *parser.WithOpt, lit *parser.FuncLit) {
-			lit.Body.Scope = fun.Scope
+		func(call *parser.CallStmt, with *parser.WithOpt, lit *parser.FuncLit) {
 			if lit.Type.Kind == parser.Option {
 				lit.Body.Kind = parser.Kind(fmt.Sprintf("%s::%s", parser.Option, call.Func.Name()))
 			} else {
@@ -263,7 +265,7 @@ func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node pa
 	obj := scope.Lookup(ident.Name)
 	if obj != nil {
 		if len(c.duplicateDecls) == 0 {
-			if _, ok := obj.Node.(*BuiltinDecl); !ok {
+			if _, ok := obj.Node.(*parser.BuiltinDecl); !ok {
 				c.duplicateDecls = append(c.duplicateDecls, obj.Ident)
 			}
 		}
@@ -280,10 +282,10 @@ func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, node pa
 
 func (c *checker) registerBinds(scope *parser.Scope, kind parser.Kind, fun *parser.FuncDecl, call *parser.CallStmt, binds *parser.BindClause) error {
 	if binds.Ident != nil {
-		// mount scratch "/" as default
+		// e.g. mount scratch "/" as default
 		c.registerDecl(scope, binds.Ident, binds)
 	} else if binds.List != nil {
-		// mount scratch "/" as (target default)
+		// e.g. mount scratch "/" as (target default)
 		for _, b := range binds.List.List {
 			c.registerDecl(scope, b.Target, binds)
 		}
@@ -311,12 +313,12 @@ func (c *checker) bindEffects(scope *parser.Scope, kind parser.Kind, call *parse
 		return ErrIdentNotDefined{ident}
 	}
 
-	decl, ok := obj.Node.(*BuiltinDecl)
+	decl, ok := obj.Node.(*parser.BuiltinDecl)
 	if !ok {
 		return ErrBindBadSource{call}
 	}
 
-	fun, ok := decl.Func[kind]
+	fun, ok := decl.FuncDecl[kind]
 	if !ok {
 		return ErrWrongBuiltinType{call.Pos, kind, decl}
 	}
@@ -385,7 +387,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, kind parser.Kind, block *p
 		return c.checkOptionBlockStmt(scope, kind, block)
 	}
 
-	for _, stmt := range block.NonEmptyStmts() {
+	for _, stmt := range block.Stmts() {
 		if stmt.Bad != nil {
 			c.err(ErrBadParse{stmt, stmt.Bad.Lexeme})
 			continue
@@ -428,10 +430,6 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, kind parser.Kind, block *p
 			panic("implementation error")
 		}
 
-		if scope == nil {
-			panic(FormatPos(call.Func.IdentNode().Position()))
-		}
-
 		// Retrieve the function from the scope and then type check it.
 		obj := scope.Lookup(name)
 		if obj == nil {
@@ -453,7 +451,7 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, kind parser.Kind, block *p
 			case *parser.ImportDecl:
 				c.err(ErrUseModuleWithoutSelector{Ident: call.Func.IdentNode()})
 				continue
-			case *BuiltinDecl:
+			case *parser.BuiltinDecl:
 				fun, err := c.checkBuiltinCall(call, kind, n)
 				if err != nil {
 					c.err(err)
@@ -482,8 +480,8 @@ func (c *checker) checkBlockStmt(scope *parser.Scope, kind parser.Kind, block *p
 	return nil
 }
 
-func (c *checker) checkBuiltinCall(call *parser.CallStmt, kind parser.Kind, decl *BuiltinDecl) (*parser.FuncDecl, error) {
-	fun, ok := decl.Func[kind]
+func (c *checker) checkBuiltinCall(call *parser.CallStmt, kind parser.Kind, decl *parser.BuiltinDecl) (*parser.FuncDecl, error) {
+	fun, ok := decl.FuncDecl[kind]
 	if !ok {
 		return nil, ErrWrongBuiltinType{call.Pos, kind, decl}
 	}
@@ -522,8 +520,8 @@ func (c *checker) checkCallSignature(scope *parser.Scope, kind parser.Kind, expr
 			signature = n.Params.List
 		case *parser.BindClause:
 			signature = n.Closure.Params.List
-		case *BuiltinDecl:
-			fun, ok := n.Func[kind]
+		case *parser.BuiltinDecl:
+			fun, ok := n.FuncDecl[kind]
 			if !ok {
 				return nil, ErrWrongBuiltinType{expr.Pos, kind, n}
 			}
@@ -627,8 +625,8 @@ func (c *checker) checkIdentArg(scope *parser.Scope, kind parser.Kind, ident *pa
 			if n.Closure.Params.NumFields() > 0 {
 				return ErrFuncArg{ident}
 			}
-		case *BuiltinDecl:
-			fun, ok := n.Func[kind]
+		case *parser.BuiltinDecl:
+			fun, ok := n.FuncDecl[kind]
 			if !ok {
 				return ErrWrongBuiltinType{ident.Pos, kind, n}
 			}
@@ -657,7 +655,7 @@ func (c *checker) checkIdentArg(scope *parser.Scope, kind parser.Kind, ident *pa
 
 func (c *checker) checkBasicLitArg(kind parser.Kind, lit *parser.BasicLit) error {
 	switch kind {
-	case parser.Str:
+	case parser.String:
 		if lit.Str == nil && lit.HereDoc == nil {
 			return ErrWrongArgType{lit.Pos, kind, lit.Kind()}
 		}
@@ -676,7 +674,7 @@ func (c *checker) checkBasicLitArg(kind parser.Kind, lit *parser.BasicLit) error
 }
 
 func (c *checker) checkFuncLitArg(scope *parser.Scope, kind parser.Kind, lit *parser.FuncLit) error {
-	if kind == parser.Group && lit.Type.Kind == parser.Filesystem {
+	if lit.Type.Kind == parser.Filesystem && kind == parser.Group {
 		kind = lit.Type.Kind
 	}
 
@@ -699,7 +697,7 @@ func (c *checker) checkOptionBlockStmt(scope *parser.Scope, kind parser.Kind, bl
 		name := call.Func.Name()
 		obj := scope.Lookup(name)
 		if obj != nil {
-			decl, ok := obj.Node.(*BuiltinDecl)
+			decl, ok := obj.Node.(*parser.BuiltinDecl)
 			if ok {
 				_, err := c.checkBuiltinCall(call, kind, decl)
 				if err != nil {

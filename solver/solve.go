@@ -72,6 +72,17 @@ func WithCallback(fn SolveCallback) SolveOption {
 	}
 }
 
+func WithCallbackErrgroup(g *errgroup.Group) SolveOption {
+	return func(info *SolveInfo) error {
+		info.Callbacks = append(info.Callbacks,
+			func(ctx context.Context, resp *client.SolveResponse) error {
+				return g.Wait()
+			},
+		)
+		return nil
+	}
+}
+
 func WithImageSpec(cfg *specs.Image) SolveOption {
 	return func(info *SolveInfo) error {
 		info.ImageSpec = cfg

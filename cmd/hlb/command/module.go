@@ -12,6 +12,7 @@ import (
 	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -148,7 +149,8 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 
 	p.Go(func(ctx context.Context) error {
 		defer p.Release()
-		return module.Vendor(ctx, cln, p.MultiWriter(), mod, opts.Targets, opts.Tidy)
+		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
+		return module.Vendor(ctx, cln, mod, opts.Targets, opts.Tidy)
 	})
 
 	return p.Wait()
@@ -226,7 +228,7 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 
 	var tree treeprint.Tree
 	if exist {
-		tree, err = module.NewTree(ctx, cln, nil, mod, opts.Long)
+		tree, err = module.NewTree(ctx, cln, mod, opts.Long)
 		if err != nil {
 			return err
 		}
@@ -240,7 +242,8 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 			defer p.Release()
 
 			var err error
-			tree, err = module.NewTree(ctx, cln, p.MultiWriter(), mod, opts.Long)
+			ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
+			tree, err = module.NewTree(ctx, cln, mod, opts.Long)
 			return err
 		})
 

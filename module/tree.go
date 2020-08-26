@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
@@ -16,8 +15,8 @@ import (
 // NewTree resolves the import graph and returns a treeprint.Tree that can be
 // printed to display a visualization of the imports. Imports that transitively
 // import the same module will be duplicated in the tree.
-func NewTree(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod *parser.Module, long bool) (treeprint.Tree, error) {
-	resolver, err := NewResolver(cln, mw)
+func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long bool) (treeprint.Tree, error) {
+	resolver, err := NewResolver(cln)
 	if err != nil {
 		return nil, err
 	}

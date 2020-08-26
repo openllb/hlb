@@ -15,18 +15,11 @@ fs lint() {
 	go.lint src
 }
 
-fs src() {
-	local "." with option {
-		excludePatterns "build"
-	}
-}
-
 group gen() {
 	parallel fs {
         	mkdocs.generatedBuiltin
         	download "./builtin/."
-	}
-	parallel fs {
+	} fs {
         	mkdocs.generatedMarkdown
         	download "./docs/."
 	}
@@ -39,4 +32,10 @@ fs docs() {
 
 fs publishDocs() {
 	mkdocs.publish
+}
+
+fs src() {
+	local "." with option {
+		excludePatterns "build"
+	}
 }

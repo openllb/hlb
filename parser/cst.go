@@ -275,6 +275,16 @@ func NewFuncDecl(kind Kind, name string, params []*Field, effects []*Field, stmt
 func (d *FuncDecl) Position() lexer.Position { return d.Pos }
 func (d *FuncDecl) End() lexer.Position      { return d.Body.CloseBrace.End() }
 
+// BuiltinDecl is a synthetic declaration representing a builtin name.
+// Special type checking rules apply to builtins.
+type BuiltinDecl struct {
+	*Ident
+	FuncDecl map[Kind]*FuncDecl
+	Callable map[Kind]Callable
+}
+
+type Callable interface{}
+
 // EffectsClause represents the side effect "binds ..." clause for a function.
 type EffectsClause struct {
 	Pos     lexer.Position
@@ -395,7 +405,7 @@ func (e *Expr) IdentNode() *Ident {
 	case e.Ident != nil:
 		return e.Ident
 	default:
-		return &Ident{}
+		return nil
 	}
 }
 
@@ -442,7 +452,7 @@ type Kind string
 
 const (
 	None       Kind = ""
-	Str        Kind = "string"
+	String     Kind = "string"
 	Int        Kind = "int"
 	Bool       Kind = "bool"
 	Filesystem Kind = "fs"
@@ -661,7 +671,7 @@ func (l *NumericLit) Capture(tokens []string) error {
 func (l *BasicLit) Kind() Kind {
 	switch {
 	case l.Str != nil, l.HereDoc != nil:
-		return Str
+		return String
 	case l.Decimal != nil, l.Numeric != nil:
 		return Int
 	case l.Bool != nil:
@@ -791,6 +801,13 @@ func NewCallStmt(name string, args []*Expr, withOpt *WithOpt, binds *BindClause)
 func (s *CallStmt) Position() lexer.Position { return s.Pos }
 func (s *CallStmt) End() lexer.Position      { return s.StmtEnd.End() }
 
+func (s *CallStmt) Breakpoint() bool {
+	if s.Func == nil {
+		return false
+	}
+	return s.Func.Name() == "breakpoint"
+}
+
 // WithOpt represents optional arguments for a CallStmt.
 type WithOpt struct {
 	Pos     lexer.Position
@@ -831,6 +848,13 @@ type Binding struct {
 	Field *Field
 }
 
+func (b Binding) Binds() string {
+	if b.Field == nil || b.Field.Name == nil {
+		return ""
+	}
+	return b.Field.Name.Name
+}
+
 // BindClause represents the entire "as ..." clause on a CallStmt, with either a
 // default side effect or a list of Binds.
 type BindClause struct {
@@ -842,36 +866,28 @@ type BindClause struct {
 	Effects *FieldList
 }
 
-func (b *BindClause) Bindings() []Binding {
-	var bs []Binding
-	for _, bb := range b.Effects.List {
-		bs = append(bs, Binding{b, bb})
-	}
-	return bs
-}
-
-func (b *BindClause) SourceBinding(source string) Binding {
+func (b *BindClause) SourceBinding(source string) *Binding {
 	for _, bb := range b.Effects.List {
 		if bb.Name.String() == source {
-			return Binding{b, bb}
+			return &Binding{b, bb}
 		}
 	}
-	panic("no such source")
+	return nil
 }
 
-func (b *BindClause) TargetBinding(target string) Binding {
+func (b *BindClause) TargetBinding(target string) *Binding {
 	if b.Ident != nil || target == "" {
 		// The default bind is the first.
-		return Binding{b, b.Effects.List[0]}
+		return &Binding{b, b.Effects.List[0]}
 	}
 	if b.List != nil {
 		for _, bb := range b.List.List {
 			if bb.Target.Name == target {
-				return Binding{b, bb.Field}
+				return &Binding{b, bb.Field}
 			}
 		}
 	}
-	panic("no such target")
+	return nil
 }
 
 func (b *BindClause) Position() lexer.Position { return b.Pos }
@@ -971,7 +987,7 @@ func (s *BlockStmt) NumStmts() int {
 	return num
 }
 
-func (s *BlockStmt) NonEmptyStmts() []*Stmt {
+func (s *BlockStmt) Stmts() []*Stmt {
 	if s == nil {
 		return nil
 	}

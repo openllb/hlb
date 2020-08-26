@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/identity"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/module"
@@ -25,7 +26,7 @@ func DefaultParseOpts() []ParseOption {
 	return opts
 }
 
-func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets []codegen.Target, r io.Reader) (solver.Request, error) {
+func Compile(ctx context.Context, cln *client.Client, targets []codegen.Target, r io.Reader) (solver.Request, error) {
 	mod, fb, err := Parse(r, DefaultParseOpts()...)
 	if err != nil {
 		return nil, err
@@ -33,14 +34,14 @@ func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets
 	fbs := map[string]*parser.FileBuffer{
 		mod.Pos.Filename: fb,
 	}
+	ctx = codegen.WithSources(ctx, fbs)
 
 	err = checker.Check(mod)
 	if err != nil {
 		return nil, err
 	}
 
-	mw := p.MultiWriter()
-	resolver, err := module.NewResolver(cln, mw)
+	resolver, err := module.NewResolver(cln)
 	if err != nil {
 		return nil, err
 	}
@@ -69,32 +70,17 @@ func Compile(ctx context.Context, cln *client.Client, p solver.Progress, targets
 		names = append(names, target.Name)
 	}
 
-	opts := []codegen.CodeGenOption{codegen.WithFileBuffers(fbs)}
-	if mw != nil {
-		opts = append(opts, codegen.WithMultiWriter(mw), codegen.WithClient(cln))
-	} else {
+	var opts []codegen.CodeGenOption
+	if codegen.MultiWriter(ctx) == nil {
 		r := bufio.NewReader(os.Stdin)
 		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r, fbs)))
 	}
 
-	var request solver.Request
+	cg, err := codegen.New(cln, opts...)
+	if err != nil {
+		return nil, err
+	}
 
-	done := make(chan struct{})
-	p.Write("codegen", fmt.Sprintf("compiling %s", names), func(ctx context.Context) error {
-		defer close(done)
-
-		cg, err := codegen.New(opts...)
-		if err != nil {
-			return err
-		}
-
-		request, err = cg.Generate(ctx, mod, targets)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
-	<-done
-	return request, nil
+	ctx = codegen.WithSessionID(ctx, identity.NewID())
+	return cg.Generate(ctx, mod, targets)
 }

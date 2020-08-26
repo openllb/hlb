@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/openllb/hlb/gen"
+	"github.com/openllb/hlb/builtin/gen"
 )
 
 func main() {

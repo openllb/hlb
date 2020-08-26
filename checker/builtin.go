@@ -5,17 +5,14 @@ import (
 	"github.com/openllb/hlb/parser"
 )
 
-// Builtin is a Scope containing references to all builtins.
-var Builtin = NewBuiltinScope(builtin.Lookup)
+// GlobalScope is a scope containing references to all builtins.
+var GlobalScope = NewBuiltinScope(builtin.Lookup)
 
-// BuiltinDecl is a synthetic declaration representing a builtin name. Special type checking rules
-// apply to builtins.
-type BuiltinDecl struct {
-	*parser.Ident
-	Func map[parser.Kind]*parser.FuncDecl
-}
+const (
+	BuiltinFilename = "<builtin>"
+)
 
-// NewBuiltinScope returns a new Scope containing synthetic FuncDecl Objects for
+// NewBuiltinScope returns a new scope containing synthetic FuncDecl Objects for
 // builtins.
 func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 	scope := parser.NewScope(nil, nil)
@@ -24,27 +21,29 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 			obj := scope.Lookup(name)
 			if obj == nil {
 				ident := parser.NewIdent(name)
-				ident.Pos.Filename = "<builtin>"
+				ident.Pos.Filename = BuiltinFilename
+
 				obj = &parser.Object{
 					Kind:  parser.DeclKind,
 					Ident: ident,
-					Node: &BuiltinDecl{
-						Ident: ident,
-						Func:  make(map[parser.Kind]*parser.FuncDecl),
+					Node: &parser.BuiltinDecl{
+						Ident:    ident,
+						FuncDecl: make(map[parser.Kind]*parser.FuncDecl),
+						Callable: make(map[parser.Kind]parser.Callable),
 					},
 				}
 			}
-			decl, ok := obj.Node.(*BuiltinDecl)
-			if !ok {
-				panic("implementation error")
-			}
 
 			fun := parser.NewFuncDecl(kind, name, fn.Params, fn.Effects).Func
-			fun.Pos.Filename = "<builtin>"      // for errors attached to func
-			fun.Name.Pos.Filename = "<builtin>" // for errors attached to Name
-			decl.Func[kind] = fun
+			fun.Pos.Filename = BuiltinFilename
+
+			decl := obj.Node.(*parser.BuiltinDecl)
+			decl.FuncDecl[kind] = fun
+			decl.Callable[kind] = builtin.Callables[kind][name]
+
 			scope.Insert(obj)
 		}
 	}
+
 	return scope
 }

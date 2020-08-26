@@ -14,7 +14,7 @@ fs buildDockerCli() {
 	run "./scripts/build/binary" with option {
 		dir "/go/src/github.com/docker/cli"
 		mount fs { git "https://github.com/docker/cli.git" "v19.03.8"; } "/go/src/github.com/docker/cli"
-		mount fs { scratch; } "/go/src/github.com/docker/cli/build" as dockerCli
+		mount scratch "/go/src/github.com/docker/cli/build" as dockerCli
 	}
 }
 
@@ -23,7 +23,7 @@ option::run mountDocker() {
 	forward "unix:///run/docker.sock" "/var/run/docker.sock"
 }
 
-fs ssh() {
+fs testSSH() {
 	image "alpine"
 	run "apk add -U openssh-client"
 	mkdir "/root/.ssh" 0o700
@@ -38,11 +38,11 @@ fs nginx() {
 	image "busybox"
 	run "docker rm -f hlb-nginx || true" with option {
 		ignoreCache
-        	mountDocker
+		mountDocker
 	}
 	run "docker run --name hlb-nginx -d -p 8080:80 nginx" with option {
 		ignoreCache
-        	mountDocker
+		mountDocker
 	}
 }
 

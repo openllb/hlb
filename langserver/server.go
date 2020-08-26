@@ -505,19 +505,25 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 
 			switch {
 			case decl.ImportFunc != nil:
-				cg, err := codegen.New()
+				cg, err := codegen.New(nil)
 				if err != nil {
 					log.Printf("failed to create codegen: %s", err)
 					return
 				}
 
-				st, err := cg.GenerateImport(ctx, td.Module.Scope, decl.ImportFunc.Func)
+				ret := codegen.NewRegister()
+				err = cg.EmitFuncLit(ctx, td.Module.Scope, decl.ImportFunc.Func, nil, ret)
 				if err != nil {
 					log.Printf("failed to generate import: %s", err)
 					return
 				}
 
-				def, err := st.Marshal(ctx, llb.LinuxAmd64)
+				fs, err := ret.Filesystem()
+				if err != nil {
+					return
+				}
+
+				def, err := fs.State.Marshal(ctx, llb.LinuxAmd64)
 				if err != nil {
 					log.Printf("failed to marshal import vertex: %s", err)
 					return
@@ -589,14 +595,14 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 		case *parser.ImportDecl:
 			loc = newLocationFromNode(uri, n.Ident)
 		default:
-			log.Printf("%s unknown decl kind", checker.FormatPos(n.Position()))
+			log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
 		}
-	case parser.FieldKind, parser.ExprKind:
+	case parser.FieldKind:
 		switch n := obj.Node.(type) {
 		case *parser.Field:
 			loc = newLocationFromNode(uri, n.Name)
 		default:
-			log.Printf("%s unknown decl kind", checker.FormatPos(n.Position()))
+			log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
 		}
 	}
 

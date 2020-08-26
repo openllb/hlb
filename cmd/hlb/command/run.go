@@ -2,11 +2,9 @@ package command
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
@@ -140,38 +138,15 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		if err != nil {
 			return err
 		}
+		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	}
 
 	var targets []codegen.Target
 	for _, target := range opts.Targets {
-		r := csv.NewReader(strings.NewReader(target))
-		fields, err := r.Read()
-		if err != nil {
-			return err
-		}
-		t := codegen.Target{
-			Name: fields[0],
-		}
-		for _, field := range fields[1:] {
-			switch {
-			case strings.HasPrefix(field, "dockerPush="):
-				t.Outputs = append(t.Outputs, codegen.Output{Type: codegen.OutputDockerPush, Ref: strings.TrimPrefix(field, "dockerPush=")})
-			case strings.HasPrefix(field, "dockerLoad="):
-				t.Outputs = append(t.Outputs, codegen.Output{Type: codegen.OutputDockerLoad, Ref: strings.TrimPrefix(field, "dockerLoad=")})
-			case strings.HasPrefix(field, "download="):
-				t.Outputs = append(t.Outputs, codegen.Output{Type: codegen.OutputDownload, LocalPath: strings.TrimPrefix(field, "download=")})
-			case strings.HasPrefix(field, "downloadTarball="):
-				t.Outputs = append(t.Outputs, codegen.Output{Type: codegen.OutputDownloadTarball, LocalPath: strings.TrimPrefix(field, "downloadTarball=")})
-			case strings.HasPrefix(field, "downloadOCITarball="):
-				t.Outputs = append(t.Outputs, codegen.Output{Type: codegen.OutputDownloadOCITarball, LocalPath: strings.TrimPrefix(field, "downloadOCITarball=")})
-			default:
-				return fmt.Errorf("Unknown target option %q for target %q", field, t.Name)
-			}
-		}
-		targets = append(targets, t)
+		targets = append(targets, codegen.Target{Name: target})
 	}
 
-	solveReq, err := hlb.Compile(ctx, cln, p, targets, rc)
+	solveReq, err := hlb.Compile(ctx, cln, targets, rc)
 	if err != nil {
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {

@@ -372,7 +372,7 @@ func TestChecker_Check(t *testing.T) {
 				Column:   1,
 			},
 			Expected: "group",
-			Builtin: &BuiltinDecl{
+			Builtin: &parser.BuiltinDecl{
 				Ident: parser.NewIdent("image"),
 			},
 		},

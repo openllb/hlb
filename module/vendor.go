@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
@@ -18,7 +17,7 @@ import (
 //
 // If tidy mode is enabled, vertices with digests that already exist in the
 // modules directory are skipped, and unused modules are pruned.
-func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, mod *parser.Module, targets []string, tidy bool) error {
+func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets []string, tidy bool) error {
 	root := ModulesPath
 
 	var mu sync.Mutex
@@ -27,13 +26,15 @@ func Vendor(ctx context.Context, cln *client.Client, mw *progress.MultiWriter, m
 	var resolver Resolver
 	if tidy {
 		resolver = &tidyResolver{
-			remote: &remoteResolver{cln, mw, root},
+			cln:    cln,
+			remote: &remoteResolver{cln, root},
 		}
 	} else {
 		resolver = &targetResolver{
 			filename: mod.Pos.Filename,
 			targets:  targets,
-			remote:   &remoteResolver{cln, mw, root},
+			cln:      cln,
+			remote:   &remoteResolver{cln, root},
 		}
 	}
 
