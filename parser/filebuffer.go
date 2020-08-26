@@ -10,10 +10,11 @@ import (
 )
 
 type FileBuffer struct {
-	filename string
-	buf      *bytes.Buffer
-	offset   int
-	offsets  []int
+	filename  string
+	buf       *bytes.Buffer
+	offset    int
+	offsets   []int
+	sourceMap *llb.SourceMap
 }
 
 func NewFileBuffer(filename string) *FileBuffer {
@@ -24,7 +25,10 @@ func NewFileBuffer(filename string) *FileBuffer {
 }
 
 func (fb *FileBuffer) SourceMap() *llb.SourceMap {
-	return llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
+	if fb.sourceMap == nil {
+		fb.sourceMap = llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
+	}
+	return fb.sourceMap
 }
 
 func (fb *FileBuffer) Len() int {

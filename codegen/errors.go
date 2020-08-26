@@ -3,7 +3,6 @@ package codegen
 import (
 	"fmt"
 
-	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/pkg/errors"
 )
@@ -18,6 +17,10 @@ var (
 	// object for a scope. Lexical scope checking should occur in the checker so
 	// that's often where the bug shuold be fixed, but it may be in the codegen.
 	ErrUndefinedReference = errors.Errorf("undefined reference")
+
+	// ErrAmbigiuousCallable is returned when codegen wasn't given type
+	// information and the function lookup returned more than 1 callable.
+	ErrAmbigiuousCallable = errors.Errorf("ambigiuous callable")
 )
 
 type ErrCodeGen struct {
@@ -26,7 +29,7 @@ type ErrCodeGen struct {
 }
 
 func (e ErrCodeGen) Error() string {
-	return fmt.Sprintf("%s %s", checker.FormatPos(e.Node.Position()), e.Err)
+	return fmt.Sprintf("%s %s", parser.FormatPos(e.Node.Position()), e.Err)
 }
 
 func (e ErrCodeGen) Cause() error {

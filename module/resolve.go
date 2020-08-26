@@ -51,17 +51,17 @@ type Resolved interface {
 
 // NewResolver returns a resolver based on whether the modules path exists in
 // the current working directory.
-func NewResolver(cln *client.Client, mw *progress.MultiWriter) (Resolver, error) {
+func NewResolver(cln *client.Client) (Resolver, error) {
 	root, exist, err := modulesPathExist()
 	if err != nil {
 		return nil, err
 	}
 
 	if !exist {
-		return &remoteResolver{cln, mw, root}, nil
+		return &remoteResolver{cln, root}, nil
 	}
 
-	return &vendorResolver{root}, nil
+	return &vendorResolver{cln, root}, nil
 }
 
 // ModulesPathExist returns true if the modules directory exists in the current
@@ -85,11 +85,12 @@ func modulesPathExist() (string, bool, error) {
 }
 
 type vendorResolver struct {
+	cln        *client.Client
 	modulePath string
 }
 
 func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.modulePath)
+	res, err := resolveLocal(ctx, r.cln, scope, decl.ImportFunc.Func, r.modulePath)
 	if err != nil {
 		return res, err
 	}
@@ -105,18 +106,24 @@ func (r *vendorResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 	return res, fmt.Errorf("missing module %q from vendor, run `hlb mod vendor --target %s %s` to vendor module", decl.Ident, decl.Ident, decl.Pos.Filename)
 }
 
-func resolveLocal(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, modulePath string) (Resolved, error) {
-	cg, err := codegen.New()
+func resolveLocal(ctx context.Context, cln *client.Client, scope *parser.Scope, lit *parser.FuncLit, modulePath string) (Resolved, error) {
+	cg, err := codegen.New(cln)
 	if err != nil {
 		return nil, err
 	}
 
-	st, err := cg.GenerateImport(ctx, scope, lit)
+	ret := codegen.NewRegister()
+	err = cg.EmitFuncLit(ctx, scope, lit, nil, ret)
 	if err != nil {
 		return nil, err
 	}
 
-	dgst, _, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	fs, err := ret.Filesystem()
+	if err != nil {
+		return nil, err
+	}
+
+	dgst, _, _, _, err := fs.State.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
 	if err != nil {
 		return nil, err
 	}
@@ -164,34 +171,41 @@ func (r *localResolved) Close() error { return nil }
 
 type remoteResolver struct {
 	cln        *client.Client
-	mw         *progress.MultiWriter
 	modulePath string
 }
 
 func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	cg, err := codegen.New(codegen.WithClient(r.cln), codegen.WithMultiWriter(r.mw))
+	cg, err := codegen.New(r.cln)
 	if err != nil {
 		return nil, err
 	}
 
-	st, err := cg.GenerateImport(ctx, scope, decl.ImportFunc.Func)
+	ret := codegen.NewRegister()
+	err = cg.EmitFuncLit(ctx, scope, decl.ImportFunc.Func, nil, ret)
 	if err != nil {
 		return nil, err
 	}
 
-	dgst, _, _, _, err := st.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	fs, err := ret.Filesystem()
 	if err != nil {
 		return nil, err
 	}
 
-	def, err := st.Marshal(ctx, llb.LinuxAmd64)
+	dgst, _, _, _, err := fs.State.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	if err != nil {
+		return nil, err
+	}
+
+	def, err := fs.State.Marshal(ctx, llb.LinuxAmd64)
 	if err != nil {
 		return nil, err
 	}
 
 	var pw progress.Writer
-	if r.mw != nil {
-		pw = r.mw.WithPrefix(fmt.Sprintf("import %s", decl.Ident), true)
+
+	mw := codegen.MultiWriter(ctx)
+	if mw != nil {
+		pw = mw.WithPrefix(fmt.Sprintf("import %s", decl.Ident), true)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -225,7 +239,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 			<-closed
 
 			return gateway.NewResult(), nil
-		}, cg.SolveOpts...)
+		}, fs.SolveOpts...)
 	})
 
 	select {
@@ -285,11 +299,12 @@ func (r *remoteResolved) Close() error {
 }
 
 type tidyResolver struct {
+	cln    *client.Client
 	remote *remoteResolver
 }
 
 func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *parser.ImportDecl) (Resolved, error) {
-	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.remote.modulePath)
+	res, err := resolveLocal(ctx, r.cln, scope, decl.ImportFunc.Func, r.remote.modulePath)
 	if err != nil {
 		return res, err
 	}
@@ -309,6 +324,7 @@ func (r *tidyResolver) Resolve(ctx context.Context, scope *parser.Scope, decl *p
 type targetResolver struct {
 	filename string
 	targets  []string
+	cln      *client.Client
 	remote   *remoteResolver
 }
 
@@ -329,7 +345,7 @@ func (r *targetResolver) Resolve(ctx context.Context, scope *parser.Scope, decl 
 		}
 	}
 
-	res, err := resolveLocal(ctx, scope, decl.ImportFunc.Func, r.remote.modulePath)
+	res, err := resolveLocal(ctx, r.cln, scope, decl.ImportFunc.Func, r.remote.modulePath)
 	if err != nil {
 		return res, err
 	}
@@ -443,7 +459,6 @@ func ResolveGraph(ctx context.Context, resolver Resolver, res Resolved, mod *par
 		if obj == nil {
 			return fmt.Errorf("failed to find import %q", name)
 		}
-
 		obj.Data = imp.Scope
 	}
 

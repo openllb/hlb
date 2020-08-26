@@ -880,7 +880,7 @@ Specify the platform whose manifest should be returned instead of the default.
 ### <span class='hlb-type'>string</span> <span class='hlb-name'>template</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>text</span>"
-	the text of the template
+	the text of the template.
 
 Process text as a Go text template.
 For template syntax documentation see:
@@ -897,9 +897,9 @@ https://golang.org/pkg/text/template/
 #### <span class='hlb-type'>option::template</span> <span class='hlb-name'>stringField</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>"
-	the name of the field inside the template
+	the name of the field inside the template.
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>"
-	the value of the field inside the template
+	the value of the field inside the template.
 
 Add a string field with provided name to be available
 inside the template.

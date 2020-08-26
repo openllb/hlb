@@ -1,4 +1,4 @@
-//go:generate go run ../cmd/builtingen ../language/builtin.hlb ../builtin/builtin.go
+//go:generate go run ../../cmd/builtingen ../../language/builtin.hlb ../lookup.go
 
 package gen
 
@@ -75,10 +75,10 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 }
 
 var tmplFunctions = template.FuncMap{
-	"objType": func(kind parser.Kind) template.HTML {
+	"kind": func(kind parser.Kind) template.HTML {
 		switch kind {
-		case parser.Str:
-			return template.HTML("parser.Str")
+		case parser.String:
+			return template.HTML("parser.String")
 		case parser.Int:
 			return template.HTML("parser.Int")
 		case parser.Bool:
@@ -114,15 +114,15 @@ type FuncLookup struct {
 var (
 	Lookup = BuiltinLookup{
 		ByKind: map[parser.Kind]LookupByKind{
-			{{range $kind, $funcs := .FuncsByKind}}{{objType $kind}}: LookupByKind{
+			{{range $kind, $funcs := .FuncsByKind}}{{kind $kind}}: LookupByKind{
 				Func: map[string]FuncLookup{
 					{{range $i, $func := $funcs}}"{{$func.Name}}": FuncLookup{
 						Params:  []*parser.Field{
-							{{range $i, $param := $func.Params}}parser.NewField({{objType $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
+							{{range $i, $param := $func.Params}}parser.NewField({{kind $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
 							{{end}}
 						},
 						Effects: []*parser.Field{
-							{{range $i, $effect := $func.Effects}}parser.NewField({{objType $effect.Type.Kind}}, "{{$effect.Name}}", {{if $effect.Variadic}}true{{else}}false{{end}}),
+							{{range $i, $effect := $func.Effects}}parser.NewField({{kind $effect.Type.Kind}}, "{{$effect.Name}}", {{if $effect.Variadic}}true{{else}}false{{end}}),
 							{{end}}
 						},
 					},

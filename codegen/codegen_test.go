@@ -1,7 +1,8 @@
-package codegen
+package codegen_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -9,11 +10,14 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/entitlements"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/stretchr/testify/require"
 	"github.com/xlab/treeprint"
@@ -29,14 +33,24 @@ func Expect(t *testing.T, st llb.State, opts ...solver.SolveOption) solver.Reque
 	})
 }
 
-func (cg *CodeGen) Local(t *testing.T, path string, opts ...llb.LocalOption) llb.State {
-	id, err := cg.LocalID(context.Background(), ".", opts...)
+func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb.LocalOption) llb.State {
+	cwd, err := local.Cwd(ctx)
+	require.NoError(t, err)
+
+	id, err := llbutil.LocalID(ctx, cwd, ".", opts...)
 	require.NoError(t, err)
 
 	opts = append([]llb.LocalOption{
-		llb.SessionID(cg.SessionID()),
-		llb.SharedKeyHint(path),
+		llb.SharedKeyHint(localPath),
+		llb.WithDescription(map[string]string{
+			solver.LocalPathDescriptionKey: fmt.Sprintf("local://%s", localPath),
+		}),
 	}, opts...)
+
+	sessionID := codegen.SessionID(ctx)
+	if sessionID != "" {
+		opts = append(opts, llb.SessionID(sessionID))
+	}
 
 	return llb.Local(id, opts...)
 }
@@ -46,7 +60,7 @@ type testCase struct {
 	targets   []string
 	hlb       string
 	hlbImport string
-	fn        func(t *testing.T, cg *CodeGen) solver.Request
+	fn        func(ctx context.Context, t *testing.T) solver.Request
 }
 
 func cleanup(value string) string {
@@ -63,7 +77,7 @@ func TestCodeGen(t *testing.T) {
 			image "alpine"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Image("alpine"))
 		},
 	}, {
@@ -74,7 +88,7 @@ func TestCodeGen(t *testing.T) {
 			scratch
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch())
 		},
 	}, {
@@ -85,7 +99,7 @@ func TestCodeGen(t *testing.T) {
 			http "http://my.test.url"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.HTTP("http://my.test.url"))
 		},
 	}, {
@@ -94,16 +108,16 @@ func TestCodeGen(t *testing.T) {
 		`
 		fs default() {
 			http "http://my.test.url" with option {
-				checksum "123"
+				checksum "sha256:4f858ddc9eb7302530d279eb1ad1468ea1253f45fd64fa3096e4ff5c0520b0f3"
 				chmod 0x777
 				filename "myTest.out"
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.HTTP(
 				"http://my.test.url",
-				llb.Checksum("123"),
+				llb.Checksum("sha256:4f858ddc9eb7302530d279eb1ad1468ea1253f45fd64fa3096e4ff5c0520b0f3"),
 				llb.Chmod(os.FileMode(0x777)),
 				llb.Filename("myTest.out")))
 		},
@@ -115,7 +129,7 @@ func TestCodeGen(t *testing.T) {
 			git "https://github.com/openllb/hlb.git" "master"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Git("https://github.com/openllb/hlb.git", "master"))
 		},
 	}, {
@@ -128,7 +142,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Git(
 				"https://github.com/openllb/hlb.git",
 				"master",
@@ -143,7 +157,7 @@ func TestCodeGen(t *testing.T) {
 			mkdir "testDir" 0x777
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(llb.Mkdir("testDir", os.FileMode(0x777))))
 		},
 	}, {
@@ -159,7 +173,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
 			require.NoError(t, err)
 
@@ -180,7 +194,7 @@ func TestCodeGen(t *testing.T) {
 			run "echo Hello" with shlex
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().AddEnv("TEST_VAR", "test value").Run(llb.Shlex("echo Hello")).Root())
 		},
 	}, {
@@ -193,7 +207,7 @@ func TestCodeGen(t *testing.T) {
 			run "echo Hello" with shlex
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().Dir("testDir").Run(llb.Shlex("echo Hello")).Root())
 		},
 	}, {
@@ -206,7 +220,7 @@ func TestCodeGen(t *testing.T) {
 			run "echo Hello" with shlex
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().User("testUser").Run(llb.Shlex("echo Hello")).Root())
 		},
 	}, {
@@ -218,7 +232,7 @@ func TestCodeGen(t *testing.T) {
 			mkfile "testFile" 0x777 "Hello"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(llb.Mkfile("testFile", os.FileMode(0x777), []byte("Hello"))))
 		},
 	}, {
@@ -233,7 +247,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
 			require.NoError(t, err)
 
@@ -253,7 +267,7 @@ func TestCodeGen(t *testing.T) {
 			rm "testFile"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(llb.Rm("testFile")))
 		},
 	}, {
@@ -268,7 +282,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(llb.Rm(
 				"testFile",
 				llb.WithAllowNotFound(true),
@@ -283,7 +297,7 @@ func TestCodeGen(t *testing.T) {
 			copy scratch "testSource" "testDest"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			scratch := llb.Scratch()
 			return Expect(t, scratch.File(llb.Copy(scratch, "testSource", "testDest")))
 		},
@@ -306,7 +320,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			createdTime, err := time.Parse(time.RFC3339, "2020-04-27T15:04:05Z")
 			require.NoError(t, err)
 
@@ -343,7 +357,7 @@ func TestCodeGen(t *testing.T) {
 			image ref
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Image("busybox"))
 		},
 	}, {
@@ -354,8 +368,8 @@ func TestCodeGen(t *testing.T) {
 			local "."
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
-			return Expect(t, cg.Local(t, "."))
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, LocalState(ctx, t, "."))
 		},
 	}, {
 		"local file",
@@ -365,8 +379,8 @@ func TestCodeGen(t *testing.T) {
 			local "codegen_test.go"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
-			return Expect(t, cg.Local(t, ".",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, LocalState(ctx, t, ".",
 				llb.IncludePatterns([]string{"codegen_test.go"}),
 			))
 		},
@@ -381,8 +395,8 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
-			return Expect(t, cg.Local(t, ".",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, LocalState(ctx, t, ".",
 				llb.IncludePatterns([]string{"codegen_test.go"}),
 			))
 		},
@@ -399,7 +413,7 @@ func TestCodeGen(t *testing.T) {
 			localEnv "HOME"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0644, []byte(os.Getenv("HOME")))))
 		},
 	}, {
@@ -414,7 +428,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Image("alpine").Run(
 				llb.Shlex("touch /out/foo"),
 			).AddMount("/out", llb.Scratch()))
@@ -428,7 +442,7 @@ func TestCodeGen(t *testing.T) {
 			run "echo unchanged" with readonlyRootfs
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Image("alpine").Run(
 				llb.Shlex("echo unchanged"),
 				llb.ReadonlyRootFS(),
@@ -440,8 +454,8 @@ func TestCodeGen(t *testing.T) {
 		`
 		group default() {}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
-			return solver.Sequential()
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return solver.NilRequest()
 		},
 	}, {
 		"sequential group",
@@ -452,7 +466,7 @@ func TestCodeGen(t *testing.T) {
 			parallel fs { image "busybox"; }
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.Sequential(
 				Expect(t, llb.Image("alpine")),
 				Expect(t, llb.Image("busybox")),
@@ -470,7 +484,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.Parallel(
 				Expect(t, llb.Image("alpine")),
 				Expect(t, llb.Image("busybox")),
@@ -490,7 +504,7 @@ func TestCodeGen(t *testing.T) {
 			parallel fs { image "node:alpine"; }
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.Sequential(
 				Expect(t, llb.Image("golang:alpine")),
 				solver.Parallel(
@@ -517,7 +531,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.Sequential(
 				Expect(t, llb.Image("alpine:stable")),
 				Expect(t, llb.Image("busybox:stable")),
@@ -533,17 +547,13 @@ func TestCodeGen(t *testing.T) {
 			} fs {
 				scratch
 				mkfile "foo" 0o644 "hello world"
-				download "."
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.Parallel(
 				Expect(t, llb.Image("alpine")),
-				solver.Parallel(
-					Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world")))),
-					Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world"))), solver.WithDownload(".")),
-				),
+				Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world")))),
 			)
 		},
 	}, {
@@ -567,7 +577,7 @@ func TestCodeGen(t *testing.T) {
 			EOM
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Image("busybox").Run(
 				llb.Args([]string{"/bin/sh", "-c", "echo hi"}),
 			).Run(
@@ -595,7 +605,7 @@ func TestCodeGen(t *testing.T) {
 			run command with shlex
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Image("busybox").Run(
 				llb.Shlexf("echo hi %s", os.Getenv("USER")),
 			).Root())
@@ -612,7 +622,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t,
 				llb.Image("busybox").Run(
 					llb.Args([]string{"/bin/sh", "-c", "entitlements"}),
@@ -640,17 +650,14 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
-			sid := SecretID("codegen_test.go")
+		func(ctx context.Context, t *testing.T) solver.Request {
+			sid := llbutil.SecretID("codegen_test.go")
 			return Expect(t, llb.Image("busybox").Run(
 				llb.Shlex("find ."),
 				llb.Dir("/foo"),
 				llb.AddMount(
 					"/foo",
-					cg.Local(
-						t,
-						".",
-					).File(
+					LocalState(ctx, t, ".").File(
 						// this Mkdir is made implicitly due to /foo/secret
 						// secret over readonly FS
 						llb.Mkdir("secret", 0755, llb.WithParents(true)),
@@ -685,7 +692,7 @@ func TestCodeGen(t *testing.T) {
 			chown "1001:1001"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(
 				llb.Copy(llb.Scratch(), "/", "/foo", &llb.CopyInfo{
 					CreateDestPath: true,
@@ -723,7 +730,7 @@ func TestCodeGen(t *testing.T) {
 			}
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(
 				llb.Mkfile("just-stdout", os.FileMode(0644), []byte("stdout")),
 			).File(
@@ -756,37 +763,10 @@ func TestCodeGen(t *testing.T) {
 			expose "8080/tcp" "9001/udp"
 			volumes "/var/log" "/var/db"
 			stopSignal "SIGKILL"
-			dockerPush "myimage"
 		}
 		`, "",
-		func(t *testing.T, cg *CodeGen) solver.Request {
-			return solver.Parallel(
-				Expect(t, llb.Image("busybox")),
-				Expect(t, llb.Image("busybox"),
-					solver.WithPushImage("myimage"),
-					solver.WithImageSpec(&specs.Image{
-						Config: specs.ImageConfig{
-							Env:        []string{"myenv2=value2", "myenv1=value3"},
-							WorkingDir: "/myworkdir",
-							Entrypoint: []string{"my", "entrypoint"},
-							Cmd:        []string{"my", "cmd"},
-							Labels: map[string]string{
-								"mylabel1": "value3",
-								"mylabel2": "value2",
-							},
-							ExposedPorts: map[string]struct{}{
-								"8080/tcp": {},
-								"9001/udp": {},
-							},
-							Volumes: map[string]struct{}{
-								"/var/log": {},
-								"/var/db":  {},
-							},
-							StopSignal: "SIGKILL",
-						},
-					}),
-				),
-			)
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Image("busybox"))
 		},
 	}, {
 		"calling a func with an imported func",
@@ -807,7 +787,7 @@ func TestCodeGen(t *testing.T) {
 			shlex
 		}
 		`,
-		func(t *testing.T, cg *CodeGen) solver.Request {
+		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().Run(
 				llb.Shlex("echo Hello"),
 				llb.Dir("/etc"),
@@ -816,7 +796,7 @@ func TestCodeGen(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			cg, err := New()
+			cg, err := codegen.New(nil)
 			require.NoError(t, err, tc.name)
 
 			mod, _, err := parser.Parse(strings.NewReader(cleanup(tc.hlb)))
@@ -843,15 +823,16 @@ func TestCodeGen(t *testing.T) {
 				require.NoError(t, err, tc.name)
 			}
 
-			var targets []Target
+			var targets []codegen.Target
 			for _, target := range tc.targets {
-				targets = append(targets, Target{Name: target})
+				targets = append(targets, codegen.Target{Name: target})
 			}
 
-			request, err := cg.Generate(context.Background(), mod, targets)
+			ctx := codegen.WithSessionID(context.Background(), identity.NewID())
+			request, err := cg.Generate(ctx, mod, targets)
 			require.NoError(t, err, tc.name)
 
-			testRequest := tc.fn(t, cg)
+			testRequest := tc.fn(ctx, t)
 
 			expected := treeprint.New()
 			err = testRequest.Tree(expected)

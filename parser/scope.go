@@ -75,7 +75,6 @@ const (
 	BadKind ObjKind = iota
 	DeclKind
 	FieldKind
-	ExprKind
 )
 
 // Object represents a named language entity such as a function, or variable.

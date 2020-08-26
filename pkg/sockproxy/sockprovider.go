@@ -1,4 +1,4 @@
-package sockprovider
+package sockproxy
 
 import (
 	"context"
@@ -24,8 +24,9 @@ type AgentConfig struct {
 	SSH   bool
 }
 
-// New creates a session provider.
-func New(confs []AgentConfig) (session.Attachable, error) {
+// NewProvider creates a session provider for arbitrary socket forwarding by
+// piggy-backing off the SSH forwarding protocol.
+func NewProvider(confs []AgentConfig) (session.Attachable, error) {
 	m := map[string]source{}
 	for _, conf := range confs {
 		if !conf.SSH {

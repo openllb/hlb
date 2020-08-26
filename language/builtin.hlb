@@ -571,18 +571,18 @@ string format(string formatString, variadic string values)
 
 # The architecture for the clients local environment.
 #
-# @return the Arch
+# @return the client's architecture.
 string localArch()
 
 # The current working directory from the clients local environment.
 #
-# @return current working directory
+# @return the current working directory.
 string localCwd()
 
 # An environment variable from the client's local environment.
 #
 # @param key the environment variable's key.
-# @return the environment variable's value
+# @return the environment variable's value.
 string localEnv(string key)
 
 # The OS from the clients local environment.
@@ -597,7 +597,7 @@ string localOs()
 #
 # @param command a command to execute.
 # @param args optional arguments to the command.
-# @return the string output from the command
+# @return the string output from the command.
 string localRun(string command, variadic string args)
 
 # If the command returns a non-zero status code ignore
@@ -619,7 +619,8 @@ option::localRun onlyStderr()
 # Attempt to lex the single-argument shell command provided to `localRun`
 # to determine if a `/bin/sh -c '...'` wrapper needs to be added.
 #
-# @return an option to attempt to optimize the command execution remoiving the /bin/sh -c "..." wrapper when possible.
+# @return an option to attempt to optimize the command execution removing the
+# /bin/sh -c "..." wrapper when possible.
 option::localRun shlex()
 
 # Fetch an OCI image's manifest from the registry. This uses the current platform
@@ -641,20 +642,21 @@ option::manifest platform(string os, string arch)
 # For template syntax documentation see:
 #   https://golang.org/pkg/text/template/
 #
-# @param text the text of the template
-# @return the text resulting from the processed template
+# @param text the text of the template.
+# @return the text resulting from the processed template.
 string template(string text)
 
 # Add a string field with provided name to be available
 # inside the template.
 #
-# @param name the name of the field inside the template
-# @param value the value of the field inside the template
-# @return an option to add a field to the template
+# @param name the name of the field inside the template.
+# @param value the value of the field inside the template.
+# @return an option to add a field to the template.
 option::template stringField(string name, string value)
 
-# Execute groups in parallel.
+# Executes group or filesystem target(s). Multiple targets specified within
+# a stage is executed in parallel. 
 #
-# @param groups the groups to run in parallel
-# @return a group that finishes when all of its groups are finished.
+# @param groups the targets to run in parallel.
+# @return a group that returns when all its targets have finished.
 group parallel(variadic group groups)

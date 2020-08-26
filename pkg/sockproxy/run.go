@@ -1,4 +1,4 @@
-package codegen
+package sockproxy
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-func RunSockProxy(ctx context.Context, conn net.Conn, l net.Listener) error {
+func Run(ctx context.Context, conn net.Conn, l net.Listener) error {
 	for {
 		select {
 		case <-ctx.Done():

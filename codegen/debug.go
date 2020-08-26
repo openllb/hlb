@@ -17,7 +17,6 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
-	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/report"
 	"github.com/pkg/errors"
@@ -27,10 +26,10 @@ var (
 	ErrDebugExit = errors.Errorf("exiting debugger")
 )
 
-type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, value interface{}) error
+type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value) error
 
 func NewNoopDebugger() Debugger {
-	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ interface{}) error {
+	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ Value) error {
 		return nil
 	}
 }
@@ -38,7 +37,7 @@ func NewNoopDebugger() Debugger {
 type snapshot struct {
 	scope *parser.Scope
 	node  parser.Node
-	value interface{}
+	ret   Value
 }
 
 func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]*parser.FileBuffer) Debugger {
@@ -56,10 +55,10 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 		breakpoints       []*Breakpoint
 	)
 
-	return func(ctx context.Context, scope *parser.Scope, node parser.Node, value interface{}) error {
+	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value) error {
 		// Store a snapshot of the current debug step so we can backtrack.
 		historyIndex++
-		history = append(history, &snapshot{scope, node, value})
+		history = append(history, &snapshot{scope, node, ret})
 
 		debug := func(s *snapshot) error {
 			showList := true
@@ -150,7 +149,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 							}
 						case *parser.CallStmt:
 							if n.Func.Name() == "breakpoint" {
-								fmt.Fprintf(w, "%s cannot break at breakpoint\n", checker.FormatPos(n.Pos))
+								fmt.Fprintf(w, "%s cannot break at breakpoint\n", parser.FormatPos(n.Pos))
 								continue
 							}
 
@@ -175,7 +174,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 							i,
 							bp.Func.Name,
 							bp.Func.Params,
-							checker.FormatPos(pos))
+							parser.FormatPos(pos))
 
 						if bp.Call != nil {
 							bp.Call.StmtEnd = nil
@@ -195,13 +194,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 					cont = true
 					return nil
 				case "dir":
-					st, ok := s.value.(llb.State)
-					if !ok {
+					fs, err := s.ret.Filesystem()
+					if err != nil {
 						fmt.Fprintf(w, "current step is not in a fs scope\n")
 						continue
 					}
 
-					dir, err := st.GetDir(ctx)
+					dir, err := fs.State.GetDir(ctx)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 						continue
@@ -209,8 +208,8 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 
 					fmt.Fprintf(w, "Working directory %q\n", dir)
 				case "dot":
-					st, ok := s.value.(llb.State)
-					if !ok {
+					fs, err := s.ret.Filesystem()
+					if err != nil {
 						fmt.Fprintf(w, "current step is not in a fs scope\n")
 						continue
 					}
@@ -220,19 +219,19 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 						sh = args[1]
 					}
 
-					err = printGraph(ctx, st, sh)
+					err = printGraph(ctx, fs.State, sh)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 					}
 					continue
 				case "env":
-					st, ok := s.value.(llb.State)
-					if !ok {
+					fs, err := s.ret.Filesystem()
+					if err != nil {
 						fmt.Fprintf(w, "current step is not in a fs scope\n")
 						continue
 					}
 
-					env, err := st.Env(ctx)
+					env, err := fs.State.Env(ctx)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 						continue
@@ -300,13 +299,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 					next = fun
 					return nil
 				case "network":
-					st, ok := s.value.(llb.State)
-					if !ok {
+					fs, err := s.ret.Filesystem()
+					if err != nil {
 						fmt.Fprintf(w, "current step is not in a fs scope\n")
 						continue
 					}
 
-					network, err := st.GetNetwork(ctx)
+					network, err := fs.State.GetNetwork(ctx)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 						continue
@@ -327,13 +326,13 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 						return nil
 					}
 				case "security":
-					st, ok := s.value.(llb.State)
-					if !ok {
+					fs, err := s.ret.Filesystem()
+					if err != nil {
 						fmt.Fprintf(w, "current step is not in a fs scope\n")
 						continue
 					}
 
-					security, err := st.GetSecurity(ctx)
+					security, err := fs.State.GetSecurity(ctx)
 					if err != nil {
 						fmt.Fprintf(w, "err: %s\n", err)
 						continue
