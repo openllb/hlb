@@ -500,30 +500,29 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 		return err
 	}
 
+	var dgst string
+	exportFS.SolveOpts = append(exportFS.SolveOpts,
+		solver.WithImageSpec(exportFS.Image),
+		solver.WithPushImage(ref),
+		solver.WithCallback(func(_ context.Context, resp *client.SolveResponse) error {
+			dgst = resp.ExporterResponse[llbutil.KeyContainerImageDigest]
+			return nil
+		}),
+	)
+
+	v, err := NewValue(exportFS)
+	if err != nil {
+		return err
+	}
+
+	request, err := v.Request()
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
-	var dgst string
-
 	g.Go(func() error {
-		exportFS.SolveOpts = append(exportFS.SolveOpts,
-			solver.WithImageSpec(exportFS.Image),
-			solver.WithPushImage(ref),
-			solver.WithCallback(func(_ context.Context, resp *client.SolveResponse) error {
-				dgst = resp.ExporterResponse[llbutil.KeyContainerImageDigest]
-				return nil
-			}),
-		)
-
-		v, err := NewValue(exportFS)
-		if err != nil {
-			return err
-		}
-
-		request, err := v.Request()
-		if err != nil {
-			return err
-		}
-
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
@@ -556,27 +555,27 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		return err
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	exportFS.SolveOpts = append(exportFS.SolveOpts,
+		solver.WithImageSpec(exportFS.Image),
+		solver.WithDownloadDockerTarball(ref),
+	)
+
 	r, w := io.Pipe()
+	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)))
+
+	v, err := NewValue(exportFS)
+	if err != nil {
+		return err
+	}
+
+	request, err := v.Request()
+	if err != nil {
+		return err
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		exportFS.SolveOpts = append(exportFS.SolveOpts,
-			solver.WithImageSpec(exportFS.Image),
-			solver.WithDownloadDockerTarball(ref),
-		)
-
-		exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)))
-
-		v, err := NewValue(exportFS)
-		if err != nil {
-			return err
-		}
-
-		request, err := v.Request()
-		if err != nil {
-			return err
-		}
-
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
@@ -641,22 +640,22 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
+	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownload(localPath))
+	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTargetDir(localPath))
+
+	v, err := NewValue(exportFS)
+	if err != nil {
+		return err
+	}
+
+	request, err := v.Request()
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownload(localPath))
-		exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTargetDir(localPath))
-
-		v, err := NewValue(exportFS)
-		if err != nil {
-			return err
-		}
-
-		request, err := v.Request()
-		if err != nil {
-			return err
-		}
-
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
@@ -693,22 +692,22 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 		return err
 	}
 
+	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadTarball())
+	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
+
+	v, err := NewValue(exportFS)
+	if err != nil {
+		return err
+	}
+
+	request, err := v.Request()
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadTarball())
-		exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
-
-		v, err := NewValue(exportFS)
-		if err != nil {
-			return err
-		}
-
-		request, err := v.Request()
-		if err != nil {
-			return err
-		}
-
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
@@ -745,22 +744,22 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 		return err
 	}
 
+	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadOCITarball())
+	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
+
+	v, err := NewValue(exportFS)
+	if err != nil {
+		return err
+	}
+
+	request, err := v.Request()
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadOCITarball())
-		exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
-
-		v, err := NewValue(exportFS)
-		if err != nil {
-			return err
-		}
-
-		request, err := v.Request()
-		if err != nil {
-			return err
-		}
-
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
@@ -797,25 +796,25 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 		return err
 	}
 
+	exportFS.SolveOpts = append(exportFS.SolveOpts,
+		solver.WithImageSpec(exportFS.Image),
+		solver.WithDownloadDockerTarball(ref),
+	)
+	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
+
+	v, err := NewValue(exportFS)
+	if err != nil {
+		return err
+	}
+
+	request, err := v.Request()
+	if err != nil {
+		return err
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		exportFS.SolveOpts = append(exportFS.SolveOpts,
-			solver.WithImageSpec(exportFS.Image),
-			solver.WithDownloadDockerTarball(ref),
-		)
-		exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
-
-		v, err := NewValue(exportFS)
-		if err != nil {
-			return err
-		}
-
-		request, err := v.Request()
-		if err != nil {
-			return err
-		}
-
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
