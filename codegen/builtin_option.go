@@ -648,6 +648,11 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		}
 	}
 
+	localPath, err = parser.ResolvePath(ModuleDir(ctx), localPath)
+	if err != nil {
+		return err
+	}
+
 	localFiles, err := llbutil.FilterLocalFiles(localPath, includePatterns, excludePatterns)
 	if err != nil {
 		return err
