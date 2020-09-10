@@ -162,6 +162,13 @@ func (v *zeroValue) Reflect(t reflect.Type) (reflect.Value, error) {
 	return ReflectTo(v, t)
 }
 
+type Filesystem struct {
+	State       llb.State
+	Image       *specs.Image
+	SolveOpts   []solver.SolveOption
+	SessionOpts []llbutil.SessionOption
+}
+
 type fsValue struct {
 	Value
 	fs Filesystem
@@ -172,7 +179,19 @@ func (v *fsValue) Kind() parser.Kind {
 }
 
 func (v *fsValue) Filesystem() (Filesystem, error) {
-	return v.fs, nil
+	var image specs.Image
+	if v.fs.Image != nil {
+		image = *v.fs.Image
+	}
+	fs := Filesystem{
+		State:       v.fs.State,
+		Image:       &image,
+		SolveOpts:   make([]solver.SolveOption, len(v.fs.SolveOpts)),
+		SessionOpts: make([]llbutil.SessionOption, len(v.fs.SessionOpts)),
+	}
+	copy(fs.SolveOpts, v.fs.SolveOpts)
+	copy(fs.SessionOpts, v.fs.SessionOpts)
+	return fs, nil
 }
 
 func (v *fsValue) Request() (solver.Request, error) {
@@ -266,13 +285,6 @@ func (v *reqValue) Request() (solver.Request, error) {
 
 func (v *reqValue) Reflect(t reflect.Type) (reflect.Value, error) {
 	return ReflectTo(v, t)
-}
-
-type Filesystem struct {
-	State       llb.State
-	Image       *specs.Image
-	SolveOpts   []solver.SolveOption
-	SessionOpts []llbutil.SessionOption
 }
 
 var (
