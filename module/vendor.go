@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/moby/buildkit/client"
-	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
 	"golang.org/x/sync/errgroup"
 )
@@ -47,22 +46,22 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 	g, ctx := errgroup.WithContext(ctx)
 
 	ready := make(chan struct{})
-	err = ResolveGraph(ctx, resolver, res, mod, nil, func(decl *parser.ImportDecl, dgst digest.Digest, parentMod *parser.Module, importMod *parser.Module) error {
+	err = ResolveGraph(ctx, cln, resolver, res, mod, nil, func(info VisitInfo) error {
 		g.Go(func() error {
 			<-ready
 
 			// Local imports have no digest, and they should not be vendored.
-			if dgst == "" {
+			if info.Digest == "" {
 				return nil
 			}
 
 			// If this is the top-most module, then only deal with modules that are in
 			// the list of targets.
-			if parentMod == mod {
+			if info.Parent == mod {
 				if len(targets) > 0 {
 					matchTarget := false
 					for _, target := range targets {
-						if decl.Ident.Name == target {
+						if info.ImportDecl.Name.Text == target {
 							matchTarget = true
 						}
 					}
@@ -73,7 +72,7 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 				}
 			}
 
-			vp := VendorPath(root, dgst)
+			vp := VendorPath(root, info.Digest)
 
 			// If tidy mode is enabled, then we mark imported modules during graph
 			// traversal, and then sweep unused vendored modules.
@@ -99,11 +98,14 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 			}
 
 			var filename string
-			switch {
-			case decl.ImportFunc != nil:
+			switch info.Ret.Kind() {
+			case parser.Filesystem:
 				filename = ModuleFilename
-			case decl.ImportPath != nil:
-				filename = decl.ImportPath.Path.Unquoted()
+			case parser.String:
+				filename, err = info.Ret.String()
+				if err != nil {
+					return err
+				}
 			}
 
 			f, err := os.Create(filepath.Join(vp, filename))
@@ -112,7 +114,7 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 			}
 			defer f.Close()
 
-			_, err = f.WriteString(importMod.String())
+			_, err = f.WriteString(info.Import.String())
 			return err
 		})
 		return nil

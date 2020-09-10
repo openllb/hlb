@@ -20,11 +20,13 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session/filesync"
+	"github.com/moby/buildkit/solver/pb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
+	"github.com/pkg/errors"
 	fstypes "github.com/tonistiigi/fsutil/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,7 +50,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "cannot parse %q", ref)
 	}
 
 	ref = reference.TagNameOnly(named).String()
@@ -204,6 +206,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 		FrontendOpt: map[string]string{
 			"source": source,
 		},
+		FrontendInputs: make(map[string]*pb.Definition),
 	}
 
 	var (

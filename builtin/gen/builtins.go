@@ -41,14 +41,14 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 		}
 
 		var effects []*parser.Field
-		if fun.SideEffects != nil && fun.SideEffects.Effects != nil {
-			effects = fun.SideEffects.Effects.List
+		if fun.Effects != nil && fun.Effects.Effects != nil {
+			effects = fun.Effects.Effects.Fields()
 		}
 
 		kind := fun.Type.Kind
 		funcsByKind[kind] = append(funcsByKind[kind], ParsedFunc{
-			Name:    fun.Name.Name,
-			Params:  fun.Params.List,
+			Name:    fun.Name.Text,
+			Params:  fun.Params.Fields(),
 			Effects: effects,
 		})
 	}
@@ -118,11 +118,11 @@ var (
 				Func: map[string]FuncLookup{
 					{{range $i, $func := $funcs}}"{{$func.Name}}": FuncLookup{
 						Params:  []*parser.Field{
-							{{range $i, $param := $func.Params}}parser.NewField({{kind $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Variadic}}true{{else}}false{{end}}),
+							{{range $i, $param := $func.Params}}parser.NewField({{kind $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Modifier}}true{{else}}false{{end}}),
 							{{end}}
 						},
 						Effects: []*parser.Field{
-							{{range $i, $effect := $func.Effects}}parser.NewField({{kind $effect.Type.Kind}}, "{{$effect.Name}}", {{if $effect.Variadic}}true{{else}}false{{end}}),
+							{{range $i, $effect := $func.Effects}}parser.NewField({{kind $effect.Type.Kind}}, "{{$effect.Name}}", false),
 							{{end}}
 						},
 					},

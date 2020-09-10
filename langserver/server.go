@@ -21,6 +21,7 @@ import (
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
 	lsp "github.com/sourcegraph/go-lsp"
@@ -158,7 +159,6 @@ func (ls *LangServer) publishSemanticHighlighting(ctx context.Context, td TextDo
 	}
 
 	lines := make(map[int]lsp.SemanticHighlightingTokens)
-
 	highlightModule(lines, td.Module)
 
 	var sortedLines []int
@@ -182,37 +182,37 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 		func(comment *parser.Comment) {
 			highlightNode(lines, comment, Comment)
 		},
-		func(imp *parser.ImportDecl) {
-			if imp.Import != nil {
-				highlightNode(lines, imp.Import, Keyword)
+		func(id *parser.ImportDecl) {
+			if id.Import != nil {
+				highlightNode(lines, id.Import, Keyword)
 			}
-			if imp.Ident != nil {
-				highlightNode(lines, imp.Ident, Module)
+			if id.Name != nil {
+				highlightNode(lines, id.Name, Module)
 			}
-			switch {
-			case imp.ImportFunc != nil:
-				if imp.ImportFunc.From != nil {
-					highlightNode(lines, imp.ImportFunc.From, Keyword)
+			if id.DeprecatedPath != nil {
+				if id.DeprecatedPath.Start != nil {
+					highlightNode(lines, id.DeprecatedPath.Start, String)
 				}
-				if imp.ImportFunc.Func != nil {
-					lit := imp.ImportFunc.Func
-					if lit.Type != nil {
-						highlightNode(lines, lit.Type, Type)
-					}
-					if lit.Type != nil && lit.Body != nil {
-						highlightBlock(lines, lit.Body)
-					}
+				for _, f := range id.DeprecatedPath.Fragments {
+					highlightStringFragment(lines, f)
 				}
-			case imp.ImportPath != nil:
-				highlightNode(lines, imp.ImportPath, String)
+				if id.DeprecatedPath.Terminate != nil {
+					highlightNode(lines, id.DeprecatedPath.Terminate, String)
+				}
+			}
+			if id.From != nil {
+				highlightNode(lines, id.From, Keyword)
+			}
+			if id.Expr != nil {
+				highlightExpr(lines, id.Expr)
 			}
 		},
-		func(exp *parser.ExportDecl) {
-			if exp.Export != nil {
-				highlightNode(lines, exp.Export, Keyword)
+		func(ed *parser.ExportDecl) {
+			if ed.Export != nil {
+				highlightNode(lines, ed.Export, Keyword)
 			}
-			if exp.Ident != nil {
-				highlightNode(lines, exp.Ident, Variable)
+			if ed.Name != nil {
+				highlightNode(lines, ed.Name, Variable)
 			}
 		},
 		func(fun *parser.FuncDecl) {
@@ -223,9 +223,11 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 				highlightNode(lines, fun.Name, Function)
 			}
 			if fun.Params != nil {
-				for _, field := range fun.Params.List {
-					if field.Variadic != nil {
-						highlightNode(lines, field.Variadic, Modifier)
+				for _, field := range fun.Params.Fields() {
+					if field.Modifier != nil {
+						if field.Modifier.Variadic != nil {
+							highlightNode(lines, field.Modifier.Variadic, Modifier)
+						}
 					}
 					if field.Type != nil {
 						highlightNode(lines, field.Type, Type)
@@ -235,11 +237,11 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 					}
 				}
 			}
-			if fun.SideEffects != nil {
-				if fun.SideEffects.Binds != nil {
-					highlightNode(lines, fun.SideEffects.Binds, Keyword)
+			if fun.Effects != nil {
+				if fun.Effects.Binds != nil {
+					highlightNode(lines, fun.Effects.Binds, Keyword)
 				}
-				for _, field := range fun.SideEffects.Effects.List {
+				for _, field := range fun.Effects.Effects.Fields() {
 					if field.Type != nil {
 						highlightNode(lines, field.Type, Type)
 					}
@@ -258,81 +260,33 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.BlockStmt) {
 	parser.Match(block, parser.MatchOpts{},
 		func(call *parser.CallStmt) {
-			var ident *parser.Ident
-			switch {
-			case call.Func.Ident != nil:
-				ident = call.Func.Ident
-				lookupByKind, ok := builtin.Lookup.ByKind[block.Kind]
-				if ok {
-					_, ok = lookupByKind.Func[ident.Name]
-					if !ok {
-						highlightNode(lines, ident, Variable)
-					}
-				}
-			case call.Func.Selector != nil:
-				ident = call.Func.Selector.Ident
-				if ident != nil {
-					highlightNode(lines, ident, Module)
-				}
-				if call.Func.Selector.Select != nil {
-					highlightNode(lines, call.Func.Selector.Select, Variable)
-				}
+			if call.Name != nil {
+				highlightIdentExpr(lines, call.Name)
 			}
 
 			for _, arg := range call.Args {
-				switch {
-				case arg.Bad != nil:
-				case arg.Selector != nil:
-					if arg.Selector.Ident != nil {
-						highlightNode(lines, arg.Selector.Ident, Module)
-					}
-					if arg.Selector.Select != nil {
-						highlightNode(lines, arg.Selector.Select, Variable)
-					}
-				case arg.Ident != nil:
-					highlightNode(lines, arg.Ident, Variable)
-				case arg.BasicLit != nil:
-					switch {
-					case arg.BasicLit.Str != nil:
-						highlightNode(lines, arg.BasicLit, String)
-					case arg.BasicLit.Decimal != nil, arg.BasicLit.Numeric != nil:
-						highlightNode(lines, arg.BasicLit, Numeric)
-					case arg.BasicLit.Bool != nil:
-						highlightNode(lines, arg.BasicLit, Constant)
-					}
-				case arg.FuncLit != nil:
-					if arg.FuncLit.Type != nil {
-						highlightNode(lines, arg.FuncLit.Type, Type)
-					}
+				highlightExpr(lines, arg)
+			}
 
-					if arg.FuncLit.Body != nil {
-						highlightBlock(lines, arg.FuncLit.Body)
-					}
+			if call.WithClause != nil {
+				if call.WithClause.With != nil {
+					highlightNode(lines, call.WithClause.With, Keyword)
+				}
+
+				if call.WithClause.Expr != nil {
+					highlightExpr(lines, call.WithClause.Expr)
 				}
 			}
 
-			if call.WithOpt != nil {
-				if call.WithOpt.With != nil {
-					highlightNode(lines, call.WithOpt.With, Keyword)
+			if call.BindClause != nil {
+				if call.BindClause.As != nil {
+					highlightNode(lines, call.BindClause.As, Keyword)
 				}
-
-				switch {
-				case call.WithOpt.Expr.Ident != nil:
-				case call.WithOpt.Expr.FuncLit != nil:
-					lit := call.WithOpt.Expr.FuncLit
-					highlightBlock(lines, lit.Body)
+				if call.BindClause.Ident != nil {
+					highlightNode(lines, call.BindClause.Ident, Function)
 				}
-			}
-
-			if call.Binds != nil {
-				if call.Binds.As != nil {
-					highlightNode(lines, call.Binds.As, Keyword)
-				}
-				if call.Binds.Ident != nil {
-					highlightNode(lines, call.Binds.Ident, Function)
-				}
-				if call.Binds.List != nil {
-					for _, b := range call.Binds.List.List {
+				if call.BindClause.Binds != nil {
+					for _, b := range call.BindClause.Binds.Binds() {
 						highlightNode(lines, b.Source, Parameter)
 						highlightNode(lines, b.Target, Function)
 					}
@@ -340,7 +294,90 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.
 			}
 
 		},
+		func(expr *parser.ExprStmt) {
+			if expr.Expr != nil {
+				highlightExpr(lines, expr.Expr)
+			}
+		},
 	)
+}
+
+func highlightExpr(lines map[int]lsp.SemanticHighlightingTokens, expr *parser.Expr) {
+	switch {
+	case expr.FuncLit != nil:
+		if expr.FuncLit.Type != nil {
+			highlightNode(lines, expr.FuncLit.Type, Type)
+		}
+
+		if expr.FuncLit.Body != nil {
+			highlightBlock(lines, expr.FuncLit.Body)
+		}
+	case expr.BasicLit != nil:
+		switch {
+		case expr.BasicLit.Decimal != nil:
+			highlightNode(lines, expr.BasicLit, Numeric)
+		case expr.BasicLit.Numeric != nil:
+			highlightNode(lines, expr.BasicLit.Numeric, Numeric)
+		case expr.BasicLit.Bool != nil:
+			highlightNode(lines, expr.BasicLit, Constant)
+		case expr.BasicLit.Str != nil:
+			if expr.BasicLit.Str.Start != nil {
+				highlightNode(lines, expr.BasicLit.Str.Start, String)
+			}
+			for _, f := range expr.BasicLit.Str.Fragments {
+				highlightStringFragment(lines, f)
+			}
+			if expr.BasicLit.Str.Terminate != nil {
+				highlightNode(lines, expr.BasicLit.Str.Terminate, String)
+			}
+		case expr.BasicLit.RawString != nil:
+			highlightNode(lines, expr.BasicLit.RawString, String)
+		case expr.BasicLit.Heredoc != nil:
+			for _, f := range expr.BasicLit.Heredoc.Fragments {
+				highlightHeredocFragment(lines, f)
+			}
+		case expr.BasicLit.RawHeredoc != nil:
+			for _, f := range expr.BasicLit.RawHeredoc.Fragments {
+				highlightHeredocFragment(lines, f)
+			}
+		}
+	case expr.CallExpr != nil:
+		call := expr.CallExpr
+		if call.Name != nil {
+			highlightIdentExpr(lines, call.Name)
+		}
+		for _, arg := range call.Args() {
+			highlightExpr(lines, arg)
+		}
+	}
+}
+
+func highlightStringFragment(lines map[int]lsp.SemanticHighlightingTokens, f *parser.StringFragment) {
+	switch {
+	case f.Escaped != nil:
+		highlightNode(lines, f, Comment)
+	case f.Interpolated != nil:
+		highlightExpr(lines, f.Interpolated.Expr)
+	case f.Text != nil:
+		highlightNode(lines, f, String)
+	}
+}
+
+func highlightHeredocFragment(lines map[int]lsp.SemanticHighlightingTokens, f *parser.HeredocFragment) {
+	if f.Interpolated != nil {
+		highlightExpr(lines, f.Interpolated.Expr)
+	}
+}
+
+func highlightIdentExpr(lines map[int]lsp.SemanticHighlightingTokens, ie *parser.IdentExpr) {
+	if ie.Reference != nil {
+		if ie.Ident != nil {
+			highlightNode(lines, ie.Ident, Module)
+		}
+		highlightNode(lines, ie.Reference, Variable)
+	} else if ie.Ident != nil {
+		highlightNode(lines, ie.Ident, Variable)
+	}
 }
 
 func highlightNode(lines map[int]lsp.SemanticHighlightingTokens, node parser.Node, s Scope) {
@@ -474,50 +511,43 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 			},
 		},
 		func(_ *parser.ExportDecl, ident *parser.Ident) {
-			loc = newLocationFromIdent(td.Module.Scope, uri, ident.Name)
+			loc = newLocationFromIdent(td.Module.Scope, uri, ident.Text)
 		},
-		func(fun *parser.FuncDecl, expr *parser.Expr) {
-			if expr.Ident != nil {
-				loc = newLocationFromIdent(fun.Scope, uri, expr.Ident.Name)
-			}
-		},
-		func(fun *parser.FuncDecl, selector *parser.Selector) {
-			if isPositionWithinNode(pos, selector.Ident) {
-				loc = newLocationFromIdent(fun.Scope, uri, selector.Ident.Name)
+		func(block *parser.BlockStmt, ie *parser.IdentExpr) {
+			if isPositionWithinNode(pos, ie.Ident) {
+				loc = newLocationFromIdent(block.Scope, uri, ie.Ident.Text)
 				return
-			} else if !isPositionWithinNode(pos, selector.Select) {
+			} else if !isPositionWithinNode(pos, ie.Reference) {
 				return
 			}
 
-			obj := fun.Scope.Lookup(selector.Ident.Name)
+			obj := block.Scope.Lookup(ie.Ident.Text)
 			if obj == nil {
 				return
 			}
 
-			decl, ok := obj.Node.(*parser.ImportDecl)
+			id, ok := obj.Node.(*parser.ImportDecl)
 			if !ok {
 				return
 			}
 
+			cg, err := codegen.New(nil)
+			if err != nil {
+				log.Printf("failed to create codegen: %s", err)
+				return
+			}
+
+			ret := codegen.NewRegister()
+			err = cg.EmitExpr(ctx, block.Scope, id.Expr, nil, nil, nil, ret)
+			if err != nil {
+				log.Printf("failed to generate import: %s", err)
+				return
+			}
+
 			rootDir := filepath.Dir(strings.TrimPrefix(string(uri), "file://"))
-
 			var filename string
-
-			switch {
-			case decl.ImportFunc != nil:
-				cg, err := codegen.New(nil)
-				if err != nil {
-					log.Printf("failed to create codegen: %s", err)
-					return
-				}
-
-				ret := codegen.NewRegister()
-				err = cg.EmitFuncLit(ctx, td.Module.Scope, decl.ImportFunc.Func, nil, ret)
-				if err != nil {
-					log.Printf("failed to generate import: %s", err)
-					return
-				}
-
+			switch ret.Kind() {
+			case parser.Filesystem:
 				fs, err := ret.Filesystem()
 				if err != nil {
 					return
@@ -532,8 +562,15 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				dgst := digest.FromBytes(def.Def[len(def.Def)-1])
 				vp := module.VendorPath(filepath.Join(rootDir, module.ModulesPath), dgst)
 				filename = filepath.Join(vp, module.ModuleFilename)
-			case decl.ImportPath != nil:
-				filename = filepath.Join(rootDir, decl.ImportPath.Path.Unquoted())
+			case parser.String:
+				localPath, err := ret.String()
+				if err != nil {
+					return
+				}
+
+				filename = filepath.Join(rootDir, localPath)
+			default:
+				return
 			}
 
 			importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filename))
@@ -553,7 +590,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 			}
 			ls.tmu.Unlock()
 
-			loc = newLocationFromIdent(importTD.Module.Scope, importUri, selector.Select.Name)
+			loc = newLocationFromIdent(importTD.Module.Scope, importUri, ie.Reference.Text)
 		},
 	)
 
@@ -581,8 +618,8 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 			if n.Ident != nil {
 				loc = newLocationFromNode(uri, n.Ident)
 			}
-			if n.List != nil {
-				for _, b := range n.List.List {
+			if n.Binds != nil {
+				for _, b := range n.Binds.Binds() {
 					if b.Target.String() == name {
 						loc = newLocationFromNode(uri, b.Target)
 						break
@@ -593,7 +630,7 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 				}
 			}
 		case *parser.ImportDecl:
-			loc = newLocationFromNode(uri, n.Ident)
+			loc = newLocationFromNode(uri, n.Name)
 		default:
 			log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
 		}
@@ -636,7 +673,7 @@ func (ls *LangServer) textDocumentHoverHandler(ctx context.Context, params lsp.T
 				return
 			}
 
-			fun, ok := lookupByKind.Func[ident.Name]
+			fun, ok := lookupByKind.Func[ident.Text]
 			if !ok {
 				return
 			}
@@ -725,6 +762,14 @@ func NewTextDocument(uri lsp.DocumentURI, text string) TextDocument {
 		return td
 	}
 	td.Module.Pos.Filename = strings.TrimPrefix(string(uri), "file://")
+
+	td.Err = checker.SemanticPass(td.Module)
+	if td.Err != nil {
+		log.Printf("failed to semantic pass hlb: %s", td.Err)
+		return td
+	}
+
+	linter.Lint(td.Module)
 
 	td.Err = checker.Check(td.Module)
 	if td.Err != nil {

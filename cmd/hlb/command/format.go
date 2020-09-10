@@ -41,13 +41,13 @@ type FormatOptions struct {
 }
 
 func Format(rs []io.Reader, opts FormatOptions) error {
-	files, _, err := hlb.ParseMultiple(rs, hlb.DefaultParseOpts()...)
+	modules, _, err := hlb.ParseMultiple(rs, hlb.DefaultParseOpts()...)
 	if err != nil {
 		return err
 	}
 
 	if opts.Write {
-		for i, f := range files {
+		for i, mod := range modules {
 			filename := lexer.NameOfReader(rs[i])
 			if filename == "" {
 				return fmt.Errorf("Unable to write, file name unavailable")
@@ -57,14 +57,14 @@ func Format(rs []io.Reader, opts FormatOptions) error {
 				return err
 			}
 
-			err = ioutil.WriteFile(filename, []byte(f.String()), info.Mode())
+			err = ioutil.WriteFile(filename, []byte(mod.String()), info.Mode())
 			if err != nil {
 				return err
 			}
 		}
 	} else {
-		for _, f := range files {
-			fmt.Printf("%s", f)
+		for _, mod := range modules {
+			fmt.Printf("%s", mod)
 		}
 	}
 

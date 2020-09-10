@@ -25,8 +25,6 @@ type LogOutput int
 const (
 	LogOutputTTY LogOutput = iota
 	LogOutputPlain
-	LogOutputJSON
-	LogOutputRaw
 )
 
 func WithLogOutput(logOutput LogOutput) ProgressOption {
@@ -107,9 +105,8 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 		pw = progress.NewPrinter(pctx, os.Stderr, "tty")
 	case LogOutputPlain:
 		pw = progress.NewPrinter(pctx, os.Stderr, "plain")
-	case LogOutputJSON, LogOutputRaw:
-		panic("unimplemented")
-		// return StreamSolveStatus(ctx, info.LogOutput, os.Stdout, ch)
+	default:
+		return nil, errors.Errorf("unknown log output %q", info.LogOutput)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)

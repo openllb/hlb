@@ -27,9 +27,9 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 					Kind:  parser.DeclKind,
 					Ident: ident,
 					Node: &parser.BuiltinDecl{
-						Ident:    ident,
-						FuncDecl: make(map[parser.Kind]*parser.FuncDecl),
-						Callable: make(map[parser.Kind]parser.Callable),
+						Ident:          ident,
+						FuncDeclByKind: make(map[parser.Kind]*parser.FuncDecl),
+						CallableByKind: make(map[parser.Kind]parser.Callable),
 					},
 				}
 			}
@@ -38,8 +38,8 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 			fun.Pos.Filename = BuiltinFilename
 
 			decl := obj.Node.(*parser.BuiltinDecl)
-			decl.FuncDecl[kind] = fun
-			decl.Callable[kind] = builtin.Callables[kind][name]
+			decl.FuncDeclByKind[kind] = fun
+			decl.CallableByKind[kind] = builtin.Callables[kind][name]
 
 			scope.Insert(obj)
 		}

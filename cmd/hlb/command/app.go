@@ -33,6 +33,7 @@ func App() *cli.App {
 		versionCommand,
 		runCommand,
 		formatCommand,
+		lintCommand,
 		moduleCommand,
 		langserverCommand,
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/moby/buildkit/identity"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -36,6 +37,16 @@ func Compile(ctx context.Context, cln *client.Client, targets []codegen.Target, 
 	}
 	ctx = codegen.WithSources(ctx, fbs)
 
+	err = checker.SemanticPass(mod)
+	if err != nil {
+		return nil, err
+	}
+
+	err = linter.Lint(mod, linter.WithRecursive())
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	err = checker.Check(mod)
 	if err != nil {
 		return nil, err
@@ -52,7 +63,7 @@ func Compile(ctx context.Context, cln *client.Client, targets []codegen.Target, 
 	}
 	defer res.Close()
 
-	err = module.ResolveGraph(ctx, resolver, res, mod, fbs, nil)
+	err = module.ResolveGraph(ctx, cln, resolver, res, mod, fbs, nil)
 	if err != nil {
 		return nil, err
 	}

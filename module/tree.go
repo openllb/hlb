@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/moby/buildkit/client"
-	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
 	"github.com/xlab/treeprint"
 )
@@ -36,32 +35,35 @@ func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long b
 	tree.SetValue(mod.Pos.Filename)
 	nodeByModule[mod] = tree
 
-	err = ResolveGraph(ctx, resolver, res, mod, nil, func(decl *parser.ImportDecl, dgst digest.Digest, mod, importMod *parser.Module) error {
+	err = ResolveGraph(ctx, cln, resolver, res, mod, nil, func(info VisitInfo) error {
 		var prefix string
-		if dgst != "" {
-			encoded := dgst.Encoded()
+		if info.Digest != "" {
+			encoded := info.Digest.Encoded()
 			if !long && len(encoded) > 7 {
 				encoded = encoded[:7]
 			}
-			prefix = fmt.Sprintf("%s:%s", dgst.Algorithm(), encoded)
+			prefix = fmt.Sprintf("%s:%s", info.Digest.Algorithm(), encoded)
 		}
 
 		var value string
-		switch {
-		case decl.ImportFunc != nil:
+		switch info.Ret.Kind() {
+		case parser.Filesystem:
 			value = filepath.Join(prefix, ModuleFilename)
-		case decl.ImportPath != nil:
-			if prefix == "" {
-				value = decl.ImportPath.Path.Unquoted()
-			} else {
-				value = filepath.Join(prefix, decl.ImportPath.Path.Unquoted())
+		case parser.String:
+			value, err = info.Ret.String()
+			if err != nil {
+				return err
+			}
+
+			if prefix != "" {
+				value = filepath.Join(prefix, value)
 			}
 		}
 
 		mu.Lock()
 		node := nodeByModule[mod]
-		importNode := node.AddMetaBranch(decl.Ident.Name, value)
-		nodeByModule[importMod] = importNode
+		inode := node.AddMetaBranch(info.ImportDecl.Name.Text, value)
+		nodeByModule[info.Import] = inode
 		mu.Unlock()
 
 		return nil

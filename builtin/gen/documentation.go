@@ -81,7 +81,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 		}
 
 		if fun.Params != nil {
-			for _, param := range fun.Params.List {
+			for _, param := range fun.Params.Fields() {
 				var (
 					fieldType string
 					fieldName string
@@ -96,7 +96,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 				}
 
 				field := Field{
-					Variadic: param.Variadic != nil,
+					Variadic: param.Modifier != nil && param.Modifier.Variadic != nil,
 					Type:     fieldType,
 					Name:     fieldName,
 				}
@@ -125,8 +125,8 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 			funcDoc.Doc = strings.TrimSpace(group.Doc)
 		}
 
-		if fun.Type.Primary() == parser.Option {
-			subtype := string(fun.Type.Secondary())
+		if fun.Type.Kind.Primary() == parser.Option {
+			subtype := string(fun.Type.Kind.Secondary())
 			optionsByFunc[subtype] = append(optionsByFunc[subtype], funcDoc)
 		}
 		funcsByKind[kind] = append(funcsByKind[kind], funcDoc)

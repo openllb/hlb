@@ -9,8 +9,8 @@ func AssignDocStrings(mod *Module) {
 
 	Match(mod, MatchOpts{},
 		func(decl *Decl) {
-			if decl.Doc != nil {
-				lastCG = decl.Doc
+			if decl.Comments != nil {
+				lastCG = decl.Comments
 			}
 		},
 		func(fun *FuncDecl) {

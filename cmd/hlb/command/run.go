@@ -43,7 +43,7 @@ var runCommand = &cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "log-output",
-			Usage: "set type of log output (auto, tty, plain, json, raw)",
+			Usage: "set type of log output (auto, tty, plain)",
 			Value: "auto",
 		},
 	},
@@ -121,10 +121,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputTTY))
 	case "plain":
 		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputPlain))
-	case "json":
-		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputJSON))
-	case "raw":
-		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputRaw))
 	default:
 		return fmt.Errorf("unrecognized log-output %q", opts.LogOutput)
 	}

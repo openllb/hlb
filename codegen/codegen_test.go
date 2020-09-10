@@ -15,6 +15,7 @@ import (
 	"github.com/moby/buildkit/util/entitlements"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
@@ -802,6 +803,11 @@ func TestCodeGen(t *testing.T) {
 			mod, _, err := parser.Parse(strings.NewReader(cleanup(tc.hlb)))
 			require.NoError(t, err, tc.name)
 
+			err = checker.SemanticPass(mod)
+			require.NoError(t, err, tc.name)
+
+			linter.Lint(mod)
+
 			err = checker.Check(mod)
 			require.NoError(t, err, tc.name)
 
@@ -811,15 +817,20 @@ func TestCodeGen(t *testing.T) {
 					t.Fatal(`"other" should be imported by the test module`)
 				}
 
-				importMod, _, err := parser.Parse(strings.NewReader(cleanup(tc.hlbImport)))
+				imod, _, err := parser.Parse(strings.NewReader(cleanup(tc.hlbImport)))
 				require.NoError(t, err, tc.name)
 
-				err = checker.Check(importMod)
+				err = checker.SemanticPass(imod)
 				require.NoError(t, err, tc.name)
 
-				obj.Data = importMod.Scope
+				linter.Lint(imod)
 
-				err = checker.CheckSelectors(mod)
+				err = checker.Check(imod)
+				require.NoError(t, err, tc.name)
+
+				obj.Data = imod.Scope
+
+				err = checker.CheckReferences(mod)
 				require.NoError(t, err, tc.name)
 			}
 

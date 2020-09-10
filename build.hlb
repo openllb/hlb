@@ -1,6 +1,7 @@
 # TODO replace with openllb/go.hlb
-import go "./go.hlb"
-import mkdocs "./mkdocs.hlb"
+import go from "./go.hlb"
+
+import mkdocs from "./mkdocs.hlb"
 
 fs default() {
 	crossHLB
@@ -17,11 +18,11 @@ fs lint() {
 
 group gen() {
 	parallel fs {
-        	mkdocs.generatedBuiltin
-        	download "./builtin/."
+		mkdocs.generatedBuiltin
+		download "./builtin/."
 	} fs {
-        	mkdocs.generatedMarkdown
-        	download "./docs/."
+		mkdocs.generatedMarkdown
+		download "./docs/."
 	}
 }
 

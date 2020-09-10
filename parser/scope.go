@@ -36,7 +36,7 @@ func (s *Scope) Lookup(name string) *Object {
 
 // Insert inserts a named object obj into the scope.
 func (s *Scope) Insert(obj *Object) {
-	s.Objects[obj.Ident.Name] = obj
+	s.Objects[obj.Ident.Text] = obj
 }
 
 // Root returns the outer-most scope.
@@ -62,7 +62,7 @@ func (s *Scope) Defined(kind ObjKind) []*Object {
 	}
 
 	sort.SliceStable(objs, func(i, j int) bool {
-		return objs[i].Ident.Name < objs[j].Ident.Name
+		return objs[i].Ident.Text < objs[j].Ident.Text
 	})
 	return objs
 }

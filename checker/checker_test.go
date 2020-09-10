@@ -22,6 +22,16 @@ func cleanup(value string) string {
 	return result
 }
 
+func mixin(line, col int) parser.Mixin {
+	return parser.Mixin{
+		Pos: lexer.Position{
+			Filename: "<stdin>",
+			Line:     line,
+			Column:   col,
+		},
+	}
+}
+
 func TestChecker_Check(t *testing.T) {
 	t.Parallel()
 
@@ -166,7 +176,7 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"import file",
 		`
-		import foo "./go.hlb"
+		import foo from "./go.hlb"
 
 		fs default() {
 			foo.bar
@@ -183,12 +193,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     1,
-					Column:   4,
-				},
-				Name: "duplicate",
+				Mixin: mixin(1, 4),
+				Text:  "duplicate",
 			}},
 		},
 	}, {
@@ -203,12 +209,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     1,
-					Column:   4,
-				},
-				Name: "duplicateName",
+				Mixin: mixin(1, 4),
+				Text:  "duplicateName",
 			}},
 		},
 	}, {
@@ -220,12 +222,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     1,
-					Column:   4,
-				},
-				Name: "image",
+				Mixin: mixin(1, 4),
+				Text:  "image",
 			}},
 		},
 	}, {
@@ -239,12 +237,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     3,
-					Column:   23,
-				},
-				Name: "image",
+				Mixin: mixin(3, 23),
+				Text:  "image",
 			}},
 		},
 	}, {
@@ -261,31 +255,23 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrDuplicateDecls{
 			Idents: []*parser.Ident{{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     3,
-					Column:   34,
-				},
-				Name: "duplicateAliasName",
+				Mixin: mixin(3, 34),
+				Text:  "duplicateAliasName",
 			}},
 		},
 	}, {
 		"errors when calling import",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default() {
 			myImportedModule
 		}
 		`,
-		ErrUseModuleWithoutSelector{
+		ErrUseImportWithoutReference{
 			Ident: &parser.Ident{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     4,
-					Column:   1,
-				},
-				Name: "myImportedModule",
+				Mixin: mixin(4, 1),
+				Text:  "myImportedModule",
 			},
 		},
 	}, {
@@ -315,30 +301,22 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrIdentNotDefined{
 			Ident: &parser.Ident{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     1,
-					Column:   8,
-				},
-				Name: "myNonExistentFunction",
+				Mixin: mixin(1, 8),
+				Text:  "myNonExistentFunction",
 			},
 		},
 	}, {
-		"errors when a selector is called on a name that isn't an import",
+		"errors when a reference is called on a name that isn't an import",
 		`
 		fs myFunction() {}
-		fs badSelectorCaller() {
+		fs badReferenceCaller() {
 			myFunction.build
 		}
 		`,
 		ErrNotImport{
 			Ident: &parser.Ident{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     3,
-					Column:   1,
-				},
-				Name: "myFunction",
+				Mixin: mixin(3, 1),
+				Text:  "myFunction",
 			},
 		},
 	}, {
@@ -365,55 +343,15 @@ func TestChecker_Check(t *testing.T) {
 			image "alpine"
 		}
 		`,
-		ErrWrongBuiltinType{
-			Pos: lexer.Position{
-				Filename: "<stdin>",
-				Line:     2,
-				Column:   1,
-			},
-			Expected: "group",
-			Builtin: &parser.BuiltinDecl{
-				Ident: parser.NewIdent("image"),
-			},
-		},
-	}, {
-		"errors when non-zero arg builtin is used as arg",
-		`
-		fs default() {
-			run localEnv
-		}
-		`,
-		ErrFuncArg{
-			Ident: &parser.Ident{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     2,
-					Column:   5,
-				},
-				Name: "localEnv",
-			},
+		ErrWrongArgType{
+			Node:     mixin(2, 1),
+			Expected: []parser.Kind{parser.Group},
+			Found:    parser.Filesystem,
 		},
 	}, {
 		"no error when input doesn't end with newline",
 		`# comment\nfs default() {\n  scratch\n}\n# comment`,
 		nil,
-	}, {
-		"errors when go-style filemode is used as arg",
-		`
-		fs default() {
-			mkfile "foo" 0644 "content"
-		}
-		`,
-		ErrBadParse{
-			Node: &parser.Bad{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     2,
-					Column:   14,
-				},
-			},
-			Lexeme: "0644",
-		},
 	}, {
 		"errors without bind target",
 		`
@@ -422,11 +360,7 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrBindNoTarget{
-			Pos: lexer.Position{
-				Filename: "<stdin>",
-				Line:     2,
-				Column:   23,
-			},
+			Node: mixin(2, 23),
 		},
 	}, {
 		"no error when bind list is empty",
@@ -445,12 +379,8 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrWrongArgType{
-			Pos: lexer.Position{
-				Filename: "<stdin>",
-				Line:     3,
-				Column:   1,
-			},
-			Expected: "fs",
+			Node:     mixin(3, 1),
+			Expected: []parser.Kind{parser.Filesystem},
 			Found:    "string",
 		},
 	}, {
@@ -462,12 +392,8 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrWrongArgType{
-			Pos: lexer.Position{
-				Filename: "<stdin>",
-				Line:     3,
-				Column:   1,
-			},
-			Expected: "fs",
+			Node:     mixin(3, 1),
+			Expected: []parser.Kind{parser.Filesystem},
 			Found:    "string",
 		},
 	}, {
@@ -479,12 +405,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrBindBadSource{
 			CallStmt: &parser.CallStmt{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     2,
-					Column:   1,
-				},
-				Func: parser.NewIdentExpr("run"),
+				Mixin: mixin(2, 1),
+				Name:  parser.NewIdentExpr("run"),
 			},
 		},
 	}, {
@@ -496,14 +418,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		ErrBindBadTarget{
 			CallStmt: &parser.CallStmt{
-				Func: parser.NewIdentExpr("dockerPush"),
+				Name: parser.NewIdentExpr("dockerPush"),
 			},
 			Bind: &parser.Bind{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     2,
-					Column:   34,
-				},
+				Mixin:  mixin(2, 34),
 				Source: parser.NewIdent("badSource"),
 				Target: parser.NewIdent("nothing"),
 			},
@@ -516,11 +434,7 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrBindNoClosure{
-			Pos: lexer.Position{
-				Filename: "<stdin>",
-				Line:     2,
-				Column:   22,
-			},
+			Node: mixin(2, 22),
 		},
 	}, {
 		"errors when binding inside an argument expression",
@@ -536,11 +450,7 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		ErrBindNoClosure{
-			Pos: lexer.Position{
-				Filename: "<stdin>",
-				Line:     3,
-				Column:   23,
-			},
+			Node: mixin(3, 23),
 		},
 	}} {
 		tc := tc
@@ -550,71 +460,75 @@ func TestChecker_Check(t *testing.T) {
 			mod, _, err := parser.Parse(in)
 			require.NoError(t, err)
 
-			err = Check(mod)
-			validateError(t, tc.errType, err, tc.name)
+			err = SemanticPass(mod)
+			if err == nil {
+				err = Check(mod)
+			}
+			if err == nil && tc.errType != nil {
+				err = CheckReferences(mod)
+				validateError(t, tc.errType, err, tc.name)
+			} else {
+				validateError(t, tc.errType, err, tc.name)
+			}
 		})
 	}
 }
 
-func TestChecker_CheckSelectors(t *testing.T) {
+func TestChecker_CheckReferences(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []testCase{{
-		"able to access valid selector",
+		"able to access valid reference",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default() {
-			myImportedModule.validSelector
+			myImportedModule.validReference
 		}
 		`,
 		nil,
 	}, {
-		"errors when attempting to access invalid selector",
+		"errors when attempting to access invalid reference",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default() {
-			myImportedModule.invalidSelector
+			myImportedModule.invalidReference
 		}
 		`,
 		ErrIdentUndefined{
 			Ident: &parser.Ident{
-				Pos: lexer.Position{
-					Filename: "<stdin>",
-					Line:     4,
-					Column:   18,
-				},
-				Name: "invalidSelector",
+				Mixin: mixin(4, 18),
+				Text:  "invalidReference",
 			},
 		},
 	}, {
-		"able to use valid selector as mount input",
+		"able to use valid reference as mount input",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default() {
 			scratch
 			run "xyz" with option {
-				mount myImportedModule.validSelector "/mountpoint"
+				mount myImportedModule.validReference "/mountpoint"
 			}
 		}
 		`,
 		nil,
 	}, {
-		"able to pass function field as argument to selector",
+		"able to pass function field as argument to reference",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default(string foo) {
-			myImportedModule.validSelectorWithArgs foo
+			myImportedModule.validReferenceWithArgs foo
 		}
 		`,
 		nil,
 	}, {
 		"use imported option",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default(string foo) {
 			image "busybox" with myImportedModule.resolveImage
@@ -624,7 +538,7 @@ func TestChecker_CheckSelectors(t *testing.T) {
 	}, {
 		"merge imported option",
 		`
-		import myImportedModule "./myModule.hlb"
+		import myImportedModule from "./myModule.hlb"
 	
 		fs default(string foo) {
 			image "busybox" with option {
@@ -636,35 +550,42 @@ func TestChecker_CheckSelectors(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			importedModuleDefinition := `
-				export validSelector
-				export validSelectorWithArgs
+			modFixture := `
+				export validReference
+				export validReferenceWithArgs
 				export resolveImage
-				fs validSelector() {}
-				fs validSelectorWithArgs(string bar) {}
+				fs validReference() {}
+				fs validReferenceWithArgs(string bar) {}
 				option::image resolveImage() { resolve; }
 			`
 
-			importedModule, _, err := parser.Parse(strings.NewReader(importedModuleDefinition))
+			imod, _, err := parser.Parse(strings.NewReader(modFixture))
 			require.NoError(t, err)
-			err = Check(importedModule)
+
+			err = SemanticPass(imod)
+			require.NoError(t, err)
+
+			err = Check(imod)
 			require.NoError(t, err)
 
 			in := strings.NewReader(cleanup(tc.input))
 
-			module, _, err := parser.Parse(in)
+			mod, _, err := parser.Parse(in)
 			require.NoError(t, err)
 
-			err = Check(module)
+			err = SemanticPass(mod)
 			require.NoError(t, err)
 
-			obj := module.Scope.Lookup("myImportedModule")
+			err = Check(mod)
+			require.NoError(t, err)
+
+			obj := mod.Scope.Lookup("myImportedModule")
 			if obj == nil {
 				t.Fatal("myImportedModule should be imported for this test to work")
 			}
-			obj.Data = importedModule.Scope
+			obj.Data = imod.Scope
 
-			err = CheckSelectors(module)
+			err = CheckReferences(mod)
 			validateError(t, tc.errType, err, tc.name)
 		})
 	}
