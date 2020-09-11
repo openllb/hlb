@@ -14,11 +14,13 @@ import (
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/flags"
+	"github.com/docker/distribution/reference"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session/filesync"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
@@ -44,7 +46,65 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		imageOpts = append(imageOpts, opt)
 	}
 
-	return ret.Set(llb.Image(ref, imageOpts...))
+	named, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return err
+	}
+
+	ref = reference.TagNameOnly(named).String()
+
+	var (
+		st    = llb.Image(ref, imageOpts...)
+		image = &specs.Image{}
+	)
+
+	if cln != nil {
+		s, err := llbutil.NewSession(ctx)
+		if err != nil {
+			return err
+		}
+
+		g, ctx := errgroup.WithContext(ctx)
+
+		g.Go(func() error {
+			return s.Run(ctx, cln.Dialer())
+		})
+
+		var config []byte
+		g.Go(func() error {
+			var pw progress.Writer
+
+			mw := MultiWriter(ctx)
+			if mw != nil {
+				pw = mw.WithPrefix("", false)
+			}
+
+			return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
+				_, config, err = c.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{})
+				return gateway.NewResult(), err
+			})
+		})
+
+		err = g.Wait()
+		if err != nil {
+			return err
+		}
+
+		st, err = st.WithImageConfig(config)
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(config, image)
+		if err != nil {
+			return err
+		}
+	}
+
+	return ret.Set(Filesystem{
+		State: st,
+		Image: image,
+	})
 }
 
 type HTTP struct{}

@@ -14,6 +14,7 @@ import (
 	"github.com/moby/buildkit/util/imageutil"
 	"github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/pkg/errors"
 )
 
 // BufferedImageResolver is an image resolver with a public Buffer. It implements the
@@ -106,7 +107,7 @@ func (bir *BufferedImageResolver) MatchDefaultPlatform() platforms.MatchComparer
 func (bir *BufferedImageResolver) ResolveDescriptor(ctx context.Context, ref string) (specs.Descriptor, error) {
 	r, err := reference.Parse(ref)
 	if err != nil {
-		return specs.Descriptor{}, err
+		return specs.Descriptor{}, errors.Wrapf(err, "cannot parse reference %q", ref)
 	}
 
 	desc, _ := bir.DigestDescriptor(ctx, r.Digest())
@@ -116,7 +117,7 @@ func (bir *BufferedImageResolver) ResolveDescriptor(ctx context.Context, ref str
 		var err error
 		_, desc, err = bir.resolver.Resolve(ctx, r.String())
 		if err != nil {
-			return desc, err
+			return desc, errors.Wrapf(err, "cannot resolve %q", r)
 		}
 	}
 

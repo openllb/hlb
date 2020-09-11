@@ -14,7 +14,6 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/client/llb/imagemetaresolver"
 	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/solver/pb"
@@ -32,16 +31,7 @@ import (
 type Resolve struct{}
 
 func (ir Resolve) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
-	if err != nil {
-		return err
-	}
-
-	return ret.Set(append(retOpts, llb.WithMetaResolver(
-		imagemetaresolver.New(
-			imagemetaresolver.WithDefaultPlatform(&specs.Platform{OS: "linux", Architecture: "amd64"}),
-		),
-	)))
+	return nil
 }
 
 type Checksum struct{}
