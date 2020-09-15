@@ -3,7 +3,7 @@ module github.com/openllb/hlb
 go 1.12
 
 require (
-	github.com/alecthomas/participle v0.5.1-0.20200805035213-5b536bedbb9d
+	github.com/alecthomas/participle v0.6.1-0.20200913230212-2403858c8b20
 	github.com/containerd/containerd v1.4.0-beta.2.0.20200728183644-eb6354a11860
 	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
@@ -18,7 +18,7 @@ require (
 	github.com/moby/buildkit v0.7.1-0.20200806195445-545532ab0e75
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.1
-	github.com/openllb/doxygen-parser v0.0.0-20200128221307-2aa2d8be1c35
+	github.com/openllb/doxygen-parser v0.0.0-20200912163609-393f118f4f8d
 	github.com/pkg/errors v0.9.1
 	github.com/sourcegraph/go-lsp v0.0.0-20200117082640-b19bb38222e2
 	github.com/stretchr/testify v1.5.1

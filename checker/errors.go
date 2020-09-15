@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb/parser"
 )
 
@@ -18,6 +17,15 @@ func (e ErrSemantic) Error() string {
 		errs = append(errs, err.Error())
 	}
 	return strings.Join(errs, "\n")
+}
+
+type ErrChecker struct {
+	Node    parser.Node
+	Message string
+}
+
+func (e ErrChecker) Error() string {
+	return fmt.Sprintf("%s %s", parser.FormatPos(e.Node.Position()), e.Message)
 }
 
 type ErrDuplicateDecls struct {
@@ -41,23 +49,23 @@ type ErrInvalidFunc struct {
 }
 
 func (e ErrInvalidFunc) Error() string {
-	return fmt.Sprintf("%s invalid func %s", parser.FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
+	return fmt.Sprintf("%s invalid func %s", parser.FormatPos(e.CallStmt.Pos), e.CallStmt.Name)
 }
 
 type ErrBindNoTarget struct {
-	Pos lexer.Position
+	Node parser.Node
 }
 
 func (e ErrBindNoTarget) Error() string {
-	return fmt.Sprintf("%s cannot bind: has no target", parser.FormatPos(e.Pos))
+	return fmt.Sprintf("%s cannot bind: has no target", parser.FormatPos(e.Node.Position()))
 }
 
 type ErrBindNoClosure struct {
-	Pos lexer.Position
+	Node parser.Node
 }
 
 func (e ErrBindNoClosure) Error() string {
-	return fmt.Sprintf("%s cannot bind: no function register in scope", parser.FormatPos(e.Pos))
+	return fmt.Sprintf("%s cannot bind: no function register in scope", parser.FormatPos(e.Node.Position()))
 }
 
 type ErrBindBadSource struct {
@@ -66,7 +74,7 @@ type ErrBindBadSource struct {
 
 func (e ErrBindBadSource) Error() string {
 	return fmt.Sprintf("%s cannot bind: %s has no side effects",
-		parser.FormatPos(e.CallStmt.Pos), e.CallStmt.Func)
+		parser.FormatPos(e.CallStmt.Pos), e.CallStmt.Name)
 }
 
 type ErrBindBadTarget struct {
@@ -76,7 +84,7 @@ type ErrBindBadTarget struct {
 
 func (e ErrBindBadTarget) Error() string {
 	return fmt.Sprintf("%s cannot bind: %s is not a side effect of %s",
-		parser.FormatPos(e.Bind.Pos), e.Bind.Source, e.CallStmt.Func)
+		parser.FormatPos(e.Bind.Pos), e.Bind.Source, e.CallStmt.Name)
 }
 
 type ErrNumArgs struct {
@@ -97,33 +105,24 @@ func (e ErrIdentNotDefined) Error() string {
 	return fmt.Sprintf("%s ident %s not defined", parser.FormatPos(e.Ident.Pos), e.Ident)
 }
 
-type ErrFuncArg struct {
-	Ident *parser.Ident
-}
-
-func (e ErrFuncArg) Error() string {
-	return fmt.Sprintf("%s func %s must be used in a block literal", parser.FormatPos(e.Ident.Pos), e.Ident)
-}
-
 type ErrWrongArgType struct {
-	Pos      lexer.Position
-	Expected parser.Kind
+	Node     parser.Node
+	Expected []parser.Kind
 	Found    parser.Kind
 }
 
 func (e ErrWrongArgType) Error() string {
-	return fmt.Sprintf("%s expected arg to be type %s, found %s", parser.FormatPos(e.Pos), e.Expected, e.Found)
+	return fmt.Sprintf("%s expected arg to one of %s, found %s", parser.FormatPos(e.Node.Position()), e.Expected, e.Found)
 }
 
 type ErrWrongBuiltinType struct {
-	Pos      lexer.Position
-	Expected parser.Kind
+	Node     parser.Node
+	Expected []parser.Kind
 	Builtin  *parser.BuiltinDecl
 }
 
 func (e ErrWrongBuiltinType) Error() string {
-	return fmt.Sprintf("%s builtin %s does not provide type %s",
-		parser.FormatPos(e.Pos), e.Builtin.Name, e.Expected)
+	return fmt.Sprintf("%s expected one of %s, found %s", parser.FormatPos(e.Node.Position()), e.Expected, e.Builtin)
 }
 
 type ErrInvalidTarget struct {
@@ -136,11 +135,11 @@ func (e ErrInvalidTarget) Error() string {
 }
 
 type ErrCallUnexported struct {
-	Selector *parser.Selector
+	IdentExpr *parser.IdentExpr
 }
 
 func (e ErrCallUnexported) Error() string {
-	return fmt.Sprintf("%s cannot call unexported function %s from import", parser.FormatPos(e.Selector.Position()), e.Selector)
+	return fmt.Sprintf("%s cannot call unexported function %s from import %s", parser.FormatPos(e.IdentExpr.Position()), e.IdentExpr.Ident, e.IdentExpr.Reference)
 }
 
 type ErrNotImport struct {
@@ -177,10 +176,10 @@ func (e ErrBadParse) Error() string {
 	return fmt.Sprintf("%s unable to parse %q", parser.FormatPos(e.Node.Position()), e.Lexeme)
 }
 
-type ErrUseModuleWithoutSelector struct {
+type ErrUseImportWithoutReference struct {
 	Ident *parser.Ident
 }
 
-func (e ErrUseModuleWithoutSelector) Error() string {
-	return fmt.Sprintf("%s use of module %s without selector", parser.FormatPos(e.Ident.Position()), e.Ident)
+func (e ErrUseImportWithoutReference) Error() string {
+	return fmt.Sprintf("%s use of import %s without reference", parser.FormatPos(e.Ident.Position()), e.Ident)
 }

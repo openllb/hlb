@@ -122,7 +122,7 @@ func (v *nilValue) Request() (solver.Request, error) {
 }
 
 func (v *nilValue) Reflect(t reflect.Type) (reflect.Value, error) {
-	panic("unimplemented")
+	return reflect.Value{}, fmt.Errorf("cannot reflect nil value")
 }
 
 type zeroValue struct{}
@@ -167,6 +167,11 @@ type Filesystem struct {
 	Image       *specs.Image
 	SolveOpts   []solver.SolveOption
 	SessionOpts []llbutil.SessionOption
+}
+
+func (fs Filesystem) Digest(ctx context.Context) (digest.Digest, error) {
+	dgst, _, _, _, err := fs.State.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	return dgst, err
 }
 
 type fsValue struct {

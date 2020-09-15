@@ -4,7 +4,6 @@ linters:
   enable:
     - deadcode
     - depguard
-    - gocritic
     - gofmt
     - goimports
     - gosimple

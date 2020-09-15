@@ -466,7 +466,7 @@ func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	case "node":
 		netMode = pb.NetMode_NONE
 	default:
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), errors.Errorf("unknown network mode")})
+		return errors.Errorf("unknown network mode %q", mode)
 	}
 
 	return ret.Set(append(retOpts, llb.Network(netMode)))
@@ -488,7 +488,7 @@ func (s Security) Call(ctx context.Context, cln *client.Client, ret Register, op
 		securityMode = pb.SecurityMode_INSECURE
 		retOpts = append(retOpts, solver.WithEntitlement(entitlements.EntitlementSecurityInsecure))
 	default:
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), errors.Errorf("unknown security mode")})
+		return errors.Errorf("unknown security mode %q", mode)
 	}
 
 	return ret.Set(append(retOpts, llb.Security(securityMode)))
@@ -829,7 +829,7 @@ func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	case "locked":
 		sharing = llb.CacheMountLocked
 	default:
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), errors.Errorf("unknown sharing mode")})
+		return errors.Errorf("unknown sharing mode %q", mode)
 	}
 
 	return ret.Set(append(retOpts, llb.AsPersistentCacheDir(id, sharing)))

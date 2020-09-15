@@ -34,7 +34,7 @@ func TestUnparse(t *testing.T) {
 			fs foo() { scratch; }
 			`,
 			`
-			fs foo() { scratch; }
+			fs foo() { scratch }
 			`,
 		},
 		{
@@ -43,7 +43,7 @@ func TestUnparse(t *testing.T) {
 			fs foo(){scratch;}
 			`,
 			`
-			fs foo() { scratch; }
+			fs foo() { scratch }
 			`,
 		},
 		{
@@ -52,7 +52,7 @@ func TestUnparse(t *testing.T) {
 			fs foo   () 	{    scratch; }
 			`,
 			`
-			fs foo() { scratch; }
+			fs foo() { scratch }
 			`,
 		},
 		{
@@ -109,9 +109,7 @@ func TestUnparse(t *testing.T) {
 			}
 			`,
 			`
-			fs foo() {
-				scratch
-			}
+			fs foo() { scratch }
 			`,
 		},
 		{
@@ -191,7 +189,7 @@ func TestUnparse(t *testing.T) {
 				scratch
 			}
 
-			fs bar() { scratch; }
+			fs bar() { scratch }
 
 			fs baz() {
 				scratch
@@ -249,7 +247,7 @@ func TestUnparse(t *testing.T) {
 				scratch
 			}
 
-			fs bar() { scratch; }
+			fs bar() { scratch }
 			`,
 		},
 		{
@@ -258,9 +256,9 @@ func TestUnparse(t *testing.T) {
 			fs foo() { scratch; } fs bar() { scratch; }
 			`,
 			`
-			fs foo() { scratch; }
+			fs foo() { scratch }
 
-			fs bar() { scratch; }
+			fs bar() { scratch }
 			`,
 		},
 		{
@@ -271,7 +269,7 @@ func TestUnparse(t *testing.T) {
 			}
 			`,
 			`
-			fs foo() { scratch; }
+			fs foo() { scratch }
 
 			fs bar() {
 				scratch
@@ -332,7 +330,7 @@ func TestUnparse(t *testing.T) {
 			fs foo() { image "alpine"; env "key" "value"; env "key" "value"; }
 			`,
 			`
-			fs foo() { image "alpine"; env "key" "value"; env "key" "value"; }
+			fs foo() { image "alpine"; env "key" "value"; env "key" "value" }
 			`,
 		},
 		{
@@ -387,7 +385,7 @@ func TestUnparse(t *testing.T) {
 			`,
 			`
 			fs foo() {
-				image "alpine" with option { resolve; }
+				image "alpine" with option { resolve }
 			}
 			`,
 		},
@@ -400,7 +398,7 @@ func TestUnparse(t *testing.T) {
 			`,
 			`
 			fs foo() {
-				image "alpine" with option { resolve; }
+				image "alpine" with option { resolve }
 				env "key" "value"
 			}
 			`,
@@ -410,7 +408,7 @@ func TestUnparse(t *testing.T) {
 			`
 			fs foo() {
 				image "alpine" with option {
-				resolve; }; env "key" "value"
+				resolve }; env "key" "value"
 			}
 			`,
 			`
@@ -432,9 +430,7 @@ func TestUnparse(t *testing.T) {
 			`,
 			`
 			fs foo() {
-				image "alpine" with option {
-					resolve
-				}
+				image "alpine" with option { resolve }
 				env "key" "value"
 			}
 			`,
@@ -460,7 +456,7 @@ func TestUnparse(t *testing.T) {
 			} # comment
 			# comment
 
-			fs bar() { scratch; }
+			fs bar() { scratch }
 			`,
 			`
 			# comment
@@ -477,7 +473,7 @@ func TestUnparse(t *testing.T) {
 			} # comment
 			# comment
 
-			fs bar() { scratch; }
+			fs bar() { scratch }
 			`,
 		}, {
 			`heredoc`,
@@ -517,6 +513,89 @@ func TestUnparse(t *testing.T) {
 				  is
 				literal
 				EOM
+			}
+			`,
+		},
+		{
+			`multi-line params`,
+			`
+			fs build( # comment
+
+				# comment
+
+			string ref,
+			fs input # comment
+			) {
+				image ref
+				copy git( # comment
+					"foo.git", "master" # comment
+				) "/" "/" as ( digest myDigest,
+				               manifest myManifest
+				)
+			}
+			`,
+			`
+			fs build(
+				# comment
+				# comment
+				string ref,
+				fs input, # comment
+			) {
+				image ref
+				copy git(
+					# comment
+					"foo.git", "master", # comment
+				) "/" "/" as (
+					digest myDigest,
+					manifest myManifest,
+				)
+			}
+			`,
+		},
+		{
+			`interpolated expressions`,
+			`
+			fs build(string tag, string pkg) {
+				image "alpine:${ tag  }"
+				run <<~APK
+					apk add -U ${string {
+						format "%s" pkg
+						localEnv "key"
+					}}
+				APK
+			}
+			`,
+			`
+			fs build(string tag, string pkg) {
+				image "alpine:${tag}"
+				run <<~APK
+					apk add -U ${string { format "%s" pkg; localEnv "key" }}
+				APK
+			}
+			`,
+		},
+		{
+			`raw strings`,
+			`
+			fs build(string tag, string pkg) {
+				image ` + "`" + `alpine:${ tag  }` + "`" + `
+				run <<~` + "`" + `APK` + "`" + `
+					apk add -U ${string {
+						format "%s" pkg
+						localEnv "key"
+					}}
+				APK
+			}
+			`,
+			`
+			fs build(string tag, string pkg) {
+				image ` + "`" + `alpine:${ tag  }` + "`" + `
+				run <<~` + "`" + `APK` + "`" + `
+					apk add -U ${string {
+						format "%s" pkg
+						localEnv "key"
+					}}
+				APK
 			}
 			`,
 		},

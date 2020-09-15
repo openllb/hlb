@@ -148,7 +148,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 								Func: n,
 							}
 						case *parser.CallStmt:
-							if n.Func.Name() == "breakpoint" {
+							if n.Name.Ident.Text == "breakpoint" {
 								fmt.Fprintf(w, "%s cannot break at breakpoint\n", parser.FormatPos(n.Pos))
 								continue
 							}
@@ -177,7 +177,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 							parser.FormatPos(pos))
 
 						if bp.Call != nil {
-							bp.Call.StmtEnd = nil
+							bp.Call.Terminate = nil
 							msg = fmt.Sprintf("%s %s", msg, bp.Call)
 						}
 
@@ -285,9 +285,8 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 					}
 				case "locals":
 					if fun != nil {
-						args := fun.Params.List
-						for _, arg := range args {
-							obj := s.scope.Lookup(arg.Name.Name)
+						for _, arg := range fun.Params.Fields() {
+							obj := s.scope.Lookup(arg.Name.Text)
 							if obj == nil {
 								fmt.Fprintf(w, "err: %s\n", errors.WithStack(ErrCodeGen{arg, ErrUndefinedReference}))
 								continue
@@ -406,7 +405,7 @@ func printList(color aurora.Aurora, fbs map[string]*parser.FileBuffer, w io.Writ
 	case *parser.FuncDecl:
 		length = n.Name.End().Column - n.Pos.Column
 	case *parser.CallStmt:
-		length = n.Func.End().Column - n.Pos.Column
+		length = n.Name.End().Column - n.Pos.Column
 	}
 
 	maxLn := len(fmt.Sprintf("%d", end))
@@ -458,10 +457,9 @@ func findStaticBreakpoints(mod *parser.Module) []*Breakpoint {
 
 	parser.Match(mod, parser.MatchOpts{},
 		func(fun *parser.FuncDecl, call *parser.CallStmt) {
-			if fun.Name == nil || fun.Name.Name != "breakpoint" {
+			if !call.Breakpoint() {
 				return
 			}
-
 			bp := &Breakpoint{
 				Func: fun,
 				Call: call,

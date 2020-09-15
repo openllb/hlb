@@ -55,34 +55,25 @@ func (w *walker) walk(node Node, v Visitor) {
 		w.walkDeclList(n.Decls, v)
 	case *Decl:
 		switch {
-		case n.Bad != nil:
-			w.walk(n.Bad, v)
 		case n.Import != nil:
 			w.walk(n.Import, v)
 		case n.Export != nil:
 			w.walk(n.Export, v)
 		case n.Func != nil:
 			w.walk(n.Func, v)
-		case n.Doc != nil:
-			w.walk(n.Doc, v)
+		case n.Comments != nil:
+			w.walk(n.Comments, v)
 		}
 	case *ImportDecl:
-		if n.Ident != nil {
-			w.walk(n.Ident, v)
+		if n.Expr != nil {
+			w.walk(n.Expr, v)
 		}
-		if n.ImportFunc != nil {
-			w.walk(n.ImportFunc, v)
-		}
-		if n.ImportPath != nil {
-			w.walk(n.ImportPath, v)
-		}
-	case *ImportFunc:
-		if n.Func != nil {
-			w.walk(n.Func, v)
+		if n.Name != nil {
+			w.walk(n.Name, v)
 		}
 	case *ExportDecl:
-		if n.Ident != nil {
-			w.walk(n.Ident, v)
+		if n.Name != nil {
+			w.walk(n.Name, v)
 		}
 	case *FuncDecl:
 		if n.Type != nil {
@@ -94,23 +85,34 @@ func (w *walker) walk(node Node, v Visitor) {
 		if n.Params != nil {
 			w.walk(n.Params, v)
 		}
-		if n.SideEffects != nil {
-			w.walk(n.SideEffects, v)
+		if n.Effects != nil {
+			w.walk(n.Effects, v)
 		}
 		if n.Body != nil {
 			w.walk(n.Body, v)
 		}
 	case *FieldList:
-		w.walkFieldList(n.List, v)
+		w.walkFieldList(n.Stmts, v)
+	case *FieldStmt:
+		switch {
+		case n.Field != nil:
+			w.walk(n.Field, v)
+		case n.Comments != nil:
+			w.walk(n.Comments, v)
+		}
 	case *Field:
-		if n.Variadic != nil {
-			w.walk(n.Variadic, v)
+		if n.Modifier != nil {
+			w.walk(n.Modifier, v)
 		}
 		if n.Type != nil {
 			w.walk(n.Type, v)
 		}
 		if n.Name != nil {
 			w.walk(n.Name, v)
+		}
+	case *Modifier:
+		if n.Variadic != nil {
+			w.walk(n.Variadic, v)
 		}
 	case *EffectsClause:
 		if n.Binds != nil {
@@ -119,58 +121,35 @@ func (w *walker) walk(node Node, v Visitor) {
 		if n.Effects != nil {
 			w.walk(n.Effects, v)
 		}
-	case *Expr:
-		switch {
-		case n.Bad != nil:
-			w.walk(n.Bad, v)
-		case n.Selector != nil:
-			w.walk(n.Selector, v)
-		case n.Ident != nil:
-			w.walk(n.Ident, v)
-		case n.BasicLit != nil:
-			w.walk(n.BasicLit, v)
-		case n.FuncLit != nil:
-			w.walk(n.FuncLit, v)
-		}
-	case *Selector:
-		if n.Ident != nil {
-			w.walk(n.Ident, v)
-		}
-		if n.Select != nil {
-			w.walk(n.Select, v)
-		}
-	case *BasicLit:
-		if n.Numeric != nil {
-			w.walk(n.Numeric, v)
-		}
-	case *FuncLit:
-		if n.Body != nil {
-			w.walk(n.Body, v)
-		}
+	case *BlockStmt:
+		w.walkStmtList(n.List, v)
 	case *Stmt:
 		switch {
-		case n.Bad != nil:
-			w.walk(n.Bad, v)
 		case n.Call != nil:
 			w.walk(n.Call, v)
-		case n.Doc != nil:
-			w.walk(n.Doc, v)
+		case n.Comments != nil:
+			w.walk(n.Comments, v)
 		}
 	case *CallStmt:
-		if n.Func != nil {
-			w.walk(n.Func, v)
+		if n.Name != nil {
+			w.walk(n.Name, v)
 		}
 		w.walkExprList(n.Args, v)
-		if n.Binds != nil {
-			w.walk(n.Binds, v)
+		if n.WithClause != nil {
+			w.walk(n.WithClause, v)
 		}
-		if n.WithOpt != nil {
-			w.walk(n.WithOpt, v)
+		if n.BindClause != nil {
+			w.walk(n.BindClause, v)
 		}
-		if n.StmtEnd != nil {
-			if n.StmtEnd.Comment != nil {
-				w.walk(n.StmtEnd.Comment, v)
-			}
+		if n.Terminate != nil {
+			w.walk(n.Terminate, v)
+		}
+	case *WithClause:
+		if n.With != nil {
+			w.walk(n.With, v)
+		}
+		if n.Expr != nil {
+			w.walk(n.Expr, v)
 		}
 	case *BindClause:
 		if n.As != nil {
@@ -179,19 +158,102 @@ func (w *walker) walk(node Node, v Visitor) {
 		if n.Ident != nil {
 			w.walk(n.Ident, v)
 		}
-		if n.List != nil {
-			w.walk(n.List, v)
+		if n.Binds != nil {
+			w.walk(n.Binds, v)
 		}
-
-	case *WithOpt:
-		if n.With != nil {
-			w.walk(n.With, v)
+	case *BindList:
+		w.walkBindList(n.Stmts, v)
+	case *Bind:
+		if n.Source != nil {
+			w.walk(n.Source, v)
 		}
+		if n.Target != nil {
+			w.walk(n.Target, v)
+		}
+	case *ExprStmt:
 		if n.Expr != nil {
 			w.walk(n.Expr, v)
 		}
-	case *BlockStmt:
-		w.walkStmtList(n.List, v)
+		if n.Terminate != nil {
+			w.walk(n.Terminate, v)
+		}
+	case *StmtEnd:
+		if n.Comment != nil {
+			w.walk(n.Comment, v)
+		}
+	case *Expr:
+		switch {
+		case n.FuncLit != nil:
+			w.walk(n.FuncLit, v)
+		case n.BasicLit != nil:
+			w.walk(n.BasicLit, v)
+		case n.CallExpr != nil:
+			w.walk(n.CallExpr, v)
+		}
+	case *FuncLit:
+		if n.Type != nil {
+			w.walk(n.Type, v)
+		}
+		if n.Body != nil {
+			w.walk(n.Body, v)
+		}
+	case *BasicLit:
+		switch {
+		case n.Numeric != nil:
+			w.walk(n.Numeric, v)
+		case n.Str != nil:
+			w.walk(n.Str, v)
+		case n.RawString != nil:
+			w.walk(n.RawString, v)
+		case n.Heredoc != nil:
+			w.walk(n.Heredoc, v)
+		case n.RawHeredoc != nil:
+			w.walk(n.RawHeredoc, v)
+		}
+	case *StringLit:
+		w.walkStringFragments(n.Fragments, v)
+	case *StringFragment:
+		if n.Interpolated != nil {
+			w.walk(n.Interpolated, v)
+		}
+	case *Heredoc:
+		w.walkHeredocFragments(n.Fragments, v)
+		if n.Terminate != nil {
+			w.walk(n.Terminate, v)
+		}
+	case *HeredocFragment:
+		if n.Interpolated != nil {
+			w.walk(n.Interpolated, v)
+		}
+	case *RawHeredoc:
+		w.walkHeredocFragments(n.Fragments, v)
+		if n.Terminate != nil {
+			w.walk(n.Terminate, v)
+		}
+	case *Interpolated:
+		if n.Expr != nil {
+			w.walk(n.Expr, v)
+		}
+	case *CallExpr:
+		if n.Name != nil {
+			w.walk(n.Name, v)
+		}
+		if n.List != nil {
+			w.walk(n.List, v)
+		}
+	case *ExprList:
+		w.walkExprFieldList(n.Fields, v)
+	case *ExprField:
+		if n.Expr != nil {
+			w.walk(n.Expr, v)
+		}
+	case *IdentExpr:
+		if n.Ident != nil {
+			w.walk(n.Ident, v)
+		}
+		if n.Reference != nil {
+			w.walk(n.Reference, v)
+		}
 	case *CommentGroup:
 		w.walkCommentList(n.List, v)
 	}
@@ -205,13 +267,25 @@ func (w *walker) walkDeclList(list []*Decl, v Visitor) {
 	}
 }
 
-func (w *walker) walkFieldList(list []*Field, v Visitor) {
+func (w *walker) walkFieldList(list []*FieldStmt, v Visitor) {
+	for _, x := range list {
+		w.walk(x, v)
+	}
+}
+
+func (w *walker) walkBindList(list []*BindStmt, v Visitor) {
 	for _, x := range list {
 		w.walk(x, v)
 	}
 }
 
 func (w *walker) walkExprList(list []*Expr, v Visitor) {
+	for _, x := range list {
+		w.walk(x, v)
+	}
+}
+
+func (w *walker) walkExprFieldList(list []*ExprField, v Visitor) {
 	for _, x := range list {
 		w.walk(x, v)
 	}
@@ -224,6 +298,18 @@ func (w *walker) walkStmtList(list []*Stmt, v Visitor) {
 }
 
 func (w *walker) walkCommentList(list []*Comment, v Visitor) {
+	for _, x := range list {
+		w.walk(x, v)
+	}
+}
+
+func (w *walker) walkStringFragments(list []*StringFragment, v Visitor) {
+	for _, x := range list {
+		w.walk(x, v)
+	}
+}
+
+func (w *walker) walkHeredocFragments(list []*HeredocFragment, v Visitor) {
 	for _, x := range list {
 		w.walk(x, v)
 	}

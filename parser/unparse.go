@@ -8,19 +8,28 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
-func (m *Module) String() string {
-	doc := ""
-	if m.Doc.NumComments() > 0 {
-		doc = fmt.Sprintf("%s\n", m.Doc)
-	}
+type UnparseInfo struct {
+	NoNewline bool
+}
 
+type UnparseOption func(*UnparseInfo)
+
+func WithNoNewline() UnparseOption {
+	return func(info *UnparseInfo) {
+		info.NoNewline = true
+	}
+}
+
+func (m *Module) String() string { return m.Unparse() }
+
+func (m *Module) Unparse(opts ...UnparseOption) string {
 	skipNewlines := true
 
 	var decls []string
 	var prevDecl string
 
 	for _, decl := range m.Decls {
-		str := decl.String()
+		str := decl.Unparse(opts...)
 
 		// Skip consecutive new lines.
 		if len(str) == 1 {
@@ -56,298 +65,189 @@ func (m *Module) String() string {
 		}
 	}
 
-	module := fmt.Sprintf("%s%s", doc, strings.Join(decls, ""))
+	module := strings.Join(decls, "")
 	return fmt.Sprintf("%s\n", strings.TrimSpace(module))
 }
 
-func (b *Bad) String() string {
-	return b.Lexeme
-}
+func (d *Decl) String() string { return d.Unparse() }
 
-func (d *Decl) String() string {
+func (d *Decl) Unparse(opts ...UnparseOption) string {
 	switch {
-	case d.Bad != nil:
-		return d.Bad.String()
 	case d.Import != nil:
-		return d.Import.String()
+		return d.Import.Unparse(opts...)
 	case d.Export != nil:
-		return d.Export.String()
+		return d.Export.Unparse(opts...)
 	case d.Func != nil:
-		return d.Func.String()
+		return d.Func.Unparse(opts...)
 	case d.Newline != nil:
-		return d.Newline.String()
-	case d.Doc != nil:
-		return d.Doc.String()
+		return d.Newline.Unparse(opts...)
+	case d.Comments != nil:
+		return d.Comments.Unparse(opts...)
 	}
-	panic("unknown decl")
+	return ""
 }
 
-func (d *ImportDecl) String() string {
-	var value string
-	switch {
-	case d.ImportFunc != nil:
-		value = d.ImportFunc.String()
-	case d.ImportPath != nil:
-		value = d.ImportPath.String()
-	default:
-		panic("unknown import decl")
+func (id *ImportDecl) String() string { return id.Unparse() }
+
+func (id *ImportDecl) Unparse(opts ...UnparseOption) string {
+	var (
+		imp  = id.Import.Unparse(opts...)
+		name = id.Name.Unparse(opts...)
+	)
+	if id.DeprecatedPath != nil {
+		return fmt.Sprintf("%s %s %s", imp, name, id.DeprecatedPath.Unparse(opts...))
 	}
-
-	return fmt.Sprintf("%s %s %s", d.Import, d.Ident, value)
+	return fmt.Sprintf("%s %s %s %s", imp, name, id.From.Unparse(opts...), id.Expr.Unparse(opts...))
 }
 
-func (i *Import) String() string {
-	return i.Keyword
+func (i *Import) String() string { return i.Unparse() }
+
+func (i *Import) Unparse(opts ...UnparseOption) string {
+	return i.Text
 }
 
-func (i *ImportFunc) String() string {
-	return fmt.Sprintf("%s %s", i.From, i.Func)
+func (f *From) String() string { return f.Unparse() }
+
+func (f *From) Unparse(opts ...UnparseOption) string {
+	return f.Text
 }
 
-func (f *From) String() string {
-	return f.Keyword
+func (ed *ExportDecl) String() string { return ed.Unparse() }
+
+func (ed *ExportDecl) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s %s", ed.Export.Unparse(opts...), ed.Name.Unparse(opts...))
 }
 
-func (ip *ImportPath) String() string {
-	return ip.Path.String()
+func (e *Export) String() string { return e.Unparse() }
+
+func (e *Export) Unparse(opts ...UnparseOption) string {
+	return e.Text
 }
 
-func (d *ExportDecl) String() string {
-	return fmt.Sprintf("%s %s", d.Export, d.Ident)
-}
+func (fd *FuncDecl) String() string { return fd.Unparse() }
 
-func (e *Export) String() string {
-	return e.Keyword
-}
-
-func (d *FuncDecl) String() string {
-	params := "()"
-	if d.Params != nil {
-		params = d.Params.String()
+func (fd *FuncDecl) Unparse(opts ...UnparseOption) string {
+	params := ""
+	if fd.Params != nil {
+		params = fd.Params.Unparse(opts...)
 	}
 
 	effects := ""
-	if d.SideEffects != nil {
-		effects = fmt.Sprintf(" %s", d.SideEffects)
+	if fd.Effects != nil {
+		effects = fmt.Sprintf(" %s", fd.Effects.Unparse(opts...))
 	}
 
 	body := ""
-	if d.Body != nil {
-		body = fmt.Sprintf(" %s", d.Body)
+	if fd.Body != nil {
+		body = fmt.Sprintf(" %s", fd.Body.Unparse(opts...))
 	}
 
-	return fmt.Sprintf("%s %s%s%s%s", d.Type, d.Name, params, effects, body)
+	return fmt.Sprintf("%s %s%s%s%s", fd.Type.Unparse(opts...), fd.Name.Unparse(opts...), params, effects, body)
 }
 
-func (e *EffectsClause) String() string {
-	return fmt.Sprintf("%s %s", e.Binds, e.Effects)
-}
+func (t *Type) String() string { return t.Unparse() }
 
-func (b *Binds) String() string {
-	return b.Keyword
-}
-
-func (f *FieldList) String() string {
-	var fields []string
-	for _, field := range f.List {
-		fields = append(fields, field.String())
-	}
-	return fmt.Sprintf("(%s)", strings.Join(fields, ", "))
-}
-
-func (f *Field) String() string {
-	variadic := ""
-	if f.Variadic != nil {
-		variadic = fmt.Sprintf("%s ", f.Variadic)
-	}
-	return fmt.Sprintf("%s%s %s", variadic, f.Type, f.Name)
-}
-
-func (v *Variadic) String() string {
-	return v.Keyword
-}
-
-func (t *Type) String() string {
+func (t *Type) Unparse(opts ...UnparseOption) string {
 	return string(t.Kind)
 }
 
-func (e *Expr) String() string {
+func (ec *EffectsClause) String() string { return ec.Unparse() }
+
+func (ec *EffectsClause) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s %s", ec.Binds.Unparse(opts...), ec.Effects.Unparse(opts...))
+}
+
+func (b *Binds) String() string { return b.Unparse() }
+
+func (b *Binds) Unparse(opts ...UnparseOption) string {
+	return b.Text
+}
+
+func (fl *FieldList) String() string { return fl.Unparse() }
+
+func (fl *FieldList) Unparse(opts ...UnparseOption) string {
+	var list []Node
+	for _, stmt := range fl.Stmts {
+		list = append(list, stmt)
+	}
+	return unparseList(list, opts...)
+}
+
+func (fs *FieldStmt) String() string { return fs.Unparse() }
+
+func (fs *FieldStmt) Unparse(opts ...UnparseOption) string {
 	switch {
-	case e.Bad != nil:
-		return e.Bad.String()
-	case e.Selector != nil:
-		return e.Selector.String()
-	case e.Ident != nil:
-		return e.Ident.String()
-	case e.BasicLit != nil:
-		return e.BasicLit.String()
-	case e.FuncLit != nil:
-		return e.FuncLit.String()
+	case fs.Field != nil:
+		return fs.Field.Unparse(opts...)
+	case fs.Newline != nil:
+		return fs.Newline.Unparse(opts...)
+	case fs.Comments != nil:
+		return fs.Comments.Unparse(opts...)
 	}
-	panic("unknown expr")
+	return ""
 }
 
-func (s *Selector) String() string {
-	return fmt.Sprintf("%s.%s", s.Ident, s.Select)
-}
+func (f *Field) String() string { return f.Unparse() }
 
-func (i *Ident) String() string {
-	return i.Name
-}
-
-func (qs *QuotedString) String() string {
-	return strconv.Quote(string(*qs))
-}
-
-func (qs *QuotedString) Unquoted() string {
-	return string(*qs)
-}
-
-func (l *BasicLit) String() string {
-	switch {
-	case l.Str != nil:
-		return l.Str.String()
-	case l.HereDoc != nil:
-		return l.HereDoc.String()
-	case l.Decimal != nil:
-		return strconv.Itoa(*l.Decimal)
-	case l.Numeric != nil:
-		return l.Numeric.String()
-	case l.Bool != nil:
-		return strconv.FormatBool(*l.Bool)
+func (f *Field) Unparse(opts ...UnparseOption) string {
+	modifier := ""
+	if f.Modifier != nil {
+		modifier = fmt.Sprintf("%s ", f.Modifier.Unparse(opts...))
 	}
-	panic("unknown basic lit")
+	return fmt.Sprintf("%s%s %s", modifier, f.Type.Unparse(opts...), f.Name.Unparse(opts...))
 }
 
-func (l *NumericLit) String() string {
-	switch l.Base {
-	case 2:
-		return fmt.Sprintf("0b%0b", l.Value)
-	case 8:
-		return fmt.Sprintf("0o%0o", l.Value)
-	case 16:
-		return fmt.Sprintf("0x%0x", l.Value)
-	}
-	panic("unknown numeric lit")
+func (m *Modifier) String() string { return m.Unparse() }
+
+func (m *Modifier) Unparse(opts ...UnparseOption) string {
+	return m.Variadic.Unparse(opts...)
 }
 
-func (h *HereDoc) String() string {
-	// this is a hack, the unparsing will automatically add tabs for newline separated statements,
-	// but for heredocs we need to preserve the literal input.  So we manually add some markers
-	// to the response that is trimmed out when serializing the block statement.
-	return fmt.Sprintf("%s%s\n<HLB-HEREDOC-MARKER>\n%s\n<HLB-HEREDOC-MARKER>\n%s", h.operator, h.ident, h.raw, h.ident)
+func (v *Variadic) String() string { return v.Unparse() }
+
+func (v *Variadic) Unparse(opts ...UnparseOption) string {
+	return v.Text
 }
 
-func (l *FuncLit) String() string {
-	return fmt.Sprintf("%s %s", l.Type, l.Body)
-}
+func (bs *BlockStmt) String() string { return bs.Unparse() }
 
-func (s *Stmt) String() string {
-	switch {
-	case s.Bad != nil:
-		return s.Bad.String()
-	case s.Call != nil:
-		return s.Call.String()
-	case s.Newline != nil:
-		return s.Newline.String()
-	case s.Doc != nil:
-		return s.Doc.String()
-	}
-	panic("unknown stmt")
-}
-
-func (s *CallStmt) String() string {
-	args := ""
-	if len(s.Args) > 0 {
-		var exprs []string
-		for _, expr := range s.Args {
-			exprs = append(exprs, expr.String())
-		}
-		args = fmt.Sprintf(" %s", strings.Join(exprs, " "))
+func (bs *BlockStmt) Unparse(opts ...UnparseOption) string {
+	info := UnparseInfo{}
+	for _, opt := range opts {
+		opt(&info)
 	}
 
-	withOpt := ""
-	if s.WithOpt != nil && (s.WithOpt.Expr.FuncLit == nil || (s.WithOpt.Expr.FuncLit != nil && s.WithOpt.Expr.FuncLit.NumStmts() > 0)) {
-		withOpt = fmt.Sprintf(" %s", s.WithOpt)
-	}
-
-	binds := ""
-	if s.Binds != nil {
-		binds = fmt.Sprintf(" %s", s.Binds)
-	}
-
-	end := ""
-	if s.StmtEnd != nil {
-		if s.StmtEnd.Newline != nil {
-			end = s.StmtEnd.String()
-		} else if s.StmtEnd.Comment != nil {
-			end = fmt.Sprintf(" %s", s.StmtEnd)
-		}
-	}
-
-	return fmt.Sprintf("%s%s%s%s%s", s.Func, args, withOpt, binds, end)
-}
-
-func (b *BindClause) String() string {
-	switch {
-	case b.Ident != nil:
-		return fmt.Sprintf("%s %s", b.As, b.Ident)
-	case b.List != nil:
-		return fmt.Sprintf("%s %s", b.As, b.List)
-	default:
-		return fmt.Sprintf("%s _", b.As)
-	}
-}
-
-func (b *BindList) String() string {
-	var binds []string
-	for _, bind := range b.List {
-		binds = append(binds, bind.String())
-	}
-	return fmt.Sprintf("(%s)", strings.Join(binds, ", "))
-}
-
-func (b *Bind) String() string {
-	return fmt.Sprintf("%s %s", b.Source, b.Target)
-}
-
-func (a *As) String() string {
-	return a.Keyword
-}
-
-func (w *WithOpt) String() string {
-	return fmt.Sprintf("with %s", w.Expr)
-}
-
-func (w *With) String() string {
-	return w.Keyword
-}
-
-func (s *BlockStmt) String() string {
-	if len(s.List) == 0 {
+	if len(bs.List) == 0 {
 		return "{}"
 	}
 
 	hasNewline := false
-	for _, stmt := range s.List {
-		if stmt.Pos == (lexer.Position{}) {
-			hasNewline = true
-			break
-		}
+	if !info.NoNewline {
+		for _, stmt := range bs.List {
+			if stmt.Pos == (lexer.Position{}) {
+				hasNewline = true
+				break
+			}
 
-		str := stmt.String()
-		if len(str) > 0 && str[len(str)-1] == '\n' {
-			hasNewline = true
-			break
+			str := stmt.Unparse(opts...)
+			if len(str) > 0 && str[len(str)-1] == '\n' {
+				hasNewline = true
+				break
+			}
 		}
 	}
 
-	skipNewlines := false
-
 	var stmts []string
+	if !hasNewline {
+		for _, stmt := range bs.Stmts() {
+			stmts = append(stmts, stmt.Unparse(opts...))
+		}
+		return fmt.Sprintf("{ %s }", strings.Join(stmts, "; "))
+	}
 
-	for i, stmt := range s.List {
-		str := stmt.String()
+	skipNewlines := false
+	for i, stmt := range bs.List {
+		str := stmt.Unparse(opts...)
 		if i > 0 && len(str) == 1 {
 			if skipNewlines {
 				continue
@@ -369,62 +269,471 @@ func (s *BlockStmt) String() string {
 		}
 	}
 
-	if hasNewline {
-		if len(stmts[0]) > 0 {
-			if strings.HasPrefix(stmts[0], "#") {
-				stmts[0] = fmt.Sprintf(" %s", stmts[0])
-			} else {
-				stmts = append([]string{""}, stmts...)
-			}
+	if len(stmts[0]) > 0 {
+		if strings.HasPrefix(stmts[0], "#") {
+			stmts[0] = fmt.Sprintf(" %s", stmts[0])
+		} else {
+			stmts = append([]string{""}, stmts...)
 		}
-
-		insideHeredoc := false
-		for i := 1; i < len(stmts); i++ {
-			if stmts[i] == "<HLB-HEREDOC-MARKER>" {
-				stmts = append(stmts[:i], stmts[i+1:]...)
-				i--
-				insideHeredoc = !insideHeredoc
-				continue
-			}
-			if len(stmts[i]) > 0 && !insideHeredoc {
-				stmts[i] = fmt.Sprintf("\t%s", stmts[i])
-			}
-		}
-
-		return fmt.Sprintf("{%s\n}", strings.Join(stmts, "\n"))
 	}
 
-	for i, stmt := range stmts {
-		stmts[i] = fmt.Sprintf("%s;", stmt)
+	insideHeredoc := false
+	for i := 1; i < len(stmts); i++ {
+		containedHeredoc := false
+		if strings.Contains(stmts[i], "<Ξ>") {
+			stmts[i] = strings.ReplaceAll(stmts[i], "<Ξ>", "")
+			containedHeredoc = true
+		}
+		if len(stmts[i]) > 0 && !insideHeredoc {
+			stmts[i] = fmt.Sprintf("\t%s", stmts[i])
+		}
+		if containedHeredoc {
+			insideHeredoc = !insideHeredoc
+		}
 	}
 
-	return fmt.Sprintf("{ %s }", strings.Join(stmts, " "))
+	return fmt.Sprintf("{%s\n}", strings.Join(stmts, "\n"))
 }
 
-func (g *CommentGroup) String() string {
+func (s *Stmt) String() string { return s.Unparse() }
+
+func (s *Stmt) Unparse(opts ...UnparseOption) string {
+	switch {
+	case s.Call != nil:
+		return s.Call.Unparse(opts...)
+	case s.Expr != nil:
+		return s.Expr.Unparse(opts...)
+	case s.Newline != nil:
+		return s.Newline.Unparse(opts...)
+	case s.Comments != nil:
+		return s.Comments.Unparse(opts...)
+	}
+	return ""
+}
+
+func (cs *CallStmt) String() string { return cs.Unparse() }
+
+func (cs *CallStmt) Unparse(opts ...UnparseOption) string {
+	args := ""
+	if len(cs.Args) > 0 {
+		var exprs []string
+		for _, expr := range cs.Args {
+			exprs = append(exprs, expr.Unparse(opts...))
+		}
+		args = fmt.Sprintf(" %s", strings.Join(exprs, " "))
+	}
+
+	withClause := ""
+	if cs.WithClause != nil && cs.WithClause.Expr != nil {
+		funcLit := cs.WithClause.Expr.FuncLit
+		if funcLit == nil || (funcLit != nil && len(funcLit.Body.Stmts()) > 0) {
+			withClause = fmt.Sprintf(" %s", cs.WithClause.Unparse(opts...))
+		}
+	}
+
+	binds := ""
+	if cs.BindClause != nil {
+		binds = fmt.Sprintf(" %s", cs.BindClause.Unparse(opts...))
+	}
+
+	end := ""
+	if cs.Terminate != nil && cs.Terminate.Comment != nil {
+		end = fmt.Sprintf(" %s", cs.Terminate.Comment.Unparse(opts...))
+	}
+
+	return fmt.Sprintf("%s%s%s%s%s", cs.Name, args, withClause, binds, end)
+}
+
+func (wc *WithClause) String() string { return wc.Unparse() }
+
+func (wc *WithClause) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s %s", wc.With.Unparse(opts...), wc.Expr.Unparse(opts...))
+}
+
+func (w *With) String() string { return w.Unparse() }
+
+func (w *With) Unparse(opts ...UnparseOption) string {
+	return w.Text
+}
+
+func (bc *BindClause) String() string { return bc.Unparse() }
+
+func (bc *BindClause) Unparse(opts ...UnparseOption) string {
+	switch {
+	case bc.Ident != nil:
+		return fmt.Sprintf("%s %s", bc.As.Unparse(opts...), bc.Ident.Unparse(opts...))
+	case bc.Binds != nil:
+		return fmt.Sprintf("%s %s", bc.As.Unparse(opts...), bc.Binds.Unparse(opts...))
+	default:
+		return fmt.Sprintf("%s _", bc.As.Unparse(opts...))
+	}
+}
+
+func (bl *BindList) String() string { return bl.Unparse() }
+
+func (bl *BindList) Unparse(opts ...UnparseOption) string {
+	var list []Node
+	for _, stmt := range bl.Stmts {
+		list = append(list, stmt)
+	}
+	return unparseList(list, opts...)
+}
+
+func (bs *BindStmt) String() string { return bs.Unparse() }
+
+func (bs *BindStmt) Unparse(opts ...UnparseOption) string {
+	switch {
+	case bs.Bind != nil:
+		return bs.Bind.Unparse(opts...)
+	case bs.Newline != nil:
+		return bs.Newline.Unparse(opts...)
+	case bs.Comments != nil:
+		return bs.Comments.Unparse(opts...)
+	}
+	return ""
+}
+
+func (b *Bind) String() string { return b.Unparse() }
+
+func (b *Bind) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s %s", b.Source.Unparse(opts...), b.Target.Unparse(opts...))
+}
+
+func (a *As) String() string { return a.Unparse() }
+
+func (a *As) Unparse(opts ...UnparseOption) string {
+	return a.Text
+}
+
+func (es *ExprStmt) String() string { return es.Unparse() }
+
+func (es *ExprStmt) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s%s", es.Expr.Unparse(opts...), es.Terminate.Unparse(opts...))
+}
+
+func (e *Expr) String() string { return e.Unparse() }
+
+func (e *Expr) Unparse(opts ...UnparseOption) string {
+	switch {
+	case e.FuncLit != nil:
+		return e.FuncLit.Unparse(opts...)
+	case e.BasicLit != nil:
+		return e.BasicLit.Unparse(opts...)
+	case e.CallExpr != nil:
+		return e.CallExpr.Unparse(opts...)
+	}
+	return ""
+}
+
+func (fl *FuncLit) String() string { return fl.Unparse() }
+
+func (fl *FuncLit) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s %s", fl.Type.Unparse(opts...), fl.Body.Unparse(opts...))
+}
+
+func (bl *BasicLit) String() string { return bl.Unparse() }
+
+func (bl *BasicLit) Unparse(opts ...UnparseOption) string {
+	switch {
+	case bl.Decimal != nil:
+		return strconv.Itoa(*bl.Decimal)
+	case bl.Numeric != nil:
+		return bl.Numeric.String()
+	case bl.Bool != nil:
+		return strconv.FormatBool(*bl.Bool)
+	case bl.Str != nil:
+		return bl.Str.Unparse(opts...)
+	case bl.RawString != nil:
+		return bl.RawString.Unparse(opts...)
+	case bl.Heredoc != nil:
+		return bl.Heredoc.Unparse(opts...)
+	case bl.RawHeredoc != nil:
+		return bl.RawHeredoc.Unparse(opts...)
+	}
+	return ""
+}
+
+func (nl *NumericLit) String() string { return nl.Unparse() }
+
+func (nl *NumericLit) Unparse(opts ...UnparseOption) string {
+	switch nl.Base {
+	case 2:
+		return fmt.Sprintf("0b%0b", nl.Value)
+	case 8:
+		return fmt.Sprintf("0o%0o", nl.Value)
+	case 16:
+		return fmt.Sprintf("0x%0x", nl.Value)
+	}
+	return ""
+}
+
+func (sl *StringLit) String() string { return sl.Unparse() }
+
+func (sl *StringLit) Unparse(opts ...UnparseOption) string {
+	body := sl.Unquoted(opts...)
+	return fmt.Sprintf(`"%s"`, body)
+}
+
+func (sl *StringLit) Unquoted(opts ...UnparseOption) string {
+	var fragments []string
+	for _, fragment := range sl.Fragments {
+		fragments = append(fragments, fragment.Unparse(opts...))
+	}
+	return strings.Join(fragments, "")
+}
+
+func (q *Quote) String() string { return q.Unparse() }
+
+func (q *Quote) Unparse(opts ...UnparseOption) string {
+	return q.Text
+}
+
+func (sf *StringFragment) String() string { return sf.Unparse() }
+
+func (sf *StringFragment) Unparse(opts ...UnparseOption) string {
+	switch {
+	case sf.Escaped != nil:
+		return *sf.Escaped
+	case sf.Interpolated != nil:
+		return sf.Interpolated.Unparse(opts...)
+	case sf.Text != nil:
+		return *sf.Text
+	}
+	return ""
+}
+
+func (rsl *RawStringLit) String() string { return rsl.Unparse() }
+
+func (rsl *RawStringLit) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s%s%s", rsl.Start.Unparse(opts...), rsl.Text, rsl.Terminate.Unparse(opts...))
+}
+
+func (b *Backtick) String() string { return b.Unparse() }
+
+func (b *Backtick) Unparse(opts ...UnparseOption) string {
+	return b.Text
+}
+
+func (h *Heredoc) String() string { return h.Unparse() }
+
+func (h *Heredoc) Unparse(opts ...UnparseOption) string {
+	var fragments []string
+	for _, fragment := range h.Fragments {
+		fragments = append(fragments, fragment.Unparse(opts...))
+	}
+	body := strings.Join(fragments, "")
+	// Insert a special unicode marker to avoid tabs being inserted by the parent
+	// block stmt unparser.
+	return fmt.Sprintf("%s<Ξ>%s<Ξ>%s", h.Start, body, h.Terminate.Unparse(opts...))
+}
+
+func (hf *HeredocFragment) String() string { return hf.Unparse() }
+
+func (hf *HeredocFragment) Unparse(opts ...UnparseOption) string {
+	switch {
+	case hf.Whitespace != nil:
+		return *hf.Whitespace
+	case hf.Interpolated != nil:
+		opts = append(opts, WithNoNewline())
+		return hf.Interpolated.Unparse(opts...)
+	case hf.Text != nil:
+		return *hf.Text
+	}
+	return ""
+}
+
+func (rh *RawHeredoc) String() string { return rh.Unparse() }
+
+func (rh *RawHeredoc) Unparse(opts ...UnparseOption) string {
+	var fragments []string
+	for _, fragment := range rh.Fragments {
+		fragments = append(fragments, fragment.Unparse(opts...))
+	}
+	body := strings.Join(fragments, "")
+	// Insert a special unicode marker to avoid tabs being inserted by the parent
+	// block stmt unparser.
+	return fmt.Sprintf("%s<Ξ>%s<Ξ>%s", rh.Start, body, rh.Terminate.Unparse(opts...))
+}
+
+func (he *HeredocEnd) String() string { return he.Unparse() }
+
+func (he *HeredocEnd) Unparse(opts ...UnparseOption) string {
+	return he.Text
+}
+
+func (i *Interpolated) String() string { return i.Unparse() }
+
+func (i *Interpolated) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("${%s}", i.Expr.Unparse(opts...))
+}
+
+func (oi *OpenInterpolated) String() string { return oi.Unparse() }
+
+func (oi *OpenInterpolated) Unparse(opts ...UnparseOption) string {
+	return oi.Text
+}
+
+func (ce *CallExpr) String() string { return ce.Unparse() }
+
+func (ce *CallExpr) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf("%s%s", ce.Name.Unparse(opts...), ce.List.Unparse(opts...))
+}
+
+func (el *ExprList) String() string { return el.Unparse() }
+
+func (el *ExprList) Unparse(opts ...UnparseOption) string {
+	if el == nil {
+		return ""
+	}
+	var list []Node
+	for _, field := range el.Fields {
+		list = append(list, field)
+	}
+	return unparseList(list, opts...)
+}
+
+func (ef *ExprField) String() string { return ef.Unparse() }
+
+func (ef *ExprField) Unparse(opts ...UnparseOption) string {
+	switch {
+	case ef.Expr != nil:
+		return ef.Expr.Unparse(opts...)
+	case ef.Newline != nil:
+		return ef.Newline.Unparse(opts...)
+	case ef.Comments != nil:
+		return ef.Comments.Unparse(opts...)
+	}
+	return ""
+}
+
+func (ie *IdentExpr) String() string { return ie.Unparse() }
+
+func (ie *IdentExpr) Unparse(opts ...UnparseOption) string {
+	ref := ""
+	if ie.Reference != nil {
+		ref = fmt.Sprintf(".%s", ie.Reference.Unparse(opts...))
+	}
+	return fmt.Sprintf("%s%s", ie.Ident.Unparse(opts...), ref)
+}
+
+func (i *Ident) String() string { return i.Unparse() }
+
+func (i *Ident) Unparse(opts ...UnparseOption) string {
+	return i.Text
+}
+
+func (cg *CommentGroup) String() string { return cg.Unparse() }
+
+func (cg *CommentGroup) Unparse(opts ...UnparseOption) string {
 	var comments []string
-	for _, comment := range g.List {
-		comments = append(comments, comment.String())
+	for _, comment := range cg.List {
+		comments = append(comments, comment.Unparse(opts...))
 	}
 	return strings.Join(comments, "")
 }
 
-func (c *Comment) String() string {
+func (c *Comment) String() string { return c.Unparse() }
+
+func (c *Comment) Unparse(opts ...UnparseOption) string {
 	return c.Text
 }
 
-func (n *Newline) String() string {
+func (n *Newline) String() string { return n.Unparse() }
+
+func (n *Newline) Unparse(opts ...UnparseOption) string {
 	return n.Text
 }
 
-func (e *StmtEnd) String() string {
+func (se *StmtEnd) String() string { return se.Unparse() }
+
+func (se *StmtEnd) Unparse(opts ...UnparseOption) string {
 	switch {
-	case e.Semicolon != nil:
-		return ";"
-	case e.Newline != nil:
-		return e.Newline.String()
-	case e.Comment != nil:
-		return e.Comment.String()
+	case se.Semicolon != nil:
+		return *se.Semicolon
+	case se.Newline != nil:
+		return se.Newline.Unparse(opts...)
+	case se.Comment != nil:
+		return se.Comment.Unparse(opts...)
 	}
-	panic("unknown stmt end")
+	return ""
+}
+
+func unparseList(list []Node, opts ...UnparseOption) string {
+	info := UnparseInfo{}
+	for _, opt := range opts {
+		opt(&info)
+	}
+
+	if len(list) == 0 {
+		return "()"
+	}
+
+	hasNewline := false
+	if !info.NoNewline {
+		for _, stmt := range list {
+			if stmt.Position() == (lexer.Position{}) {
+				hasNewline = true
+				break
+			}
+
+			str := stmt.Unparse(opts...)
+			if len(str) > 0 && str[len(str)-1] == '\n' {
+				hasNewline = true
+				break
+			}
+		}
+	}
+
+	var stmts []string
+	if !hasNewline {
+		for _, stmt := range list {
+			str := stmt.Unparse(opts...)
+			if len(strings.TrimSpace(str)) == 0 {
+				continue
+			}
+			stmts = append(stmts, str)
+		}
+		return fmt.Sprintf("(%s)", strings.Join(stmts, ", "))
+	}
+
+	skipNewlines := true
+	for _, stmt := range list {
+		str := stmt.Unparse(opts...)
+		if str == "\n" {
+			if skipNewlines {
+				continue
+			}
+			stmts = append(stmts, str)
+			skipNewlines = true
+		} else if strings.HasPrefix(str, "#") {
+			if skipNewlines {
+				stmts = append(stmts, fmt.Sprintf("\t%s", str))
+			} else {
+				stmts = append(stmts, fmt.Sprintf(" %s", str))
+			}
+			skipNewlines = true
+		} else {
+			if skipNewlines {
+				stmts = append(stmts, fmt.Sprintf("\t%s,", str))
+			} else {
+				stmts = append(stmts, fmt.Sprintf(" %s,", str))
+			}
+			skipNewlines = false
+		}
+	}
+
+	// Trim trailing newlines.
+	var i int
+	for i = len(stmts) - 1; i > 0; i-- {
+		if len(stmts[i]) > 1 && strings.HasSuffix(stmts[i], "\n") {
+			stmts[i] = strings.TrimSuffix(stmts[i], "\n")
+			break
+		}
+		if stmts[i] != "\n" {
+			break
+		}
+	}
+	stmts = stmts[:i+1]
+
+	return fmt.Sprintf("(\n%s\n)", strings.Join(stmts, ""))
 }

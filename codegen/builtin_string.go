@@ -17,7 +17,6 @@ import (
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/pkg/imageutil"
-	"github.com/pkg/errors"
 )
 
 type Format struct{}
@@ -147,7 +146,7 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	dgst, config, err := resolver.ResolveImageConfig(ctx, named.String(), llb.ResolveImageConfigOpt{Platform: platform})
 	if err != nil {
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), err})
+		return err
 	}
 	if dgst == "" {
 		return fmt.Errorf("no digest available for ref %q", named)
@@ -155,7 +154,7 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	desc, err := resolver.DigestDescriptor(ctx, dgst)
 	if err != nil {
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), err})
+		return err
 	}
 
 	switch Binds(ctx) {
