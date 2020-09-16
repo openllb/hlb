@@ -13,8 +13,10 @@ import (
 	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/entitlements"
+	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
@@ -819,7 +821,7 @@ func TestCodeGen(t *testing.T) {
 		"calling a func with an imported func",
 		[]string{"default"},
 		`
-		import other "./other.hlb"
+		import other from "./other.hlb"
 
 		fs default() {
 			scratch
@@ -843,17 +845,14 @@ func TestCodeGen(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := codegen.WithSessionID(context.Background(), identity.NewID())
-			cg, err := codegen.New(nil)
-			require.NoError(t, err, tc.name)
-
-			mod, _, err := parser.Parse(strings.NewReader(cleanup(tc.hlb)))
+			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			mod, err := parser.Parse(ctx, strings.NewReader(cleanup(tc.hlb)))
 			require.NoError(t, err, tc.name)
 
 			err = checker.SemanticPass(mod)
 			require.NoError(t, err, tc.name)
 
-			linter.Lint(ctx, mod)
+			_ = linter.Lint(ctx, mod)
 
 			err = checker.Check(mod)
 			require.NoError(t, err, tc.name)
@@ -864,13 +863,13 @@ func TestCodeGen(t *testing.T) {
 					t.Fatal(`"other" should be imported by the test module`)
 				}
 
-				imod, _, err := parser.Parse(strings.NewReader(cleanup(tc.hlbImport)))
+				imod, err := parser.Parse(ctx, strings.NewReader(cleanup(tc.hlbImport)))
 				require.NoError(t, err, tc.name)
 
 				err = checker.SemanticPass(imod)
 				require.NoError(t, err, tc.name)
 
-				linter.Lint(ctx, imod)
+				_ = linter.Lint(ctx, imod)
 
 				err = checker.Check(imod)
 				require.NoError(t, err, tc.name)
@@ -886,6 +885,10 @@ func TestCodeGen(t *testing.T) {
 				targets = append(targets, codegen.Target{Name: target})
 			}
 
+			cg, err := codegen.New(nil)
+			require.NoError(t, err, tc.name)
+
+			ctx = codegen.WithSessionID(ctx, identity.NewID())
 			request, err := cg.Generate(ctx, mod, targets)
 			require.NoError(t, err, tc.name)
 

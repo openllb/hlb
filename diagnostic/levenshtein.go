@@ -1,4 +1,27 @@
-package report
+package diagnostic
+
+func Suggestion(value string, candidates []string) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	min := -1
+	index := -1
+	for i, candidate := range candidates {
+		dist := Levenshtein([]rune(value), []rune(candidate))
+		if min == -1 || dist < min {
+			min = dist
+			index = i
+		}
+	}
+	failLimit := 1
+	if len(value) > 3 {
+		failLimit = 2
+	}
+	if min > failLimit {
+		return ""
+	}
+	return candidates[index]
+}
 
 // Levenshtein returns the levenshtein distance between two rune arrays.
 //

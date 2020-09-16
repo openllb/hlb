@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/stateful"
+	"github.com/openllb/hlb/diagnostic"
 )
 
 var (
@@ -24,14 +25,11 @@ var (
 			{"RawHeredoc", "<<[-~]?`(\\w+)`", stateful.Push("RawHeredoc")},
 			{"Block", `{`, stateful.Push("Block")},
 			{"Paren", `\(`, stateful.Push("Paren")},
-			stateful.Include("Common"),
-		},
-		"Common": {
 			{"Ident", `[\w:]+`, stateful.Push("Reference")},
 			{"Operator", `;`, nil},
 			{"Newline", `\n`, nil},
 			{"Comment", `#[^\n]*\n`, nil},
-			{"whitespace", `[\r\t ]+`, nil},
+			{"Whitespace", `[\r\t ]+`, nil},
 		},
 		"Reference": {
 			{"Dot", `\.`, nil},
@@ -50,14 +48,14 @@ var (
 		},
 		"Heredoc": {
 			{"HeredocEnd", `\b\1\b`, stateful.Pop()},
-			{"Whitespace", `\s+`, nil},
+			{"Spaces", `\s+`, nil},
 			{"Escaped", `\\.`, nil},
 			{"Interpolated", `\${`, stateful.Push("Interpolated")},
 			{"Text", `\$|[^\s$]+`, nil},
 		},
 		"RawHeredoc": {
 			{"RawHeredocEnd", `\b\1\b`, stateful.Pop()},
-			{"Whitespace", `\s+`, nil},
+			{"Spaces", `\s+`, nil},
 			{"RawText", `[^\s]+`, nil},
 		},
 		"Interpolated": {
@@ -79,6 +77,7 @@ var (
 	Parser = participle.MustBuild(
 		&Module{},
 		participle.Lexer(Lexer),
+		participle.Elide("Whitespace"),
 	)
 )
 
@@ -94,6 +93,12 @@ type Node interface {
 
 	// End returns position of the first character immediately after the node.
 	End() lexer.Position
+
+	// WithError returns an error decorated with diagnostics for the node.
+	WithError(err error, opts ...diagnostic.Option) error
+
+	// Spanf returns an annotation for the node.
+	Spanf(t diagnostic.Type, format string, a ...interface{}) diagnostic.Option
 }
 
 type Mixin struct {
@@ -108,6 +113,14 @@ func (m Mixin) String() string {
 func (m Mixin) Unparse(opts ...UnparseOption) string { return "" }
 func (m Mixin) Position() lexer.Position             { return m.Pos }
 func (m Mixin) End() lexer.Position                  { return m.EndPos }
+
+func (m Mixin) WithError(err error, opts ...diagnostic.Option) error {
+	return diagnostic.WithError(err, m.Pos, opts...)
+}
+
+func (m Mixin) Spanf(t diagnostic.Type, format string, a ...interface{}) diagnostic.Option {
+	return diagnostic.Spanf(t, m.Position(), m.End(), format, a...)
+}
 
 // Kind is an identifier that represents a builtin type.
 type Kind string
@@ -200,7 +213,7 @@ type Export struct {
 // BuiltinDecl is a synthetic declaration representing a builtin name.
 // Special type checking rules apply to builtins.
 type BuiltinDecl struct {
-	*Ident
+	*Module
 	FuncDeclByKind map[Kind]*FuncDecl
 	CallableByKind map[Kind]Callable
 }
@@ -247,6 +260,13 @@ type FuncDecl struct {
 	Params  *FieldList     `parser:"@@"`
 	Effects *EffectsClause `parser:"@@?"`
 	Body    *BlockStmt     `parser:"@@?"`
+}
+
+func (fd *FuncDecl) Kind() Kind {
+	if fd.Type == nil {
+		return None
+	}
+	return fd.Type.Kind
 }
 
 func NewFuncDecl(kind Kind, name string, params []*Field, effects []*Field, stmts ...*Stmt) *Decl {
@@ -339,6 +359,13 @@ type Field struct {
 	Modifier *Modifier `parser:"@@?"`
 	Type     *Type     `parser:"@@"`
 	Name     *Ident    `parser:"@@"`
+}
+
+func (f *Field) Kind() Kind {
+	if f.Type == nil {
+		return None
+	}
+	return f.Type.Kind
 }
 
 func NewField(kind Kind, name string, variadic bool) *Field {
@@ -567,12 +594,29 @@ type Expr struct {
 	CallExpr *CallExpr `parser:"| @@ )"`
 }
 
+func (e *Expr) Kind() Kind {
+	switch {
+	case e.FuncLit != nil:
+		return e.FuncLit.Kind()
+	case e.BasicLit != nil:
+		return e.BasicLit.Kind()
+	}
+	return None
+}
+
 // FuncLit represents a literal block prefixed by its type. If the type is
 // missing then it's assumed to be a fs block literal.
 type FuncLit struct {
 	Mixin
 	Type *Type      `parser:"@@"`
 	Body *BlockStmt `parser:"@@"`
+}
+
+func (fl *FuncLit) Kind() Kind {
+	if fl.Type == nil {
+		return None
+	}
+	return fl.Type.Kind
 }
 
 func NewFuncLit(kind Kind, stmts ...*Stmt) *FuncLit {
@@ -617,13 +661,13 @@ func (bl *BasicLit) Kind() Kind {
 
 // NumericLit represents a number literal with a non-decimal base.
 type NumericLit struct {
-	Pos   lexer.Position
+	Mixin
 	Value int64
 	Base  int
 }
 
 func (nl *NumericLit) Position() lexer.Position { return nl.Pos }
-func (nl *NumericLit) End() lexer.Position      { return offset(nl.Pos, len(nl.String()), 0) }
+func (nl *NumericLit) End() lexer.Position      { return diagnostic.Offset(nl.Pos, len(nl.String()), 0) }
 
 func (nl *NumericLit) Capture(tokens []string) error {
 	base := 10
@@ -697,7 +741,7 @@ type Heredoc struct {
 // HeredocFragment represents a piece of a heredoc.
 type HeredocFragment struct {
 	Mixin
-	Whitespace   *string       `parser:"( @Whitespace"`
+	Spaces       *string       `parser:"( @Spaces"`
 	Escaped      *string       `parser:"| @Escaped"`
 	Interpolated *Interpolated `parser:"| @@"`
 	Text         *string       `parser:"| @(Text | RawText) )"`
@@ -812,9 +856,15 @@ type ExprField struct {
 // from an imported module.
 type IdentExpr struct {
 	Mixin
-	Signature []*Field
-	Ident     *Ident `parser:"@@"`
-	Reference *Ident `parser:"(Dot @@)?"`
+	Ident     *Ident     `parser:"@@"`
+	Reference *Reference `parser:"@@?"`
+}
+
+// Reference represents the exported identifier from an imported module.
+type Reference struct {
+	Mixin
+	Dot   string `parser:"@Dot"`
+	Ident *Ident `parser:"@@"`
 }
 
 func NewIdentExpr(name string) *IdentExpr {
@@ -882,12 +932,4 @@ type OpenBrace struct {
 type CloseBrace struct {
 	Mixin
 	Text string `parser:"@BlockEnd"`
-}
-
-// Helper functions.
-func offset(pos lexer.Position, offset int, line int) lexer.Position { //nolint:unparam
-	pos.Offset += offset
-	pos.Column += offset
-	pos.Line += line
-	return pos
 }

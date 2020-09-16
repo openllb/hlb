@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -35,8 +36,8 @@ type Field struct {
 	Name     string
 }
 
-func GenerateDocumentation(r io.Reader) (*Documentation, error) {
-	file, _, err := parser.Parse(r)
+func GenerateDocumentation(ctx context.Context, r io.Reader) (*Documentation, error) {
+	mod, err := parser.Parse(ctx, r)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +47,7 @@ func GenerateDocumentation(r io.Reader) (*Documentation, error) {
 		optionsByFunc = make(map[string][]*Func)
 	)
 
-	for _, decl := range file.Decls {
+	for _, decl := range mod.Decls {
 		fun := decl.Func
 		if fun == nil {
 			continue

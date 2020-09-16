@@ -2,23 +2,21 @@ package codegen
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
-	"unicode"
 
 	shellquote "github.com/kballard/go-shellquote"
-	"github.com/logrusorgru/aurora"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
+	"github.com/openllb/hlb/diagnostic"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
-	"github.com/openllb/hlb/report"
 	"github.com/pkg/errors"
 )
 
@@ -40,11 +38,8 @@ type snapshot struct {
 	ret   Value
 }
 
-func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]*parser.FileBuffer) Debugger {
-	color := aurora.NewAurora(true)
-
+func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader) Debugger {
 	var (
-		mod               *parser.Module
 		fun               *parser.FuncDecl
 		next              *parser.FuncDecl
 		history           []*snapshot
@@ -64,45 +59,38 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 			showList := true
 
 			// Keep track of whether we're in global scope or a lexical scope.
-			switch n := s.scope.Node.(type) {
+			switch n := node.(type) {
 			case *parser.Module:
+				staticBreakpoints = findStaticBreakpoints(n)
+				breakpoints = staticBreakpoints
+
 				// Don't print source code on the first debug section.
 				showList = false
-				mod = n
-				if len(staticBreakpoints) == 0 {
-					staticBreakpoints = findStaticBreakpoints(mod)
-					breakpoints = append(breakpoints, staticBreakpoints...)
-				}
-			case *parser.FuncDecl:
-				fun = n
-			}
-
-			switch n := s.node.(type) {
-			case *parser.FuncDecl:
-				for _, bp := range breakpoints {
-					if bp.Call != nil {
-						continue
+			default:
+				fun = scope.Node.(*parser.FuncDecl)
+				if node == fun.Name {
+					for _, bp := range breakpoints {
+						if bp.Call != nil {
+							continue
+						}
+						if bp.Func == fun {
+							cont = false
+						}
 					}
-					if bp.Func == n {
-						cont = false
-					}
-				}
-			case *parser.CallStmt:
-				for _, bp := range breakpoints {
-					if bp.Call == nil {
-						continue
-					}
-					if bp.Call == n {
-						cont = false
+				} else {
+					for _, bp := range breakpoints {
+						if bp.Call == nil {
+							continue
+						}
+						if bp.Call.Name == node {
+							cont = false
+						}
 					}
 				}
 			}
 
 			if showList && !cont {
-				err := printList(color, fbs, w, s.node)
-				if err != nil {
-					return err
-				}
+				printList(ctx, w, s.node)
 			}
 
 			if next != nil {
@@ -241,11 +229,9 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 				case "exit":
 					return ErrDebugExit
 				case "funcs":
-					for _, obj := range s.scope.Defined(parser.DeclKind) {
-						switch n := obj.Node.(type) {
-						case *parser.FuncDecl:
-							fmt.Fprintf(w, "%s\n", n.Name)
-						case *parser.BindClause:
+					for _, obj := range s.scope.Defined() {
+						switch obj.Node.(type) {
+						case *parser.FuncDecl, *parser.BindClause:
 							fmt.Fprintf(w, "%s\n", obj.Ident)
 						}
 					}
@@ -276,10 +262,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 					fmt.Fprintf(w, "security - print security mode\n")
 				case "list", "l":
 					if showList {
-						err = printList(color, fbs, w, s.node)
-						if err != nil {
-							return err
-						}
+						printList(ctx, w, s.node)
 					} else {
 						fmt.Fprintf(w, "Program has not started yet\n")
 					}
@@ -288,7 +271,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 						for _, arg := range fun.Params.Fields() {
 							obj := s.scope.Lookup(arg.Name.Text)
 							if obj == nil {
-								fmt.Fprintf(w, "err: %s\n", errors.WithStack(ErrCodeGen{arg, ErrUndefinedReference}))
+								fmt.Fprintf(w, "err: %s\n", errors.WithStack(errdefs.WithUndefinedIdent(arg, nil)))
 								continue
 							}
 							fmt.Fprintf(w, "%s %s = %#v\n", arg.Type, arg.Name, obj.Data)
@@ -343,7 +326,7 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 				case "stepout":
 					fmt.Fprintf(w, "unimplemented\n")
 				case "types":
-					for _, kind := range report.Kinds {
+					for _, kind := range []string{"string", "int", "bool", "fs", "option"} {
 						fmt.Fprintf(w, "%s\n", kind)
 					}
 				case "whatis":
@@ -384,67 +367,11 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 	}
 }
 
-func printList(color aurora.Aurora, fbs map[string]*parser.FileBuffer, w io.Writer, node parser.Node) error {
-	pos := node.Position()
-	fb := fbs[pos.Filename]
-
-	var lines []string
-
-	start := pos.Line - 5
-	if start < 0 {
-		start = 0
+func printList(ctx context.Context, w io.Writer, node parser.Node) {
+	err := node.WithError(nil, node.Spanf(diagnostic.Primary, ""))
+	for _, span := range diagnostic.Spans(err) {
+		fmt.Fprintln(w, span.Pretty(ctx, diagnostic.WithNumContext(3)))
 	}
-
-	end := start + 10
-	if end > fb.Len() {
-		end = fb.Len()
-	}
-
-	length := 1
-	switch n := node.(type) {
-	case *parser.FuncDecl:
-		length = n.Name.End().Column - n.Pos.Column
-	case *parser.CallStmt:
-		length = n.Name.End().Column - n.Pos.Column
-	}
-
-	maxLn := len(fmt.Sprintf("%d", end))
-	gutter := strings.Repeat(" ", maxLn)
-	header := fmt.Sprintf(
-		"%s %s",
-		color.Sprintf(color.Blue("%s-->"), gutter),
-		color.Sprintf(color.Bold("%s:%d:%d:"), pos.Filename, pos.Line, pos.Column))
-	lines = append(lines, header)
-
-	for i := start; i < end; i++ {
-		line, err := fb.Line(i)
-		if err != nil {
-			return err
-		}
-
-		ln := fmt.Sprintf("%d", i+1)
-		prefix := color.Sprintf(color.Blue("%s%s | "), ln, strings.Repeat(" ", maxLn-len(ln)))
-		lines = append(lines, fmt.Sprintf("%s%s", prefix, string(line)))
-
-		if i == pos.Line-1 {
-			prefix = color.Sprintf(color.Blue("%s ⫶ "), gutter)
-			padding := bytes.Map(func(r rune) rune {
-				if unicode.IsSpace(r) {
-					return r
-				}
-				return ' '
-			}, line[:pos.Column-1])
-
-			lines = append(lines, fmt.Sprintf(
-				"%s%s",
-				prefix,
-				color.Sprintf(color.Green("%s%s"), padding, strings.Repeat("^", length)),
-			))
-		}
-	}
-
-	fmt.Fprintln(w, strings.Join(lines, "\n"))
-	return nil
 }
 
 type Breakpoint struct {

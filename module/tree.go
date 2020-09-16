@@ -35,7 +35,7 @@ func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long b
 	tree.SetValue(mod.Pos.Filename)
 	nodeByModule[mod] = tree
 
-	err = ResolveGraph(ctx, cln, resolver, res, mod, nil, func(info VisitInfo) error {
+	err = ResolveGraph(ctx, cln, resolver, res, mod, func(info VisitInfo) error {
 		var prefix string
 		if info.Digest != "" {
 			encoded := info.Digest.Encoded()

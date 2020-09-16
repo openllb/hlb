@@ -1,15 +1,23 @@
 package builtin
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/filebuffer"
+	"github.com/pkg/errors"
 )
 
 var (
+	Module *parser.Module
+
+	FileBuffer *filebuffer.FileBuffer
+
 	Callables = map[parser.Kind]map[string]parser.Callable{
 		parser.Filesystem: map[string]parser.Callable{
 			"scratch":               codegen.Scratch{},
@@ -33,7 +41,7 @@ var (
 			"volumes":               codegen.Volumes{},
 			"stopSignal":            codegen.StopSignal{},
 			"dockerPush":            codegen.DockerPush{},
-			"dockerLoad":            codegen.DockerLoad{},
+			"dockerLoad":            &codegen.DockerLoad{},
 			"download":              codegen.Download{},
 			"downloadTarball":       codegen.DownloadTarball{},
 			"downloadOCITarball":    codegen.DownloadOCITarball{},
@@ -42,6 +50,7 @@ var (
 		parser.String: map[string]parser.Callable{
 			"format":    codegen.Format{},
 			"template":  codegen.Template{},
+			"manifest":  codegen.Manifest{},
 			"localArch": codegen.LocalArch{},
 			"localOs":   codegen.LocalOS{},
 			"localCwd":  codegen.LocalCwd{},
@@ -146,9 +155,21 @@ var (
 )
 
 func init() {
+	err := initSources()
+	if err != nil {
+		panic(err)
+	}
+
+	err = initCallables()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func initCallables() error {
 	protoCall, ok := reflect.TypeOf(codegen.Prototype{}).MethodByName("Call")
 	if !ok {
-		panic("Prototype has no Call method")
+		return fmt.Errorf("Prototype has no Call method")
 	}
 
 	// Build prototype signature.
@@ -170,8 +191,28 @@ func init() {
 		}
 	}
 	if len(errs) > 0 {
-		panic(strings.Join(errs, "\n"))
+		return fmt.Errorf(strings.Join(errs, "\n"))
 	}
+	return nil
+}
+
+func initSources() (err error) {
+	ctx := diagnostic.WithSources(context.Background(), filebuffer.NewSources())
+	Module, err = parser.Parse(ctx, &parser.NamedReader{
+		Reader: strings.NewReader(Reference),
+		Value:  "<builtin>",
+	})
+	if err != nil {
+		return errors.Wrapf(err, "failed to initialize filebuffer for builtins")
+	}
+	FileBuffer = diagnostic.Sources(ctx).Get(Module.Pos.Filename)
+	return
+}
+
+func Sources() *filebuffer.Sources {
+	sources := filebuffer.NewSources()
+	sources.Set(FileBuffer.Filename(), FileBuffer)
+	return sources
 }
 
 func CheckPrototype(callable parser.Callable) error {

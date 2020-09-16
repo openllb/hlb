@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/util/appcontext"
-	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/module"
@@ -43,8 +41,7 @@ var moduleVendorCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		ctx := appcontext.Context()
-		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
+		cln, ctx, err := Client(c)
 		if err != nil {
 			return err
 		}
@@ -62,8 +59,7 @@ var moduleTidyCommand = &cli.Command{
 	Usage:     "add missing and remove unused modules",
 	ArgsUsage: "<*.hlb>",
 	Action: func(c *cli.Context) error {
-		ctx := appcontext.Context()
-		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
+		cln, ctx, err := Client(c)
 		if err != nil {
 			return err
 		}
@@ -86,8 +82,7 @@ var moduleTreeCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		ctx := appcontext.Context()
-		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
+		cln, ctx, err := Client(c)
 		if err != nil {
 			return err
 		}
@@ -120,7 +115,7 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 		defer rc.Close()
 	}
 
-	mod, _, err := hlb.Parse(rc, hlb.DefaultParseOpts()...)
+	mod, err := parser.Parse(ctx, rc)
 	if err != nil {
 		return err
 	}
@@ -211,7 +206,7 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 	}
 	defer rc.Close()
 
-	mod, _, err := hlb.Parse(rc, hlb.DefaultParseOpts()...)
+	mod, err := parser.Parse(ctx, rc)
 	if err != nil {
 		return err
 	}

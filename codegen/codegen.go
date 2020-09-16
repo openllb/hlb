@@ -10,6 +10,7 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
@@ -54,7 +55,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 	for i, target := range targets {
 		obj := mod.Scope.Lookup(target.Name)
 		if obj == nil {
-			return nil, fmt.Errorf("unknown target %q", target)
+			return nil, fmt.Errorf("target %q is not defined in %s", target.Name, mod.Pos.Filename)
 		}
 
 		// Yield before compiling anything.
@@ -64,13 +65,13 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		}
 
 		// Build expression for target.
-		expr := parser.NewIdentExpr(target.Name)
-		expr.Pos.Filename = "target"
-		expr.Pos.Line = i
+		ie := parser.NewIdentExpr(target.Name)
+		ie.Pos.Filename = "target"
+		ie.Pos.Line = i
 
 		// Every target has a return register.
 		ret := NewRegister()
-		err = cg.EmitIdentExpr(ctx, mod.Scope, expr, nil, nil, nil, ret)
+		err = cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
 		if err != nil {
 			return nil, err
 		}
@@ -97,7 +98,7 @@ func (cg *CodeGen) EmitExpr(ctx context.Context, scope *parser.Scope, expr *pars
 	case expr.CallExpr != nil:
 		return cg.EmitCallExpr(ctx, scope, expr.CallExpr, ret)
 	default:
-		return errors.WithStack(ErrCodeGen{expr, errors.Errorf("unknown expr")})
+		return errdefs.WithInternalErrorf(expr, "invalid expr")
 	}
 }
 
@@ -122,7 +123,7 @@ func (cg *CodeGen) EmitBasicLit(ctx context.Context, scope *parser.Scope, lit *p
 	case lit.RawHeredoc != nil:
 		return cg.EmitRawHeredoc(ctx, scope, lit.RawHeredoc, ret)
 	default:
-		return errors.WithStack(ErrCodeGen{lit, errors.Errorf("unknown basic lit")})
+		return errdefs.WithInternalErrorf(lit, "invalid basic lit")
 	}
 }
 
@@ -165,8 +166,8 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 	var pieces []string
 	for _, f := range heredoc.Fragments {
 		switch {
-		case f.Whitespace != nil:
-			pieces = append(pieces, *f.Whitespace)
+		case f.Spaces != nil:
+			pieces = append(pieces, *f.Spaces)
 		case f.Escaped != nil:
 			escaped := *f.Escaped
 			if escaped[1] == '$' {
@@ -218,8 +219,8 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, rawH
 	var pieces []string
 	for _, f := range rawHeredoc.Fragments {
 		switch {
-		case f.Whitespace != nil:
-			pieces = append(pieces, *f.Whitespace)
+		case f.Spaces != nil:
+			pieces = append(pieces, *f.Spaces)
 		case f.Text != nil:
 			pieces = append(pieces, *f.Text)
 		}
@@ -234,8 +235,10 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, rawH
 }
 
 func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *parser.CallExpr, ret Register) error {
+	ctx = WithFrame(ctx, Frame{call.Name})
+
 	// Yield before executing call expression.
-	err := cg.Debug(ctx, scope, call, ret)
+	err := cg.Debug(ctx, scope, call.Name, ret)
 	if err != nil {
 		return err
 	}
@@ -246,16 +249,19 @@ func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *
 	if err != nil {
 		return err
 	}
+	for i, arg := range call.Args() {
+		ctx = WithArg(ctx, i, arg)
+	}
 
-	return cg.EmitIdentExpr(ctx, scope, call.Name, args, nil, nil, ret)
+	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, nil, nil, ret)
 }
 
-func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *parser.IdentExpr, args []Value, opts Option, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *parser.IdentExpr, lookup *parser.Ident, args []Value, opts Option, b *parser.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, ie)
 
-	obj := scope.Lookup(ie.Ident.Text)
+	obj := scope.Lookup(lookup.Text)
 	if obj == nil {
-		return errors.WithStack(ErrCodeGen{ie.Ident, ErrUndefinedReference})
+		return errors.WithStack(errdefs.WithUndefinedIdent(lookup, nil))
 	}
 
 	switch n := obj.Node.(type) {
@@ -264,16 +270,13 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	case *parser.FuncDecl:
 		return cg.EmitFuncDecl(ctx, n, args, nil, ret)
 	case *parser.BindClause:
-		return cg.EmitBinding(ctx, n.TargetBinding(ie.Ident.Text), args, ret)
+		return cg.EmitBinding(ctx, n.TargetBinding(lookup.Text), args, ret)
 	case *parser.ImportDecl:
 		importScope, ok := obj.Data.(*parser.Scope)
 		if !ok {
-			return errors.WithStack(ErrCodeGen{ie.Ident, ErrBadCast})
+			return errdefs.WithImportWithinImport(ie, obj.Ident)
 		}
-		return cg.EmitIdentExpr(ctx, importScope, &parser.IdentExpr{
-			Mixin: parser.Mixin{Pos: ie.Pos, EndPos: ie.EndPos},
-			Ident: ie.Reference,
-		}, args, opts, nil, ret)
+		return cg.EmitIdentExpr(ctx, importScope, ie, ie.Reference.Ident, args, opts, nil, ret)
 	case *parser.Field:
 		val, err := NewValue(obj.Data)
 		if err != nil {
@@ -293,19 +296,19 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 			return ret.Set(append(retOpts, valOpts...))
 		}
 	default:
-		return errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
+		return errdefs.WithInternalErrorf(n, "invalid resolved object")
 	}
 }
 
 func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd *parser.BuiltinDecl, args []Value, opts Option, b *parser.Binding, ret Register) error {
 	callable := bd.Callable(ReturnType(ctx))
 	if callable == nil {
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), fmt.Errorf("unrecognized builtin %q", bd)})
+		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "unrecognized builtin `%s`", bd)
 	}
 
 	// Pass binding if available.
 	if b != nil {
-		ctx = WithBinds(ctx, b.Binds())
+		ctx = WithBinding(ctx, b)
 	}
 
 	var (
@@ -324,9 +327,9 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 		numIn -= 1
 	}
 
-	expectedArgs := numIn - len(PrototypeIn)
-	if len(args) < expectedArgs {
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), fmt.Errorf("%s expected %d args, got %d", bd, expectedArgs, len(args))})
+	expected := numIn - len(PrototypeIn)
+	if len(args) < expected {
+		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", bd, expected, len(args))
 	}
 
 	// Reflect regular arguments.
@@ -356,14 +359,13 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 
 	outs := c.Call(ins)
 	if !outs[0].IsNil() {
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), outs[0].Interface().(error)})
+		return outs[0].Interface().(error)
 	}
 	return nil
 }
 
 func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args []Value, b *parser.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, fun.Name)
-	ctx = WithStacktrace(ctx, append(Stacktrace(ctx), Frame{ProgramCounter(ctx)}))
 
 	params := fun.Params.Fields()
 	if len(params) != len(args) {
@@ -371,7 +373,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 		if b != nil {
 			name = b.Name.Text
 		}
-		return errors.WithStack(ErrCodeGen{ProgramCounter(ctx), fmt.Errorf("%s expected %d args, got %d", name, len(params), len(args))})
+		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", name, len(params), len(args))
 	}
 
 	scope := parser.NewScope(fun, fun.Scope)
@@ -381,7 +383,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 		}
 
 		scope.Insert(&parser.Object{
-			Kind:  parser.FieldKind,
+			Kind:  param.Kind(),
 			Ident: param.Name,
 			Node:  param,
 			Data:  args[i],
@@ -389,7 +391,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 	}
 
 	// Yield before executing a function.
-	err := cg.Debug(ctx, scope, fun, ret)
+	err := cg.Debug(ctx, scope, fun.Name, ret)
 	if err != nil {
 		return err
 	}
@@ -412,7 +414,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 		case stmt.Expr != nil:
 			err = cg.EmitExpr(ctx, scope, stmt.Expr.Expr, nil, nil, b, ret)
 		default:
-			return errors.WithStack(ErrCodeGen{stmt, errors.Errorf("unknown stmt")})
+			return errdefs.WithInternalErrorf(stmt, "invalid stmt")
 		}
 		if err != nil {
 			return err
@@ -423,13 +425,15 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 }
 
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, b *parser.Binding, ret Register) error {
+	ctx = WithFrame(ctx, Frame{call.Name})
+
 	// Yield for breakpoints in the source.
 	if call.Breakpoint() {
-		return cg.Debug(ctx, scope, call, ret)
+		return cg.Debug(ctx, scope, call.Name, ret)
 	}
 
 	// Yield before executing the next call statement.
-	err := cg.Debug(ctx, scope, call, ret)
+	err := cg.Debug(ctx, scope, call.Name, ret)
 	if err != nil {
 		return err
 	}
@@ -439,6 +443,9 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	args, err := cg.Evaluate(ctx, scope, parser.None, nil, call.Args...)
 	if err != nil {
 		return err
+	}
+	for i, arg := range call.Args {
+		ctx = WithArg(ctx, i, arg)
 	}
 
 	var opts Option
@@ -464,7 +471,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 		binding = b
 	}
 
-	return cg.EmitIdentExpr(ctx, scope, call.Name, args, opts, binding, ret)
+	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, opts, binding, ret)
 }
 
 func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, hint parser.Kind, b *parser.Binding, exprs ...*parser.Expr) (values []Value, err error) {

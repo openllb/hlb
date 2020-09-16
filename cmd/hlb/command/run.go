@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/solver/errdefs"
-	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
+	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/diagnostic"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
+	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -46,6 +49,11 @@ var runCommand = &cli.Command{
 			Usage: "set type of log output (auto, tty, plain)",
 			Value: "auto",
 		},
+		&cli.BoolFlag{
+			Name:    "backtrace",
+			Usage:   "print out the backtrace when encountering an error",
+			EnvVars: []string{"HLB_BACKTRACE"},
+		},
 	},
 	Action: func(c *cli.Context) error {
 		rc, err := ModuleReadCloser(c.Args().Slice())
@@ -54,17 +62,17 @@ var runCommand = &cli.Command{
 		}
 		defer rc.Close()
 
-		ctx := appcontext.Context()
-		cln, err := solver.BuildkitClient(ctx, c.String("addr"))
+		cln, ctx, err := Client(c)
 		if err != nil {
 			return err
 		}
 
-		return Run(ctx, cln, rc, RunOptions{
+		return Run(ctx, cln, rc, RunInfo{
 			Debug:     c.Bool("debug"),
 			Tree:      c.Bool("tree"),
 			Targets:   c.StringSlice("target"),
 			LLB:       c.Bool("llb"),
+			Backtrace: c.Bool("backtrace"),
 			LogOutput: c.String("log-output"),
 			ErrOutput: os.Stderr,
 			Output:    os.Stdout,
@@ -72,9 +80,10 @@ var runCommand = &cli.Command{
 	},
 }
 
-type RunOptions struct {
+type RunInfo struct {
 	Debug     bool
 	Tree      bool
+	Backtrace bool
 	Targets   []string
 	LLB       bool
 	LogOutput string
@@ -88,45 +97,44 @@ type RunOptions struct {
 	Arch    string
 }
 
-func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOptions) error {
-	if len(opts.Targets) == 0 {
-		opts.Targets = []string{"default"}
+func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo) (err error) {
+	if len(info.Targets) == 0 {
+		info.Targets = []string{"default"}
 	}
-	if opts.Output == nil {
-		opts.Output = os.Stdout
+	if info.Output == nil {
+		info.Output = os.Stdout
 	}
 
-	ctx = local.WithEnviron(ctx, opts.Environ)
-	var err error
-	ctx, err = local.WithCwd(ctx, opts.Cwd)
+	ctx = local.WithEnviron(ctx, info.Environ)
+	ctx, err = local.WithCwd(ctx, info.Cwd)
 	if err != nil {
 		return err
 	}
-	ctx = local.WithOs(ctx, opts.Os)
-	ctx = local.WithArch(ctx, opts.Arch)
+	ctx = local.WithOs(ctx, info.Os)
+	ctx = local.WithArch(ctx, info.Arch)
 
 	var progressOpts []solver.ProgressOption
-	if opts.LogOutput == "" || opts.LogOutput == "auto" {
+	if info.LogOutput == "" || info.LogOutput == "auto" {
 		// assume plain output, will upgrade if we detect tty
-		opts.LogOutput = "plain"
-		if fdAble, ok := opts.Output.(interface{ Fd() uintptr }); ok {
+		info.LogOutput = "plain"
+		if fdAble, ok := info.Output.(interface{ Fd() uintptr }); ok {
 			if isatty.IsTerminal(fdAble.Fd()) {
-				opts.LogOutput = "tty"
+				info.LogOutput = "tty"
 			}
 		}
 	}
 
-	switch opts.LogOutput {
+	switch info.LogOutput {
 	case "tty":
 		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputTTY))
 	case "plain":
 		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputPlain))
 	default:
-		return fmt.Errorf("unrecognized log-output %q", opts.LogOutput)
+		return fmt.Errorf("unrecognized log-output %q", info.LogOutput)
 	}
 
 	var p solver.Progress
-	if opts.Debug {
+	if info.Debug {
 		p = solver.NewDebugProgress(ctx)
 	} else {
 		var err error
@@ -137,12 +145,56 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	}
 
+	ctx = diagnostic.WithSources(ctx, builtin.Sources())
+
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// Handle diagnostic errors.
+		spans := diagnostic.Spans(err)
+		for _, span := range spans {
+			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+		}
+
+		// Handle backtrace.
+		backtrace := diagnostic.Backtrace(ctx, err)
+		for i, span := range backtrace {
+			if !info.Backtrace && i != len(backtrace)-1 {
+				if i == 0 {
+					color := diagnostic.Color(ctx)
+					fmt.Fprintf(info.ErrOutput, color.Sprintf(color.Cyan(" ⫶ %d frames hidden ⫶\n"), len(backtrace)-1))
+				}
+				continue
+			}
+
+			pretty := span.Pretty(ctx, diagnostic.WithNumContext(2))
+			lines := strings.Split(pretty, "\n")
+			for j, line := range lines {
+				if j == 0 {
+					lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
+				} else {
+					lines[j] = fmt.Sprintf("    %s", line)
+				}
+			}
+			fmt.Fprintf(info.ErrOutput, "%s\n", strings.Join(lines, "\n"))
+		}
+
+		err = errdefs.WithAbort(err, len(spans))
+	}()
+
+	mod, err := parser.Parse(ctx, rc)
+	if err != nil {
+		return err
+	}
+
 	var targets []codegen.Target
-	for _, target := range opts.Targets {
+	for _, target := range info.Targets {
 		targets = append(targets, codegen.Target{Name: target})
 	}
 
-	solveReq, err := hlb.Compile(ctx, cln, targets, rc)
+	solveReq, err := hlb.Compile(ctx, cln, mod, targets)
 	if err != nil {
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
@@ -151,19 +203,19 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return err
 	}
 
-	if solveReq == nil || opts.Debug || opts.Tree {
+	if solveReq == nil || info.Debug || info.Tree {
 		p.Release()
 		err = p.Wait()
 		if err != nil {
 			return err
 		}
 
-		if solveReq == nil || opts.Debug {
+		if solveReq == nil || info.Debug {
 			return nil
 		}
 	}
 
-	if opts.Tree {
+	if info.Tree {
 		tree := treeprint.New()
 		err = solveReq.Tree(tree)
 		if err != nil {
@@ -179,14 +231,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, opts RunOpti
 		return solveReq.Solve(ctx, cln, p.MultiWriter())
 	})
 
-	err = p.Wait()
-	if err != nil {
-		for _, source := range errdefs.Sources(err) {
-			source.Print(opts.ErrOutput)
-		}
-		return err
-	}
-	return nil
+	return p.Wait()
 }
 
 func ModuleReadCloser(args []string) (io.ReadCloser, error) {

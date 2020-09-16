@@ -1,18 +1,21 @@
 package checker
 
 import (
+	"context"
 	"strings"
 	"testing"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/openllb/hlb/builtin"
+	"github.com/openllb/hlb/diagnostic"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
 	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
-	name    string
-	input   string
-	errType error
+	name  string
+	input string
+	fn    func(*parser.Module) error
 }
 
 func cleanup(value string) string {
@@ -20,16 +23,6 @@ func cleanup(value string) string {
 	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
 	result = strings.ReplaceAll(result, "|\n", "| \n")
 	return result
-}
-
-func mixin(line, col int) parser.Mixin {
-	return parser.Mixin{
-		Pos: lexer.Position{
-			Filename: "<stdin>",
-			Line:     line,
-			Column:   col,
-		},
-	}
 }
 
 func TestChecker_Check(t *testing.T) {
@@ -184,6 +177,19 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		nil,
 	}, {
+		"wrong number of args",
+		`
+		fs default() {
+			image
+		}
+		`,
+		func(mod *parser.Module) error {
+			return errdefs.WithNumArgs(
+				parser.Find(mod, "image"), 1, 0,
+				errdefs.Defined(parser.Find(builtin.Module, "image")),
+			)
+		},
+	}, {
 		"errors with duplicate function names",
 		`
 		fs duplicate(string ref) {}
@@ -191,162 +197,163 @@ func TestChecker_Check(t *testing.T) {
 			image ref
 		}
 		`,
-		ErrDuplicateDecls{
-			Idents: []*parser.Ident{{
-				Mixin: mixin(1, 4),
-				Text:  "duplicate",
-			}},
+		func(mod *parser.Module) error {
+			return errdefs.WithDuplicates([]parser.Node{
+				parser.Find(mod, "duplicate"),
+				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+			})
 		},
 	}, {
 		"errors with function and alias name collisions",
 		`
-		fs duplicateName() {}
-		fs myFunction() {
-			run "echo Hello" with option {
-				mount fs { scratch; } "/src" as duplicateName
+			fs duplicate() {}
+			fs bar() {
+				run "echo Hello" with option {
+					mount scratch "/src" as duplicate
+				}
 			}
-		}
-		`,
-		ErrDuplicateDecls{
-			Idents: []*parser.Ident{{
-				Mixin: mixin(1, 4),
-				Text:  "duplicateName",
-			}},
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithDuplicates([]parser.Node{
+				parser.Find(mod, "duplicate"),
+				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+			})
 		},
 	}, {
 		"errors with function and builtin name collisions",
 		`
-		fs image() {
-			run "echo Hello"
-		}
-		`,
-		ErrDuplicateDecls{
-			Idents: []*parser.Ident{{
-				Mixin: mixin(1, 4),
-				Text:  "image",
-			}},
+			fs image() {
+				run "echo Hello"
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithDuplicates([]parser.Node{
+				parser.Find(builtin.Module, "image"),
+				parser.Find(mod, "image"),
+			})
 		},
 	}, {
 		"errors with alias and builtin name collisions",
 		`
-		fs default() {
-			run "echo Hello" with option {
-				mount scratch "/" as image
+			fs default() {
+				run "echo Hello" with option {
+					mount scratch "/" as image
+				}
 			}
-		}
-		`,
-		ErrDuplicateDecls{
-			Idents: []*parser.Ident{{
-				Mixin: mixin(3, 23),
-				Text:  "image",
-			}},
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithDuplicates([]parser.Node{
+				parser.Find(builtin.Module, "image"),
+				parser.Find(mod, "image"),
+			})
 		},
 	}, {
 		"errors with duplicate alias names",
 		`
-		fs myFunction() {
-			run "echo Hello" with option {
-				mount fs { scratch; } "/src" as duplicateAliasName
+			fs default() {
+				run "echo hello" with option {
+					mount scratch "/src" as duplicate
+				}
+				run "echo hello" with option {
+					mount scratch "/src" as duplicate
+				}
 			}
-			run "echo Hello" with option {
-				mount fs { scratch; } "/src" as duplicateAliasName
-			}
-		}
-		`,
-		ErrDuplicateDecls{
-			Idents: []*parser.Ident{{
-				Mixin: mixin(3, 34),
-				Text:  "duplicateAliasName",
-			}},
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithDuplicates([]parser.Node{
+				parser.Find(mod, "duplicate"),
+				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+			})
 		},
 	}, {
 		"errors when calling import",
 		`
-		import myImportedModule from "./myModule.hlb"
-	
-		fs default() {
-			myImportedModule
-		}
-		`,
-		ErrUseImportWithoutReference{
-			Ident: &parser.Ident{
-				Mixin: mixin(4, 1),
-				Text:  "myImportedModule",
-			},
+			import foo from "./foo.hlb"
+
+			fs default() {
+				foo
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithCallImport(
+				parser.Find(mod, "foo", parser.WithSkip(1)),
+				parser.Find(mod, "foo"),
+			)
 		},
 	}, {
 		"basic function export",
 		`
-		export myFunction
-	
-		fs myFunction() {}
-		`,
+			export myFunction
+
+			fs myFunction() {}
+			`,
 		nil,
 	}, {
 		"basic alias export",
 		`
-		export myAlias
-	
-		fs myFunction() {
-			run "echo Hello" with option {
-				mount fs { scratch; } "/src" as myAlias
+			export myAlias
+
+			fs myFunction() {
+				run "echo Hello" with option {
+					mount fs { scratch; } "/src" as myAlias
+				}
 			}
-		}
-		`,
+			`,
 		nil,
 	}, {
 		"errors when export does not exist",
 		`
-		export myNonExistentFunction
-		`,
-		ErrIdentNotDefined{
-			Ident: &parser.Ident{
-				Mixin: mixin(1, 8),
-				Text:  "myNonExistentFunction",
-			},
+			export foo
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithUndefinedIdent(
+				parser.Find(mod, "foo"),
+				nil,
+			)
 		},
 	}, {
 		"errors when a reference is called on a name that isn't an import",
 		`
-		fs myFunction() {}
-		fs badReferenceCaller() {
-			myFunction.build
-		}
-		`,
-		ErrNotImport{
-			Ident: &parser.Ident{
-				Mixin: mixin(3, 1),
-				Text:  "myFunction",
-			},
+			fs myFunction() {}
+			fs badReferenceCaller() {
+				myFunction.build
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithNotImport(
+				parser.Find(mod, "myFunction.build").(*parser.IdentExpr),
+				parser.Find(mod, "myFunction"),
+			)
 		},
 	}, {
-		// Until we support func literals as stmts, we have to use a parallel
-		// group of one element to coerce fs to group.
 		"basic group support",
 		`
-		group default() {
-			parallel groupA fs { image "b"; }
-			groupC
-		}
-		group groupA() {
-			parallel fs { image "a"; }
-		}
-		group groupC() {
-			parallel fs { image "c"; }
-		}
-		`,
+			group default() {
+				parallel groupA fs { image "b"; }
+				groupC
+			}
+			group groupA() {
+				parallel fs { image "a"; }
+			}
+			group groupC() {
+				parallel fs { image "c"; }
+			}
+			`,
 		nil,
 	}, {
 		"errors when fs statement is called in a group block",
 		`
-		group badGroup() {
-			image "alpine"
-		}
-		`,
-		ErrWrongArgType{
-			Node:     mixin(2, 1),
-			Expected: []parser.Kind{parser.Group},
-			Found:    parser.Filesystem,
+			group badGroup() {
+				image "alpine"
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithWrongType(
+				parser.Find(mod, "image"),
+				[]parser.Kind{parser.Group},
+				parser.Filesystem,
+				errdefs.Defined(parser.Find(builtin.Module, "image")),
+			)
 		},
 	}, {
 		"no error when input doesn't end with newline",
@@ -355,120 +362,134 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors without bind target",
 		`
-		fs default() {
-			dockerPush "some/ref" as
-		}
-		`,
-		ErrBindNoTarget{
-			Node: mixin(2, 23),
+			fs default() {
+				dockerPush "some/ref" as
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithNoBindTarget(parser.Find(mod, "as"))
 		},
 	}, {
 		"no error when bind list is empty",
 		`
-		fs default() {
-			dockerPush "some/ref" as ()
-		}
-		`,
+			fs default() {
+				dockerPush "some/ref" as ()
+			}
+			`,
 		nil,
 	}, {
 		"errors with wrong type for default bind",
 		`
-		fs default() {
-			dockerPush "some/ref:latest" as imageID
-			imageID
-		}
-		`,
-		ErrWrongArgType{
-			Node:     mixin(3, 1),
-			Expected: []parser.Kind{parser.Filesystem},
-			Found:    "string",
+			fs default() {
+				dockerPush "some/ref:latest" as imageID
+				imageID
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithWrongType(
+				parser.Find(mod, "imageID", parser.WithSkip(1)),
+				[]parser.Kind{parser.Filesystem},
+				parser.String,
+				errdefs.Defined(parser.Find(mod, "imageID")),
+			)
 		},
 	}, {
 		"errors with wrong type for named bind",
 		`
-		fs default() {
-			dockerPush "some/ref:latest" as (digest imageID)
-			imageID
-		}
-		`,
-		ErrWrongArgType{
-			Node:     mixin(3, 1),
-			Expected: []parser.Kind{parser.Filesystem},
-			Found:    "string",
+			fs default() {
+				dockerPush "some/ref:latest" as (digest imageID)
+				imageID
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithWrongType(
+				parser.Find(mod, "imageID", parser.WithSkip(1)),
+				[]parser.Kind{parser.Filesystem},
+				parser.String,
+				errdefs.Defined(parser.Find(mod, "imageID")),
+			)
 		},
 	}, {
 		"errors when binding without side effects",
 		`
-		fs default() {
-			run "cmd" as nothing
-		}
-		`,
-		ErrBindBadSource{
-			CallStmt: &parser.CallStmt{
-				Mixin: mixin(2, 1),
-				Name:  parser.NewIdentExpr("run"),
-			},
+			fs default() {
+				run "cmd" as nothing
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithNoBindEffects(
+				parser.Find(mod, "run"),
+				parser.Find(mod, "as"),
+				errdefs.Defined(
+					parser.Find(builtin.Module, "run"),
+				),
+			)
 		},
 	}, {
 		"errors when binding unknown side effects",
 		`
-		fs default() {
-			dockerPush "some/ref:latest" as (badSource nothing)
-		}
-		`,
-		ErrBindBadTarget{
-			CallStmt: &parser.CallStmt{
-				Name: parser.NewIdentExpr("dockerPush"),
-			},
-			Bind: &parser.Bind{
-				Mixin:  mixin(2, 34),
-				Source: parser.NewIdent("badSource"),
-				Target: parser.NewIdent("nothing"),
-			},
+			fs default() {
+				dockerPush "some/ref:latest" as (undefined foo)
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithUndefinedBindTarget(
+				parser.Find(mod, "dockerPush"),
+				parser.Find(mod, "undefined"),
+			)
 		},
 	}, {
 		"errors when binding inside an option function declaration",
 		`
-		option::run foo() {
-			mount scratch "/out" as default
-		}
-		`,
-		ErrBindNoClosure{
-			Node: mixin(2, 22),
+			option::run foo() {
+				mount scratch "/out" as default
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithNoBindClosure(
+				parser.Find(mod, "as"),
+			)
 		},
 	}, {
 		"errors when binding inside an argument expression",
 		`
-		fs default() {
-			foo option::run {
-				mount scratch "/tmp" as bar
+			fs default() {
+				foo option::run {
+					mount scratch "/tmp" as bar
+				}
 			}
-		}
 
-		fs foo(option::run opts) {
-			run with opts
-		}
-		`,
-		ErrBindNoClosure{
-			Node: mixin(3, 23),
+			fs foo(option::run opts) {
+				run with opts
+			}
+			`,
+		func(mod *parser.Module) error {
+			return errdefs.WithNoBindClosure(
+				parser.Find(mod, "as"),
+			)
 		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(cleanup(tc.input))
 
-			mod, _, err := parser.Parse(in)
+			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 
 			err = SemanticPass(mod)
 			if err == nil {
 				err = Check(mod)
 			}
-			if err == nil && tc.errType != nil {
+			if err == nil && tc.fn != nil {
 				err = CheckReferences(mod)
-				validateError(t, tc.errType, err, tc.name)
+				validateError(t, ctx, tc.fn(mod), err, tc.name)
 			} else {
-				validateError(t, tc.errType, err, tc.name)
+				var expected error
+				if tc.fn != nil {
+					expected = tc.fn(mod)
+				}
+				validateError(t, ctx, expected, err, tc.name)
 			}
 		})
 	}
@@ -477,40 +498,76 @@ func TestChecker_Check(t *testing.T) {
 func TestChecker_CheckReferences(t *testing.T) {
 	t.Parallel()
 
+	modFixture := `
+		export foo
+		export fooWithArgs
+		export resolveImage
+		fs foo() {}
+		fs bar() {}
+		fs fooWithArgs(string bar) {}
+		option::image resolveImage() { resolve; }
+	`
+
+	ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+	imod, err := parser.Parse(ctx, strings.NewReader(modFixture))
+	require.NoError(t, err)
+
+	err = SemanticPass(imod)
+	require.NoError(t, err)
+
+	err = Check(imod)
+	require.NoError(t, err)
+
 	for _, tc := range []testCase{{
-		"able to access valid reference",
+		"can call defined reference",
 		`
 		import myImportedModule from "./myModule.hlb"
-	
+
 		fs default() {
-			myImportedModule.validReference
+			myImportedModule.foo
 		}
 		`,
 		nil,
 	}, {
-		"errors when attempting to access invalid reference",
+		"cannot call undefined reference",
 		`
 		import myImportedModule from "./myModule.hlb"
-	
+
 		fs default() {
-			myImportedModule.invalidReference
+			myImportedModule.undefined
 		}
 		`,
-		ErrIdentUndefined{
-			Ident: &parser.Ident{
-				Mixin: mixin(4, 18),
-				Text:  "invalidReference",
-			},
+		func(mod *parser.Module) error {
+			return errdefs.WithUndefinedIdent(
+				parser.Find(mod, "undefined"),
+				nil,
+				errdefs.Imported(parser.Find(mod, "myImportedModule")),
+			)
+		},
+	}, {
+		"unable to call unexported functions",
+		`
+		import myImportedModule from "./myModule.hlb"
+
+		fs default() {
+			myImportedModule.bar
+		}
+		`,
+		func(mod *parser.Module) error {
+			return errdefs.WithCallUnexported(
+				parser.Find(mod, "bar"),
+				errdefs.Imported(parser.Find(mod, "myImportedModule")),
+			)
 		},
 	}, {
 		"able to use valid reference as mount input",
 		`
 		import myImportedModule from "./myModule.hlb"
-	
+
 		fs default() {
 			scratch
 			run "xyz" with option {
-				mount myImportedModule.validReference "/mountpoint"
+				mount myImportedModule.foo "/mountpoint"
 			}
 		}
 		`,
@@ -519,9 +576,9 @@ func TestChecker_CheckReferences(t *testing.T) {
 		"able to pass function field as argument to reference",
 		`
 		import myImportedModule from "./myModule.hlb"
-	
+
 		fs default(string foo) {
-			myImportedModule.validReferenceWithArgs foo
+			myImportedModule.fooWithArgs foo
 		}
 		`,
 		nil,
@@ -529,7 +586,7 @@ func TestChecker_CheckReferences(t *testing.T) {
 		"use imported option",
 		`
 		import myImportedModule from "./myModule.hlb"
-	
+
 		fs default(string foo) {
 			image "busybox" with myImportedModule.resolveImage
 		}
@@ -539,7 +596,7 @@ func TestChecker_CheckReferences(t *testing.T) {
 		"merge imported option",
 		`
 		import myImportedModule from "./myModule.hlb"
-	
+
 		fs default(string foo) {
 			image "busybox" with option {
 				myImportedModule.resolveImage
@@ -550,27 +607,9 @@ func TestChecker_CheckReferences(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			modFixture := `
-				export validReference
-				export validReferenceWithArgs
-				export resolveImage
-				fs validReference() {}
-				fs validReferenceWithArgs(string bar) {}
-				option::image resolveImage() { resolve; }
-			`
-
-			imod, _, err := parser.Parse(strings.NewReader(modFixture))
-			require.NoError(t, err)
-
-			err = SemanticPass(imod)
-			require.NoError(t, err)
-
-			err = Check(imod)
-			require.NoError(t, err)
-
 			in := strings.NewReader(cleanup(tc.input))
 
-			mod, _, err := parser.Parse(in)
+			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 
 			err = SemanticPass(mod)
@@ -586,18 +625,32 @@ func TestChecker_CheckReferences(t *testing.T) {
 			obj.Data = imod.Scope
 
 			err = CheckReferences(mod)
-			validateError(t, tc.errType, err, tc.name)
+			var expected error
+			if tc.fn != nil {
+				expected = tc.fn(mod)
+			}
+			validateError(t, ctx, expected, err, tc.name)
 		})
 	}
 }
 
-func validateError(t *testing.T, expected error, actual error, name string) {
+func validateError(t *testing.T, ctx context.Context, expected, actual error, name string) {
 	switch {
 	case expected == nil:
 		require.NoError(t, actual, name)
 	case actual == nil:
 		require.NotNil(t, actual, name)
 	default:
-		require.Equal(t, expected.Error(), actual.Error(), name)
+		espans := diagnostic.Spans(expected)
+		aspans := diagnostic.Spans(actual)
+		require.Equal(t, len(espans), len(aspans))
+
+		for i := 0; i < len(espans); i++ {
+			epretty := espans[i].Pretty(ctx)
+			t.Logf("[Expected]\n%s", epretty)
+			apretty := aspans[i].Pretty(ctx)
+			t.Logf("[Actual]\n%s", apretty)
+			require.Equal(t, epretty, apretty, name)
+		}
 	}
 }

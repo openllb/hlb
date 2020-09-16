@@ -42,16 +42,16 @@ option::http chmod(int filemode)
 option::http filename(string name)
 
 # A filesystem with the files from a git repository checked out from
-# a git reference. Note that by default, the `.git` directory is not included.
+# a git reference. Note that by default, the ".git" directory is not included.
 #
 # @param remote the fully qualified git remote.
 # @param ref the git reference to check out.
 # @return a filesystem containing files from a git repository.
 fs git(string remote, string ref)
 
-# Keeps the `.git` directory of the git repository.
+# Keeps the ".git" directory of the git repository.
 #
-# @return the option to keep the `.git` directory.
+# @return the option to keep the ".git" directory.
 option::git keepGitDir()
 
 # A filesystem with the files synced up from a file or directory on the local
@@ -104,10 +104,10 @@ option::frontend input(string key, fs value)
 # @return an option to provide a key value pair to the external frontend.
 option::frontend opt(string key, string value)
 
-# Sets the current shell command to use when executing subsequent `run`
+# Sets the current shell command to use when executing subsequent "run"
 # methods. By default, this is ["sh", "-c"].
 #
-# @param arg the list of args used to prefix `run` statements.
+# @param arg the list of args used to prefix "run" statements.
 # @return the filesystem with a new default shell.
 fs shell(variadic string arg)
 
@@ -152,7 +152,7 @@ option::run user(string name)
 option::run ignoreCache()
 
 # Sets the networking mode for the duration of the run command. By default, the
-# value is `unset` (using BuildKit's CNI provider, otherwise its host
+# value is "unset" (using BuildKit's CNI provider, otherwise its host
 # namespace).
 #
 # @param networkmode the network mode of the container, must be one of the
@@ -163,7 +163,7 @@ option::run ignoreCache()
 option::run network(string networkmode)
 
 # Sets the security mode for the duration of the run command. By default, the
-# value is `sandbox`.
+# value is "sandbox".
 #
 # @param securitymode the security mode of the container, must be one of the
 # following:
@@ -171,8 +171,8 @@ option::run network(string networkmode)
 # - insecure: enables all capabilities.
 option::run security(string securitymode)
 
-# Attempt to lex the single-argument shell command provided to `run`
-# to determine if a `/bin/sh -c '...'` wrapper needs to be added.
+# Attempt to lex the single-argument shell command provided to "run"
+# to determine if a "/bin/sh -c '...'" wrapper needs to be added.
 #
 # @return an option to attempt to optimize the command execution remoiving the /bin/sh -c "..." wrapper when possible.
 option::run shlex()
@@ -186,7 +186,7 @@ option::run host(string hostname, string address)
 
 # Mounts a SSH socket for the duration of the run command. By default, it will
 # try to use the SSH socket found from $SSH_AUTH_SOCK. Otherwise, an option
-# `localPath` can be provided to specify a filepath to a SSH auth socket or
+# "localPath" can be provided to specify a filepath to a SSH auth socket or
 # *.pem file.
 #
 # @return an option to mount a SSH socket.
@@ -194,7 +194,7 @@ option::run ssh()
 
 # Forwards traffic to/from a local source to a unix domain socket mounted for
 # the duration of the run command. The source must be a fully qualified URI
-# where the scheme must be either `unix://` or `tcp://`.
+# where the scheme must be either "unix://" or "tcp://".
 #
 # @param src a fully qualified URI to forward traffic to/from.
 # @param dest a mountpoint for a unix domain socket that is forwarded to/from.
@@ -219,7 +219,7 @@ option::run secret(string localPath, string mountPoint)
 option::run mount(fs input, string mountPoint) binds (fs target)
 
 # Sets the target directory to mount the SSH agent socket. By default, it is
-# mounted to `/run/buildkit/ssh_agent.${N}`, where N is the index of the 
+# mounted to "/run/buildkit/ssh_agent.${N}", where N is the index of the 
 # socket. If $SSH_AUTH_SOCK is not set, it will set SSH_AUTH_SOCK to the
 # mountPoint.
 #
@@ -309,11 +309,11 @@ option::mount sourcePath(string path)
 #
 # Compilers and package managers commonly have an option to specify cache
 # directories. Depending on their implementation, it may be safe to share the
-# cache with concurrent processes. This is adjusted via the `sharingmode`
+# cache with concurrent processes. This is adjusted via the "sharingmode"
 # argument.
 #
 # The cache is modified every time the parent run command is executed. A cache
-# could also be managed by not using the `cache` option. Instead, the mount can
+# could also be managed by not using the "cache" option. Instead, the mount can
 # be aliased, and then pushed as an image, so that there it can be a stable
 # snapshot, or updated externally.
 #
@@ -419,13 +419,13 @@ fs copy(fs input, string src, string dst)
 # @return an option to follow symlinks and copy their targets.
 option::copy followSymlinks()
 
-# If the `src` path is a directory, only the contents of the directory is
+# If the "src" path is a directory, only the contents of the directory is
 # copied to the destination.
 #
 # @return an option to copy only the contents of the input directory.
 option::copy contentsOnly()
 
-# If the `src` path is an archive, attempt to unpack its contents into the
+# If the "src" path is an archive, attempt to unpack its contents into the
 # destination.
 #
 # @return an option to unpack an archive to the destination.
@@ -501,7 +501,7 @@ fs downloadTarball(string localPath)
 fs downloadOCITarball(string localPath)
 
 # Downloads the filesystem as a Docker image tarball to a local path.
-# The tarball is able to be loaded into a docker engine via `docker load`.
+# The tarball is able to be loaded into a docker engine via "docker load".
 # See: https://docs.docker.com/engine/reference/commandline/save/
 # and https://docs.docker.com/engine/reference/commandline/load/
 #
@@ -616,8 +616,8 @@ option::localRun includeStderr()
 # @return an option to ignore stdout on the command
 option::localRun onlyStderr()
 
-# Attempt to lex the single-argument shell command provided to `localRun`
-# to determine if a `/bin/sh -c '...'` wrapper needs to be added.
+# Attempt to lex the single-argument shell command provided to "localRun"
+# to determine if a "/bin/sh -c '...'" wrapper needs to be added.
 #
 # @return an option to attempt to optimize the command execution removing the
 # /bin/sh -c "..." wrapper when possible.

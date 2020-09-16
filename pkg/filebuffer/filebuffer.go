@@ -1,13 +1,39 @@
-package parser
+package filebuffer
 
 import (
 	"bytes"
 	"fmt"
 	"io"
 	"sort"
+	"sync"
 
+	"github.com/alecthomas/participle/lexer"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/solver/pb"
 )
+
+type Sources struct {
+	fbs map[string]*FileBuffer
+	mu  sync.Mutex
+}
+
+func NewSources() *Sources {
+	return &Sources{
+		fbs: make(map[string]*FileBuffer),
+	}
+}
+
+func (s *Sources) Get(filename string) *FileBuffer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.fbs[filename]
+}
+
+func (s *Sources) Set(filename string, fb *FileBuffer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fbs[filename] = fb
+}
 
 type FileBuffer struct {
 	filename  string
@@ -17,11 +43,15 @@ type FileBuffer struct {
 	sourceMap *llb.SourceMap
 }
 
-func NewFileBuffer(filename string) *FileBuffer {
+func New(filename string) *FileBuffer {
 	return &FileBuffer{
 		filename: filename,
 		buf:      new(bytes.Buffer),
 	}
+}
+
+func (fb *FileBuffer) Filename() string {
+	return fb.filename
 }
 
 func (fb *FileBuffer) SourceMap() *llb.SourceMap {
@@ -54,13 +84,28 @@ func (fb *FileBuffer) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
+func (fb *FileBuffer) PositionFromProto(pos pb.Position) lexer.Position {
+	line, column := int(pos.Line), int(pos.Character)
+	var offset int
+	if line-2 < 0 {
+		offset = column - 1
+	} else {
+		offset = fb.offsets[line-2] + column - 1
+	}
+	return lexer.Position{
+		Filename: fb.filename,
+		Offset:   offset,
+		Line:     line,
+		Column:   column,
+	}
+}
+
 func (fb *FileBuffer) Segment(offset int) ([]byte, error) {
 	if len(fb.offsets) == 0 {
 		return fb.buf.Bytes(), nil
 	}
 
 	index := fb.findNearestLineIndex(offset)
-
 	start := 0
 	if index >= 0 {
 		start = fb.offsets[index] + 1
@@ -80,19 +125,19 @@ func (fb *FileBuffer) Segment(offset int) ([]byte, error) {
 	return fb.read(start, end)
 }
 
-func (fb *FileBuffer) Line(num int) ([]byte, error) {
-	if num > len(fb.offsets) {
-		return nil, fmt.Errorf("line %d outside of offsets", num)
+func (fb *FileBuffer) Line(ln int) ([]byte, error) {
+	if ln > len(fb.offsets) {
+		return nil, fmt.Errorf("line %d outside of offsets", ln)
 	}
 
 	start := 0
-	if num > 0 {
-		start = fb.offsets[num-1] + 1
+	if ln > 0 {
+		start = fb.offsets[ln-1] + 1
 	}
 
 	end := fb.offsets[0]
-	if num > 0 {
-		end = fb.offsets[num]
+	if ln > 0 {
+		end = fb.offsets[ln]
 	}
 
 	return fb.read(start, end)

@@ -22,11 +22,11 @@ import (
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/solver/pb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
-	"github.com/pkg/errors"
 	fstypes "github.com/tonistiigi/fsutil/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -50,9 +50,8 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return errors.Wrapf(err, "cannot parse %q", ref)
+		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
-
 	ref = reference.TagNameOnly(named).String()
 
 	var (
@@ -144,8 +143,7 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	fi, err := os.Stat(localPath)
 	if err != nil {
-		// FIXME: return user error instead of codegen
-		return err
+		return Arg(ctx, 0).WithError(err)
 	}
 
 	var localOpts []llb.LocalOption
@@ -201,6 +199,12 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 type Frontend struct{}
 
 func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, source string) error {
+	named, err := reference.ParseNormalizedNamed(source)
+	if err != nil {
+		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), source)
+	}
+	source = reference.TagNameOnly(named).String()
+
 	req := gateway.SolveRequest{
 		Frontend: "gateway.v0",
 		FrontendOpt: map[string]string{
@@ -235,8 +239,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return s.Run(ctx, cln.Dialer())
 	})
 
-	zero := ZeroValue()
-	fs, err := zero.Filesystem()
+	fs, err := ZeroValue().Filesystem()
 	if err != nil {
 		return err
 	}
@@ -558,6 +561,12 @@ func (ss StopSignal) Call(ctx context.Context, cln *client.Client, ret Register,
 type DockerPush struct{}
 
 func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+	named, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
+	}
+	ref = reference.TagNameOnly(named).String()
+
 	exportFS, err := ret.Filesystem()
 	if err != nil {
 		return err
@@ -589,7 +598,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
-	if Binds(ctx) == "digest" {
+	if Binding(ctx).Binds() == "digest" {
 		err = g.Wait()
 		if err != nil {
 			return err
@@ -612,7 +621,7 @@ type DockerLoad struct {
 	once      sync.Once
 }
 
-func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+func (dl *DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
 	exportFS, err := ret.Filesystem()
 	if err != nil {
 		return err

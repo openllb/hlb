@@ -1,6 +1,7 @@
-package hlb
+package parser
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -58,7 +59,7 @@ var (
 				allowNotFound
 				allowWildcard
 			}
-			copy fs { bar; } "src" "dst" with option {
+			copy bar "src" "dst" with option {
 				followSymlinks
 				contentsOnly
 				unpack
@@ -108,7 +109,7 @@ var (
 
 func TestParse(t *testing.T) {
 	t.Parallel()
-	file, _, err := Parse(strings.NewReader(def))
+	file, err := Parse(context.Background(), strings.NewReader(def))
 	require.NoError(t, err)
 	require.NotNil(t, file)
 }

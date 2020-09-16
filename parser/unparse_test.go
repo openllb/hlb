@@ -1,6 +1,7 @@
-package hlb
+package parser
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -660,7 +661,7 @@ func TestUnparse(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			file, _, err := Parse(strings.NewReader(cleanup(tc.input)))
+			file, err := Parse(context.Background(), strings.NewReader(cleanup(tc.input)))
 			require.NoError(t, err)
 			require.Equal(t, cleanup(tc.expected), file.String())
 		})
