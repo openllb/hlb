@@ -3,6 +3,7 @@ package hlb
 import (
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
@@ -59,12 +60,16 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *parser.FileBuffer
 
 	name := lexer.NameOfReader(r)
 	if name == "" {
-		name = "<stdin>"
+		name = "/dev/stdin.hlb"
 	}
 	r = &parser.NewlinedReader{Reader: r}
 
 	fb := parser.NewFileBuffer(name)
 	r = io.TeeReader(r, fb)
+
+	if filepath.Ext(name) != ".hlb" {
+		return parser.ParseDockerfile(r)
+	}
 
 	lex, err := parser.Parser.Lexer().Lex(&parser.NamedReader{
 		Reader: r,

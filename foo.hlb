@@ -1,0 +1,8 @@
+import dockerfile from "./Dockerfile"
+import dockerfile2 from "./Dockerfile2"
+
+fs default() {
+	dockerfile.foo
+	copy dockerfile2.bar "/foo" "/"
+	dockerLoad "foo"
+}

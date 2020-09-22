@@ -55,6 +55,8 @@ func (w *walker) walk(node Node, v Visitor) {
 		w.walkDeclList(n.Decls, v)
 	case *Decl:
 		switch {
+		case n.Dockerfile != nil:
+			w.walk(n.Dockerfile, v)
 		case n.Import != nil:
 			w.walk(n.Import, v)
 		case n.Export != nil:

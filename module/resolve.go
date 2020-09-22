@@ -422,40 +422,60 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				}
 				defer rc.Close()
 
-				imod, fb, err := parser.Parse(rc)
-				if err != nil {
-					return err
-				}
-
-				err = checker.SemanticPass(imod)
-				if err != nil {
-					return err
-				}
-
-				// Drop errors from linting.
-				linter.Lint(imod)
-
-				err = checker.Check(imod)
-				if err != nil {
-					return err
-				}
-
-				if info.visitor != nil {
-					err = info.visitor(VisitInfo{
-						Parent:     mod,
-						Import:     imod,
-						ImportDecl: id,
-						Ret:        ret,
-						Digest:     ires.Digest(),
-					})
+				var (
+					imod *parser.Module
+					fb *parser.FileBuffer
+				)
+				if filepath.Ext(filename) != "hlb" {
+					r := parser.NamedReader{
+						Reader: rc,
+						Value:  filename,
+					}
+					imod, fb, err = parser.ParseDockerfile(r)
 					if err != nil {
 						return err
 					}
-				}
 
-				err = resolveGraph(ctx, info, ires, imod)
-				if err != nil {
-					return err
+					err = checker.SemanticPass(imod)
+					if err != nil {
+						return err
+					}
+				} else {
+					imod, fb, err = parser.Parse(rc)
+					if err != nil {
+						return err
+					}
+
+					err = checker.SemanticPass(imod)
+					if err != nil {
+						return err
+					}
+
+					// Drop errors from linting.
+					linter.Lint(imod)
+
+					err = checker.Check(imod)
+					if err != nil {
+						return err
+					}
+
+					if info.visitor != nil {
+						err = info.visitor(VisitInfo{
+							Parent:     mod,
+							Import:     imod,
+							ImportDecl: id,
+							Ret:        ret,
+							Digest:     ires.Digest(),
+						})
+						if err != nil {
+							return err
+						}
+					}
+
+					err = resolveGraph(ctx, info, ires, imod)
+					if err != nil {
+						return err
+					}
 				}
 
 				mu.Lock()

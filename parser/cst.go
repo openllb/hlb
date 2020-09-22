@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/stateful"
+	dfinstructions "github.com/moby/buildkit/frontend/dockerfile/instructions"
 )
 
 var (
@@ -154,11 +155,12 @@ type Module struct {
 // Decl represents a declaration node.
 type Decl struct {
 	Mixin
-	Import   *ImportDecl   `parser:"( @@"`
-	Export   *ExportDecl   `parser:"| @@"`
-	Func     *FuncDecl     `parser:"| @@"`
-	Newline  *Newline      `parser:"| @@"`
-	Comments *CommentGroup `parser:"| @@ )"`
+	Dockerfile *DockerfileDecl
+	Import     *ImportDecl   `parser:"( @@"`
+	Export     *ExportDecl   `parser:"| @@"`
+	Func       *FuncDecl     `parser:"| @@"`
+	Newline    *Newline      `parser:"| @@"`
+	Comments   *CommentGroup `parser:"| @@ )"`
 }
 
 // ImportDecl represents an import declaration.
@@ -194,6 +196,17 @@ type ExportDecl struct {
 type Export struct {
 	Mixin
 	Text string `parser:"@'export'"`
+}
+
+type DockerfileDecl struct {
+	Mixin
+	Stage   dfinstructions.Stage
+	Target  string
+	Content []byte
+}
+
+func (d *DockerfileDecl) String() string {
+	return string(d.Content)
 }
 
 // BuiltinDecl is a synthetic declaration representing a builtin name.

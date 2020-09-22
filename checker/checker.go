@@ -50,6 +50,20 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 
 	// (1) Build lexical scopes and memoize semantic data into the CST.
 	parser.Match(mod, parser.MatchOpts{},
+		func(dd *parser.DockerfileDecl) {
+			ident := &parser.Ident{
+				Text: dd.Target,
+			}
+			if len(dd.Stage.Location) > 0 {
+				ident.Mixin = parser.DFRangeToMixin(dd.Pos.Filename, dd.Stage.Location[0])
+			}
+			mod.Scope.Insert(&parser.Object{
+				Kind:     parser.DeclKind,
+				Ident:    ident,
+				Node:     dd,
+				Exported: true,
+			})
+		},
 		// Register imports identifiers.
 		func(id *parser.ImportDecl) {
 			if id.Name != nil {
@@ -460,6 +474,8 @@ func (c *checker) checkIdentType(scope *parser.Scope, kset *KindSet, ie *parser.
 	}
 
 	switch n := obj.Node.(type) {
+	case *parser.DockerfileDecl:
+		return c.checkType(ie.Ident, kset, parser.Filesystem)
 	case *parser.BuiltinDecl:
 		fun, err := c.lookupBuiltin(ie.Ident, kset, n)
 		if err != nil {
@@ -606,6 +622,8 @@ func (c *checker) lookupSignature(scope *parser.Scope, kset *KindSet, ie *parser
 	}
 
 	switch n := obj.Node.(type) {
+	case *parser.DockerfileDecl:
+		return nil, nil
 	case *parser.BuiltinDecl:
 		fun, err := c.lookupBuiltin(ie.Ident, kset, n)
 		if err != nil {

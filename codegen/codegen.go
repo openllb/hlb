@@ -9,6 +9,7 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/client/llb"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
@@ -246,6 +247,8 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	}
 
 	switch n := obj.Node.(type) {
+	case *parser.DockerfileDecl:
+		return cg.EmitDockerfileDecl(ctx, n, ret)
 	case *parser.BuiltinDecl:
 		return cg.EmitBuiltinDecl(ctx, scope, n, args, opts, b, ret)
 	case *parser.FuncDecl:
@@ -282,6 +285,15 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	default:
 		return errors.WithStack(ErrCodeGen{n, errors.Errorf("unknown obj type")})
 	}
+}
+
+func (cg *CodeGen) EmitDockerfileDecl(ctx context.Context, dd *parser.DockerfileDecl, ret Register) error {
+	if cg.cln == nil {
+		return ret.Set(llb.Scratch())
+	}
+	var opts Option
+	opts = append(opts, WithDockerfileTarget(dd.Target))
+	return dockerfile(ctx, cg.cln, ret, opts, dd.Content)
 }
 
 func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd *parser.BuiltinDecl, args []Value, opts Option, b *parser.Binding, ret Register) error {

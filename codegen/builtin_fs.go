@@ -18,6 +18,8 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/exporter/containerimage/exptypes"
+	"github.com/moby/buildkit/frontend/dockerfile/dockerfile2llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/solver/pb"
@@ -260,16 +262,14 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 				return
 			}
 
-			if ref == nil {
-				fs.State = llb.Scratch()
-			} else {
+			if ref != nil {
 				fs.State, err = ref.ToState()
 				if err != nil {
 					return
 				}
 			}
 
-			imageSpec, ok := res.Metadata[llbutil.KeyContainerImageConfig]
+			imageSpec, ok := res.Metadata[exptypes.ExporterImageConfigKey]
 			if ok {
 				err = json.Unmarshal(imageSpec, fs.Image)
 				if err != nil {
@@ -281,7 +281,121 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 		}, solveOpts...)
 	})
 
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
 	return ret.Set(fs)
+}
+
+func dockerfile(ctx context.Context, cln *client.Client, ret Register, opts Option, dt []byte) error {
+	var (
+		info        DockerfileInfo
+		solveOpts   []solver.SolveOption
+		sessionOpts []llbutil.SessionOption
+	)
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case DockerfileOption:
+			o(&info)
+		case solver.SolveOption:
+			solveOpts = append(solveOpts, o)
+		case llbutil.SessionOption:
+			sessionOpts = append(sessionOpts, o)
+		}
+	}
+
+	s, err := llbutil.NewSession(ctx, sessionOpts...)
+	if err != nil {
+		return err
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return s.Run(ctx, cln.Dialer())
+	})
+
+	zero := ZeroValue()
+	fs, err := zero.Filesystem()
+	if err != nil {
+		return err
+	}
+
+	g.Go(func() error {
+		var pw progress.Writer
+
+		mw := MultiWriter(ctx)
+		if mw != nil {
+			pw = mw.WithPrefix("", false)
+		}
+
+		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
+			caps := c.BuildOpts().LLBCaps
+			st, img, err := dockerfile2llb.Dockerfile2LLB(ctx, dt, dockerfile2llb.ConvertOpt{
+				Target:       info.Target,
+				MetaResolver: c,
+				// BuildArgs:         filter(opts, buildArgPrefix),
+				SessionID:    s.ID(),
+				// BuildContext: buildContext,
+				// Excludes:          excludes,
+				// IgnoreCache:       ignoreCache,
+				// TargetPlatform:    tp,
+				// BuildPlatforms:    buildPlatforms,
+				// ImageResolveMode:  resolveMode,
+				// PrefixPlatform:    exportMap,
+				// ExtraHosts:        extraHosts,
+				ForceNetMode: llb.NetModeSandbox,
+				// OverrideCopyImage: opts[keyOverrideCopyImage],
+				LLBCaps: &caps,
+				// SourceMap:         sourceMap,
+			})
+			if err != nil {
+				return
+			}
+
+			def, err := st.Marshal(ctx)
+			if err != nil {
+				return
+			}
+
+			res, err = c.Solve(ctx, gateway.SolveRequest{
+				Definition: def.ToPB(),
+			})
+			if err != nil {
+				return
+			}
+
+			ref, err := res.SingleRef()
+			if err != nil {
+				return
+			}
+
+			if ref != nil {
+				fs.State, err = ref.ToState()
+				if err != nil {
+					return
+				}
+			}
+
+			config, err := json.Marshal(img)
+			if err != nil {
+				return
+			}
+			res.AddMeta(exptypes.ExporterImageConfigKey, config)
+
+			return
+		}, solveOpts...)
+	})
+
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
+	return ret.Set(fs)
+
 }
 
 type Env struct{}

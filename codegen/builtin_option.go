@@ -146,6 +146,18 @@ func (fo FrontendOpt) Call(ctx context.Context, cln *client.Client, ret Register
 	return ret.Set(append(retOpts, llbutil.FrontendOpt(key, value)))
 }
 
+type DockerfileInfo struct {
+	Target string
+}
+
+type DockerfileOption func(*DockerfileInfo)
+
+func WithDockerfileTarget(target string) DockerfileOption {
+	return func(info *DockerfileInfo) {
+		info.Target = target
+	}
+}
+
 type CreateParents struct{}
 
 func (cp CreateParents) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {

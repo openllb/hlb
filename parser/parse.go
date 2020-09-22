@@ -20,16 +20,19 @@ func Parse(r io.Reader) (*Module, *FileBuffer, error) {
 	mod := &Module{}
 	lex, err := Parser.Lexer().Lex(&NamedReader{r, name})
 	if err != nil {
+		panic(err)
 		return mod, fb, err
 	}
 
 	peeker, err := lexer.Upgrade(lex)
 	if err != nil {
+		panic(err)
 		return mod, fb, err
 	}
 
 	err = Parser.ParseFromLexer(peeker, mod)
 	if err != nil {
+		panic(err)
 		return mod, fb, err
 	}
 	AssignDocStrings(mod)

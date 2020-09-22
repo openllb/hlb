@@ -3,6 +3,7 @@ package linter
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -97,6 +98,10 @@ func (l *Linter) LintRecursive(mod *parser.Module, expr *parser.Expr) error {
 	path, err := ret.String()
 	if err != nil {
 		return err
+	}
+
+	if filepath.Ext(path) != "hlb" {
+		return nil
 	}
 
 	f, err := os.Open(path)

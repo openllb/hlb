@@ -1,0 +1,2 @@
+FROM busybox AS bar
+RUN echo foo > /foo
