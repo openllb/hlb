@@ -797,6 +797,7 @@ func TestCodeGen(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := codegen.WithSessionID(context.Background(), identity.NewID())
 			cg, err := codegen.New(nil)
 			require.NoError(t, err, tc.name)
 
@@ -806,7 +807,7 @@ func TestCodeGen(t *testing.T) {
 			err = checker.SemanticPass(mod)
 			require.NoError(t, err, tc.name)
 
-			linter.Lint(mod)
+			linter.Lint(ctx, mod)
 
 			err = checker.Check(mod)
 			require.NoError(t, err, tc.name)
@@ -823,7 +824,7 @@ func TestCodeGen(t *testing.T) {
 				err = checker.SemanticPass(imod)
 				require.NoError(t, err, tc.name)
 
-				linter.Lint(imod)
+				linter.Lint(ctx, imod)
 
 				err = checker.Check(imod)
 				require.NoError(t, err, tc.name)
@@ -839,7 +840,6 @@ func TestCodeGen(t *testing.T) {
 				targets = append(targets, codegen.Target{Name: target})
 			}
 
-			ctx := codegen.WithSessionID(context.Background(), identity.NewID())
 			request, err := cg.Generate(ctx, mod, targets)
 			require.NoError(t, err, tc.name)
 
