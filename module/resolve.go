@@ -18,6 +18,7 @@ import (
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"golang.org/x/sync/errgroup"
 )
@@ -175,8 +176,6 @@ func (r *remoteResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs 
 		pw = mw.WithPrefix(fmt.Sprintf("import %s", id.Name), true)
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-
 	// Block constructing remoteResolved until the graph is solved and assigned to
 	// ref.
 	resolved := make(chan struct{})
@@ -186,10 +185,20 @@ func (r *remoteResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs 
 	// collected.
 	closed := make(chan struct{})
 
-	var ref gateway.Reference
+	s, err := llbutil.NewSession(ctx, fs.SessionOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return solver.Build(ctx, r.cln, nil, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+		return s.Run(ctx, r.cln.Dialer())
+	})
+
+	var ref gateway.Reference
+	g.Go(func() error {
+		return solver.Build(ctx, r.cln, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 			res, err := c.Solve(ctx, gateway.SolveRequest{
 				Definition: def.ToPB(),
 			})
