@@ -134,7 +134,7 @@ func (ls *LangServer) textDocumentDidOpenHandler(ctx context.Context, params lsp
 	uri := params.TextDocument.URI
 	log.Printf("did open %q", uri)
 
-	td := NewTextDocument(uri, params.TextDocument.Text)
+	td := NewTextDocument(ctx, uri, params.TextDocument.Text)
 
 	ls.tmu.Lock()
 	ls.tds[uri] = td
@@ -408,7 +408,7 @@ func (ls *LangServer) textDocumentDidChangeHandler(ctx context.Context, params l
 		}
 
 		for _, change := range params.ContentChanges {
-			td := NewTextDocument(uri, change.Text)
+			td := NewTextDocument(ctx, uri, change.Text)
 			if _, ok := ls.capset[SemanticHighlightingCapability]; ok {
 				go func() {
 					err := ls.publishSemanticHighlighting(ctx, td)
@@ -585,7 +585,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 					return
 				}
 
-				importTD = NewTextDocument(importUri, string(data))
+				importTD = NewTextDocument(ctx, importUri, string(data))
 				ls.tds[importUri] = importTD
 			}
 			ls.tmu.Unlock()
@@ -746,7 +746,7 @@ type TextDocument struct {
 	Err        error
 }
 
-func NewTextDocument(uri lsp.DocumentURI, text string) TextDocument {
+func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, text string) TextDocument {
 	td := TextDocument{
 		Identifier: lsp.VersionedTextDocumentIdentifier{
 			TextDocumentIdentifier: lsp.TextDocumentIdentifier{
@@ -769,7 +769,7 @@ func NewTextDocument(uri lsp.DocumentURI, text string) TextDocument {
 		return td
 	}
 
-	linter.Lint(td.Module)
+	linter.Lint(ctx, td.Module)
 
 	td.Err = checker.Check(td.Module)
 	if td.Err != nil {

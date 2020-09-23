@@ -391,7 +391,10 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 	parser.Match(mod, parser.MatchOpts{},
 		func(id *parser.ImportDecl) {
 			g.Go(func() error {
-				ret := codegen.NewRegister()
+				var (
+					ctx = codegen.WithProgramCounter(ctx, id.Expr)
+					ret = codegen.NewRegister()
+				)
 				err := cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
 				if err != nil {
 					return err
@@ -416,7 +419,12 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					defer ires.Close()
 				case parser.String:
 					ires = res
-					filename, err = ret.String()
+					relPath, err := ret.String()
+					if err != nil {
+						return err
+					}
+
+					filename, err = parser.ResolvePath(codegen.ModuleDir(ctx), relPath)
 					if err != nil {
 						return err
 					}
@@ -442,7 +450,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				}
 
 				// Drop errors from linting.
-				linter.Lint(imod)
+				linter.Lint(ctx, imod)
 
 				err = checker.Check(imod)
 				if err != nil {

@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/moby/buildkit/util/appcontext"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/linter"
@@ -37,7 +38,8 @@ var lintCommand = &cli.Command{
 			return err
 		}
 
-		err = linter.Lint(mod, linter.WithRecursive())
+		ctx := appcontext.Context()
+		err = linter.Lint(ctx, mod, linter.WithRecursive())
 		if err != nil {
 			if lintErr, ok := err.(linter.ErrLint); ok {
 				if !c.Bool("fix") {

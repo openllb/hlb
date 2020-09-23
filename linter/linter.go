@@ -22,12 +22,12 @@ func WithRecursive() LintOption {
 	}
 }
 
-func Lint(mod *parser.Module, opts ...LintOption) error {
+func Lint(ctx context.Context, mod *parser.Module, opts ...LintOption) error {
 	linter := Linter{}
 	for _, opt := range opts {
 		opt(&linter)
 	}
-	err := linter.Lint(mod)
+	err := linter.Lint(ctx, mod)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func Lint(mod *parser.Module, opts ...LintOption) error {
 	return nil
 }
 
-func (l *Linter) Lint(mod *parser.Module) error {
+func (l *Linter) Lint(ctx context.Context, mod *parser.Module) error {
 	var (
 		modErr error
 		errs   []error
@@ -59,7 +59,7 @@ func (l *Linter) Lint(mod *parser.Module) error {
 				return
 			}
 
-			err := l.LintRecursive(mod, id.Expr)
+			err := l.LintRecursive(ctx, mod, id.Expr)
 			if err != nil {
 				if lintErr, ok := err.(ErrLint); ok {
 					l.errs = append(l.errs, lintErr.Errs...)
@@ -78,14 +78,16 @@ func (l *Linter) Lint(mod *parser.Module) error {
 	return nil
 }
 
-func (l *Linter) LintRecursive(mod *parser.Module, expr *parser.Expr) error {
+func (l *Linter) LintRecursive(ctx context.Context, mod *parser.Module, expr *parser.Expr) error {
+	ctx = codegen.WithProgramCounter(ctx, mod)
+
 	cg, err := codegen.New(nil)
 	if err != nil {
 		return err
 	}
 
 	ret := codegen.NewRegister()
-	err = cg.EmitExpr(context.Background(), mod.Scope, expr, nil, nil, nil, ret)
+	err = cg.EmitExpr(ctx, mod.Scope, expr, nil, nil, nil, ret)
 	if err != nil {
 		return err
 	}
@@ -94,12 +96,17 @@ func (l *Linter) LintRecursive(mod *parser.Module, expr *parser.Expr) error {
 		return nil
 	}
 
-	path, err := ret.String()
+	relPath, err := ret.String()
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Open(path)
+	filename, err := parser.ResolvePath(codegen.ModuleDir(ctx), relPath)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
@@ -115,5 +122,5 @@ func (l *Linter) LintRecursive(mod *parser.Module, expr *parser.Expr) error {
 		return err
 	}
 
-	return l.Lint(imod)
+	return l.Lint(ctx, imod)
 }

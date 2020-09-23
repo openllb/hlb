@@ -42,7 +42,7 @@ func Compile(ctx context.Context, cln *client.Client, targets []codegen.Target, 
 		return nil, err
 	}
 
-	err = linter.Lint(mod, linter.WithRecursive())
+	err = linter.Lint(ctx, mod, linter.WithRecursive())
 	if err != nil {
 		fmt.Println(err)
 	}
