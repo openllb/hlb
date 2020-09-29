@@ -52,7 +52,7 @@ var (
 			{"HeredocEnd", `\b\1\b`, stateful.Pop()},
 			{"Whitespace", `\s+`, nil},
 			{"Interpolated", `\${`, stateful.Push("Interpolated")},
-			{"Text", `[^\s$]+`, nil},
+			{"Text", `\$|[^\s$]+`, nil},
 		},
 		"RawHeredoc": {
 			{"RawHeredocEnd", `\b\1\b`, stateful.Pop()},
