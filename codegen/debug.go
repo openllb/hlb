@@ -8,18 +8,27 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"unicode"
 
+	"github.com/docker/buildx/util/progress"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/logrusorgru/aurora"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/report"
+	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -40,7 +49,7 @@ type snapshot struct {
 	ret   Value
 }
 
-func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]*parser.FileBuffer) Debugger {
+func NewDebugger(cln *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]*parser.FileBuffer) Debugger {
 	color := aurora.NewAurora(true)
 
 	var (
@@ -127,7 +136,6 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 				}
 
 				command = strings.Replace(command, "\n", "", -1)
-
 				if command == "" {
 					continue
 				}
@@ -238,6 +246,18 @@ func NewDebugger(c *client.Client, w io.Writer, r *bufio.Reader, fbs map[string]
 					}
 
 					fmt.Fprintf(w, "Environment %s\n", env)
+				case "exec":
+					fs, err := s.ret.Filesystem()
+					if err != nil {
+						fmt.Fprintf(w, "current step is not in a fs scope\n")
+						continue
+					}
+
+					err = Exec(ctx, cln, fs, r, w, args[1:]...)
+					if err != nil {
+						fmt.Fprintf(w, "err: %s\n", err)
+						continue
+					}
 				case "exit":
 					return ErrDebugExit
 				case "funcs":
@@ -576,4 +596,157 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 	default:
 		return dgst.String(), "plaintext"
 	}
+}
+
+func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r *bufio.Reader, w io.Writer, args ...string) error {
+	if len(args) == 0 {
+		args = []string{"/bin/sh"}
+	}
+
+	s, err := llbutil.NewSession(ctx, fs.SessionOpts...)
+	if err != nil {
+		return err
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return s.Run(ctx, cln.Dialer())
+	})
+
+	g.Go(func() error {
+		var pw progress.Writer
+
+		mw := MultiWriter(ctx)
+		if mw != nil {
+			pw = mw.WithPrefix("", false)
+		}
+
+		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
+			def, err := fs.State.Marshal(ctx)
+			if err != nil {
+				return
+			}
+
+			res, err = c.Solve(ctx, gateway.SolveRequest{
+				Definition: def.ToPB(),
+			})
+			if err != nil {
+				return
+			}
+
+			ctr, err := c.NewContainer(ctx, gateway.NewContainerRequest{
+				Mounts: []gateway.Mount{{
+					Dest:      "/",
+					MountType: pb.MountType_BIND,
+					Ref:       res.Ref,
+				}},
+			})
+			if err != nil {
+				return
+			}
+			defer ctr.Release(ctx)
+
+			ir := InterruptibleReader(r)
+			defer func() {
+				ir.Close()
+			}()
+
+			proc, err := ctr.Start(ctx, gateway.StartRequest{
+				Args:   args,
+				Cwd:    "/",
+				Tty:    true,
+				Stdin:  ir,
+				Stdout: NopWriteCloser(w),
+			})
+			if err != nil {
+				return
+			}
+
+			oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
+			if err != nil {
+				return nil, err
+			}
+			defer terminal.Restore(int(os.Stdin.Fd()), oldState)
+
+			ch := make(chan os.Signal, 1)
+			ch <- syscall.SIGWINCH // Initial resize.
+
+			go forwardResize(ctx, ch, proc, int(os.Stdin.Fd()))
+
+			signal.Notify(ch, syscall.SIGWINCH)
+			defer signal.Stop(ch)
+
+			return res, proc.Wait()
+		}, fs.SolveOpts...)
+	})
+
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func forwardResize(ctx context.Context, ch chan os.Signal, proc gateway.ContainerProcess, fd int) {
+	for {
+		select {
+		case <-ctx.Done():
+			close(ch)
+			return
+		case <-ch:
+			ws, err := unix.IoctlGetWinsize(fd, unix.TIOCGWINSZ)
+			if err != nil {
+				return
+			}
+
+			err = proc.Resize(ctx, gateway.WinSize{
+				Cols: uint32(ws.Col),
+				Rows: uint32(ws.Row),
+			})
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+func InterruptibleReader(r io.Reader) io.ReadCloser {
+	return &interruptibleReader{
+		Reader: r,
+		done:   make(chan struct{}),
+	}
+}
+
+type interruptibleReader struct {
+	io.Reader
+	done chan struct{}
+}
+
+func (r *interruptibleReader) Read(p []byte) (n int, err error) {
+	select {
+	case <-r.done:
+		return 0, nil
+	default:
+		n, err := r.Reader.Read(p)
+		return n, err
+	}
+}
+
+func (r *interruptibleReader) Close() error {
+	close(r.done)
+	return nil
+}
+
+func NopWriteCloser(w io.Writer) io.WriteCloser {
+	return &nopWriteCloser{w}
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (w *nopWriteCloser) Close() error {
+	return nil
 }

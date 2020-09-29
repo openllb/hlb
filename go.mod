@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/alecthomas/participle v0.6.1-0.20200913230212-2403858c8b20
-	github.com/containerd/containerd v1.4.0-beta.2.0.20200728183644-eb6354a11860
+	github.com/containerd/containerd v1.4.1-0.20200827124858-efa0e809135e
 	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
 	github.com/docker/cli v0.0.0-20200227165822-2298e6a3fe24
@@ -27,8 +27,11 @@ require (
 	github.com/xlab/treeprint v1.0.0
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1
 	google.golang.org/grpc v1.28.0
 )
+
+replace github.com/moby/buildkit => github.com/coryb/buildkit v0.6.2-0.20200917001306-5fcf6dd4267a
 
 replace github.com/hashicorp/go-immutable-radix => github.com/tonistiigi/go-immutable-radix v0.0.0-20170803185627-826af9ccf0fe
 

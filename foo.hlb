@@ -1,0 +1,9 @@
+fs default() {
+	build
+}
+
+fs build() {
+	image "alpine"
+	run "apk add -U htop"
+	breakpoint
+}
