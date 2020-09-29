@@ -475,7 +475,8 @@ func TestUnparse(t *testing.T) {
 
 			fs bar() { scratch }
 			`,
-		}, {
+		},
+		{
 			`heredoc`,
 			`
 			string heredocTest() {
@@ -513,6 +514,36 @@ func TestUnparse(t *testing.T) {
 				  is
 				literal
 				EOM
+			}
+			`,
+		},
+		{
+			`string interpolation`,
+			`
+			string default() {
+				"$k"
+			}
+			`,
+			`
+			string default() {
+				"$k"
+			}
+			`,
+		},
+		{
+			`heredoc interpolation`,
+			`
+			fs default() {
+				run <<~repro
+					$k
+				repro
+			}
+			`,
+			`
+			fs default() {
+				run <<~repro
+					$k
+				repro
 			}
 			`,
 		},
