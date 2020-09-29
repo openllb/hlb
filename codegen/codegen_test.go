@@ -612,6 +612,21 @@ func TestCodeGen(t *testing.T) {
 			).Root())
 		},
 	}, {
+		"heredoc folding",
+		[]string{"default"},
+		`
+		fs default() {
+			mkfile "foo" 0o644 <<~EOM
+		                Hello world
+		        EOM
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Scratch().File(
+				llb.Mkfile("foo", 0644, []byte("Hello world")),
+			))
+		},
+	}, {
 		"entitlements",
 		[]string{"default"},
 		`

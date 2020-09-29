@@ -189,7 +189,7 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 	case "<<-": // dedent
 		return ret.Set(dedent.Dedent(raw))
 	case "<<~": // fold
-		s := bufio.NewScanner(strings.NewReader(raw))
+		s := bufio.NewScanner(strings.NewReader(strings.TrimSpace(raw)))
 		var lines []string
 		for s.Scan() {
 			lines = append(lines, strings.TrimSpace(s.Text()))
