@@ -10,6 +10,7 @@ import (
 
 type UnparseInfo struct {
 	NoNewline bool
+	Indent    int
 }
 
 type UnparseOption func(*UnparseInfo)
@@ -17,6 +18,12 @@ type UnparseOption func(*UnparseInfo)
 func WithNoNewline() UnparseOption {
 	return func(info *UnparseInfo) {
 		info.NoNewline = true
+	}
+}
+
+func WithIndent(depth int) UnparseOption {
+	return func(info *UnparseInfo) {
+		info.Indent = depth
 	}
 }
 
@@ -181,8 +188,8 @@ func (fs *FieldStmt) Unparse(opts ...UnparseOption) string {
 		return fs.Field.Unparse(opts...)
 	case fs.Newline != nil:
 		return fs.Newline.Unparse(opts...)
-	case fs.Comments != nil:
-		return fs.Comments.Unparse(opts...)
+	case fs.Comment != nil:
+		return fs.Comment.Unparse(opts...)
 	}
 	return ""
 }
@@ -212,7 +219,9 @@ func (v *Variadic) Unparse(opts ...UnparseOption) string {
 func (bs *BlockStmt) String() string { return bs.Unparse() }
 
 func (bs *BlockStmt) Unparse(opts ...UnparseOption) string {
-	info := UnparseInfo{}
+	info := UnparseInfo{
+		Indent: 1,
+	}
 	for _, opt := range opts {
 		opt(&info)
 	}
@@ -244,11 +253,13 @@ func (bs *BlockStmt) Unparse(opts ...UnparseOption) string {
 		}
 		return fmt.Sprintf("{ %s }", strings.Join(stmts, "; "))
 	}
+	indent := strings.Repeat("\t", info.Indent)
+	opts = append(opts, WithIndent(info.Indent+1))
 
 	skipNewlines := false
 	for i, stmt := range bs.List {
 		str := stmt.Unparse(opts...)
-		if i > 0 && len(str) == 1 {
+		if i > 0 && str == "\n" {
 			if skipNewlines {
 				continue
 			}
@@ -260,39 +271,20 @@ func (bs *BlockStmt) Unparse(opts ...UnparseOption) string {
 		if len(str) > 0 && str[len(str)-1] == '\n' {
 			str = str[:len(str)-1]
 		}
-
-		lines := strings.Split(str, "\n")
-		if len(lines) > 1 {
-			stmts = append(stmts, lines...)
-		} else {
-			stmts = append(stmts, str)
-		}
+		stmts = append(stmts, str)
 	}
 
-	if len(stmts[0]) > 0 {
-		if strings.HasPrefix(stmts[0], "#") {
-			stmts[0] = fmt.Sprintf(" %s", stmts[0])
-		} else {
-			stmts = append([]string{""}, stmts...)
-		}
+	if len(stmts[0]) > 0 && strings.HasPrefix(stmts[0], "#") {
+		stmts[0] = fmt.Sprintf(" %s", stmts[0])
 	}
 
-	insideHeredoc := false
 	for i := 1; i < len(stmts); i++ {
-		containedHeredoc := false
-		if strings.Contains(stmts[i], "<Ξ>") {
-			stmts[i] = strings.ReplaceAll(stmts[i], "<Ξ>", "")
-			containedHeredoc = true
-		}
-		if len(stmts[i]) > 0 && !insideHeredoc {
-			stmts[i] = fmt.Sprintf("\t%s", stmts[i])
-		}
-		if containedHeredoc {
-			insideHeredoc = !insideHeredoc
+		if len(stmts[i]) > 0 {
+			stmts[i] = fmt.Sprintf("%s%s", indent, stmts[i])
 		}
 	}
 
-	return fmt.Sprintf("{%s\n}", strings.Join(stmts, "\n"))
+	return fmt.Sprintf("{%s\n%s}", strings.Join(stmts, "\n"), strings.Repeat("\t", info.Indent-1))
 }
 
 func (s *Stmt) String() string { return s.Unparse() }
@@ -517,14 +509,18 @@ func (b *Backtick) Unparse(opts ...UnparseOption) string {
 func (h *Heredoc) String() string { return h.Unparse() }
 
 func (h *Heredoc) Unparse(opts ...UnparseOption) string {
+	var info UnparseInfo
+	for _, opt := range opts {
+		opt(&info)
+	}
 	var fragments []string
 	for _, fragment := range h.Fragments {
 		fragments = append(fragments, fragment.Unparse(opts...))
 	}
-	body := strings.Join(fragments, "")
+	body := strings.TrimRight(strings.Join(fragments, ""), "\t")
 	// Insert a special unicode marker to avoid tabs being inserted by the parent
 	// block stmt unparser.
-	return fmt.Sprintf("%s<Ξ>%s<Ξ>%s", h.Start, body, h.Terminate.Unparse(opts...))
+	return fmt.Sprintf("%s%s%s%s", h.Start, body, strings.Repeat("\t", info.Indent-1), h.Terminate.Unparse(opts...))
 }
 
 func (hf *HeredocFragment) String() string { return hf.Unparse() }
@@ -552,7 +548,7 @@ func (rh *RawHeredoc) Unparse(opts ...UnparseOption) string {
 	body := strings.Join(fragments, "")
 	// Insert a special unicode marker to avoid tabs being inserted by the parent
 	// block stmt unparser.
-	return fmt.Sprintf("%s<Ξ>%s<Ξ>%s", rh.Start, body, rh.Terminate.Unparse(opts...))
+	return fmt.Sprintf("%s%s%s", rh.Start, body, rh.Terminate.Unparse(opts...))
 }
 
 func (he *HeredocEnd) String() string { return he.Unparse() }
@@ -659,7 +655,9 @@ func (se *StmtEnd) Unparse(opts ...UnparseOption) string {
 }
 
 func unparseList(list []Node, opts ...UnparseOption) string {
-	info := UnparseInfo{}
+	info := UnparseInfo{
+		Indent: 1,
+	}
 	for _, opt := range opts {
 		opt(&info)
 	}
@@ -695,6 +693,8 @@ func unparseList(list []Node, opts ...UnparseOption) string {
 		}
 		return fmt.Sprintf("(%s)", strings.Join(stmts, ", "))
 	}
+	indent := strings.Repeat("\t", info.Indent)
+	opts = append(opts, WithIndent(info.Indent+1))
 
 	skipNewlines := true
 	for _, stmt := range list {
@@ -707,14 +707,14 @@ func unparseList(list []Node, opts ...UnparseOption) string {
 			skipNewlines = true
 		} else if strings.HasPrefix(str, "#") {
 			if skipNewlines {
-				stmts = append(stmts, fmt.Sprintf("\t%s", str))
+				stmts = append(stmts, fmt.Sprintf("%s%s", indent, str))
 			} else {
 				stmts = append(stmts, fmt.Sprintf(" %s", str))
 			}
 			skipNewlines = true
 		} else {
 			if skipNewlines {
-				stmts = append(stmts, fmt.Sprintf("\t%s,", str))
+				stmts = append(stmts, fmt.Sprintf("%s%s,", indent, str))
 			} else {
 				stmts = append(stmts, fmt.Sprintf(" %s,", str))
 			}
@@ -735,5 +735,5 @@ func unparseList(list []Node, opts ...UnparseOption) string {
 	}
 	stmts = stmts[:i+1]
 
-	return fmt.Sprintf("(\n%s\n)", strings.Join(stmts, ""))
+	return fmt.Sprintf("(\n%s\n%s)", strings.Join(stmts, ""), strings.Repeat("\t", info.Indent-1))
 }

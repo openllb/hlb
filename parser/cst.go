@@ -327,9 +327,9 @@ func (fl *FieldList) NumFields() int {
 // FieldStmt represents a statement in a list of fields.
 type FieldStmt struct {
 	Mixin
-	Field    *Field        `parser:"( @@ Delimit?"`
-	Newline  *Newline      `parser:"| @@"`
-	Comments *CommentGroup `parser:"| @@ )"`
+	Field   *Field   `parser:"( @@ Delimit?"`
+	Newline *Newline `parser:"| @@"`
+	Comment *Comment `parser:"| @@ )"`
 }
 
 // Field represents a parameter declaration in a signature.
