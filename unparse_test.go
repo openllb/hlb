@@ -518,6 +518,31 @@ func TestUnparse(t *testing.T) {
 			`,
 		},
 		{
+			`nested heredoc`,
+			`
+			string heredoc() {
+				format string {
+						format <<-EOM
+						keep
+						   our
+						 spaces
+						EOM
+				}
+			}
+			`,
+			`
+			string heredoc() {
+				format string {
+					format <<-EOM
+						keep
+						   our
+						 spaces
+					EOM
+				}
+			}
+			`,
+		},
+		{
 			`string interpolation`,
 			`
 			string default() {
