@@ -627,6 +627,37 @@ func TestCodeGen(t *testing.T) {
 			))
 		},
 	}, {
+		"string escape",
+		[]string{"default"},
+		`
+		fs default() {
+			mkfile "foo" 0o644 "Escape \${PATH} Escape \" Escape \n Escape \\"
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Scratch().File(
+				llb.Mkfile("foo", 0644, []byte("Escape ${PATH} Escape \" Escape \n Escape \\")),
+			))
+		},
+	}, {
+		"heredoc escape",
+		[]string{"default"},
+		`
+		fs default() {
+			mkfile "foo" 0o644 <<~EOM
+				Escape \${PATH}
+				Don't escape \"
+				Don't escape \n
+				Don't escape \\
+		        EOM
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Scratch().File(
+				llb.Mkfile("foo", 0644, []byte(`Escape ${PATH} Don't escape \" Don't escape \n Don't escape \\`)),
+			))
+		},
+	}, {
 		"entitlements",
 		[]string{"default"},
 		`

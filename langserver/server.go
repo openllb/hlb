@@ -364,7 +364,10 @@ func highlightStringFragment(lines map[int]lsp.SemanticHighlightingTokens, f *pa
 }
 
 func highlightHeredocFragment(lines map[int]lsp.SemanticHighlightingTokens, f *parser.HeredocFragment) {
-	if f.Interpolated != nil {
+	switch {
+	case f.Escaped != nil:
+		highlightNode(lines, f, Comment)
+	case f.Interpolated != nil:
 		highlightExpr(lines, f.Interpolated.Expr)
 	}
 }
