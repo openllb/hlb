@@ -529,6 +529,8 @@ func (hf *HeredocFragment) Unparse(opts ...UnparseOption) string {
 	switch {
 	case hf.Whitespace != nil:
 		return *hf.Whitespace
+	case hf.Escaped != nil:
+		return *hf.Escaped
 	case hf.Interpolated != nil:
 		opts = append(opts, WithNoNewline())
 		return hf.Interpolated.Unparse(opts...)

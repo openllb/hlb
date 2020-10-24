@@ -51,6 +51,7 @@ var (
 		"Heredoc": {
 			{"HeredocEnd", `\b\1\b`, stateful.Pop()},
 			{"Whitespace", `\s+`, nil},
+			{"Escaped", `\\.`, nil},
 			{"Interpolated", `\${`, stateful.Push("Interpolated")},
 			{"Text", `\$|[^\s$]+`, nil},
 		},
@@ -697,6 +698,7 @@ type Heredoc struct {
 type HeredocFragment struct {
 	Mixin
 	Whitespace   *string       `parser:"( @Whitespace"`
+	Escaped      *string       `parser:"| @Escaped"`
 	Interpolated *Interpolated `parser:"| @@"`
 	Text         *string       `parser:"| @(Text | RawText) )"`
 }

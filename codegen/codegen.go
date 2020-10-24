@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/lithammer/dedent"
@@ -131,10 +132,15 @@ func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *parser.Scope, str *
 		switch {
 		case f.Escaped != nil:
 			escaped := *f.Escaped
-			if len(escaped) == 2 && escaped[1] == '"' {
-				escaped = strings.TrimPrefix(escaped, `\`)
+			if escaped[1] == '$' {
+				pieces = append(pieces, "$")
+			} else {
+				value, _, _, err := strconv.UnquoteChar(escaped, '"')
+				if err != nil {
+					return err
+				}
+				pieces = append(pieces, string(value))
 			}
-			pieces = append(pieces, escaped)
 		case f.Interpolated != nil:
 			exprRet := NewRegister()
 			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, nil, exprRet)
@@ -161,6 +167,13 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 		switch {
 		case f.Whitespace != nil:
 			pieces = append(pieces, *f.Whitespace)
+		case f.Escaped != nil:
+			escaped := *f.Escaped
+			if escaped[1] == '$' {
+				pieces = append(pieces, "$")
+			} else {
+				pieces = append(pieces, escaped)
+			}
 		case f.Interpolated != nil:
 			exprRet := NewRegister()
 			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, nil, exprRet)
