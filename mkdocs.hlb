@@ -1,11 +1,14 @@
 export generatedBuiltin
+
 export generatedMarkdown
+
 export build
+
 export publish
 
-import npm from fs {
-	image "openllb/npm.hlb"
-}
+# import npm from fs {
+# 	image "openllb/npm.hlb"
+# }
 
 import go from fs {
 	image "openllb/go.hlb"
@@ -56,8 +59,8 @@ fs _runHandleBars() {
 				includePatterns "src" "reference"
 			}
 		} "/src" with readonly
-		mount fs { 
-			npm.nodeModules fs {
+		mount fs {
+			nodeModules fs {
 				local "docs/templates" with option {
 					includePatterns "package.json" "package-lock.json"
 				}
@@ -68,20 +71,29 @@ fs _runHandleBars() {
 	}
 }
 
+fs npmInstall(fs src) {
+	image "node:alpine"
+	run "npm install" with option {
+		dir "/src"
+		mount src "/src"
+		mount scratch "/src/node_modules" as nodeModules
+	}
+}
+
 fs _runDocGen() {
 	scratch
 	run "/docgen" "/language/builtin.hlb" "/out/reference.json" with option {
-		mount fs { 
+		mount fs {
 			staticGoBuild "./cmd/docgen" fs {
 				local "." with option {
 					includePatterns "./cmd/docgen" "parser" "builtin/gen" "go.mod" "go.sum"
 				}
 			}
-		 } "/" with readonly
+		} "/" with readonly
 		mount fs {
 			local "language" with option {
-				 includePatterns "builtin.hlb"
-			 }
+				includePatterns "builtin.hlb"
+			}
 		} "language" with readonly
 		mount scratch "/out" as referenceJson
 	}
@@ -90,17 +102,17 @@ fs _runDocGen() {
 fs _runBuiltinGen() {
 	scratch
 	run "/builtingen" "/language/builtin.hlb" "/out/lookup.go" with option {
-		mount fs { 
+		mount fs {
 			staticGoBuild "./cmd/builtingen" fs {
 				local "." with option {
 					includePatterns "./cmd/builtingen" "builtin/gen" "parser" "go.mod" "go.sum"
 				}
 			}
-		 } "/" with readonly
+		} "/" with readonly
 		mount fs {
 			local "language" with option {
-				 includePatterns "builtin.hlb"
-			 }
+				includePatterns "builtin.hlb"
+			}
 		} "language" with readonly
 		mount scratch "/out" as generatedBuiltin
 	}
@@ -132,7 +144,7 @@ fs testSSH() {
 fs sshKeyScan(string host) {
 	mkdir "/root/.ssh" 0o700
 	run string {
-		format "ssh-keyscan %s >> ~/.ssh/known_hosts" host 
+		format "ssh-keyscan %s >> ~/.ssh/known_hosts" host
 	}
 }
 
@@ -147,8 +159,8 @@ fs _fetchGhPagesBranch() {
 				keepGitDir
 			}
 			# we have to recreate the .git/config because the one that 
-			# comes from buildkit has invalid remote.origin.url and
-			# no branch.master properties
+                        # comes from buildkit has invalid remote.origin.url and
+                        # no branch.master properties
 			mkfile ".git/config" 0o644 <<-EOM
 				[core]
 					repositoryformatversion = 0
