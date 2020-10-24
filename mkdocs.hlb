@@ -159,8 +159,8 @@ fs _fetchGhPagesBranch() {
 				keepGitDir
 			}
 			# we have to recreate the .git/config because the one that 
-                        # comes from buildkit has invalid remote.origin.url and
-                        # no branch.master properties
+			# comes from buildkit has invalid remote.origin.url and
+			# no branch.master properties
 			mkfile ".git/config" 0o644 <<-EOM
 				[core]
 					repositoryformatversion = 0

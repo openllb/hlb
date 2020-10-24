@@ -446,8 +446,8 @@ func TestUnparse(t *testing.T) {
 			fs foo() { # comment
 
 
+				# multi-line
 				# comment
-
 
 				image "alpine" with option { # comment
 					resolve # comment
@@ -464,6 +464,7 @@ func TestUnparse(t *testing.T) {
 			# comment
 			fs foo() { # comment
 
+				# multi-line
 				# comment
 
 				image "alpine" with option { # comment

@@ -97,8 +97,8 @@ func (w *walker) walk(node Node, v Visitor) {
 		switch {
 		case n.Field != nil:
 			w.walk(n.Field, v)
-		case n.Comment != nil:
-			w.walk(n.Comment, v)
+		case n.Comments != nil:
+			w.walk(n.Comments, v)
 		}
 	case *Field:
 		if n.Modifier != nil {
