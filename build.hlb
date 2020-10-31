@@ -36,7 +36,5 @@ fs publishDocs() {
 }
 
 fs src() {
-	local "." with option {
-		excludePatterns "build"
-	}
+	local "." with excludePatterns("build")
 }

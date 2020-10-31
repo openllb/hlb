@@ -5,33 +5,33 @@ export crossBinaries
 export lint
 
 string versionCmd() {
-	format "git describe --match 'v[0-9]*' --tags --dirty='.dirty' --always | sed 's/^v//'"
+	"git describe --match 'v[0-9]*' --tags --dirty='.dirty' --always | sed 's/^v//'"
+}
+
+fs golang() {
+	image "golang:1.14.10-alpine"
 }
 
 fs build(fs src, string package, string verPackage) {
-	image "golang:1.13.14-alpine"
+	golang
 	run "apk add -U git gcc libc-dev"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	run string {
-		format "v=$(%s) && /usr/local/go/bin/go build -o /out/binary -ldflags \"-linkmode external -extldflags -static -X %s.Version=$v\" -a %s" versionCmd package verPackage
-	} with option {
+	run "v=$(${versionCmd}) && /usr/local/go/bin/go build -o /out/binary -ldflags \"-linkmode external -extldflags -static -X ${package}.Version=$v\" -a ${verPackage}" with option {
 		cacheMounts src
 		mount scratch "/out" as binary
 	}
 }
 
 fs crossBuild(fs src, string package, string verPackage) {
-	image "dockercore/golang-cross:1.13.14" with option { resolve; }
+	image "hinshun/go-cross:1.14.10"
 	env "GOPATH" "/root/go"
 	env "GO111MODULE" "on"
 	dir "/go/src/hlb"
-	run string {
-		format "v=$(%s) && LDFLAGS=\"-X %s.Version=$v\" /cross/build %q" versionCmd verPackage package 
-	} with option {
+	run "v=$(${versionCmd}) && LDFLAGS=\"-X ${verPackage}.Version=$v\" /cross/build \"${package}\"" with option {
 		env "CGO_ENABLED" "0"
 		cacheMounts src
-		mount fs { git "https://github.com/hinshun/go-cross.git" ""; } "/cross" with option {
+		mount git("https://github.com/hinshun/go-cross.git", "") "/cross" with option {
 			sourcePath "/scripts"
 			readonly
 		}
@@ -40,32 +40,20 @@ fs crossBuild(fs src, string package, string verPackage) {
 }
 
 fs lint(fs src) {
-	image "golang:1.13.14-alpine"
+	golang
 	run "apk add -U git gcc libc-dev"
-	run "sh /golangci/install.sh -b /usr/bin v1.27.0" with option {
-		mount fs {
-			http "https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh"
-		} "/golangci"
+	run "sh /golangci/install.sh -b /usr/bin v1.31.0" with option {
+		mount http("https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh") "/golangci"
 	}
 	env "GO111MODULE" "on"
 	env "PATH" "/usr/bin:/bin:/usr/local/go/bin"
 	dir "/go/src/hlb"
-	run "go get" with option {
-		cacheMounts src
-	}
-	run "/usr/bin/golangci-lint run" with option {
-		cacheMounts src
-	}
+	run "go get" with cacheMounts(src)
+	run "/usr/bin/golangci-lint run" with cacheMounts(src)
 }
 
 option::run cacheMounts(fs src) {
-	mount src "/go/src/hlb" with option {
-		readonly
-	}
-	mount scratch "/root/.cache/go-build" with option {
-		cache "hlb/go-build" "private"
-	}
-	mount scratch "/go/pkg/mod" with option {
-		cache "hlb/go-mod" "private"
-	}
+	mount src "/go/src/hlb" with readonly
+	mount scratch "/root/.cache/go-build" with cache("hlb/go-build", "private")
+	mount scratch "/go/pkg/mod" with cache("hlb/go-mod", "private")
 }

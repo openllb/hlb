@@ -11,18 +11,19 @@ import (
 )
 
 func searchToken(lex *lexer.PeekingLexer, tokenOffset int) (lexer.Token, int, error) {
-	cursorOffset, err := binarySearchLexer(lex, 0, lex.Length(), tokenOffset)
-	if err != nil {
-		return lexer.Token{}, 0, err
-	}
+	panic("unimplemented")
+	// cursorOffset, err := binarySearchLexer(lex, 0, lex.Length(), tokenOffset)
+	// if err != nil {
+	// 	return lexer.Token{}, 0, err
+	// }
 
-	if cursorOffset < 0 {
-		return lexer.Token{}, 0, fmt.Errorf("failed to find token at offset %d", tokenOffset)
-	}
+	// if cursorOffset < 0 {
+	// 	return lexer.Token{}, 0, fmt.Errorf("failed to find token at offset %d", tokenOffset)
+	// }
 
-	n := cursorOffset - lex.Cursor()
-	token, err := lex.Peek(n)
-	return token, n, err
+	// n := cursorOffset - lex.Cursor()
+	// token, err := lex.Peek(n)
+	// return token, n, err
 }
 
 func binarySearchLexer(lex *lexer.PeekingLexer, l, r, x int) (int, error) {

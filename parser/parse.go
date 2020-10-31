@@ -18,7 +18,7 @@ func Parse(r io.Reader) (*Module, *FileBuffer, error) {
 	r = io.TeeReader(r, fb)
 
 	mod := &Module{}
-	lex, err := Parser.Lexer().Lex(&NamedReader{r, name})
+	lex, err := Parser.Lexer().Lex(name, &NamedReader{r, name})
 	if err != nil {
 		return mod, fb, err
 	}

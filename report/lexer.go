@@ -5,19 +5,20 @@ import (
 	"io"
 	"strings"
 
+	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
 	"github.com/openllb/hlb/parser"
 )
 
 func NewLexerError(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.PeekingLexer, err error) (error, error) {
-	lerr, ok := err.(*lexer.Error)
+	perr, ok := err.(participle.Error)
 	if !ok {
 		return nil, err
 	}
 
 	r := bytes.NewReader(fb.Bytes())
-	_, err = r.Seek(int64(lerr.Token().Pos.Offset), io.SeekStart)
+	_, err = r.Seek(int64(perr.Position().Offset), io.SeekStart)
 	if err != nil {
 		return nil, err
 	}
@@ -29,12 +30,12 @@ func NewLexerError(color aurora.Aurora, fb *parser.FileBuffer, lex *lexer.Peekin
 
 	token := lexer.Token{
 		Value: string(ch),
-		Pos:   lerr.Token().Pos,
+		Pos:   perr.Position(),
 	}
 
 	var group AnnotationGroup
 
-	unexpected := strings.TrimPrefix(lerr.Msg, "invalid token ")
+	unexpected := strings.TrimPrefix(perr.Message(), "invalid token ")
 	if unexpected == `'"'` {
 		group, err = errLiteral(color, fb, lex, token)
 	} else {
