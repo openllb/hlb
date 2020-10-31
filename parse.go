@@ -66,7 +66,7 @@ func Parse(r io.Reader, opts ...ParseOption) (*parser.Module, *parser.FileBuffer
 	fb := parser.NewFileBuffer(name)
 	r = io.TeeReader(r, fb)
 
-	lex, err := parser.Parser.Lexer().Lex(&parser.NamedReader{
+	lex, err := parser.Parser.Lexer().Lex(name, &parser.NamedReader{
 		Reader: r,
 		Value:  name,
 	})

@@ -6,10 +6,6 @@ export build
 
 export publish
 
-# import npm from fs {
-# 	image "openllb/npm.hlb"
-# }
-
 import go from fs {
 	image "openllb/go.hlb"
 }
@@ -27,9 +23,7 @@ fs _runMkdocsBuild() {
 	run "mkdocs build -d /site" with option {
 		dir "/mkdocs"
 		mount fs {
-			local "." with option {
-				includePatterns "mkdocs.yml" "docs/" ".git"
-			}
+			local "." with includePatterns("mkdocs.yml", "docs/", ".git")
 		} "/mkdocs" with readonly
 		mount generatedMarkdown "/mkdocs/docs/reference.md" with option {
 			sourcePath "reference.md"
@@ -55,15 +49,11 @@ fs _runHandleBars() {
 	run "node src/compile.js" with option {
 		dir "src"
 		mount fs {
-			local "docs/templates" with option {
-				includePatterns "src" "reference"
-			}
+			local "docs/templates" with includePatterns("src", "reference")
 		} "/src" with readonly
 		mount fs {
 			nodeModules fs {
-				local "docs/templates" with option {
-					includePatterns "package.json" "package-lock.json"
-				}
+				local "docs/templates" with includePatterns("package.json", "package-lock.json")
 			}
 		} "/src/node_modules" with readonly
 		mount referenceJson "/src/data" with readonly
@@ -85,15 +75,17 @@ fs _runDocGen() {
 	run "/docgen" "/language/builtin.hlb" "/out/reference.json" with option {
 		mount fs {
 			staticGoBuild "./cmd/docgen" fs {
-				local "." with option {
-					includePatterns "./cmd/docgen" "parser" "builtin/gen" "go.mod" "go.sum"
-				}
+				local "." with includePatterns(
+					"./cmd/docgen",
+					"parser",
+					"builtin/gen",
+					"go.mod",
+					"go.sum",
+				)
 			}
 		} "/" with readonly
 		mount fs {
-			local "language" with option {
-				includePatterns "builtin.hlb"
-			}
+			local "language" with includePatterns("builtin.hlb")
 		} "language" with readonly
 		mount scratch "/out" as referenceJson
 	}
@@ -104,15 +96,17 @@ fs _runBuiltinGen() {
 	run "/builtingen" "/language/builtin.hlb" "/out/lookup.go" with option {
 		mount fs {
 			staticGoBuild "./cmd/builtingen" fs {
-				local "." with option {
-					includePatterns "./cmd/builtingen" "builtin/gen" "parser" "go.mod" "go.sum"
-				}
+				local "." with includePatterns(
+					"./cmd/builtingen",
+					"builtin/gen",
+					"parser",
+					"go.mod",
+					"go.sum",
+				)
 			}
 		} "/" with readonly
 		mount fs {
-			local "language" with option {
-				includePatterns "builtin.hlb"
-			}
+			local "language" with includePatterns("builtin.hlb")
 		} "language" with readonly
 		mount scratch "/out" as generatedBuiltin
 	}
@@ -135,17 +129,13 @@ fs testSSH() {
 	image "alpine"
 	run "apk add -U openssh-client"
 	sshKeyScan "github.com"
-	run "ssh -q -T git@github.com" with option {
-		ssh
-	}
+	run "ssh -q -T git@github.com" with ssh
 }
 
 # TODO add this to a generic util moduile
 fs sshKeyScan(string host) {
 	mkdir "/root/.ssh" 0o700
-	run string {
-		format "ssh-keyscan %s >> ~/.ssh/known_hosts" host
-	}
+	run "ssh-keyscan ${host} >> ~/.ssh/known_hosts"
 }
 
 # TODO can we add this logic to a generic util module for publishing gh-pages?
@@ -155,9 +145,7 @@ fs _fetchGhPagesBranch() {
 	run "git fetch origin gh-pages" with option {
 		dir "/src"
 		mount fs {
-			git "git://github.com/openllb/hlb.git" "master" with option {
-				keepGitDir
-			}
+			git "git://github.com/openllb/hlb.git" "master" with keepGitDir
 			# we have to recreate the .git/config because the one that 
 			# comes from buildkit has invalid remote.origin.url and
 			# no branch.master properties
