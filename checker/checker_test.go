@@ -442,6 +442,7 @@ func TestChecker_Check(t *testing.T) {
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindClosure(
 				parser.Find(mod, "as"),
+				parser.Find(mod, "option::run"),
 			)
 		},
 	}, {
@@ -460,6 +461,7 @@ func TestChecker_Check(t *testing.T) {
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindClosure(
 				parser.Find(mod, "as"),
+				parser.Find(mod, "option::run"),
 			)
 		},
 	}} {

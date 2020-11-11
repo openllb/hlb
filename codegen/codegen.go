@@ -404,7 +404,7 @@ func (cg *CodeGen) EmitBinding(ctx context.Context, b *parser.Binding, args []Va
 }
 
 func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *parser.BlockStmt, b *parser.Binding, ret Register) error {
-	ctx = WithReturnType(ctx, block.Kind)
+	ctx = WithReturnType(ctx, block.Kind())
 
 	for _, stmt := range block.Stmts() {
 		var err error

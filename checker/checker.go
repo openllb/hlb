@@ -100,7 +100,7 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 			// Propagate scope and type into its BlockStmt.
 			if fun.Body != nil {
 				fun.Body.Scope = fun.Scope
-				fun.Body.Kind = fun.Type.Kind
+				fun.Body.Type = fun.Type
 
 				// BindClause rule (1): Option blocks do not have a closure for bindings.
 				if fun.Type.Kind.Primary() != parser.Option {
@@ -111,7 +111,7 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 		// Function literals propagate its return type to its BlockStmt.
 		func(lit *parser.FuncLit) {
 			if lit.Type.Kind != parser.Option {
-				lit.Body.Kind = lit.Type.Kind
+				lit.Body.Type = lit.Type
 			}
 		},
 		// ImportDecl's BlockStmts have module-level scope.
@@ -131,10 +131,9 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 		// `option` type function literal, but infers its type as `option::run`.
 		func(call *parser.CallStmt, with *parser.WithClause, lit *parser.FuncLit) {
 			if lit.Type.Kind == parser.Option {
-				lit.Body.Kind = parser.Kind(fmt.Sprintf("%s::%s", parser.Option, call.Name.Ident))
-			} else {
-				lit.Body.Kind = lit.Type.Kind
+				lit.Type.Kind = parser.Kind(fmt.Sprintf("%s::%s", lit.Type.Kind, call.Name.Ident))
 			}
+			lit.Body.Type = lit.Type
 		},
 	)
 
@@ -179,15 +178,15 @@ func (c *checker) checkBinds(mod *parser.Module) {
 			}
 
 			// Pass the block's closure for the binding.
-			err := c.registerBinds(mod.Scope, block.Kind, block.Closure, call, binds)
+			err := c.registerBinds(mod.Scope, block.Kind(), block.Closure, call, binds)
 			if err != nil {
 				c.err(err)
 			}
 		},
 		// Binds without closure should error.
-		func(binds *parser.BindClause) {
+		func(block *parser.BlockStmt, binds *parser.BindClause) {
 			if binds.Closure == nil {
-				c.err(errdefs.WithNoBindClosure(binds.As))
+				c.err(errdefs.WithNoBindClosure(binds.As, block.Type))
 			}
 		},
 	)
@@ -295,7 +294,7 @@ func (c *checker) checkFieldList(fields []*parser.Field) error {
 
 func (c *checker) checkBlock(block *parser.BlockStmt) error {
 	for _, stmt := range block.Stmts() {
-		kset := parser.NewKindSet(block.Kind)
+		kset := parser.NewKindSet(block.Kind())
 
 		var err error
 		switch {

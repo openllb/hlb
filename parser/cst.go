@@ -398,7 +398,7 @@ type Variadic struct {
 type BlockStmt struct {
 	Mixin
 	Scope     *Scope
-	Kind      Kind
+	Type      *Type
 	Closure   *FuncDecl
 	Start     *OpenBrace  `parser:"@@"`
 	List      []*Stmt     `parser:"@@*"`
@@ -407,6 +407,13 @@ type BlockStmt struct {
 
 func NewBlockStmt(stmts ...*Stmt) *BlockStmt {
 	return &BlockStmt{List: stmts}
+}
+
+func (bs *BlockStmt) Kind() Kind {
+	if bs.Type == nil {
+		return None
+	}
+	return bs.Type.Kind
 }
 
 func (bs *BlockStmt) Stmts() []*Stmt {
