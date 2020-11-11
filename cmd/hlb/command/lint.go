@@ -1,8 +1,10 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -32,52 +34,63 @@ var lintCommand = &cli.Command{
 		}
 		defer rc.Close()
 
-		ctx := diagnostic.WithSources(Context(), builtin.Sources())
-		mod, err := parser.Parse(ctx, rc)
-		if err != nil {
-			return err
-		}
+		return Lint(Context(), rc, LintInfo{
+			Fix: c.Bool("fix"),
+		})
 
-		err = checker.SemanticPass(mod)
-		if err != nil {
-			return err
-		}
+	},
+}
 
-		err = linter.Lint(ctx, mod, linter.WithRecursive())
-		if err != nil {
-			spans := diagnostic.Spans(err)
-			for _, span := range spans {
-				fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+type LintInfo struct {
+	Fix bool
+}
 
-				if c.Bool("fix") {
-					var em *errdefs.ErrModule
-					if errors.As(span, &em) {
-						filename := em.Module.Pos.Filename
-						info, err := os.Stat(filename)
-						if err != nil {
-							return err
-						}
+func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
+	ctx = diagnostic.WithSources(ctx, builtin.Sources())
+	mod, err := parser.Parse(ctx, r)
+	if err != nil {
+		return err
+	}
 
-						err = ioutil.WriteFile(filename, []byte(em.Module.String()), info.Mode())
-						if err != nil {
-							return err
-						}
+	err = checker.SemanticPass(mod)
+	if err != nil {
+		return err
+	}
+
+	err = linter.Lint(ctx, mod, linter.WithRecursive())
+	if err != nil {
+		spans := diagnostic.Spans(err)
+		for _, span := range spans {
+			fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+
+			if info.Fix {
+				var em *errdefs.ErrModule
+				if errors.As(span, &em) {
+					filename := em.Module.Pos.Filename
+					info, err := os.Stat(filename)
+					if err != nil {
+						return err
+					}
+
+					err = ioutil.WriteFile(filename, []byte(em.Module.String()), info.Mode())
+					if err != nil {
+						return err
 					}
 				}
 			}
-
-			color := diagnostic.Color(ctx)
-			fmt.Fprint(os.Stderr, color.Sprintf(
-				color.Bold("\nRun %s to automatically fix lint errors.\n"),
-				color.Green(fmt.Sprintf("`hlb lint --fix %s`", mod.Pos.Filename)),
-			))
-
-			if c.Bool("fix") {
-				return nil
-			}
-			return errdefs.WithAbort(err, len(spans))
 		}
 
-		return checker.Check(mod)
-	},
+		color := diagnostic.Color(ctx)
+		fmt.Fprint(os.Stderr, color.Sprintf(
+			color.Bold("\nRun %s to automatically fix lint errors.\n"),
+			color.Green(fmt.Sprintf("`hlb lint --fix %s`", mod.Pos.Filename)),
+		))
+
+		if info.Fix {
+			return nil
+		}
+		return errdefs.WithAbort(err, len(spans))
+	}
+
+	return checker.Check(mod)
 }

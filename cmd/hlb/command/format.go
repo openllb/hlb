@@ -36,23 +36,23 @@ var formatCommand = &cli.Command{
 			}
 		}()
 
-		return Format(Context(), rs, FormatOptions{
+		return Format(Context(), rs, FormatInfo{
 			Write: c.Bool("write"),
 		})
 	},
 }
 
-type FormatOptions struct {
+type FormatInfo struct {
 	Write bool
 }
 
-func Format(ctx context.Context, rs []io.Reader, opts FormatOptions) error {
+func Format(ctx context.Context, rs []io.Reader, info FormatInfo) error {
 	modules, err := parser.ParseMultiple(ctx, rs)
 	if err != nil {
 		return err
 	}
 
-	if opts.Write {
+	if info.Write {
 		for i, mod := range modules {
 			filename := lexer.NameOfReader(rs[i])
 			if filename == "" {

@@ -66,7 +66,10 @@ func (w *walker) walk(node Node, v Visitor) {
 			w.walk(n.Comments, v)
 		}
 	case *ImportDecl:
-		if n.Expr != nil {
+		switch {
+		case n.DeprecatedPath != nil:
+			w.walk(n.DeprecatedPath, v)
+		case n.Expr != nil:
 			w.walk(n.Expr, v)
 		}
 		if n.Name != nil {
