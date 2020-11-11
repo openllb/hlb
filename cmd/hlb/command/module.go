@@ -46,7 +46,7 @@ var moduleVendorCommand = &cli.Command{
 			return err
 		}
 
-		return Vendor(ctx, cln, VendorOptions{
+		return Vendor(ctx, cln, VendorInfo{
 			Args:    c.Args().Slice(),
 			Targets: c.StringSlice("target"),
 			Tidy:    false,
@@ -64,7 +64,7 @@ var moduleTidyCommand = &cli.Command{
 			return err
 		}
 
-		return Vendor(ctx, cln, VendorOptions{
+		return Vendor(ctx, cln, VendorInfo{
 			Args: c.Args().Slice(),
 			Tidy: true,
 		})
@@ -87,27 +87,27 @@ var moduleTreeCommand = &cli.Command{
 			return err
 		}
 
-		return Tree(ctx, cln, TreeOptions{
+		return Tree(ctx, cln, TreeInfo{
 			Args: c.Args().Slice(),
 			Long: c.Bool("long"),
 		})
 	},
 }
 
-type VendorOptions struct {
+type VendorInfo struct {
 	Args    []string
 	Targets []string
 	Tidy    bool
 }
 
-func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
-	rc, err := ModuleReadCloser(opts.Args)
+func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) error {
+	rc, err := ModuleReadCloser(info.Args)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
 		}
 
-		rc, err = findVendoredModule(err, opts.Args[0])
+		rc, err = findVendoredModule(err, info.Args[0])
 		if err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func Vendor(ctx context.Context, cln *client.Client, opts VendorOptions) error {
 	p.Go(func(ctx context.Context) error {
 		defer p.Release()
 		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-		return module.Vendor(ctx, cln, mod, opts.Targets, opts.Tidy)
+		return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
 	})
 
 	return p.Wait()
@@ -194,13 +194,13 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 	return os.Open(filepath.Join(matchedModules[0], module.ModuleFilename))
 }
 
-type TreeOptions struct {
+type TreeInfo struct {
 	Args []string
 	Long bool
 }
 
-func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
-	rc, err := ModuleReadCloser(opts.Args)
+func Tree(ctx context.Context, cln *client.Client, info TreeInfo) error {
+	rc, err := ModuleReadCloser(info.Args)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 
 	var tree treeprint.Tree
 	if exist {
-		tree, err = module.NewTree(ctx, cln, mod, opts.Long)
+		tree, err = module.NewTree(ctx, cln, mod, info.Long)
 		if err != nil {
 			return err
 		}
@@ -238,7 +238,7 @@ func Tree(ctx context.Context, cln *client.Client, opts TreeOptions) error {
 
 			var err error
 			ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-			tree, err = module.NewTree(ctx, cln, mod, opts.Long)
+			tree, err = module.NewTree(ctx, cln, mod, info.Long)
 			return err
 		})
 
