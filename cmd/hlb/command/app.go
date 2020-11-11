@@ -88,6 +88,10 @@ func collectReaders(c *cli.Context) (rs []io.Reader, cleanup func() error, err e
 func readDir(dir string) ([]io.ReadCloser, error) {
 	var rcs []io.ReadCloser
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if info.IsDir() {
 			return nil
 		}

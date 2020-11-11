@@ -4,6 +4,7 @@ package gen
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"go/format"
 	"html/template"
@@ -13,12 +14,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/filebuffer"
 )
 
 type BuiltinData struct {
 	Command     string
 	FuncsByKind map[parser.Kind][]ParsedFunc
+	Reference   string
 }
 
 type ParsedFunc struct {
@@ -27,14 +31,16 @@ type ParsedFunc struct {
 	Effects []*parser.Field
 }
 
-func GenerateBuiltins(r io.Reader) ([]byte, error) {
-	file, _, err := parser.Parse(r)
+func GenerateBuiltins(ctx context.Context, r io.Reader) ([]byte, error) {
+	sources := filebuffer.NewSources()
+	ctx = diagnostic.WithSources(ctx, sources)
+	mod, err := parser.Parse(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
 	funcsByKind := make(map[parser.Kind][]ParsedFunc)
-	for _, decl := range file.Decls {
+	for _, decl := range mod.Decls {
 		fun := decl.Func
 		if fun == nil {
 			continue
@@ -53,9 +59,11 @@ func GenerateBuiltins(r io.Reader) ([]byte, error) {
 		})
 	}
 
+	fb := sources.Get(mod.Pos.Filename)
 	data := BuiltinData{
 		Command:     fmt.Sprintf("builtingen %s", strings.Join(os.Args[1:], " ")),
 		FuncsByKind: funcsByKind,
+		Reference:   fmt.Sprintf("`%s`", string(fb.Bytes())),
 	}
 
 	var buf bytes.Buffer
@@ -132,5 +140,7 @@ var (
 			{{end}}
 		},
 	}
+
+	Reference = {{.Reference}}
 )
 `))

@@ -21,11 +21,11 @@ func Run(ctx context.Context, conn net.Conn, l net.Listener) error {
 
 		go func() {
 			defer proxy.Close()
-			io.Copy(conn, proxy)
+			_, _ = io.Copy(conn, proxy)
 		}()
 
 		go func() {
-			io.Copy(proxy, conn)
+			_, _ = io.Copy(proxy, conn)
 		}()
 	}
 }

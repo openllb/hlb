@@ -106,6 +106,7 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 	case LogOutputPlain:
 		pw = progress.NewPrinter(pctx, os.Stderr, "plain")
 	default:
+		cancel()
 		return nil, errors.Errorf("unknown log output %q", info.LogOutput)
 	}
 

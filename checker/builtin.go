@@ -16,34 +16,27 @@ const (
 // builtins.
 func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 	scope := parser.NewScope(nil, nil)
-	for kind, entries := range builtins.ByKind {
-		for name, fn := range entries.Func {
-			obj := scope.Lookup(name)
+	parser.Match(builtin.Module, parser.MatchOpts{},
+		func(fun *parser.FuncDecl) {
+			obj := scope.Lookup(fun.Name.Text)
 			if obj == nil {
-				ident := parser.NewIdent(name)
-				ident.Pos.Filename = BuiltinFilename
-
 				obj = &parser.Object{
-					Kind:  parser.DeclKind,
-					Ident: ident,
+					Ident: fun.Name,
 					Node: &parser.BuiltinDecl{
-						Ident:          ident,
+						Module:         builtin.Module,
 						FuncDeclByKind: make(map[parser.Kind]*parser.FuncDecl),
 						CallableByKind: make(map[parser.Kind]parser.Callable),
 					},
 				}
 			}
 
-			fun := parser.NewFuncDecl(kind, name, fn.Params, fn.Effects).Func
-			fun.Pos.Filename = BuiltinFilename
-
 			decl := obj.Node.(*parser.BuiltinDecl)
-			decl.FuncDeclByKind[kind] = fun
-			decl.CallableByKind[kind] = builtin.Callables[kind][name]
+			decl.FuncDeclByKind[fun.Type.Kind] = fun
+			decl.CallableByKind[fun.Type.Kind] = builtin.Callables[fun.Type.Kind][fun.Name.Text]
 
 			scope.Insert(obj)
-		}
-	}
+		},
+	)
 
 	return scope
 }

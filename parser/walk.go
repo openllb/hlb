@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // A Visitor's Visit method is invoked for each node encountered by Walk.
@@ -127,6 +128,8 @@ func (w *walker) walk(node Node, v Visitor) {
 		switch {
 		case n.Call != nil:
 			w.walk(n.Call, v)
+		case n.Expr != nil:
+			w.walk(n.Expr, v)
 		case n.Comments != nil:
 			w.walk(n.Comments, v)
 		}
@@ -163,6 +166,13 @@ func (w *walker) walk(node Node, v Visitor) {
 		}
 	case *BindList:
 		w.walkBindList(n.Stmts, v)
+	case *BindStmt:
+		switch {
+		case n.Bind != nil:
+			w.walk(n.Bind, v)
+		case n.Comments != nil:
+			w.walk(n.Comments, v)
+		}
 	case *Bind:
 		if n.Source != nil {
 			w.walk(n.Source, v)
@@ -253,6 +263,10 @@ func (w *walker) walk(node Node, v Visitor) {
 		}
 		if n.Reference != nil {
 			w.walk(n.Reference, v)
+		}
+	case *Reference:
+		if n.Ident != nil {
+			w.walk(n.Ident, v)
 		}
 	case *CommentGroup:
 		w.walkCommentList(n.List, v)
@@ -382,7 +396,7 @@ func Match(root Node, opts MatchOpts, fs ...interface{}) {
 		for j := 0; j < t.NumIn(); j++ {
 			arg := t.In(j)
 			if !arg.Implements(node) {
-				panic(fmt.Sprintf("%s has bad signature: %s does not implement parser.Node", t, arg))
+				panic(fmt.Sprintf("%s has bad signature: %s does not implement Node", t, arg))
 			}
 
 			m.expects[i] = append(m.expects[i], arg)
@@ -410,11 +424,6 @@ func (m *matcher) Visit(in Introspector, n Node) Visitor {
 	// Clear out indices from a previous visit.
 	for i := 0; i < len(m.expects); i++ {
 		m.indices[i] = len(m.expects[i]) - 1
-	}
-
-	var types []reflect.Type
-	for _, p := range in.Path() {
-		types = append(types, reflect.TypeOf(p))
 	}
 
 	for i := len(in.Path()) - 1; i >= 0; i-- {
@@ -457,4 +466,46 @@ func (m *matcher) Visit(in Introspector, n Node) Visitor {
 	}
 
 	return m
+}
+
+type finder struct {
+	node  Node
+	match string
+	skip  int
+}
+
+func (v *finder) Visit(_ Introspector, n Node) Visitor {
+	if n == nil {
+		return nil
+	}
+	if strings.Contains(n.String(), v.match) && v.skip >= 0 {
+		v.node = n
+		if n.String() == v.match {
+			v.skip -= 1
+			if v.skip >= 0 {
+				v.node = nil
+			}
+			return nil
+		} else {
+			return v
+		}
+	}
+	return nil
+}
+
+type FindOption func(*finder)
+
+func WithSkip(skip int) FindOption {
+	return func(f *finder) {
+		f.skip = skip
+	}
+}
+
+func Find(root Node, match string, opts ...FindOption) Node {
+	f := &finder{match: match}
+	for _, opt := range opts {
+		opt(f)
+	}
+	Walk(root, f)
+	return f.node
 }

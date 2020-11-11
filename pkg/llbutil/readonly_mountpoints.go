@@ -21,11 +21,12 @@ type ReadonlyMount struct{}
 func (m *MountRunOption) SetRunOption(es *llb.ExecInfo) {
 	opts := []llb.MountOption{}
 	for _, opt := range m.Opts {
-		if _, ok := opt.(*ReadonlyMount); ok {
+		switch o := opt.(type) {
+		case *ReadonlyMount:
 			opts = append(opts, llb.Readonly)
-			continue
+		case llb.MountOption:
+			opts = append(opts, o)
 		}
-		opts = append(opts, opt.(llb.MountOption))
 	}
 	llb.AddMount(m.Target, m.Source, opts...).SetRunOption(es)
 }

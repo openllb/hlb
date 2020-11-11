@@ -1,13 +1,14 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
 	"github.com/alecthomas/participle/lexer"
-	"github.com/openllb/hlb"
+	"github.com/openllb/hlb/parser"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -28,9 +29,14 @@ var formatCommand = &cli.Command{
 		if err != nil {
 			return err
 		}
-		defer cleanup()
+		defer func() {
+			err := cleanup()
+			if err != nil {
+				fmt.Fprint(os.Stderr, err.Error())
+			}
+		}()
 
-		return Format(rs, FormatOptions{
+		return Format(Context(), rs, FormatOptions{
 			Write: c.Bool("write"),
 		})
 	},
@@ -40,8 +46,8 @@ type FormatOptions struct {
 	Write bool
 }
 
-func Format(rs []io.Reader, opts FormatOptions) error {
-	modules, _, err := hlb.ParseMultiple(rs, hlb.DefaultParseOpts()...)
+func Format(ctx context.Context, rs []io.Reader, opts FormatOptions) error {
+	modules, err := parser.ParseMultiple(ctx, rs)
 	if err != nil {
 		return err
 	}

@@ -6,12 +6,14 @@ import (
 
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/diagnostic"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
 )
 
 type Linter struct {
 	Recursive bool
-	errs      []ErrLintModule
+	errs      []error
 }
 
 type LintOption func(*Linter)
@@ -23,104 +25,82 @@ func WithRecursive() LintOption {
 }
 
 func Lint(ctx context.Context, mod *parser.Module, opts ...LintOption) error {
-	linter := Linter{}
+	l := Linter{}
 	for _, opt := range opts {
-		opt(&linter)
+		opt(&l)
 	}
-	err := linter.Lint(ctx, mod)
-	if err != nil {
-		return err
-	}
-	if len(linter.errs) > 0 {
-		return ErrLint{mod.Pos.Filename, linter.errs}
+	l.Lint(ctx, mod)
+	if len(l.errs) > 0 {
+		return &diagnostic.Error{Diagnostics: l.errs}
 	}
 	return nil
 }
 
-func (l *Linter) Lint(ctx context.Context, mod *parser.Module) error {
-	var (
-		modErr error
-		errs   []error
-	)
+func (l *Linter) Lint(ctx context.Context, mod *parser.Module) {
 	parser.Match(mod, parser.MatchOpts{},
 		func(id *parser.ImportDecl) {
 			if id.DeprecatedPath != nil {
-				errs = append(errs, ErrDeprecated{id.DeprecatedPath, `import without keyword "from" infront of the expression is deprecated`})
+				l.errs = append(l.errs, errdefs.WithDeprecated(
+					mod, id.DeprecatedPath,
+					`import path without keyword "from" is deprecated`,
+				))
 				id.From = &parser.From{Text: "from"}
 				id.Expr = &parser.Expr{
 					BasicLit: &parser.BasicLit{
 						Str: id.DeprecatedPath,
 					},
 				}
-				id.DeprecatedPath = nil
 			}
-
-			if !l.Recursive {
-				return
-			}
-
-			err := l.LintRecursive(ctx, mod, id.Expr)
-			if err != nil {
-				if lintErr, ok := err.(ErrLint); ok {
-					l.errs = append(l.errs, lintErr.Errs...)
-				} else {
-					modErr = err
-				}
+			if l.Recursive {
+				l.LintRecursive(ctx, mod, id.Expr)
 			}
 		},
 	)
-	if modErr != nil {
-		return modErr
-	}
-	if len(errs) > 0 {
-		l.errs = append(l.errs, ErrLintModule{mod, errs})
-	}
-	return nil
 }
 
-func (l *Linter) LintRecursive(ctx context.Context, mod *parser.Module, expr *parser.Expr) error {
+func (l *Linter) LintRecursive(ctx context.Context, mod *parser.Module, expr *parser.Expr) {
 	ctx = codegen.WithProgramCounter(ctx, mod)
 
 	cg, err := codegen.New(nil)
 	if err != nil {
-		return err
+		return
 	}
 
 	ret := codegen.NewRegister()
 	err = cg.EmitExpr(ctx, mod.Scope, expr, nil, nil, nil, ret)
 	if err != nil {
-		return err
+		return
 	}
 
 	if ret.Kind() != parser.String {
-		return nil
+		return
 	}
 
 	relPath, err := ret.String()
 	if err != nil {
-		return err
+		return
 	}
 
 	filename, err := parser.ResolvePath(codegen.ModuleDir(ctx), relPath)
 	if err != nil {
-		return err
+		return
 	}
 
 	f, err := os.Open(filename)
 	if err != nil {
-		return err
+		return
 	}
 	defer f.Close()
 
-	imod, _, err := parser.Parse(f)
+	imod, err := parser.Parse(ctx, f)
 	if err != nil {
-		return err
+		return
 	}
 
 	err = checker.SemanticPass(imod)
 	if err != nil {
-		return err
+		return
 	}
 
-	return l.Lint(ctx, imod)
+	l.Lint(ctx, imod)
 }

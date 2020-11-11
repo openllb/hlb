@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"github.com/moby/buildkit/util/entitlements"
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/pkg/sockproxy"
@@ -466,7 +468,7 @@ func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	case "node":
 		netMode = pb.NetMode_NONE
 	default:
-		return errors.Errorf("unknown network mode %q", mode)
+		return errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "node"})
 	}
 
 	return ret.Set(append(retOpts, llb.Network(netMode)))
@@ -488,7 +490,7 @@ func (s Security) Call(ctx context.Context, cln *client.Client, ret Register, op
 		securityMode = pb.SecurityMode_INSECURE
 		retOpts = append(retOpts, solver.WithEntitlement(entitlements.EntitlementSecurityInsecure))
 	default:
-		return errors.Errorf("unknown security mode %q", mode)
+		return errdefs.WithInvalidSecurityMode(Arg(ctx, 0), mode, []string{"sandbox", "insecure"})
 	}
 
 	return ret.Set(append(retOpts, llb.Security(securityMode)))
@@ -554,14 +556,17 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	if src.Scheme == "unix" {
 		localPath, err = parser.ResolvePath(ModuleDir(ctx), src.Path)
 		if err != nil {
-			return err
+			return Arg(ctx, 0).WithError(err)
 		}
-
+		_, err = os.Stat(filepath.Dir(localPath))
+		if err != nil {
+			return Arg(ctx, 0).WithError(err)
+		}
 		id = digest.FromString(localPath).String()
 	} else {
 		conn, err := net.Dial(src.Scheme, src.Host)
 		if err != nil {
-			return errors.Wrapf(err, "failed to dial %s", src)
+			return Arg(ctx, 0).WithError(fmt.Errorf("cannot dial %s", src))
 		}
 
 		dir, err := ioutil.TempDir("", "hlb-forward")
@@ -681,7 +686,19 @@ func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		return err
 	}
 
-	if Binds(ctx) == "target" {
+	var cache *Cache
+	for _, opt := range opts {
+		var ok bool
+		cache, ok = opt.(*Cache)
+		if ok {
+			break
+		}
+	}
+
+	if Binding(ctx).Binds() == "target" {
+		if cache != nil {
+			return errdefs.WithBindCacheMount(Binding(ctx).Bind.As, cache)
+		}
 		retOpts = append(retOpts, &Mount{Bind: mountpoint})
 	}
 
@@ -812,7 +829,9 @@ func (sp SourcePath) Call(ctx context.Context, cln *client.Client, ret Register,
 	return ret.Set(append(retOpts, llb.SourcePath(path)))
 }
 
-type Cache struct{}
+type Cache struct {
+	parser.Node
+}
 
 func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, id, mode string) error {
 	retOpts, err := ret.Option()
@@ -829,10 +848,11 @@ func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	case "locked":
 		sharing = llb.CacheMountLocked
 	default:
-		return errors.Errorf("unknown sharing mode %q", mode)
+		return errdefs.WithInvalidSharingMode(Arg(ctx, 1), mode, []string{"shared", "private", "locked"})
 	}
 
-	return ret.Set(append(retOpts, llb.AsPersistentCacheDir(id, sharing)))
+	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llb.AsPersistentCacheDir(id, sharing))
+	return ret.Set(retOpts)
 }
 
 type Platform struct{}

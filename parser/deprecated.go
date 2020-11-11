@@ -21,7 +21,7 @@ func (d *DeprecatedImportDecl) End() lexer.Position {
 	case d.ImportPath != nil:
 		return d.ImportPath.End()
 	}
-	panic("unknown import decl")
+	return lexer.Position{}
 }
 
 // Import represents the function for a remote import.

@@ -46,7 +46,7 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 	g, ctx := errgroup.WithContext(ctx)
 
 	ready := make(chan struct{})
-	err = ResolveGraph(ctx, cln, resolver, res, mod, nil, func(info VisitInfo) error {
+	err = ResolveGraph(ctx, cln, resolver, res, mod, func(info VisitInfo) error {
 		g.Go(func() error {
 			<-ready
 

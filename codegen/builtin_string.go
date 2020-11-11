@@ -15,6 +15,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/pkg/imageutil"
 )
@@ -128,8 +129,9 @@ type Manifest struct{}
 func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return err
+		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
+	ref = reference.TagNameOnly(named).String()
 
 	var (
 		resolver = imageutil.NewBufferedImageResolver()
@@ -144,12 +146,12 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 		}
 	}
 
-	dgst, config, err := resolver.ResolveImageConfig(ctx, named.String(), llb.ResolveImageConfigOpt{Platform: platform})
+	dgst, config, err := resolver.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{Platform: platform})
 	if err != nil {
 		return err
 	}
 	if dgst == "" {
-		return fmt.Errorf("no digest available for ref %q", named)
+		return fmt.Errorf("no digest available for ref %q", ref)
 	}
 
 	desc, err := resolver.DigestDescriptor(ctx, dgst)
@@ -157,7 +159,7 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
-	switch Binds(ctx) {
+	switch Binding(ctx).Binds() {
 	case "digest":
 		return ret.Set(dgst.String())
 	case "config":
@@ -181,8 +183,7 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 			return ret.Set(string(dt))
 
 		default:
-			// FIXME: user err
-			return fmt.Errorf("ref %v has no index", named)
+			return Arg(ctx, 0).WithError(fmt.Errorf("has no manifest index"))
 		}
 	}
 

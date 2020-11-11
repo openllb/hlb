@@ -3,7 +3,7 @@ module github.com/openllb/hlb
 go 1.12
 
 require (
-	github.com/alecthomas/participle v1.0.0-alpha1.0.20201031050245-4435aeea334f
+	github.com/alecthomas/participle v1.0.0-alpha2
 	github.com/containerd/containerd v1.4.0-beta.2.0.20200728183644-eb6354a11860
 	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8

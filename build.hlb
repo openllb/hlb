@@ -36,5 +36,5 @@ fs publishDocs() {
 }
 
 fs src() {
-	local "." with excludePatterns("build")
+	local "." with includePatterns("**/*.go", "go.mod", "go.sum", ".golangci.yml")
 }

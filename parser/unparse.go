@@ -9,11 +9,18 @@ import (
 )
 
 type UnparseInfo struct {
-	NoNewline bool
 	Indent    int
+	NoNewline bool
+	NoStmtEnd bool
 }
 
 type UnparseOption func(*UnparseInfo)
+
+func WithIndent(depth int) UnparseOption {
+	return func(info *UnparseInfo) {
+		info.Indent = depth
+	}
+}
 
 func WithNoNewline() UnparseOption {
 	return func(info *UnparseInfo) {
@@ -21,9 +28,9 @@ func WithNoNewline() UnparseOption {
 	}
 }
 
-func WithIndent(depth int) UnparseOption {
+func WithNoStmtEnd() UnparseOption {
 	return func(info *UnparseInfo) {
-		info.Indent = depth
+		info.NoStmtEnd = true
 	}
 }
 
@@ -101,10 +108,10 @@ func (id *ImportDecl) Unparse(opts ...UnparseOption) string {
 		imp  = id.Import.Unparse(opts...)
 		name = id.Name.Unparse(opts...)
 	)
-	if id.DeprecatedPath != nil {
-		return fmt.Sprintf("%s %s %s", imp, name, id.DeprecatedPath.Unparse(opts...))
+	if id.Expr != nil {
+		return fmt.Sprintf("%s %s %s %s", imp, name, id.From.Unparse(opts...), id.Expr.Unparse(opts...))
 	}
-	return fmt.Sprintf("%s %s %s %s", imp, name, id.From.Unparse(opts...), id.Expr.Unparse(opts...))
+	return fmt.Sprintf("%s %s %s", imp, name, id.DeprecatedPath.Unparse(opts...))
 }
 
 func (i *Import) String() string { return i.Unparse() }
@@ -228,6 +235,8 @@ func (bs *BlockStmt) Unparse(opts ...UnparseOption) string {
 		return "{}"
 	}
 
+	opts = append(opts, WithNoStmtEnd())
+
 	hasNewline := false
 	if !info.NoNewline {
 		for _, stmt := range bs.List {
@@ -272,7 +281,7 @@ func (bs *BlockStmt) Unparse(opts ...UnparseOption) string {
 		stmts = append(stmts, str)
 	}
 
-	if len(stmts[0]) > 0 && strings.HasPrefix(stmts[0], "#") {
+	if len(stmts) > 0 && strings.HasPrefix(stmts[0], "#") {
 		stmts[0] = fmt.Sprintf(" %s", stmts[0])
 	}
 
@@ -327,8 +336,8 @@ func (cs *CallStmt) Unparse(opts ...UnparseOption) string {
 	}
 
 	end := ""
-	if cs.Terminate != nil && cs.Terminate.Comment != nil {
-		end = fmt.Sprintf(" %s", cs.Terminate.Comment.Unparse(opts...))
+	if cs.Terminate != nil {
+		end = cs.Terminate.Unparse(opts...)
 	}
 
 	return fmt.Sprintf("%s%s%s%s%s", cs.Name, args, withClause, binds, end)
@@ -525,8 +534,8 @@ func (hf *HeredocFragment) String() string { return hf.Unparse() }
 
 func (hf *HeredocFragment) Unparse(opts ...UnparseOption) string {
 	switch {
-	case hf.Whitespace != nil:
-		return *hf.Whitespace
+	case hf.Spaces != nil:
+		return *hf.Spaces
 	case hf.Escaped != nil:
 		return *hf.Escaped
 	case hf.Interpolated != nil:
@@ -607,7 +616,7 @@ func (ie *IdentExpr) String() string { return ie.Unparse() }
 func (ie *IdentExpr) Unparse(opts ...UnparseOption) string {
 	ref := ""
 	if ie.Reference != nil {
-		ref = fmt.Sprintf(".%s", ie.Reference.Unparse(opts...))
+		ref = ie.Reference.Unparse(opts...)
 	}
 	return fmt.Sprintf("%s%s", ie.Ident.Unparse(opts...), ref)
 }
@@ -616,6 +625,12 @@ func (i *Ident) String() string { return i.Unparse() }
 
 func (i *Ident) Unparse(opts ...UnparseOption) string {
 	return i.Text
+}
+
+func (r *Reference) String() string { return r.Unparse() }
+
+func (r *Reference) Unparse(opts ...UnparseOption) string {
+	return fmt.Sprintf(".%s", r.Ident)
 }
 
 func (cg *CommentGroup) String() string { return cg.Unparse() }
@@ -653,13 +668,20 @@ func (n *Newline) Unparse(opts ...UnparseOption) string {
 func (se *StmtEnd) String() string { return se.Unparse() }
 
 func (se *StmtEnd) Unparse(opts ...UnparseOption) string {
+	var info UnparseInfo
+	for _, opt := range opts {
+		opt(&info)
+	}
+	if info.NoStmtEnd && se.Comment == nil {
+		return ""
+	}
 	switch {
 	case se.Semicolon != nil:
 		return *se.Semicolon
 	case se.Newline != nil:
 		return se.Newline.Unparse(opts...)
 	case se.Comment != nil:
-		return se.Comment.Unparse(opts...)
+		return fmt.Sprintf(" %s", se.Comment.Unparse(opts...))
 	}
 	return ""
 }

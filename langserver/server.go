@@ -17,7 +17,6 @@ import (
 	"github.com/creachadair/jrpc2/handler"
 	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
-	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -593,7 +592,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 			}
 			ls.tmu.Unlock()
 
-			loc = newLocationFromIdent(importTD.Module.Scope, importUri, ie.Reference.Text)
+			loc = newLocationFromIdent(importTD.Module.Scope, importUri, ie.Reference.Ident.Text)
 		},
 	)
 
@@ -612,38 +611,30 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 	}
 
 	var loc *lsp.Location
-	switch obj.Kind {
-	case parser.DeclKind:
-		switch n := obj.Node.(type) {
-		case *parser.FuncDecl:
-			loc = newLocationFromNode(uri, n.Name)
-		case *parser.BindClause:
-			if n.Ident != nil {
-				loc = newLocationFromNode(uri, n.Ident)
-			}
-			if n.Binds != nil {
-				for _, b := range n.Binds.Binds() {
-					if b.Target.String() == name {
-						loc = newLocationFromNode(uri, b.Target)
-						break
-					}
-				}
-				if loc == nil {
-					loc = newLocationFromNode(uri, n)
+	switch n := obj.Node.(type) {
+	case *parser.FuncDecl:
+		loc = newLocationFromNode(uri, n.Name)
+	case *parser.BindClause:
+		if n.Ident != nil {
+			loc = newLocationFromNode(uri, n.Ident)
+		}
+		if n.Binds != nil {
+			for _, b := range n.Binds.Binds() {
+				if b.Target.String() == name {
+					loc = newLocationFromNode(uri, b.Target)
+					break
 				}
 			}
-		case *parser.ImportDecl:
-			loc = newLocationFromNode(uri, n.Name)
-		default:
-			log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
+			if loc == nil {
+				loc = newLocationFromNode(uri, n)
+			}
 		}
-	case parser.FieldKind:
-		switch n := obj.Node.(type) {
-		case *parser.Field:
-			loc = newLocationFromNode(uri, n.Name)
-		default:
-			log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
-		}
+	case *parser.ImportDecl:
+		loc = newLocationFromNode(uri, n.Name)
+	case *parser.Field:
+		loc = newLocationFromNode(uri, n.Name)
+	default:
+		log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
 	}
 
 	return loc
@@ -759,7 +750,7 @@ func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, text string) Text
 		Text: text,
 	}
 
-	td.Module, _, td.Err = hlb.Parse(strings.NewReader(text))
+	td.Module, td.Err = parser.Parse(ctx, strings.NewReader(text))
 	if td.Err != nil {
 		log.Printf("failed to parse hlb: %s", td.Err)
 		return td
@@ -772,7 +763,7 @@ func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, text string) Text
 		return td
 	}
 
-	linter.Lint(ctx, td.Module)
+	_ = linter.Lint(ctx, td.Module)
 
 	td.Err = checker.Check(td.Module)
 	if td.Err != nil {

@@ -6,9 +6,7 @@ export build
 
 export publish
 
-import go from fs {
-	image "openllb/go.hlb"
-}
+import go from image("openllb/go.hlb")
 
 fs mkdocsMaterial() {
 	image "python:alpine"
@@ -75,13 +73,7 @@ fs _runDocGen() {
 	run "/docgen" "/language/builtin.hlb" "/out/reference.json" with option {
 		mount fs {
 			staticGoBuild "./cmd/docgen" fs {
-				local "." with includePatterns(
-					"./cmd/docgen",
-					"parser",
-					"builtin/gen",
-					"go.mod",
-					"go.sum",
-				)
+				local "." with includePatterns("**/*.go", "go.mod", "go.sum")
 			}
 		} "/" with readonly
 		mount fs {
@@ -96,13 +88,7 @@ fs _runBuiltinGen() {
 	run "/builtingen" "/language/builtin.hlb" "/out/lookup.go" with option {
 		mount fs {
 			staticGoBuild "./cmd/builtingen" fs {
-				local "." with includePatterns(
-					"./cmd/builtingen",
-					"builtin/gen",
-					"parser",
-					"go.mod",
-					"go.sum",
-				)
+				local "." with includePatterns("**/*.go", "go.mod", "go.sum")
 			}
 		} "/" with readonly
 		mount fs {

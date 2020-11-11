@@ -13,11 +13,9 @@ func ResolvePath(root, path string) (string, error) {
 	if err != nil {
 		return path, err
 	}
-
 	if filepath.IsAbs(path) {
 		return path, nil
 	}
-
 	return filepath.Join(root, path), nil
 }
 

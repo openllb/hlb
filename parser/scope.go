@@ -1,6 +1,10 @@
 package parser
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/openllb/hlb/diagnostic"
+)
 
 // Scope maintains the set of named language entities declared in the scope
 // and a link to the immediately surrounding (outer) scope.
@@ -34,6 +38,22 @@ func (s *Scope) Lookup(name string) *Object {
 	return nil
 }
 
+func (s *Scope) Identifiers(kset *KindSet) (idents []string) {
+	if s.Outer != nil {
+		idents = s.Outer.Identifiers(kset)
+	}
+	for ident, obj := range s.Objects {
+		if kset == nil || kset.Has(obj.Kind) {
+			idents = append(idents, ident)
+		}
+	}
+	return idents
+}
+
+func (s *Scope) Suggestion(name string, kset *KindSet) *Object {
+	return s.Lookup(diagnostic.Suggestion(name, s.Identifiers(kset)))
+}
+
 // Insert inserts a named object obj into the scope.
 func (s *Scope) Insert(obj *Object) {
 	s.Objects[obj.Ident.Text] = obj
@@ -48,19 +68,14 @@ func (s *Scope) Root() *Scope {
 }
 
 // Defined returns all objects with the given kind.
-func (s *Scope) Defined(kind ObjKind) []*Object {
+func (s *Scope) Defined() []*Object {
 	var objs []*Object
 	if s.Outer != nil {
-		objs = s.Outer.Defined(kind)
+		objs = s.Outer.Defined()
 	}
-
 	for _, obj := range s.Objects {
-		if obj.Kind != kind {
-			continue
-		}
 		objs = append(objs, obj)
 	}
-
 	sort.SliceStable(objs, func(i, j int) bool {
 		return objs[i].Ident.Text < objs[j].Ident.Text
 	})
@@ -79,7 +94,7 @@ const (
 
 // Object represents a named language entity such as a function, or variable.
 type Object struct {
-	Kind     ObjKind
+	Kind     Kind
 	Ident    *Ident
 	Node     Node
 	Data     interface{}

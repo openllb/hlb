@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,7 +30,7 @@ func run(src, dest string) error {
 	}
 	defer f.Close()
 
-	doc, err := gen.GenerateDocumentation(f)
+	doc, err := gen.GenerateDocumentation(context.Background(), f)
 	if err != nil {
 		return err
 	}

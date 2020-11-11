@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -28,7 +29,7 @@ func run(src, dest string) error {
 	}
 	defer f.Close()
 
-	dt, err := gen.GenerateBuiltins(f)
+	dt, err := gen.GenerateBuiltins(context.Background(), f)
 	if err != nil {
 		return err
 	}

@@ -1,40 +1,58 @@
 package parser
 
 import (
+	"context"
 	"errors"
 	"io"
 
 	"github.com/alecthomas/participle/lexer"
+	"github.com/openllb/hlb/diagnostic"
+	"github.com/openllb/hlb/pkg/filebuffer"
+	"golang.org/x/sync/errgroup"
 )
 
-func Parse(r io.Reader) (*Module, *FileBuffer, error) {
+func Parse(ctx context.Context, r io.Reader) (*Module, error) {
 	name := lexer.NameOfReader(r)
 	if name == "" {
 		name = "<stdin>"
 	}
 	r = &NewlinedReader{Reader: r}
 
-	fb := NewFileBuffer(name)
-	r = io.TeeReader(r, fb)
-
 	mod := &Module{}
-	lex, err := Parser.Lexer().Lex(name, &NamedReader{r, name})
-	if err != nil {
-		return mod, fb, err
+	defer AssignDocStrings(mod)
+
+	sources := diagnostic.Sources(ctx)
+	if sources != nil {
+		fb := filebuffer.New(name)
+		r = io.TeeReader(r, fb)
+		defer func() {
+			if mod.Pos.Filename != "" {
+				sources.Set(mod.Pos.Filename, fb)
+			}
+		}()
 	}
 
-	peeker, err := lexer.Upgrade(lex)
-	if err != nil {
-		return mod, fb, err
+	return mod, Parser.Parse(name, r, mod)
+}
+
+func ParseMultiple(ctx context.Context, rs []io.Reader) ([]*Module, error) {
+	mods := make([]*Module, len(rs))
+
+	var g errgroup.Group
+	for i, r := range rs {
+		i, r := i, r
+		g.Go(func() error {
+			mod, err := Parse(ctx, r)
+			if err != nil {
+				return err
+			}
+
+			mods[i] = mod
+			return nil
+		})
 	}
 
-	err = Parser.ParseFromLexer(peeker, mod)
-	if err != nil {
-		return mod, fb, err
-	}
-	AssignDocStrings(mod)
-
-	return mod, fb, nil
+	return mods, g.Wait()
 }
 
 type NamedReader struct {

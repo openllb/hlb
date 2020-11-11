@@ -16,6 +16,7 @@ import (
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
@@ -360,16 +361,14 @@ type VisitInfo struct {
 type resolveGraphInfo struct {
 	cln      *client.Client
 	resolver Resolver
-	sources  map[string]*parser.FileBuffer
 	visitor  Visitor
 }
 
 // ResolveGraph traverses the import graph of a given module.
-func ResolveGraph(ctx context.Context, cln *client.Client, resolver Resolver, res Resolved, mod *parser.Module, sources map[string]*parser.FileBuffer, visitor Visitor) error {
+func ResolveGraph(ctx context.Context, cln *client.Client, resolver Resolver, res Resolved, mod *parser.Module, visitor Visitor) error {
 	info := &resolveGraphInfo{
 		cln:      cln,
 		resolver: resolver,
-		sources:  sources,
 		visitor:  visitor,
 	}
 	return resolveGraph(ctx, info, res, mod)
@@ -435,14 +434,22 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					if !os.IsNotExist(err) {
 						return err
 					}
-					return checker.ErrImportNotExist{Import: id, Filename: filename}
+					if id.DeprecatedPath != nil {
+						return errdefs.WithImportPathNotExist(err, id.DeprecatedPath, filename)
+					}
+					return errdefs.WithImportPathNotExist(err, id.Expr, filename)
 				}
 				defer rc.Close()
 
-				imod, fb, err := parser.Parse(rc)
+				imod, err := parser.Parse(ctx, rc)
 				if err != nil {
 					return err
 				}
+				defer func() {
+					mu.Lock()
+					imports[id.Name.Text] = imod
+					mu.Unlock()
+				}()
 
 				err = checker.SemanticPass(imod)
 				if err != nil {
@@ -450,7 +457,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				}
 
 				// Drop errors from linting.
-				linter.Lint(ctx, imod)
+				_ = linter.Lint(ctx, imod)
 
 				err = checker.Check(imod)
 				if err != nil {
@@ -470,18 +477,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					}
 				}
 
-				err = resolveGraph(ctx, info, ires, imod)
-				if err != nil {
-					return err
-				}
-
-				mu.Lock()
-				imports[id.Name.Text] = imod
-				if info.sources != nil {
-					info.sources[imod.Pos.Filename] = fb
-				}
-				mu.Unlock()
-				return nil
+				return resolveGraph(ctx, info, ires, imod)
 			})
 		},
 	)
