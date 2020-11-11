@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lithammer/dedent"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,10 +17,7 @@ type testCase struct {
 }
 
 func cleanup(value string) string {
-	result := fmt.Sprintf("%s\n", strings.TrimSpace(value))
-	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
-	result = strings.ReplaceAll(result, "|\n", "| \n")
-	return result
+	return fmt.Sprintf("%s\n", strings.TrimSpace(dedent.Dedent(value)))
 }
 
 func TestUnparse(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lithammer/dedent"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
@@ -16,13 +17,6 @@ type testCase struct {
 	name  string
 	input string
 	fn    func(*parser.Module) error
-}
-
-func cleanup(value string) string {
-	result := strings.TrimSpace(value)
-	result = strings.ReplaceAll(result, strings.Repeat("\t", 3), "")
-	result = strings.ReplaceAll(result, "|\n", "| \n")
-	return result
 }
 
 func TestChecker_Check(t *testing.T) {
@@ -206,13 +200,13 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors with function and alias name collisions",
 		`
-			fs duplicate() {}
-			fs bar() {
-				run "echo Hello" with option {
-					mount scratch "/src" as duplicate
-				}
+		fs duplicate() {}
+		fs bar() {
+			run "echo Hello" with option {
+				mount scratch "/src" as duplicate
 			}
-			`,
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
 				parser.Find(mod, "duplicate"),
@@ -222,10 +216,10 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors with function and builtin name collisions",
 		`
-			fs image() {
-				run "echo Hello"
-			}
-			`,
+		fs image() {
+			run "echo Hello"
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
 				parser.Find(builtin.Module, "image"),
@@ -235,12 +229,12 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors with alias and builtin name collisions",
 		`
-			fs default() {
-				run "echo Hello" with option {
-					mount scratch "/" as image
-				}
+		fs default() {
+			run "echo Hello" with option {
+				mount scratch "/" as image
 			}
-			`,
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
 				parser.Find(builtin.Module, "image"),
@@ -250,15 +244,15 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors with duplicate alias names",
 		`
-			fs default() {
-				run "echo hello" with option {
-					mount scratch "/src" as duplicate
-				}
-				run "echo hello" with option {
-					mount scratch "/src" as duplicate
-				}
+		fs default() {
+			run "echo hello" with option {
+				mount scratch "/src" as duplicate
 			}
-			`,
+			run "echo hello" with option {
+				mount scratch "/src" as duplicate
+			}
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
 				parser.Find(mod, "duplicate"),
@@ -268,12 +262,12 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors when calling import",
 		`
-			import foo from "./foo.hlb"
+		import foo from "./foo.hlb"
 
-			fs default() {
-				foo
-			}
-			`,
+		fs default() {
+			foo
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithCallImport(
 				parser.Find(mod, "foo", parser.WithSkip(1)),
@@ -283,28 +277,28 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"basic function export",
 		`
-			export myFunction
+		export myFunction
 
-			fs myFunction() {}
-			`,
+		fs myFunction() {}
+		`,
 		nil,
 	}, {
 		"basic alias export",
 		`
-			export myAlias
+		export myAlias
 
-			fs myFunction() {
-				run "echo Hello" with option {
-					mount fs { scratch; } "/src" as myAlias
-				}
+		fs myFunction() {
+			run "echo Hello" with option {
+				mount fs { scratch; } "/src" as myAlias
 			}
-			`,
+		}
+		`,
 		nil,
 	}, {
 		"errors when export does not exist",
 		`
-			export foo
-			`,
+		export foo
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithUndefinedIdent(
 				parser.Find(mod, "foo"),
@@ -314,11 +308,11 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors when a reference is called on a name that isn't an import",
 		`
-			fs myFunction() {}
-			fs badReferenceCaller() {
-				myFunction.build
-			}
-			`,
+		fs myFunction() {}
+		fs badReferenceCaller() {
+			myFunction.build
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNotImport(
 				parser.Find(mod, "myFunction.build").(*parser.IdentExpr),
@@ -328,25 +322,25 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"basic group support",
 		`
-			group default() {
-				parallel groupA fs { image "b"; }
-				groupC
-			}
-			group groupA() {
-				parallel fs { image "a"; }
-			}
-			group groupC() {
-				parallel fs { image "c"; }
-			}
-			`,
+		group default() {
+			parallel groupA fs { image "b"; }
+			groupC
+		}
+		group groupA() {
+			parallel fs { image "a"; }
+		}
+		group groupC() {
+			parallel fs { image "c"; }
+		}
+		`,
 		nil,
 	}, {
 		"errors when fs statement is called in a group block",
 		`
-			group badGroup() {
-				image "alpine"
-			}
-			`,
+		group badGroup() {
+			image "alpine"
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
 				parser.Find(mod, "image"),
@@ -362,29 +356,29 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors without bind target",
 		`
-			fs default() {
-				dockerPush "some/ref" as
-			}
-			`,
+		fs default() {
+			dockerPush "some/ref" as
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindTarget(parser.Find(mod, "as"))
 		},
 	}, {
 		"no error when bind list is empty",
 		`
-			fs default() {
-				dockerPush "some/ref" as ()
-			}
-			`,
+		fs default() {
+			dockerPush "some/ref" as ()
+		}
+		`,
 		nil,
 	}, {
 		"errors with wrong type for default bind",
 		`
-			fs default() {
-				dockerPush "some/ref:latest" as imageID
-				imageID
-			}
-			`,
+		fs default() {
+			dockerPush "some/ref:latest" as imageID
+			imageID
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
 				parser.Find(mod, "imageID", parser.WithSkip(1)),
@@ -396,11 +390,11 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors with wrong type for named bind",
 		`
-			fs default() {
-				dockerPush "some/ref:latest" as (digest imageID)
-				imageID
-			}
-			`,
+		fs default() {
+			dockerPush "some/ref:latest" as (digest imageID)
+			imageID
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
 				parser.Find(mod, "imageID", parser.WithSkip(1)),
@@ -412,10 +406,10 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors when binding without side effects",
 		`
-			fs default() {
-				run "cmd" as nothing
-			}
-			`,
+		fs default() {
+			run "cmd" as nothing
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindEffects(
 				parser.Find(mod, "run"),
@@ -428,10 +422,10 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors when binding unknown side effects",
 		`
-			fs default() {
-				dockerPush "some/ref:latest" as (undefined foo)
-			}
-			`,
+		fs default() {
+			dockerPush "some/ref:latest" as (undefined foo)
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithUndefinedBindTarget(
 				parser.Find(mod, "dockerPush"),
@@ -441,10 +435,10 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors when binding inside an option function declaration",
 		`
-			option::run foo() {
-				mount scratch "/out" as default
-			}
-			`,
+		option::run foo() {
+			mount scratch "/out" as default
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindClosure(
 				parser.Find(mod, "as"),
@@ -453,16 +447,16 @@ func TestChecker_Check(t *testing.T) {
 	}, {
 		"errors when binding inside an argument expression",
 		`
-			fs default() {
-				foo option::run {
-					mount scratch "/tmp" as bar
-				}
+		fs default() {
+			foo option::run {
+				mount scratch "/tmp" as bar
 			}
+		}
 
-			fs foo(option::run opts) {
-				run with opts
-			}
-			`,
+		fs foo(option::run opts) {
+			run with opts
+		}
+		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindClosure(
 				parser.Find(mod, "as"),
@@ -471,7 +465,7 @@ func TestChecker_Check(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			in := strings.NewReader(cleanup(tc.input))
+			in := strings.NewReader(dedent.Dedent(tc.input))
 
 			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
 			mod, err := parser.Parse(ctx, in)
@@ -607,7 +601,7 @@ func TestChecker_CheckReferences(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			in := strings.NewReader(cleanup(tc.input))
+			in := strings.NewReader(dedent.Dedent(tc.input))
 
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
