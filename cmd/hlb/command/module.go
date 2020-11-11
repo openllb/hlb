@@ -9,8 +9,12 @@ import (
 	"strings"
 
 	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/diagnostic"
+	"github.com/openllb/hlb/errdefs"
+	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
@@ -47,9 +51,10 @@ var moduleVendorCommand = &cli.Command{
 		}
 
 		return Vendor(ctx, cln, VendorInfo{
-			Args:    c.Args().Slice(),
-			Targets: c.StringSlice("target"),
-			Tidy:    false,
+			Args:      c.Args().Slice(),
+			Targets:   c.StringSlice("target"),
+			Tidy:      false,
+			ErrOutput: os.Stderr,
 		})
 	},
 }
@@ -65,8 +70,9 @@ var moduleTidyCommand = &cli.Command{
 		}
 
 		return Vendor(ctx, cln, VendorInfo{
-			Args: c.Args().Slice(),
-			Tidy: true,
+			Args:      c.Args().Slice(),
+			Tidy:      true,
+			ErrOutput: os.Stderr,
 		})
 	},
 }
@@ -88,19 +94,21 @@ var moduleTreeCommand = &cli.Command{
 		}
 
 		return Tree(ctx, cln, TreeInfo{
-			Args: c.Args().Slice(),
-			Long: c.Bool("long"),
+			Args:      c.Args().Slice(),
+			Long:      c.Bool("long"),
+			ErrOutput: os.Stderr,
 		})
 	},
 }
 
 type VendorInfo struct {
-	Args    []string
-	Targets []string
-	Tidy    bool
+	Args      []string
+	Targets   []string
+	Tidy      bool
+	ErrOutput io.Writer
 }
 
-func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) error {
+func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error) {
 	rc, err := ModuleReadCloser(info.Args)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -115,10 +123,32 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) error {
 		defer rc.Close()
 	}
 
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// Handle diagnostic errors.
+		spans := diagnostic.Spans(err)
+		for _, span := range spans {
+			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+		}
+
+		err = errdefs.WithAbort(err, len(spans))
+	}()
+
+	ctx = diagnostic.WithSources(ctx, builtin.Sources())
 	mod, err := parser.Parse(ctx, rc)
 	if err != nil {
 		return err
 	}
+
+	err = checker.SemanticPass(mod)
+	if err != nil {
+		return err
+	}
+
+	_ = linter.Lint(ctx, mod, linter.WithRecursive())
 
 	err = checker.Check(mod)
 	if err != nil {
@@ -195,21 +225,44 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 }
 
 type TreeInfo struct {
-	Args []string
-	Long bool
+	Args      []string
+	Long      bool
+	ErrOutput io.Writer
 }
 
-func Tree(ctx context.Context, cln *client.Client, info TreeInfo) error {
+func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 	rc, err := ModuleReadCloser(info.Args)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
 
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// Handle diagnostic errors.
+		spans := diagnostic.Spans(err)
+		for _, span := range spans {
+			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+		}
+
+		err = errdefs.WithAbort(err, len(spans))
+	}()
+
+	ctx = diagnostic.WithSources(ctx, builtin.Sources())
 	mod, err := parser.Parse(ctx, rc)
 	if err != nil {
 		return err
 	}
+
+	err = checker.SemanticPass(mod)
+	if err != nil {
+		return err
+	}
+
+	_ = linter.Lint(ctx, mod, linter.WithRecursive())
 
 	err = checker.Check(mod)
 	if err != nil {
