@@ -66,10 +66,6 @@ type testCase struct {
 	fn        func(ctx context.Context, t *testing.T) solver.Request
 }
 
-func cleanup(value string) string {
-	return dedent.Dedent(value)
-}
-
 func TestCodeGen(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []testCase{{
@@ -846,7 +842,7 @@ func TestCodeGen(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
-			mod, err := parser.Parse(ctx, strings.NewReader(cleanup(tc.hlb)))
+			mod, err := parser.Parse(ctx, strings.NewReader(dedent.Dedent(tc.hlb)))
 			require.NoError(t, err, tc.name)
 
 			err = checker.SemanticPass(mod)
@@ -863,7 +859,7 @@ func TestCodeGen(t *testing.T) {
 					t.Fatal(`"other" should be imported by the test module`)
 				}
 
-				imod, err := parser.Parse(ctx, strings.NewReader(cleanup(tc.hlbImport)))
+				imod, err := parser.Parse(ctx, strings.NewReader(dedent.Dedent(tc.hlbImport)))
 				require.NoError(t, err, tc.name)
 
 				err = checker.SemanticPass(imod)
