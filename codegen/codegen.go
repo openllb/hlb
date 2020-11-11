@@ -359,7 +359,7 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 
 	outs := c.Call(ins)
 	if !outs[0].IsNil() {
-		return outs[0].Interface().(error)
+		return WithBacktraceError(ctx, outs[0].Interface().(error))
 	}
 	return nil
 }

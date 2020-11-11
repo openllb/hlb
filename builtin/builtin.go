@@ -41,7 +41,7 @@ var (
 			"volumes":               codegen.Volumes{},
 			"stopSignal":            codegen.StopSignal{},
 			"dockerPush":            codegen.DockerPush{},
-			"dockerLoad":            &codegen.DockerLoad{},
+			"dockerLoad":            codegen.DockerLoad{},
 			"download":              codegen.Download{},
 			"downloadTarball":       codegen.DownloadTarball{},
 			"downloadOCITarball":    codegen.DownloadOCITarball{},

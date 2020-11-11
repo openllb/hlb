@@ -50,7 +50,18 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 		if fb != nil {
 			var msg string
 			if i == len(srcs)-1 {
-				msg = strings.TrimPrefix(perrors.Cause(err).Error(), "rpc error: code = Unknown desc = ")
+				var se *SpanError
+				if errors.As(err, &se) {
+					span := &SpanError{
+						Pos:   se.Pos,
+						Spans: make([]Span, len(se.Spans)),
+					}
+					copy(span.Spans, se.Spans)
+					spans = append(spans, span)
+					continue
+				}
+
+				msg = Cause(err)
 			}
 
 			start := fb.PositionFromProto(src.Ranges[0].Start)
@@ -64,4 +75,8 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 		}
 	}
 	return spans
+}
+
+func Cause(err error) string {
+	return strings.TrimPrefix(perrors.Cause(err).Error(), "rpc error: code = Unknown desc = ")
 }
