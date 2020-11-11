@@ -159,10 +159,11 @@ func WithNoBindTarget(as parser.Node) error {
 	)
 }
 
-func WithNoBindClosure(as parser.Node) error {
+func WithNoBindClosure(as, option parser.Node) error {
 	return as.WithError(
-		fmt.Errorf("cannot bind, no function register in scope"),
-		as.Spanf(diagnostic.Primary, "no function register in scope"),
+		fmt.Errorf("cannot bind, no closure in option blocks"),
+		as.Spanf(diagnostic.Primary, "no closure for binding"),
+		option.Spanf(diagnostic.Secondary, "option blocks have no closures outside of \"with option {...}\""),
 	)
 }
 

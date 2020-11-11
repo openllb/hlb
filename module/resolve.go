@@ -399,10 +399,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					return err
 				}
 
-				var (
-					ires     Resolved
-					filename string
-				)
+				var filename string
 				switch ret.Kind() {
 				case parser.Filesystem:
 					fs, err := ret.Filesystem()
@@ -411,25 +408,27 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					}
 
 					filename = ModuleFilename
-					ires, err = info.resolver.Resolve(ctx, id, fs)
+					res, err = info.resolver.Resolve(ctx, id, fs)
 					if err != nil {
 						return err
 					}
-					defer ires.Close()
+					defer res.Close()
+
 				case parser.String:
-					ires = res
-					relPath, err := ret.String()
+					filename, err = ret.String()
 					if err != nil {
 						return err
 					}
 
-					filename, err = parser.ResolvePath(codegen.ModuleDir(ctx), relPath)
-					if err != nil {
-						return err
+					if _, ok := res.(*localResolved); ok {
+						filename, err = parser.ResolvePath(codegen.ModuleDir(ctx), filename)
+						if err != nil {
+							return err
+						}
 					}
 				}
 
-				rc, err := ires.Open(filename)
+				rc, err := res.Open(filename)
 				if err != nil {
 					if !os.IsNotExist(err) {
 						return err
@@ -470,14 +469,14 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 						Import:     imod,
 						ImportDecl: id,
 						Ret:        ret,
-						Digest:     ires.Digest(),
+						Digest:     res.Digest(),
 					})
 					if err != nil {
 						return err
 					}
 				}
 
-				return resolveGraph(ctx, info, ires, imod)
+				return resolveGraph(ctx, info, res, imod)
 			})
 		},
 	)

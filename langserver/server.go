@@ -662,7 +662,7 @@ func (ls *LangServer) textDocumentHoverHandler(ctx context.Context, params lsp.T
 			},
 		},
 		func(block *parser.BlockStmt, ident *parser.Ident) {
-			lookupByKind, ok := builtin.Lookup.ByKind[block.Kind]
+			lookupByKind, ok := builtin.Lookup.ByKind[block.Kind()]
 			if !ok {
 				return
 			}
