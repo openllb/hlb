@@ -131,7 +131,7 @@ const (
 	Int        Kind = "int"
 	Bool       Kind = "bool"
 	Filesystem Kind = "fs"
-	Group      Kind = "group"
+	Pipeline   Kind = "pipeline"
 	Option     Kind = "option"
 )
 

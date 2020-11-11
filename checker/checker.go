@@ -376,7 +376,7 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 }
 
 func (c *checker) checkExpr(scope *parser.Scope, kset *parser.KindSet, expr *parser.Expr) error {
-	if kset.Has(parser.Group) {
+	if kset.Has(parser.Pipeline) {
 		kset = parser.NewKindSet(append(kset.Kinds(), parser.Filesystem)...)
 	}
 	switch {

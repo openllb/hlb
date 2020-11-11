@@ -195,16 +195,6 @@ var (
 					},
 				},
 			},
-			"group": LookupByKind{
-				Func: map[string]FuncLookup{
-					"parallel": FuncLookup{
-						Params: []*parser.Field{
-							parser.NewField("group", "groups", true),
-						},
-						Effects: []*parser.Field{},
-					},
-				},
-			},
 			"option::copy": LookupByKind{
 				Func: map[string]FuncLookup{
 					"followSymlinks": FuncLookup{
@@ -588,6 +578,16 @@ var (
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "name", false),
 							parser.NewField(parser.String, "value", false),
+						},
+						Effects: []*parser.Field{},
+					},
+				},
+			},
+			"pipeline": LookupByKind{
+				Func: map[string]FuncLookup{
+					"stage": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField("pipeline", "pipelines", true),
 						},
 						Effects: []*parser.Field{},
 					},
@@ -1304,12 +1304,12 @@ string template(string text)
 # @return an option to add a field to the template.
 option::template stringField(string name, string value)
 
-# Executes group or filesystem target(s). Multiple targets specified within
+# Executes pipeline or filesystem target(s). Multiple targets specified within
 # a stage is executed in parallel. 
 #
-# @param groups the targets to run in parallel.
-# @return a group that returns when all its targets have finished.
-group parallel(variadic group groups)
+# @param pipelines the targets to run in parallel.
+# @return a pipeline that returns when all its targets have finished.
+pipeline stage(variadic pipeline pipelines)
 
 `
 )
