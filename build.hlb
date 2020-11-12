@@ -16,8 +16,8 @@ fs lint() {
 	go.lint src
 }
 
-group gen() {
-	parallel fs {
+pipeline gen() {
+	stage fs {
 		mkdocs.generatedBuiltin
 		download "./builtin/."
 	} fs {

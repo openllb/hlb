@@ -281,7 +281,7 @@ type reqValue struct {
 }
 
 func (v *reqValue) Kind() parser.Kind {
-	return parser.Group
+	return parser.Pipeline
 }
 
 func (v *reqValue) Request() (solver.Request, error) {

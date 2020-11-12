@@ -57,7 +57,8 @@ var (
 			"localEnv":  codegen.LocalEnv{},
 			"localRun":  codegen.LocalRun{},
 		},
-		parser.Group: map[string]parser.Callable{
+		parser.Pipeline: map[string]parser.Callable{
+			"stage":    codegen.Stage{},
 			"parallel": codegen.Stage{},
 		},
 		"option::image": map[string]parser.Callable{

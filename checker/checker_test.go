@@ -320,31 +320,31 @@ func TestChecker_Check(t *testing.T) {
 			)
 		},
 	}, {
-		"basic group support",
+		"basic pipeline support",
 		`
-		group default() {
-			parallel groupA fs { image "b"; }
-			groupC
+		pipeline default() {
+			stage pipelineA fs { image "b"; }
+			pipelineC
 		}
-		group groupA() {
-			parallel fs { image "a"; }
+		pipeline pipelineA() {
+			stage fs { image "a"; }
 		}
-		group groupC() {
-			parallel fs { image "c"; }
+		pipeline pipelineC() {
+			stage fs { image "c"; }
 		}
 		`,
 		nil,
 	}, {
-		"errors when fs statement is called in a group block",
+		"errors when fs statement is called in a pipeline block",
 		`
-		group badGroup() {
+		pipeline badGroup() {
 			image "alpine"
 		}
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
 				parser.Find(mod, "image"),
-				[]parser.Kind{parser.Group},
+				[]parser.Kind{parser.Pipeline},
 				parser.Filesystem,
 				errdefs.Defined(parser.Find(builtin.Module, "image")),
 			)

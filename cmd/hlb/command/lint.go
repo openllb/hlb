@@ -61,23 +61,27 @@ func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
 	if err != nil {
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
-			fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+			if !info.Fix {
+				fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+				continue
+			}
 
-			if info.Fix {
-				var em *errdefs.ErrModule
-				if errors.As(span, &em) {
-					filename := em.Module.Pos.Filename
-					info, err := os.Stat(filename)
-					if err != nil {
-						return err
-					}
+			var em *errdefs.ErrModule
+			if errors.As(span, &em) {
+				filename := em.Module.Pos.Filename
+				info, err := os.Stat(filename)
+				if err != nil {
+					return err
+				}
 
-					err = ioutil.WriteFile(filename, []byte(em.Module.String()), info.Mode())
-					if err != nil {
-						return err
-					}
+				err = ioutil.WriteFile(filename, []byte(em.Module.String()), info.Mode())
+				if err != nil {
+					return err
 				}
 			}
+		}
+		if info.Fix {
+			return nil
 		}
 
 		color := diagnostic.Color(ctx)
@@ -86,9 +90,6 @@ func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
 			color.Green(fmt.Sprintf("`hlb lint --fix %s`", mod.Pos.Filename)),
 		))
 
-		if info.Fix {
-			return nil
-		}
 		return errdefs.WithAbort(err, len(spans))
 	}
 
