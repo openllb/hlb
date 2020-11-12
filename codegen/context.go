@@ -5,10 +5,16 @@ import (
 	"path/filepath"
 
 	"github.com/docker/buildx/util/progress"
+	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/llbutil"
+	"github.com/openllb/hlb/solver"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 type (
@@ -90,7 +96,7 @@ func MultiWriter(ctx context.Context) *progress.MultiWriter {
 }
 
 type Frame struct {
-	Node parser.Node
+	parser.Node
 }
 
 func WithFrame(ctx context.Context, frame Frame) context.Context {
@@ -101,6 +107,34 @@ func WithFrame(ctx context.Context, frame Frame) context.Context {
 func Backtrace(ctx context.Context) []Frame {
 	frames, _ := ctx.Value(backtraceKey{}).([]Frame)
 	return frames
+}
+
+func WithBacktraceError(ctx context.Context, err error) error {
+	for _, frame := range Backtrace(ctx) {
+		err = errdefs.WithSource(err, errdefs.Source{
+			Info: &pb.SourceInfo{
+				Filename: frame.Position().Filename,
+			},
+			Ranges: []*pb.Range{{
+				Start: llbutil.PositionFromLexer(frame.Position()),
+				End:   llbutil.PositionFromLexer(frame.End()),
+			}},
+		})
+	}
+
+	return errors.WithStack(err)
+}
+
+func WithCallbackErrgroup(ctx context.Context, g *errgroup.Group) solver.SolveOption {
+	return func(info *solver.SolveInfo) error {
+		info.Callbacks = append(info.Callbacks,
+			func(_ context.Context, resp *client.SolveResponse) error {
+				err := errors.Cause(g.Wait())
+				return WithBacktraceError(ctx, err)
+			},
+		)
+		return nil
+	}
 }
 
 func SourceMap(ctx context.Context) (opts []llb.ConstraintsOpt) {
@@ -115,18 +149,10 @@ func SourceMap(ctx context.Context) (opts []llb.ConstraintsOpt) {
 		if fb == nil {
 			continue
 		}
-		opts = append(opts, fb.SourceMap().Location([]*pb.Range{
-			{
-				Start: pb.Position{
-					Line:      int32(node.Position().Line),
-					Character: int32(node.Position().Column),
-				},
-				End: pb.Position{
-					Line:      int32(node.End().Line),
-					Character: int32(node.End().Column),
-				},
-			},
-		}))
+		opts = append(opts, fb.SourceMap().Location([]*pb.Range{{
+			Start: llbutil.PositionFromLexer(node.Position()),
+			End:   llbutil.PositionFromLexer(node.End()),
+		}}))
 	}
 
 	return

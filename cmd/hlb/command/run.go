@@ -152,19 +152,25 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 			return
 		}
 
-		// Handle diagnostic errors.
-		spans := diagnostic.Spans(err)
-		for _, span := range spans {
-			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
-		}
-
 		// Handle backtrace.
 		backtrace := diagnostic.Backtrace(ctx, err)
+		if len(backtrace) > 0 {
+			color := diagnostic.Color(ctx)
+			fmt.Fprintf(info.ErrOutput, color.Sprintf(
+				"%s: %s\n",
+				color.Bold(color.Red("error")),
+				color.Bold(diagnostic.Cause(err)),
+			))
+		}
 		for i, span := range backtrace {
 			if !info.Backtrace && i != len(backtrace)-1 {
 				if i == 0 {
 					color := diagnostic.Color(ctx)
-					fmt.Fprintf(info.ErrOutput, color.Sprintf(color.Cyan(" ⫶ %d frames hidden ⫶\n"), len(backtrace)-1))
+					frame := "frame"
+					if len(backtrace) > 2 {
+						frame = "frames"
+					}
+					fmt.Fprintf(info.ErrOutput, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
 				}
 				continue
 			}
@@ -181,7 +187,19 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 			fmt.Fprintf(info.ErrOutput, "%s\n", strings.Join(lines, "\n"))
 		}
 
-		err = errdefs.WithAbort(err, len(spans))
+		var numErrs int
+		if len(backtrace) == 0 {
+			// Handle diagnostic errors.
+			spans := diagnostic.Spans(err)
+			for _, span := range spans {
+				fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+			}
+			numErrs = len(spans)
+		} else {
+			numErrs = 1
+		}
+
+		err = errdefs.WithAbort(err, numErrs)
 	}()
 
 	mod, err := parser.Parse(ctx, rc)

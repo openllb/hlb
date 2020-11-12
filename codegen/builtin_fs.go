@@ -115,6 +115,9 @@ func (h HTTP) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 	for _, opt := range opts {
 		httpOpts = append(httpOpts, opt.(llb.HTTPOption))
 	}
+	for _, opt := range SourceMap(ctx) {
+		httpOpts = append(httpOpts, opt)
+	}
 
 	return ret.Set(llb.HTTP(url, httpOpts...))
 }
@@ -611,17 +614,24 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 		return err
 	}
 
-	fs.SolveOpts = append(fs.SolveOpts, solver.WithCallbackErrgroup(g))
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
 	return ret.Set(fs)
 }
 
-type DockerLoad struct {
-	dockerCli *command.DockerCli
-	once      sync.Once
-}
+var (
+	dockerCli  *command.DockerCli
+	dockerOnce sync.Once
+)
 
-func (dl *DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+type DockerLoad struct{}
+
+func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+	_, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
+	}
+
 	exportFS, err := ret.Filesystem()
 	if err != nil {
 		return err
@@ -652,6 +662,24 @@ func (dl *DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register
 	})
 
 	g.Go(func() (err error) {
+		dockerOnce.Do(func() {
+			dockerCli, err = command.NewDockerCli()
+			if err != nil {
+				return
+			}
+
+			err = dockerCli.Initialize(flags.NewClientOptions())
+			if err != nil {
+				return
+			}
+
+			_, err = dockerCli.Client().ServerVersion(ctx)
+		})
+		if err != nil {
+			r.CloseWithError(err)
+			return err
+		}
+
 		defer func() {
 			if err != nil {
 				err = r.CloseWithError(err)
@@ -660,19 +688,7 @@ func (dl *DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register
 			}
 		}()
 
-		dl.once.Do(func() {
-			dl.dockerCli, err = command.NewDockerCli()
-			if err != nil {
-				return
-			}
-
-			err = dl.dockerCli.Initialize(flags.NewClientOptions())
-		})
-		if err != nil {
-			return err
-		}
-
-		resp, err := dl.dockerCli.Client().ImageLoad(ctx, r, true)
+		resp, err := dockerCli.Client().ImageLoad(ctx, r, true)
 		if err != nil {
 			return err
 		}
@@ -694,7 +710,7 @@ func (dl *DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register
 		return err
 	}
 
-	fs.SolveOpts = append(fs.SolveOpts, solver.WithCallbackErrgroup(g))
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
 	return ret.Set(fs)
 }
@@ -736,7 +752,7 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
-	fs.SolveOpts = append(fs.SolveOpts, solver.WithCallbackErrgroup(g))
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
 	return ret.Set(fs)
 }
@@ -788,7 +804,7 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 		return err
 	}
 
-	fs.SolveOpts = append(fs.SolveOpts, solver.WithCallbackErrgroup(g))
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
 	return ret.Set(fs)
 }
@@ -840,7 +856,7 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 		return err
 	}
 
-	fs.SolveOpts = append(fs.SolveOpts, solver.WithCallbackErrgroup(g))
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
 	return ret.Set(fs)
 }
@@ -895,7 +911,7 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 		return err
 	}
 
-	fs.SolveOpts = append(fs.SolveOpts, solver.WithCallbackErrgroup(g))
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
 	return ret.Set(fs)
 }
