@@ -59,8 +59,12 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 	parser.Match(mod, parser.MatchOpts{},
 		// Register imports identifiers.
 		func(id *parser.ImportDecl) {
-			if id.Name != nil && id.Expr != nil {
-				c.registerDecl(mod.Scope, id.Name, id.Expr.Kind(), id)
+			if id.Name != nil {
+				if id.Expr != nil {
+					c.registerDecl(mod.Scope, id.Name, id.Expr.Kind(), id)
+				} else if id.DeprecatedPath != nil {
+					c.registerDecl(mod.Scope, id.Name, parser.String, id)
+				}
 			}
 		},
 		// Register function identifiers and construct lexical scopes.

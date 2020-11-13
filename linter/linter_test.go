@@ -20,7 +20,7 @@ type testCase struct {
 	fn    func(*parser.Module) error
 }
 
-func TestChecker_Check(t *testing.T) {
+func TestLinter_Lint(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []testCase{{
