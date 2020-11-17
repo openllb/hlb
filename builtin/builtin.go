@@ -202,7 +202,7 @@ func initSources() (err error) {
 	Module, err = parser.Parse(ctx, &parser.NamedReader{
 		Reader: strings.NewReader(Reference),
 		Value:  "<builtin>",
-	})
+	}, filebuffer.WithEphemeral())
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize filebuffer for builtins")
 	}

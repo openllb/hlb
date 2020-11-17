@@ -15,7 +15,7 @@ const (
 // NewBuiltinScope returns a new scope containing synthetic FuncDecl Objects for
 // builtins.
 func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
-	scope := parser.NewScope(nil, nil)
+	scope := parser.NewScope(nil, parser.BuiltinScope, builtin.Module)
 	parser.Match(builtin.Module, parser.MatchOpts{},
 		func(fun *parser.FuncDecl) {
 			obj := scope.Lookup(fun.Name.Text)

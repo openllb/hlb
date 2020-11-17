@@ -68,11 +68,18 @@ type PrettyOption func(*PrettyInfo)
 
 type PrettyInfo struct {
 	NumContext int
+	HideError  bool
 }
 
 func WithNumContext(num int) PrettyOption {
 	return func(info *PrettyInfo) {
 		info.NumContext = num
+	}
+}
+
+func WithHideError() PrettyOption {
+	return func(info *PrettyInfo) {
+		info.HideError = true
 	}
 }
 
@@ -89,7 +96,7 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 	maxLn := se.maxLn(ctx, info.NumContext)
 	gutter := strings.Repeat(" ", maxLn)
 
-	filenames, spansByFilename := se.groupAnnnotations()
+	filenames, spansByFilename := se.groupAnnotations()
 	for _, filename := range filenames {
 		fb := sources.Get(filename)
 
@@ -241,7 +248,7 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 	}
 
 	var title string
-	if se.Err != nil {
+	if !info.HideError && se.Err != nil {
 		title = color.Sprintf(
 			"%s: %s\n",
 			color.Bold(color.Red("error")),
@@ -267,7 +274,7 @@ func (se *SpanError) maxLn(ctx context.Context, numContext int) int {
 	return maxLn
 }
 
-func (se *SpanError) groupAnnnotations() (filenames []string, spansByFilename map[string][]Span) {
+func (se *SpanError) groupAnnotations() (filenames []string, spansByFilename map[string][]Span) {
 	spansByFilename = make(map[string][]Span)
 	for _, span := range se.Spans {
 		spansByFilename[span.Start.Filename] = append(spansByFilename[span.Start.Filename], span)

@@ -101,6 +101,11 @@ type Node interface {
 	Spanf(t diagnostic.Type, format string, a ...interface{}) diagnostic.Option
 }
 
+type StopNode interface {
+	Node
+	Subject() Node
+}
+
 type Mixin struct {
 	Pos    lexer.Position
 	EndPos lexer.Position
@@ -260,6 +265,10 @@ type FuncDecl struct {
 	Params  *FieldList     `parser:"@@"`
 	Effects *EffectsClause `parser:"@@?"`
 	Body    *BlockStmt     `parser:"@@?"`
+}
+
+func (fd *FuncDecl) Subject() Node {
+	return fd.Name
 }
 
 func (fd *FuncDecl) Kind() Kind {
@@ -451,15 +460,8 @@ type CallStmt struct {
 	Terminate  *StmtEnd    `parser:"@@?"`
 }
 
-func NewCallStmt(name string, args []*Expr, with *WithClause, binds *BindClause) *Stmt {
-	return &Stmt{
-		Call: &CallStmt{
-			Name:       NewIdentExpr(name),
-			Args:       args,
-			WithClause: with,
-			BindClause: binds,
-		},
-	}
+func (cs *CallStmt) Subject() Node {
+	return cs.Name
 }
 
 func (cs *CallStmt) Breakpoint() bool {
@@ -831,6 +833,10 @@ type CallExpr struct {
 	List *ExprList  `parser:"@@?"`
 }
 
+func (ce *CallExpr) Subject() Node {
+	return ce.Name
+}
+
 func (ce *CallExpr) Args() []*Expr {
 	var args []*Expr
 	if ce.List != nil {
@@ -841,6 +847,13 @@ func (ce *CallExpr) Args() []*Expr {
 		}
 	}
 	return args
+}
+
+func (ce *CallExpr) Breakpoint() bool {
+	if ce.Name == nil || ce.Name.Ident == nil {
+		return false
+	}
+	return ce.Name.Ident.Text == "breakpoint"
 }
 
 // ExprList represents a list of expressions enclosed in parentheses.
@@ -865,6 +878,13 @@ type IdentExpr struct {
 	Mixin
 	Ident     *Ident     `parser:"@@"`
 	Reference *Reference `parser:"@@?"`
+}
+
+func (ie *IdentExpr) Subject() Node {
+	if ie.Reference != nil {
+		return ie.Reference
+	}
+	return ie.Ident
 }
 
 // Reference represents the exported identifier from an imported module.

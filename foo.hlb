@@ -1,0 +1,27 @@
+import bar from image("hinshun/bar.hlb")
+
+fs default() {
+	image "alpine"
+	run "foo" with option {
+		mount git("https://github.com/openllb/hlb.git", "master") "/src"
+	}
+}
+
+fs default2() {
+	bar.build
+	copy foo(baz, "dst") "/" "/"
+}
+
+fs foo(fs baz, string dst) {
+	boo
+	copy baz "/" dst
+}
+
+fs boo() {
+	scratch
+	mkfile "boo" 0o600 "boo"
+}
+
+fs baz() {
+	mkfile "baz" 0o600 "baz"
+}

@@ -90,7 +90,7 @@ func TestResolveGraph(t *testing.T) {
 		func(mod *parser.Module, imods map[string]*parser.Module) error {
 			return errdefs.WithImportPathNotExist(
 				os.ErrNotExist,
-				parser.Find(mod, `"unknown.hlb"`),
+				parser.Search(mod, `"unknown.hlb"`),
 				"unknown.hlb",
 			)
 		},
@@ -102,7 +102,7 @@ func TestResolveGraph(t *testing.T) {
 		func(mod *parser.Module, imods map[string]*parser.Module) error {
 			return errdefs.WithImportPathNotExist(
 				os.ErrNotExist,
-				parser.Find(imods["transitive"], `"unknown.hlb"`),
+				parser.Search(imods["transitive"], `"unknown.hlb"`),
 				"unknown.hlb",
 			)
 		},

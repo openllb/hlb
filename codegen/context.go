@@ -23,7 +23,7 @@ type (
 	argKey            struct{ n int }
 	bindingKey        struct{}
 	sessionIDKey      struct{}
-	multiwriterKey    struct{}
+	progressWriterKey struct{}
 	backtraceKey      struct{}
 )
 
@@ -86,17 +86,27 @@ func SessionID(ctx context.Context) string {
 	return sessionID
 }
 
-func WithMultiWriter(ctx context.Context, mw *progress.MultiWriter) context.Context {
-	return context.WithValue(ctx, multiwriterKey{}, mw)
+func WithProgressWriter(ctx context.Context, pw progress.Writer) context.Context {
+	return context.WithValue(ctx, progressWriterKey{}, pw)
 }
 
-func MultiWriter(ctx context.Context) *progress.MultiWriter {
-	mw, _ := ctx.Value(multiwriterKey{}).(*progress.MultiWriter)
-	return mw
+func ProgressWriter(ctx context.Context) progress.Writer {
+	pw, _ := ctx.Value(progressWriterKey{}).(progress.Writer)
+	return pw
 }
 
 type Frame struct {
 	parser.Node
+	Name string
+}
+
+func NewFrame(scope *parser.Scope, node parser.Node) Frame {
+	var name string
+	fn, ok := scope.Node.(*parser.FuncDecl)
+	if ok {
+		name = fn.Name.Text
+	}
+	return Frame{Node: node, Name: name}
 }
 
 func WithFrame(ctx context.Context, frame Frame) context.Context {
@@ -109,9 +119,9 @@ func Backtrace(ctx context.Context) []Frame {
 	return frames
 }
 
-func WithBacktraceError(ctx context.Context, err error) error {
-	for _, frame := range Backtrace(ctx) {
-		err = errdefs.WithSource(err, errdefs.Source{
+func FramesToSources(frames []Frame) (sources []*errdefs.Source) {
+	for _, frame := range frames {
+		sources = append(sources, &errdefs.Source{
 			Info: &pb.SourceInfo{
 				Filename: frame.Position().Filename,
 			},
@@ -121,7 +131,17 @@ func WithBacktraceError(ctx context.Context, err error) error {
 			}},
 		})
 	}
+	return
+}
 
+func FramesToSpans(ctx context.Context, frames []Frame, se *diagnostic.SpanError) []*diagnostic.SpanError {
+	return diagnostic.SourcesToSpans(ctx, FramesToSources(frames), se)
+}
+
+func WithBacktraceError(ctx context.Context, err error) error {
+	for _, source := range FramesToSources(Backtrace(ctx)) {
+		err = errdefs.WithSource(err, *source)
+	}
 	return errors.WithStack(err)
 }
 

@@ -73,13 +73,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 		var config []byte
 		g.Go(func() error {
-			var pw progress.Writer
-
-			mw := MultiWriter(ctx)
-			if mw != nil {
-				pw = mw.WithPrefix("", false)
-			}
-
+			pw := ProgressWriter(ctx)
 			return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
 				_, config, err = c.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{})
 				return gateway.NewResult(), err
@@ -88,7 +82,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 		err = g.Wait()
 		if err != nil {
-			return err
+			return errdefs.WithDockerInvalidAuth(err, Arg(ctx, 0))
 		}
 
 		st, err = st.WithImageConfig(config)
@@ -248,13 +242,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 	}
 
 	g.Go(func() error {
-		var pw progress.Writer
-
-		mw := MultiWriter(ctx)
-		if mw != nil {
-			pw = mw.WithPrefix("", false)
-		}
-
+		pw := ProgressWriter(ctx)
 		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
 			res, err = c.Solve(ctx, req)
 			if err != nil {
@@ -598,7 +586,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, MultiWriter(ctx))
+		return request.Solve(ctx, cln, ProgressWriter(ctx))
 	})
 
 	if Binding(ctx).Binds() == "digest" {
@@ -658,7 +646,7 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, MultiWriter(ctx))
+		return request.Solve(ctx, cln, ProgressWriter(ctx))
 	})
 
 	g.Go(func() (err error) {
@@ -694,13 +682,11 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		}
 		defer resp.Body.Close()
 
-		mw := MultiWriter(ctx)
-		if mw == nil {
+		pw := ProgressWriter(ctx)
+		if pw == nil {
 			_, err = io.Copy(ioutil.Discard, resp.Body)
 			return err
 		}
-
-		pw := mw.WithPrefix("", false)
 		progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
 		return nil
 	})
@@ -744,7 +730,7 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, MultiWriter(ctx))
+		return request.Solve(ctx, cln, ProgressWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()
@@ -796,7 +782,7 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, MultiWriter(ctx))
+		return request.Solve(ctx, cln, ProgressWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()
@@ -848,7 +834,7 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, MultiWriter(ctx))
+		return request.Solve(ctx, cln, ProgressWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()
@@ -903,7 +889,7 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, MultiWriter(ctx))
+		return request.Solve(ctx, cln, ProgressWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()

@@ -17,23 +17,22 @@ import (
 )
 
 type CodeGen struct {
-	Debug Debugger
-	cln   *client.Client
+	cln  *client.Client
+	dbgr *debugger
 }
 
 type CodeGenOption func(*CodeGen) error
 
 func WithDebugger(dbgr Debugger) CodeGenOption {
 	return func(i *CodeGen) error {
-		i.Debug = dbgr
+		i.dbgr = dbgr.(*debugger)
 		return nil
 	}
 }
 
 func New(cln *client.Client, opts ...CodeGenOption) (*CodeGen, error) {
 	cg := &CodeGen{
-		Debug: NewNoopDebugger(),
-		cln:   cln,
+		cln: cln,
 	}
 	for _, opt := range opts {
 		err := opt(cg)
@@ -49,9 +48,8 @@ type Target struct {
 	Name string
 }
 
-func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (solver.Request, error) {
+func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (request solver.Request, err error) {
 	var requests []solver.Request
-
 	for i, target := range targets {
 		obj := mod.Scope.Lookup(target.Name)
 		if obj == nil {
@@ -59,9 +57,11 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		}
 
 		// Yield before compiling anything.
-		err := cg.Debug(ctx, mod.Scope, mod, nil)
-		if err != nil {
-			return nil, err
+		if cg.dbgr != nil {
+			err := cg.dbgr.yield(ctx, mod.Scope, mod, nil, nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Build expression for target.
@@ -71,7 +71,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 
 		// Every target has a return register.
 		ret := NewRegister()
-		err = cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
+		err := cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
 		if err != nil {
 			return nil, err
 		}
@@ -235,12 +235,18 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, rawH
 }
 
 func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *parser.CallExpr, ret Register) error {
-	ctx = WithFrame(ctx, Frame{call.Name})
+	ctx = WithFrame(ctx, NewFrame(scope, call.Name))
 
 	// Yield before executing call expression.
-	err := cg.Debug(ctx, scope, call.Name, ret)
-	if err != nil {
-		return err
+	if cg.dbgr != nil {
+		err := cg.dbgr.yield(ctx, scope, call, ret, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if call.Breakpoint() {
+		return nil
 	}
 
 	// No type hint for arg evaluation because the call.Name hasn't been resolved
@@ -359,7 +365,14 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 
 	outs := c.Call(ins)
 	if !outs[0].IsNil() {
-		return WithBacktraceError(ctx, outs[0].Interface().(error))
+		err := WithBacktraceError(ctx, outs[0].Interface().(error))
+		if cg.dbgr != nil {
+			derr := cg.dbgr.yield(ctx, scope, ProgramCounter(ctx), ret, err)
+			if derr != nil {
+				return derr
+			}
+		}
+		return err
 	}
 	return nil
 }
@@ -376,7 +389,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", name, len(params), len(args))
 	}
 
-	scope := parser.NewScope(fun, fun.Scope)
+	scope := parser.NewScope(fun.Scope, parser.ArgScope, fun)
 	for i, param := range params {
 		if param.Modifier != nil {
 			continue
@@ -388,12 +401,6 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 			Node:  param,
 			Data:  args[i],
 		})
-	}
-
-	// Yield before executing a function.
-	err := cg.Debug(ctx, scope, fun.Name, ret)
-	if err != nil {
-		return err
 	}
 
 	return cg.EmitBlock(ctx, scope, fun.Body, b, ret)
@@ -425,17 +432,18 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 }
 
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, b *parser.Binding, ret Register) error {
-	ctx = WithFrame(ctx, Frame{call.Name})
-
-	// Yield for breakpoints in the source.
-	if call.Breakpoint() {
-		return cg.Debug(ctx, scope, call.Name, ret)
-	}
+	ctx = WithFrame(ctx, NewFrame(scope, call.Name))
 
 	// Yield before executing the next call statement.
-	err := cg.Debug(ctx, scope, call.Name, ret)
-	if err != nil {
-		return err
+	if cg.dbgr != nil {
+		err := cg.dbgr.yield(ctx, scope, call, ret, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if call.Breakpoint() {
+		return nil
 	}
 
 	// No type hint for arg evaluation because the call.Name hasn't been resolved

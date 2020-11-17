@@ -31,7 +31,7 @@ type Request interface {
 	// Solve sends the request and its children to BuildKit. The request passes
 	// down the progress.MultiWriter for them to spawn their own progress writers
 	// for each independent solve.
-	Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error
+	Solve(ctx context.Context, cln *client.Client, pw progress.Writer) error
 
 	Tree(tree treeprint.Tree) error
 }
@@ -42,7 +42,7 @@ func NilRequest() Request {
 	return &nilRequest{}
 }
 
-func (r *nilRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
+func (r *nilRequest) Solve(ctx context.Context, cln *client.Client, pw progress.Writer) error {
 	return nil
 }
 
@@ -65,12 +65,7 @@ func Single(params *Params) Request {
 	return &singleRequest{params: params}
 }
 
-func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
-	var pw progress.Writer
-	if mw != nil {
-		pw = mw.WithPrefix("", false)
-	}
-
+func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, pw progress.Writer) error {
 	s, err := llbutil.NewSession(ctx, r.params.SessionOpts...)
 	if err != nil {
 		return err
@@ -292,12 +287,12 @@ func Parallel(candidates ...Request) Request {
 	return &parallelRequest{reqs: reqs}
 }
 
-func (r *parallelRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
+func (r *parallelRequest) Solve(ctx context.Context, cln *client.Client, pw progress.Writer) error {
 	g, ctx := errgroup.WithContext(ctx)
 	for _, req := range r.reqs {
 		req := req
 		g.Go(func() error {
-			return req.Solve(ctx, cln, mw)
+			return req.Solve(ctx, cln, pw)
 		})
 	}
 	return g.Wait()
@@ -338,9 +333,9 @@ func Sequential(candidates ...Request) Request {
 	return &sequentialRequest{reqs: reqs}
 }
 
-func (r *sequentialRequest) Solve(ctx context.Context, cln *client.Client, mw *progress.MultiWriter) error {
+func (r *sequentialRequest) Solve(ctx context.Context, cln *client.Client, pw progress.Writer) error {
 	for _, req := range r.reqs {
-		err := req.Solve(ctx, cln, mw)
+		err := req.Solve(ctx, cln, pw)
 		if err != nil {
 			return err
 		}

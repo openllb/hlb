@@ -710,13 +710,7 @@ func (ls *LangServer) textDocumentCompletionHandler(ctx context.Context, params 
 }
 
 func isPositionWithinNode(pos lsp.Position, node parser.Node) bool {
-	if (pos.Line < node.Position().Line-1 || pos.Line > node.End().Line-1) ||
-		(pos.Line == node.Position().Line-1 && pos.Character < node.Position().Column-1) ||
-		(pos.Line == node.End().Line-1 && pos.Character >= node.End().Column-1) {
-		return false
-	}
-
-	return true
+	return parser.IsPositionWithinNode(node, pos.Line-1, pos.Character-1)
 }
 
 func newLocationFromNode(uri lsp.DocumentURI, node parser.Node) *lsp.Location {

@@ -471,44 +471,75 @@ func (m *matcher) Visit(in Introspector, n Node) Visitor {
 	return m
 }
 
-type finder struct {
-	node  Node
-	match string
+type searcher struct {
+	match Node
+	query string
 	skip  int
 }
 
-func (v *finder) Visit(_ Introspector, n Node) Visitor {
+func (s *searcher) Visit(_ Introspector, n Node) Visitor {
 	if n == nil {
 		return nil
 	}
-	if strings.Contains(n.String(), v.match) && v.skip >= 0 {
-		v.node = n
-		if n.String() == v.match {
-			v.skip -= 1
-			if v.skip >= 0 {
-				v.node = nil
+	if strings.Contains(n.String(), s.query) && s.skip >= 0 {
+		s.match = n
+		if n.String() == s.query {
+			s.skip -= 1
+			if s.skip >= 0 {
+				s.match = nil
 			}
 			return nil
 		} else {
-			return v
+			return s
 		}
 	}
 	return nil
 }
 
-type FindOption func(*finder)
+type SearchOption func(*searcher)
 
-func WithSkip(skip int) FindOption {
-	return func(f *finder) {
+func WithSkip(skip int) SearchOption {
+	return func(f *searcher) {
 		f.skip = skip
 	}
 }
 
-func Find(root Node, match string, opts ...FindOption) Node {
-	f := &finder{match: match}
+func Search(root Node, query string, opts ...SearchOption) Node {
+	f := &searcher{query: query}
 	for _, opt := range opts {
 		opt(f)
 	}
 	Walk(root, f)
-	return f.node
+	return f.match
+}
+
+type finder struct {
+	match  Node
+	line   int
+	column int
+}
+
+func (f *finder) Visit(_ Introspector, n Node) Visitor {
+	if n == nil {
+		return nil
+	}
+	if f.column == 0 {
+		if (f.line >= n.Position().Line && f.line <= n.End().Line) &&
+			(f.match == nil || n.End().Column <= f.match.End().Column) {
+			if f.line == n.Position().Line && f.line == n.End().Line {
+				f.match = n
+			}
+			return f
+		}
+	} else if IsPositionWithinNode(n, f.line, f.column) {
+		f.match = n
+		return f
+	}
+	return nil
+}
+
+func Find(root Node, line, column int) Node {
+	f := &finder{line: line, column: column}
+	Walk(root, f)
+	return f.match
 }

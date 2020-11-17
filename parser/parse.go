@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func Parse(ctx context.Context, r io.Reader) (*Module, error) {
+func Parse(ctx context.Context, r io.Reader, opts ...filebuffer.FileBufferOption) (*Module, error) {
 	name := lexer.NameOfReader(r)
 	if name == "" {
 		name = "<stdin>"
@@ -23,7 +23,7 @@ func Parse(ctx context.Context, r io.Reader) (*Module, error) {
 
 	sources := diagnostic.Sources(ctx)
 	if sources != nil {
-		fb := filebuffer.New(name)
+		fb := filebuffer.New(name, opts...)
 		r = io.TeeReader(r, fb)
 		defer func() {
 			if mod.Pos.Filename != "" {

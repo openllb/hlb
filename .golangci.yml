@@ -13,9 +13,7 @@ linters:
     - structcheck
     - typecheck
     - unconvert
-    - unparam
     - varcheck
-
 
 issues:
   exclude-use-default: false

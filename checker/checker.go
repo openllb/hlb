@@ -53,7 +53,7 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 	//
 	// A module scope is a child of the global scope where builtin functions are
 	// defined.
-	mod.Scope = parser.NewScope(mod, GlobalScope)
+	mod.Scope = parser.NewScope(GlobalScope, parser.ModuleScope, mod)
 
 	// (1) Build lexical scopes and memoize semantic data into the CST.
 	parser.Match(mod, parser.MatchOpts{},
@@ -74,7 +74,7 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 			}
 
 			// Create a lexical scope for this function.
-			fun.Scope = parser.NewScope(fun, mod.Scope)
+			fun.Scope = parser.NewScope(mod.Scope, parser.FunctionScope, fun)
 
 			if fun.Params != nil {
 				// Create entries for call parameters to the function. Later at code

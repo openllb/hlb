@@ -19,6 +19,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"golang.org/x/sync/errgroup"
@@ -171,10 +172,9 @@ func (r *remoteResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs 
 		return nil, err
 	}
 
-	var pw progress.Writer
-	mw := codegen.MultiWriter(ctx)
-	if mw != nil {
-		pw = mw.WithPrefix(fmt.Sprintf("import %s", id.Name), true)
+	pw := codegen.ProgressWriter(ctx)
+	if pw != nil {
+		pw = progress.WithPrefix(pw, fmt.Sprintf("import %s", id.Name), true)
 	}
 
 	// Block constructing remoteResolved until the graph is solved and assigned to
@@ -391,8 +391,9 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 		func(id *parser.ImportDecl) {
 			g.Go(func() error {
 				var (
-					ctx = codegen.WithProgramCounter(ctx, id.Expr)
-					ret = codegen.NewRegister()
+					ctx  = codegen.WithProgramCounter(ctx, id.Expr)
+					ret  = codegen.NewRegister()
+					opts []filebuffer.FileBufferOption
 				)
 				err := cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
 				if err != nil {
@@ -414,6 +415,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					}
 					defer res.Close()
 
+					opts = append(opts, filebuffer.WithEphemeral())
 				case parser.String:
 					filename, err = ret.String()
 					if err != nil {
@@ -440,7 +442,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				}
 				defer rc.Close()
 
-				imod, err := parser.Parse(ctx, rc)
+				imod, err := parser.Parse(ctx, rc, opts...)
 				if err != nil {
 					return err
 				}

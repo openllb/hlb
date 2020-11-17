@@ -2,6 +2,7 @@ package errdefs
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
@@ -238,6 +239,20 @@ func WithBindCacheMount(as, cache parser.Node) error {
 		fmt.Errorf("cannot bind a cache mount"),
 		as.Spanf(diagnostic.Primary, "cannot bind a cache mount"),
 		cache.Spanf(diagnostic.Secondary, "cache mode enabled here"),
+	)
+}
+
+func WithDockerInvalidAuth(err error, ref parser.Node) error {
+	if err == nil {
+		return err
+	}
+	parts := strings.Split(err.Error(), "server message: ")
+	if len(parts) != 2 {
+		return err
+	}
+	return ref.WithError(
+		err,
+		ref.Spanf(diagnostic.Primary, parts[1]),
 	)
 }
 

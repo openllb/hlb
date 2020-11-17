@@ -179,8 +179,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNumArgs(
-				parser.Find(mod, "image"), 1, 0,
-				errdefs.Defined(parser.Find(builtin.Module, "image")),
+				parser.Search(mod, "image"), 1, 0,
+				errdefs.Defined(parser.Search(builtin.Module, "image")),
 			)
 		},
 	}, {
@@ -193,8 +193,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(mod, "duplicate"),
-				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+				parser.Search(mod, "duplicate"),
+				parser.Search(mod, "duplicate", parser.WithSkip(1)),
 			})
 		},
 	}, {
@@ -209,8 +209,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(mod, "duplicate"),
-				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+				parser.Search(mod, "duplicate"),
+				parser.Search(mod, "duplicate", parser.WithSkip(1)),
 			})
 		},
 	}, {
@@ -222,8 +222,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(builtin.Module, "image"),
-				parser.Find(mod, "image"),
+				parser.Search(builtin.Module, "image"),
+				parser.Search(mod, "image"),
 			})
 		},
 	}, {
@@ -237,8 +237,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(builtin.Module, "image"),
-				parser.Find(mod, "image"),
+				parser.Search(builtin.Module, "image"),
+				parser.Search(mod, "image"),
 			})
 		},
 	}, {
@@ -255,8 +255,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(mod, "duplicate"),
-				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+				parser.Search(mod, "duplicate"),
+				parser.Search(mod, "duplicate", parser.WithSkip(1)),
 			})
 		},
 	}, {
@@ -270,8 +270,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithCallImport(
-				parser.Find(mod, "foo", parser.WithSkip(1)),
-				parser.Find(mod, "foo"),
+				parser.Search(mod, "foo", parser.WithSkip(1)),
+				parser.Search(mod, "foo"),
 			)
 		},
 	}, {
@@ -301,7 +301,7 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithUndefinedIdent(
-				parser.Find(mod, "foo"),
+				parser.Search(mod, "foo"),
 				nil,
 			)
 		},
@@ -315,8 +315,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNotImport(
-				parser.Find(mod, "myFunction.build").(*parser.IdentExpr),
-				parser.Find(mod, "myFunction"),
+				parser.Search(mod, "myFunction.build").(*parser.IdentExpr),
+				parser.Search(mod, "myFunction"),
 			)
 		},
 	}, {
@@ -343,10 +343,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
-				parser.Find(mod, "image"),
+				parser.Search(mod, "image"),
 				[]parser.Kind{parser.Pipeline},
 				parser.Filesystem,
-				errdefs.Defined(parser.Find(builtin.Module, "image")),
+				errdefs.Defined(parser.Search(builtin.Module, "image")),
 			)
 		},
 	}, {
@@ -361,7 +361,7 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		func(mod *parser.Module) error {
-			return errdefs.WithNoBindTarget(parser.Find(mod, "as"))
+			return errdefs.WithNoBindTarget(parser.Search(mod, "as"))
 		},
 	}, {
 		"no error when bind list is empty",
@@ -381,10 +381,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
-				parser.Find(mod, "imageID", parser.WithSkip(1)),
+				parser.Search(mod, "imageID", parser.WithSkip(1)),
 				[]parser.Kind{parser.Filesystem},
 				parser.String,
-				errdefs.Defined(parser.Find(mod, "imageID")),
+				errdefs.Defined(parser.Search(mod, "imageID")),
 			)
 		},
 	}, {
@@ -397,10 +397,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithWrongType(
-				parser.Find(mod, "imageID", parser.WithSkip(1)),
+				parser.Search(mod, "imageID", parser.WithSkip(1)),
 				[]parser.Kind{parser.Filesystem},
 				parser.String,
-				errdefs.Defined(parser.Find(mod, "imageID")),
+				errdefs.Defined(parser.Search(mod, "imageID")),
 			)
 		},
 	}, {
@@ -412,10 +412,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindEffects(
-				parser.Find(mod, "run"),
-				parser.Find(mod, "as"),
+				parser.Search(mod, "run"),
+				parser.Search(mod, "as"),
 				errdefs.Defined(
-					parser.Find(builtin.Module, "run"),
+					parser.Search(builtin.Module, "run"),
 				),
 			)
 		},
@@ -428,8 +428,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithUndefinedBindTarget(
-				parser.Find(mod, "dockerPush"),
-				parser.Find(mod, "undefined"),
+				parser.Search(mod, "dockerPush"),
+				parser.Search(mod, "undefined"),
 			)
 		},
 	}, {
@@ -441,8 +441,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindClosure(
-				parser.Find(mod, "as"),
-				parser.Find(mod, "option::run"),
+				parser.Search(mod, "as"),
+				parser.Search(mod, "option::run"),
 			)
 		},
 	}, {
@@ -460,8 +460,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithNoBindClosure(
-				parser.Find(mod, "as"),
-				parser.Find(mod, "option::run"),
+				parser.Search(mod, "as"),
+				parser.Search(mod, "option::run"),
 			)
 		},
 	}} {
@@ -535,9 +535,9 @@ func TestChecker_CheckReferences(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithUndefinedIdent(
-				parser.Find(mod, "undefined"),
+				parser.Search(mod, "undefined"),
 				nil,
-				errdefs.Imported(parser.Find(mod, "myImportedModule")),
+				errdefs.Imported(parser.Search(mod, "myImportedModule")),
 			)
 		},
 	}, {
@@ -551,8 +551,8 @@ func TestChecker_CheckReferences(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithCallUnexported(
-				parser.Find(mod, "bar"),
-				errdefs.Imported(parser.Find(mod, "myImportedModule")),
+				parser.Search(mod, "bar"),
+				errdefs.Imported(parser.Search(mod, "myImportedModule")),
 			)
 		},
 	}, {

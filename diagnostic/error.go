@@ -3,6 +3,8 @@ package diagnostic
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/moby/buildkit/solver/errdefs"
@@ -26,6 +28,10 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
+func Cause(err error) string {
+	return strings.TrimPrefix(perrors.Cause(err).Error(), "rpc error: code = Unknown desc = ")
+}
+
 func Spans(err error) (spans []*SpanError) {
 	var e *Error
 	if errors.As(err, &e) {
@@ -43,16 +49,15 @@ func Spans(err error) (spans []*SpanError) {
 	return
 }
 
-func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
-	srcs := errdefs.Sources(err)
+func SourcesToSpans(ctx context.Context, srcs []*errdefs.Source, se *SpanError) (spans []*SpanError) {
 	for i, src := range srcs {
 		fb := Sources(ctx).Get(src.Info.Filename)
 		if fb != nil {
 			var msg string
 			if i == len(srcs)-1 {
-				var se *SpanError
-				if errors.As(err, &se) {
+				if se != nil {
 					span := &SpanError{
+						Err:   se.Err,
 						Pos:   se.Pos,
 						Spans: make([]Span, len(se.Spans)),
 					}
@@ -60,12 +65,11 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 					spans = append(spans, span)
 					continue
 				}
-
-				msg = Cause(err)
 			}
 
-			start := fb.PositionFromProto(src.Ranges[0].Start)
-			end := fb.PositionFromProto(src.Ranges[0].End)
+			loc := src.Ranges[0]
+			start := fb.Position(int(loc.Start.Line), int(loc.Start.Character))
+			end := fb.Position(int(loc.End.Line), int(loc.End.Character))
 			se := WithError(nil, start, Spanf(Primary, start, end, msg))
 
 			var span *SpanError
@@ -77,6 +81,43 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 	return spans
 }
 
-func Cause(err error) string {
-	return strings.TrimPrefix(perrors.Cause(err).Error(), "rpc error: code = Unknown desc = ")
+func WriteBacktrace(ctx context.Context, spans []*SpanError, w io.Writer, hiddenFrames bool) {
+	if len(spans) == 0 {
+		return
+	}
+
+	color := Color(ctx)
+
+	err := spans[len(spans)-1].Err
+	if err != nil {
+		fmt.Fprintf(w, color.Sprintf(
+			"%s: %s\n",
+			color.Bold(color.Red("error")),
+			color.Bold(Cause(err)),
+		))
+	}
+
+	for i, span := range spans {
+		if hiddenFrames && i != len(spans)-1 {
+			if i == 0 {
+				frame := "frame"
+				if len(spans) > 2 {
+					frame = "frames"
+				}
+				fmt.Fprintf(w, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(spans)-1, frame))
+			}
+			continue
+		}
+
+		pretty := span.Pretty(ctx, WithNumContext(2), WithHideError())
+		lines := strings.Split(pretty, "\n")
+		for j, line := range lines {
+			if j == 0 {
+				lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
+			} else {
+				lines[j] = fmt.Sprintf("    %s", line)
+			}
+		}
+		fmt.Fprintf(w, "%s\n", strings.Join(lines, "\n"))
+	}
 }

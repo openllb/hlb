@@ -4,6 +4,7 @@ import go from "./go.hlb"
 import mkdocs from "./mkdocs.hlb"
 
 fs default() {
+	breakpoint
 	crossHLB
 }
 
@@ -33,6 +34,7 @@ fs docs() {
 
 fs publishDocs() {
 	mkdocs.publish
+	breakpoint
 }
 
 fs src() {

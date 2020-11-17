@@ -35,7 +35,7 @@ func WithLogOutput(logOutput LogOutput) ProgressOption {
 }
 
 type Progress interface {
-	MultiWriter() *progress.MultiWriter
+	Writer() progress.Writer
 
 	Write(pfx, name string, fn func(ctx context.Context) error)
 
@@ -94,61 +94,53 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 		}
 	}
 
-	// Not using shared context to not disrupt display on errors, and allow
-	// graceful exit and report error.
-	pctx, cancel := context.WithCancel(context.Background())
-
-	var pw progress.Writer
-
+	var mode string
 	switch info.LogOutput {
 	case LogOutputTTY:
-		pw = progress.NewPrinter(pctx, os.Stderr, "tty")
+		mode = "tty"
 	case LogOutputPlain:
-		pw = progress.NewPrinter(pctx, os.Stderr, "plain")
+		mode = "plain"
 	default:
-		cancel()
 		return nil, errors.Errorf("unknown log output %q", info.LogOutput)
 	}
 
+	// Not using shared context to not disrupt display on errors, and allow
+	// graceful exit and report error.
+	pctx, cancel := context.WithCancel(context.Background())
+	printer := progress.NewPrinter(pctx, os.Stderr, mode)
+
 	g, ctx := errgroup.WithContext(ctx)
+
+	done := make(chan struct{})
 
 	g.Go(func() error {
 		// Only after pw.Done is unblocked can we cleanly cancel the one-off context
 		// passed to the progress printer.
 		defer cancel()
 
+		// While using *Progress, there may be gaps between solves. So to ensure the
+		// build is not finished, we create a progress writer that remains unfinished
+		// until *Progress is released by the user to indicate they are really done.
+		<-done
+
 		// After *Progress is released, there is still a display rate on the progress
 		// UI, so we must ensure the root progress.Writer is done, which indicates it
 		// is completely finished writing.
-		<-pw.Done()
-		return pw.Err()
+		return printer.Wait()
 	})
 
-	mw := progress.NewMultiWriter(pw)
-	done := make(chan struct{})
-
-	// While using *Progress, there may be gaps between solves. So to ensure the
-	// build is not finished, we create a progress writer that remains unfinished
-	// until *Progress is released by the user to indicate they are really done.
-	g.Go(func() error {
-		final := mw.WithPrefix("progress", false)
-		defer close(final.Status())
-		<-done
-		return nil
-	})
-
-	return &progressUI{mw, ctx, g, done}, nil
+	return &progressUI{printer, ctx, g, done}, nil
 }
 
 type progressUI struct {
-	mw   *progress.MultiWriter
-	ctx  context.Context
-	g    *errgroup.Group
-	done chan struct{}
+	printer *progress.Printer
+	ctx     context.Context
+	g       *errgroup.Group
+	done    chan struct{}
 }
 
-func (p *progressUI) MultiWriter() *progress.MultiWriter {
-	return p.mw
+func (p *progressUI) Writer() progress.Writer {
+	return p.printer
 }
 
 func (p *progressUI) Go(fn func(ctx context.Context) error) {
@@ -158,14 +150,8 @@ func (p *progressUI) Go(fn func(ctx context.Context) error) {
 }
 
 func (p *progressUI) Write(pfx, name string, fn func(ctx context.Context) error) {
-	pw := p.mw.WithPrefix(pfx, false)
+	pw := progress.WithPrefix(p.printer, pfx, false)
 	p.g.Go(func() error {
-		<-pw.Done()
-		return pw.Err()
-	})
-
-	p.g.Go(func() error {
-		defer close(pw.Status())
 		return write(pw, name, func() error {
 			return fn(p.ctx)
 		})
@@ -177,7 +163,9 @@ type stackTracer interface {
 }
 
 func write(pw progress.Writer, name string, fn func() error) error {
-	status := pw.Status()
+	status, done := progress.NewChannel(pw)
+	defer func() { <-done }()
+
 	dgst := digest.FromBytes([]byte(identity.NewID()))
 	tm := time.Now()
 
@@ -254,7 +242,7 @@ type debugProgress struct {
 	done chan struct{}
 }
 
-func (p *debugProgress) MultiWriter() *progress.MultiWriter {
+func (p *debugProgress) Writer() progress.Writer {
 	return nil
 }
 

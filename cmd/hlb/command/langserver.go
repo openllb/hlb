@@ -5,13 +5,13 @@ import (
 	"log"
 	"os"
 
-	"github.com/openllb/hlb/langserver"
+	"github.com/openllb/hlb/rpc/langserver"
 	cli "github.com/urfave/cli/v2"
 )
 
 var langserverCommand = &cli.Command{
 	Name:  "langserver",
-	Usage: "run hlp lsp language server",
+	Usage: "run LSP language server",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "logfile",
