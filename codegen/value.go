@@ -118,7 +118,7 @@ func (v *nilValue) Option() (Option, error) {
 }
 
 func (v *nilValue) Request() (solver.Request, error) {
-	return nil, fmt.Errorf("cannot coerce to pipeline")
+	return solver.NilRequest(), nil
 }
 
 func (v *nilValue) Reflect(t reflect.Type) (reflect.Value, error) {

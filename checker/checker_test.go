@@ -323,14 +323,14 @@ func TestChecker_Check(t *testing.T) {
 		"basic pipeline support",
 		`
 		pipeline default() {
-			stage pipelineA fs { image "b"; }
+			stage pipelineA image("b")
 			pipelineC
 		}
 		pipeline pipelineA() {
-			stage fs { image "a"; }
+			stage image("a")
 		}
 		pipeline pipelineC() {
-			stage fs { image "c"; }
+			stage localRun("c")
 		}
 		`,
 		nil,
