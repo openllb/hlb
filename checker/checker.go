@@ -381,7 +381,13 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 
 func (c *checker) checkExpr(scope *parser.Scope, kset *parser.KindSet, expr *parser.Expr) error {
 	if kset.Has(parser.Pipeline) {
-		kset = parser.NewKindSet(append(kset.Kinds(), parser.Filesystem)...)
+		kset = parser.NewKindSet(append(
+			kset.Kinds(),
+			parser.String,
+			parser.Int,
+			parser.Bool,
+			parser.Filesystem,
+		)...)
 	}
 	switch {
 	case expr.FuncLit != nil:
