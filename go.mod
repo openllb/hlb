@@ -3,6 +3,9 @@ module github.com/openllb/hlb
 go 1.12
 
 require (
+	github.com/Masterminds/goutils v1.1.0 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/alecthomas/participle v1.0.0-alpha2
 	github.com/containerd/containerd v1.4.0-beta.2.0.20200728183644-eb6354a11860
 	github.com/creachadair/jrpc2 v0.8.1
@@ -10,10 +13,12 @@ require (
 	github.com/docker/cli v0.0.0-20200227165822-2298e6a3fe24
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/go-metrics v0.0.1 // indirect
+	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.11
+	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.7.1-0.20200806195445-545532ab0e75
 	github.com/opencontainers/go-digest v1.0.0
