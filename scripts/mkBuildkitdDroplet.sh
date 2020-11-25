@@ -80,6 +80,7 @@ runcmd:
         --token $REGISTER_TOKEN
     sudo -H -u github nohup ./run.sh &
   - docker run -d --name buildkitd --privileged moby/buildkit:latest
+  - docker run -d --name watchtower -v /var/run/docker.sock:/var/run/docker.sock v2tec/watchtower --cleanup
 EOM
 )
 

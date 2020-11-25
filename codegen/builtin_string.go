@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/sprig"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/platforms"
 	"github.com/docker/distribution/reference"
@@ -33,7 +34,8 @@ func (f Format) Call(ctx context.Context, cln *client.Client, ret Register, opts
 type Template struct{}
 
 func (t Template) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, text string) error {
-	tmpl, err := template.New("").Parse(text)
+	var sprigFuncs map[string]interface{} = sprig.FuncMap()
+	tmpl, err := template.New("hlb").Funcs(templateFuncs()).Funcs(sprigFuncs).Parse(text)
 	if err != nil {
 		return err
 	}
@@ -51,6 +53,64 @@ func (t Template) Call(ctx context.Context, cln *client.Client, ret Register, op
 	}
 
 	return ret.Set(buf.String())
+}
+
+func templateFuncs() template.FuncMap {
+	return map[string]interface{}{
+		// dockerDomain returns the domain/host information for the provided
+		// docker image
+		"dockerDomain": func(in string) string {
+			n, err := reference.ParseNamed(in)
+			if err != nil {
+				return ""
+			}
+			return reference.Domain(n)
+		},
+		// dockerPath returns the repository path for the provided docker image
+		// without the domain/host or tag/digest information.
+		"dockerPath": func(in string) string {
+			n, err := reference.ParseNamed(in)
+			if err == nil {
+				return reference.Path(n)
+			}
+			r, err := reference.Parse(in)
+			if err != nil {
+				return ""
+			}
+			if n, ok := r.(reference.Named); ok {
+				return n.Name()
+			}
+			return in
+		},
+		// dockerRepository returns the docker image name witout the tag or
+		// digest for the provided image name.
+		"dockerRepository": func(in string) string {
+			n, err := reference.ParseNamed(in)
+			if err == nil {
+				return reference.TrimNamed(n).String()
+			}
+			r, err := reference.Parse(in)
+			if err != nil {
+				return ""
+			}
+			if n, ok := r.(reference.Named); ok {
+				return n.Name()
+			}
+			return in
+		},
+		// dockerTag returns the docker image tag for the provided image name,
+		// or "latest" if non found.
+		"dockerTag": func(in string) string {
+			r, err := reference.Parse(in)
+			if err != nil {
+				return ""
+			}
+			if t, ok := r.(reference.Tagged); ok {
+				return t.Tag()
+			}
+			return "latest"
+		},
+	}
 }
 
 type LocalArch struct{}
