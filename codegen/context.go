@@ -24,6 +24,7 @@ type (
 	bindingKey        struct{}
 	sessionIDKey      struct{}
 	multiwriterKey    struct{}
+	imageResolverKey  struct{}
 	backtraceKey      struct{}
 )
 
@@ -93,6 +94,15 @@ func WithMultiWriter(ctx context.Context, mw *progress.MultiWriter) context.Cont
 func MultiWriter(ctx context.Context) *progress.MultiWriter {
 	mw, _ := ctx.Value(multiwriterKey{}).(*progress.MultiWriter)
 	return mw
+}
+
+func WithImageResolver(ctx context.Context, resolver llb.ImageMetaResolver) context.Context {
+	return context.WithValue(ctx, imageResolverKey{}, resolver)
+}
+
+func ImageResolver(ctx context.Context) llb.ImageMetaResolver {
+	resolver, _ := ctx.Value(imageResolverKey{}).(llb.ImageMetaResolver)
+	return resolver
 }
 
 type Frame struct {

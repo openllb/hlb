@@ -212,6 +212,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		targets = append(targets, codegen.Target{Name: target})
 	}
 
+	ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
 	solveReq, err := hlb.Compile(ctx, cln, mod, targets)
 	if err != nil {
 		// Ignore early exits from the debugger.
