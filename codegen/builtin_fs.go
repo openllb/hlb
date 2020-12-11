@@ -55,38 +55,13 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	ref = reference.TagNameOnly(named).String()
 
 	var (
-		st    = llb.Image(ref, imageOpts...)
-		image = &specs.Image{}
+		st       = llb.Image(ref, imageOpts...)
+		image    = &specs.Image{}
+		resolver = ImageResolver(ctx)
 	)
 
-	if cln != nil {
-		s, err := llbutil.NewSession(ctx)
-		if err != nil {
-			return err
-		}
-
-		g, ctx := errgroup.WithContext(ctx)
-
-		g.Go(func() error {
-			return s.Run(ctx, cln.Dialer())
-		})
-
-		var config []byte
-		g.Go(func() error {
-			var pw progress.Writer
-
-			mw := MultiWriter(ctx)
-			if mw != nil {
-				pw = mw.WithPrefix("", false)
-			}
-
-			return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
-				_, config, err = c.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{})
-				return gateway.NewResult(), err
-			})
-		})
-
-		err = g.Wait()
+	if resolver != nil {
+		_, config, err := resolver.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{})
 		if err != nil {
 			return err
 		}

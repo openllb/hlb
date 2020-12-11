@@ -137,7 +137,6 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 		resolver = imageutil.NewBufferedImageResolver()
 		matcher  = resolver.MatchDefaultPlatform()
 	)
-
 	var platform *specs.Platform
 	for _, opt := range opts {
 		if p, ok := opt.(*specs.Platform); ok {
