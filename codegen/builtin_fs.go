@@ -300,6 +300,7 @@ func (u User) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 	}
 
 	fs.State = fs.State.User(name)
+	fs.Image.Config.User = name
 	return ret.Set(fs)
 }
 
