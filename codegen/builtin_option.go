@@ -588,7 +588,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 			defer os.RemoveAll(dir)
 
 			err := l.Close()
-			if err != nil {
+			if err != nil && !isClosedNetworkError(err) {
 				return errors.Wrap(err, "failed to close listener")
 			}
 
@@ -598,10 +598,9 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		g.Go(func() error {
 			defer conn.Close()
 
-			// ErrNetClosing is hidden in an internal golang package so we can't use
-			// errors.Is: https://golang.org/src/internal/poll/fd.go
 			err := sockproxy.Run(ctx, conn, l)
-			if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+
+			if err != nil && !isClosedNetworkError(err) {
 				return err
 			}
 			return nil
@@ -617,6 +616,12 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	sshOpts := []llb.SSHOption{llb.SSHID(id), llb.SSHSocketTarget(dest)}
 
 	return ret.Set(append(retOpts, llb.AddSSHSocket(sshOpts...)))
+}
+
+func isClosedNetworkError(err error) bool {
+	// ErrNetClosing is hidden in an internal golang package so we can't use
+	// errors.Is: https://golang.org/src/internal/poll/fd.go
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
 type Secret struct{}
