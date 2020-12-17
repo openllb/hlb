@@ -389,6 +389,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 
 	parser.Match(mod, parser.MatchOpts{},
 		func(id *parser.ImportDecl) {
+			res := res
 			g.Go(func() error {
 				var (
 					ctx = codegen.WithProgramCounter(ctx, id.Expr)
@@ -430,7 +431,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 
 				rc, err := res.Open(filename)
 				if err != nil {
-					if !os.IsNotExist(err) {
+					if !errdefs.IsNotExist(err) {
 						return err
 					}
 					if id.DeprecatedPath != nil {

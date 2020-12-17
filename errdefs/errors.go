@@ -2,6 +2,8 @@ package errdefs
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
@@ -265,4 +267,8 @@ func DefinedMaybeImported(scope *parser.Scope, ie *parser.IdentExpr, decl parser
 		}
 	}
 	return opts
+}
+
+func IsNotExist(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || os.IsNotExist(err) || strings.HasSuffix(err.Error(), "no such file or directory")
 }
