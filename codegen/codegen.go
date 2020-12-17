@@ -53,8 +53,8 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 	var requests []solver.Request
 
 	for i, target := range targets {
-		obj := mod.Scope.Lookup(target.Name)
-		if obj == nil {
+		_, ok := mod.Scope.Objects[target.Name]
+		if !ok {
 			return nil, fmt.Errorf("target %q is not defined in %s", target.Name, mod.Pos.Filename)
 		}
 
