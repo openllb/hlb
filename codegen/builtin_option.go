@@ -682,7 +682,8 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 }
 
 type Mount struct {
-	Bind string
+	Bind  string
+	Image *specs.Image
 }
 
 func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, input Filesystem, mountpoint string) error {
@@ -704,7 +705,7 @@ func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		if cache != nil {
 			return errdefs.WithBindCacheMount(Binding(ctx).Bind.As, cache)
 		}
-		retOpts = append(retOpts, &Mount{Bind: mountpoint})
+		retOpts = append(retOpts, &Mount{Bind: mountpoint, Image: input.Image})
 	}
 
 	retOpts = append(retOpts, &llbutil.MountRunOption{
