@@ -313,6 +313,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		sessionOpts []llbutil.SessionOption
 		bind        string
 		shlex       = false
+		image       *specs.Image
 	)
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -324,6 +325,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 			sessionOpts = append(sessionOpts, o)
 		case *Mount:
 			bind = o.Bind
+			image = o.Image
 		case *Shlex:
 			shlex = true
 		}
@@ -355,6 +357,9 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		fs.State = run.GetMount(bind)
 	} else {
 		fs.State = run.Root()
+	}
+	if image != nil {
+		fs.Image = image
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, solveOpts...)
