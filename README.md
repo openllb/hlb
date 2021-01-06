@@ -14,7 +14,9 @@ If you're on a MacOS or Linux (`linux-amd64`), head on over to [Releases](https:
 
 Otherwise, you can compile HLB yourself using [go](https://golang.org/dl/):
 ```sh
-go get -u github.com/openllb/hlb/cmd/hlb
+git clone https://github.com/openllb/hlb.git
+cd hlb
+go install ./cmd/hlb
 ```
 
 You'll also need to run `buildkitd` somewhere you can connect to. The easiest way if you have [Docker](https://www.docker.com/get-started), is to run a local buildkit container:
@@ -28,4 +30,4 @@ export BUILDKIT_HOST=docker-container://buildkitd
 hlb run ./examples/node.hlb
 ```
 
-If your editor has a decent LSP plugin, there is an [Language Server for HLB](https://github.com/openllb/hlb-langserver).
+If your editor has a decent LSP plugin, HLB does support LSP over stdio via the `hlb langserver` subcommand.
