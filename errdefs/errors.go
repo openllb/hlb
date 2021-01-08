@@ -87,7 +87,7 @@ func WithCallImport(ident parser.Node, decl parser.Node) error {
 func WithImportPathNotExist(err error, expr parser.Node, filename string) error {
 	return expr.WithError(
 		err,
-		expr.Spanf(diagnostic.Primary, "no such file"),
+		expr.Spanf(diagnostic.Primary, "no such file %q", filename),
 	)
 }
 
