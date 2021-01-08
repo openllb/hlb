@@ -426,6 +426,9 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					if id.DeprecatedPath != nil {
 						return errdefs.WithImportPathNotExist(err, id.DeprecatedPath, filename)
 					}
+					if id.Expr.FuncLit != nil {
+						return errdefs.WithImportPathNotExist(err, id.Expr.FuncLit.Type, filename)
+					}
 					return errdefs.WithImportPathNotExist(err, id.Expr, filename)
 				}
 				defer rc.Close()
