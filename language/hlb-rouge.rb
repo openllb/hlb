@@ -18,7 +18,7 @@ module Rouge
           end
           rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)/, Keyword::Type
           rule /(\b(import|export|from|binds|as|with|variadic)\b)/, Keyword
-          rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)(\()/ do
+          rule /(\b[a-zA-Z_][a-zA-Z0-9_]*\b)(\()/ do
             groups Name::Variable, Punctuation
             push :params
           end
@@ -30,13 +30,13 @@ module Rouge
           rule /(\))/, Generic::Error
           rule /(\{)/, Punctuation, :block
           rule /(\})/, Generic::Error
-          rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)/, Name::Variable
+          rule /(\b[a-zA-Z_][a-zA-Z0-9_]*\b)/, Name::Variable
           rule /(\n|\r|\r\n)/, String
           rule /./, String
       end
 
       state:binding do
-          rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)((?:[\t ]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)/ do
+          rule /(\b[a-zA-Z_][a-zA-Z0-9_]*\b)((?:[\t ]+))(\b[a-zA-Z_][a-zA-Z0-9_]*\b)/ do
             groups Name::Builtin, Punctuation, Name::Variable
           end
           rule /(\n|\r|\r\n)/, String
@@ -52,7 +52,7 @@ module Rouge
             push :common__2
           end
           rule /((?:[\t ]+)with(?:[\t ]+))/, Keyword
-          rule /(as)((?:[\t ]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)/ do
+          rule /(as)((?:[\t ]+))(\b[a-zA-Z_][a-zA-Z0-9_]*\b)/ do
             groups Keyword, Punctuation, Name::Variable
           end
           rule /(binds)((?:[\t ]+))(\()/ do
@@ -64,7 +64,7 @@ module Rouge
             push :block
           end
           rule /(\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localEnv|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|parallel|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|stringField|target|template|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))/, Name::Variable
-          rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)/, Name::Builtin
+          rule /(\b[a-zA-Z_][a-zA-Z0-9_]*\b)/, Name::Builtin
           rule /(\n|\r|\r\n)/, String
           rule /./, String
       end
@@ -82,7 +82,7 @@ module Rouge
       state:params do
           rule /(variadic)/, Keyword
           rule /(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)/, Keyword::Type
-          rule /(\b[a-zA-Z_][a-zA-Z0-9]*\b)/, Name::Variable
+          rule /(\b[a-zA-Z_][a-zA-Z0-9_]*\b)/, Name::Variable
           rule /(\n|\r|\r\n)/, String
           rule /./, String
       end
