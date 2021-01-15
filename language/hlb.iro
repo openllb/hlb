@@ -81,7 +81,7 @@ styles [] {
 
 __TYPE \= (\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)
 __WHITESPACE \= (?:[\t ]+)
-__IDENT \= (\b[a-zA-Z_][a-zA-Z0-9]*\b)
+__IDENT \= (\b[a-zA-Z_][a-zA-Z0-9_]*\b)
 __KEYWORD \= (\b(import|export|from|binds|as|with|variadic)\b)
 __BOOL \= (\b(true|false)\b)
 __NUMERIC \= (\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b)

@@ -13,7 +13,7 @@ contexts:
     - match: '(\b(import|export|from|binds|as|with|variadic)\b)'
       captures:
         0: keyword.hlb
-    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)(\()'
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9_]*\b)(\()'
       push: params
       captures:
         0: variable.hlb
@@ -36,7 +36,7 @@ contexts:
     - match: '(\})'
       captures:
         0: invalid.hlb
-    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9_]*\b)'
       captures:
         0: variable.hlb
     - match: '(.)'
@@ -52,7 +52,7 @@ contexts:
     - match: '(")'
       captures:
         0: punctuation.hlb
-      push:
+      push: 
         - match: '(")'
           pop: true
           captures:
@@ -64,7 +64,7 @@ contexts:
       captures:
         0: punctuation.hlb
         1: constant.hlb
-      push:
+      push: 
         - match: '(\2)'
           pop: true
           captures:
@@ -86,7 +86,7 @@ contexts:
     - match: '(\bstring\b|\bint\b|\bbool\b|\bfs\b|\bgroup\b|\boption(?!::)\b|\boption::(?:copy|frontend|git|http|image|local|mkdir|mkfile|mount|rm|run|secret|ssh|template)\b)'
       captures:
         0: entity.name.type.hlb
-    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9_]*\b)'
       captures:
         0: variable.hlb
     - match: '(.)'
@@ -97,7 +97,7 @@ contexts:
       pop: true
       captures:
         0: punctuation.hlb
-    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)((?:[\t\x{0020}]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9_]*\b)((?:[\t\x{0020}]+))(\b[a-zA-Z_][a-zA-Z0-9_]*\b)'
       captures:
         0: variable.language.hlb
         1: punctuation.hlb
@@ -114,7 +114,7 @@ contexts:
     - match: '((?:[\t\x{0020}]+)with(?:[\t\x{0020}]+))'
       captures:
         0: keyword.hlb
-    - match: '(as)((?:[\t\x{0020}]+))(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+    - match: '(as)((?:[\t\x{0020}]+))(\b[a-zA-Z_][a-zA-Z0-9_]*\b)'
       captures:
         0: keyword.hlb
         1: punctuation.hlb
@@ -134,7 +134,7 @@ contexts:
     - match: '(\b((?!(allowEmptyWildcard|allowNotFound|allowWildcard|cache|checksum|chmod|chown|contentsOnly|copy|createDestPath|createParents|createdTime|dir|dockerLoad|dockerPush|download|downloadDockerTarball|downloadOCITarball|downloadTarball|env|excludePatterns|filename|followPaths|followSymlinks|format|forward|frontend|gid|git|host|http|id|ignoreCache|image|includePatterns|input|insecure|keepGitDir|local|localEnv|localPaths|locked|mkdir|mkfile|mode|mount|network|node|opt|parallel|private|readonly|readonlyRootfs|resolve|rm|run|sandbox|scratch|secret|security|shared|sourcePath|ssh|stringField|target|template|tmpfs|uid|unix|unpack|unset|user|value)\b)[a-zA-Z_][a-zA-Z0-9]*\b))'
       captures:
         0: variable.hlb
-    - match: '(\b[a-zA-Z_][a-zA-Z0-9]*\b)'
+    - match: '(\b[a-zA-Z_][a-zA-Z0-9_]*\b)'
       captures:
         0: variable.language.hlb
     - match: '(.)'

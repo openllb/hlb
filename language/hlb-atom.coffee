@@ -24,7 +24,7 @@
         'name' : 'keyword.hlb'
       }
       {
-        'begin' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)(\\()'
+        'begin' : '(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)(\\()'
         'beginCaptures' : {
           '1' : {
             'name' : 'variable.hlb'
@@ -99,7 +99,7 @@
         'name' : 'invalid.hlb'
       }
       {
-        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)'
         'name' : 'variable.hlb'
       }
     ]
@@ -107,7 +107,7 @@
   'binding' : {
     'patterns' : [
       {
-        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)((?:[\\t\\x{0020}]+))(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)((?:[\\t\\x{0020}]+))(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)'
         'captures' : {
           '1' : {
             'name' : 'variable.language.hlb'
@@ -132,7 +132,7 @@
         'name' : 'keyword.hlb'
       }
       {
-        'match' : '(as)((?:[\\t\\x{0020}]+))(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'match' : '(as)((?:[\\t\\x{0020}]+))(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)'
         'captures' : {
           '1' : {
             'name' : 'keyword.hlb'
@@ -200,7 +200,7 @@
         'name' : 'variable.hlb'
       }
       {
-        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)'
         'name' : 'variable.language.hlb'
       }
     ]
@@ -269,7 +269,7 @@
         'name' : 'entity.name.type.hlb'
       }
       {
-        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9]*\\b)'
+        'match' : '(\\b[a-zA-Z_][a-zA-Z0-9_]*\\b)'
         'name' : 'variable.hlb'
       }
     ]
