@@ -934,7 +934,7 @@ func TestCodegenError(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
-			mod, err := parser.Parse(context.Background(), strings.NewReader(tc.input))
+			mod, err := parser.Parse(ctx, strings.NewReader(tc.input))
 			require.NoError(t, err, "unexpected parse error")
 
 			err = checker.SemanticPass(mod)
