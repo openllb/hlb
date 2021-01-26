@@ -34,6 +34,12 @@ func WithNoStmtEnd() UnparseOption {
 	}
 }
 
+func (bd *BuiltinDecl) String() string { return bd.Unparse() }
+
+func (bd *BuiltinDecl) Unparse(opts ...UnparseOption) string {
+	return bd.Name
+}
+
 func (m *Module) String() string { return m.Unparse() }
 
 func (m *Module) Unparse(opts ...UnparseOption) string {

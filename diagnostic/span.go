@@ -95,6 +95,11 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 
 		// Sort spans in the same module by line number.
 		spans := spansByFilename[filename]
+
+		if len(spans) == 0 {
+			continue
+		}
+
 		sort.SliceStable(spans, func(i, j int) bool {
 			return spans[i].Start.Line < spans[j].Start.Line
 		})
@@ -112,14 +117,12 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 			sections []string
 			prevLn   int
 		)
-		if len(spans) > 0 {
-			// Initialize the previous line number, this will be updated after every
-			// span to determine how the next span render should join with the previous.
-			// (i.e. if there's a gap or there's overlap).
-			prevLn = spans[0].Start.Line - info.NumContext - 1
-			if prevLn < 0 {
-				prevLn = 0
-			}
+		// Initialize the previous line number, this will be updated after every
+		// span to determine how the next span render should join with the previous.
+		// (i.e. if there's a gap or there's overlap).
+		prevLn = spans[0].Start.Line - info.NumContext - 1
+		if prevLn < 0 {
+			prevLn = 0
 		}
 
 		for i, span := range spans {
