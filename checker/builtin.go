@@ -24,6 +24,7 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 					Ident: fun.Name,
 					Node: &parser.BuiltinDecl{
 						Module:         builtin.Module,
+						Name:           fun.Name.String(),
 						FuncDeclByKind: make(map[parser.Kind]*parser.FuncDecl),
 						CallableByKind: make(map[parser.Kind]parser.Callable),
 					},

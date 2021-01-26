@@ -905,3 +905,57 @@ func TestCodeGen(t *testing.T) {
 		})
 	}
 }
+
+func TestCodegenError(t *testing.T) {
+	t.Parallel()
+
+	type errorTestCase struct {
+		name          string
+		targets       []string
+		input         string
+		expectedError string
+	}
+
+	for _, tc := range []errorTestCase{
+		{
+			"invalid builtin",
+			[]string{"default"},
+			`
+			fs default() {
+				bug includePatterns("*.go")
+			}
+			fs bug(option::local pattern) {
+				local "." with pattern
+			}
+		`,
+			"<stdin>:3:9: unrecognized builtin `includePatterns`",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			mod, err := parser.Parse(context.Background(), strings.NewReader(tc.input))
+			require.NoError(t, err, "unexpected parse error")
+
+			err = checker.SemanticPass(mod)
+			require.NoError(t, err, tc.name)
+
+			_ = linter.Lint(ctx, mod)
+
+			err = checker.Check(mod)
+			require.NoError(t, err, tc.name)
+
+			var targets []codegen.Target
+			for _, target := range tc.targets {
+				targets = append(targets, codegen.Target{Name: target})
+			}
+
+			cg, err := codegen.New(nil)
+			require.NoError(t, err, tc.name)
+
+			ctx = codegen.WithSessionID(ctx, identity.NewID())
+			_, err = cg.Generate(ctx, mod, targets)
+			require.EqualError(t, err, tc.expectedError)
+		})
+	}
+}

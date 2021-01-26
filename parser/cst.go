@@ -214,6 +214,7 @@ type Export struct {
 // Special type checking rules apply to builtins.
 type BuiltinDecl struct {
 	*Module
+	Name           string
 	FuncDeclByKind map[Kind]*FuncDecl
 	CallableByKind map[Kind]Callable
 }
