@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
 	"github.com/openllb/hlb"
@@ -88,7 +87,7 @@ type RunInfo struct {
 	Targets   []string
 	LLB       bool
 	LogOutput string
-	ErrOutput console.File
+	ErrOutput solver.Console
 	Output    io.Writer
 
 	// override defaults sources as necessary

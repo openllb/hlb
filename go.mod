@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/alecthomas/participle v1.0.0-alpha2
-	github.com/containerd/console v1.0.1
 	github.com/containerd/containerd v1.4.1-0.20201117152358-0edc412565dc
 	github.com/creachadair/jrpc2 v0.8.1
 	github.com/docker/buildx v0.3.2-0.20200410204309-f4ac640252b8
