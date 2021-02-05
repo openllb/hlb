@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/containerd/console"
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/identity"
@@ -17,6 +18,7 @@ import (
 type ProgressOption func(*ProgressInfo) error
 
 type ProgressInfo struct {
+	Console   console.File
 	LogOutput LogOutput
 }
 
@@ -27,8 +29,9 @@ const (
 	LogOutputPlain
 )
 
-func WithLogOutput(logOutput LogOutput) ProgressOption {
+func WithLogOutput(con console.File, logOutput LogOutput) ProgressOption {
 	return func(info *ProgressInfo) error {
+		info.Console = con
 		info.LogOutput = logOutput
 		return nil
 	}
@@ -86,7 +89,9 @@ type Progress interface {
 // return p.Wait()
 // ```
 func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) {
-	info := &ProgressInfo{}
+	info := &ProgressInfo{
+		Console: os.Stderr,
+	}
 	for _, opt := range opts {
 		err := opt(info)
 		if err != nil {
@@ -102,9 +107,9 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 
 	switch info.LogOutput {
 	case LogOutputTTY:
-		pw = progress.NewPrinter(pctx, os.Stderr, "tty")
+		pw = progress.NewPrinter(pctx, info.Console, "tty")
 	case LogOutputPlain:
-		pw = progress.NewPrinter(pctx, os.Stderr, "plain")
+		pw = progress.NewPrinter(pctx, info.Console, "plain")
 	default:
 		cancel()
 		return nil, errors.Errorf("unknown log output %q", info.LogOutput)
