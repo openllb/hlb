@@ -15,6 +15,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Console is intended to match the `File` interface from
+// package `github.com/containerd/console`.
 type Console interface {
 	io.ReadWriteCloser
 
