@@ -3,10 +3,10 @@ package solver
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
-	"github.com/containerd/console"
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/identity"
@@ -15,10 +15,22 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Console is intended to match the `File` interface from
+// package `github.com/containerd/console`.
+type Console interface {
+	io.ReadWriteCloser
+
+	// Fd returns its file descriptor
+	Fd() uintptr
+
+	// Name returns its file name
+	Name() string
+}
+
 type ProgressOption func(*ProgressInfo) error
 
 type ProgressInfo struct {
-	Console   console.File
+	Console   Console
 	LogOutput LogOutput
 }
 
@@ -29,7 +41,7 @@ const (
 	LogOutputPlain
 )
 
-func WithLogOutput(con console.File, logOutput LogOutput) ProgressOption {
+func WithLogOutput(con Console, logOutput LogOutput) ProgressOption {
 	return func(info *ProgressInfo) error {
 		info.Console = con
 		info.LogOutput = logOutput
