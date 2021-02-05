@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
 	"github.com/openllb/hlb"
@@ -87,7 +88,7 @@ type RunInfo struct {
 	Targets   []string
 	LLB       bool
 	LogOutput string
-	ErrOutput io.Writer
+	ErrOutput console.File
 	Output    io.Writer
 
 	// override defaults sources as necessary
@@ -126,9 +127,9 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	switch info.LogOutput {
 	case "tty":
-		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputTTY))
+		progressOpts = append(progressOpts, solver.WithLogOutput(info.ErrOutput, solver.LogOutputTTY))
 	case "plain":
-		progressOpts = append(progressOpts, solver.WithLogOutput(solver.LogOutputPlain))
+		progressOpts = append(progressOpts, solver.WithLogOutput(info.ErrOutput, solver.LogOutputPlain))
 	default:
 		return fmt.Errorf("unrecognized log-output %q", info.LogOutput)
 	}
