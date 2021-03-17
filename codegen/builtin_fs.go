@@ -262,6 +262,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 		}, solveOpts...)
 	})
 
+	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 	return ret.Set(fs)
 }
 
