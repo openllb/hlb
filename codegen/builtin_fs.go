@@ -262,6 +262,11 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 		}, solveOpts...)
 	})
 
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
 	return ret.Set(fs)
 }
 
