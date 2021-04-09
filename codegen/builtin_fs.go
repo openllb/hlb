@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -30,6 +31,20 @@ import (
 	fstypes "github.com/tonistiigi/fsutil/types"
 	"golang.org/x/sync/errgroup"
 )
+
+const (
+	// HistoryComment is an indicator in the image history that the history layer
+	// was produced by the HLB compiler.
+	HistoryComment = "hlb.v0"
+)
+
+func commitHistory(img *specs.Image, empty bool, format string, a ...interface{}) {
+	img.History = append(img.History, specs.History{
+		CreatedBy:  fmt.Sprintf(format, a...),
+		Comment:    HistoryComment,
+		EmptyLayer: empty,
+	})
+}
 
 type Scratch struct{}
 
@@ -285,14 +300,19 @@ func (e Env) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 
 type Dir struct{}
 
-func (d Dir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string) error {
+func (d Dir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, wd string) error {
 	fs, err := ret.Filesystem()
 	if err != nil {
 		return err
 	}
 
-	fs.State = fs.State.Dir(path)
-	fs.Image.Config.WorkingDir = path
+	if !path.IsAbs(wd) {
+		wd = path.Join("/", fs.Image.Config.WorkingDir, wd)
+	}
+
+	fs.State = fs.State.Dir(wd)
+	fs.Image.Config.WorkingDir = wd
+	commitHistory(fs.Image, true, "WORKDIR %s", wd)
 	return ret.Set(fs)
 }
 
@@ -306,6 +326,7 @@ func (u User) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 
 	fs.State = fs.State.User(name)
 	fs.Image.Config.User = name
+	commitHistory(fs.Image, true, "USER %s", name)
 	return ret.Set(fs)
 }
 
@@ -369,6 +390,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 
 	fs.SolveOpts = append(fs.SolveOpts, solveOpts...)
 	fs.SessionOpts = append(fs.SessionOpts, sessionOpts...)
+	commitHistory(fs.Image, false, "RUN %s", strings.Join(runArgs, " "))
 
 	return ret.Set(fs)
 }
@@ -453,6 +475,7 @@ func (m Copy) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 	)
 	fs.SolveOpts = append(fs.SolveOpts, input.SolveOpts...)
 	fs.SessionOpts = append(fs.SessionOpts, input.SessionOpts...)
+	commitHistory(fs.Image, false, "COPY %s %s", src, dest)
 
 	return ret.Set(fs)
 }
@@ -466,6 +489,7 @@ func (e Entrypoint) Call(ctx context.Context, cln *client.Client, ret Register, 
 	}
 
 	fs.Image.Config.Entrypoint = entrypoint
+	commitHistory(fs.Image, true, "ENTRYPOINT %q", entrypoint)
 	return ret.Set(fs)
 }
 
@@ -494,6 +518,17 @@ func (l Label) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	}
 
 	fs.Image.Config.Labels[key] = value
+
+	// In Dockerfile, multiple labels can be specified in the same LABEL command
+	// leading to one history element. This checks if the previous history
+	// committed was also a label, in which case it should just add to the
+	// previous history element.
+	numHistory := len(fs.Image.History)
+	if numHistory > 0 && strings.HasPrefix(fs.Image.History[numHistory-1].CreatedBy, "LABEL") {
+		fs.Image.History[numHistory-1].CreatedBy += fmt.Sprintf(" %s=%s", key, value)
+	} else {
+		commitHistory(fs.Image, true, "LABEL %s=%s", key, value)
+	}
 	return ret.Set(fs)
 }
 
