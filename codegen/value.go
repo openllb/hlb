@@ -13,7 +13,6 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
-	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
@@ -138,7 +137,7 @@ func (v *zeroValue) Kind() parser.Kind {
 func (v *zeroValue) Filesystem() (Filesystem, error) {
 	return Filesystem{
 		State: llb.Scratch(),
-		Image: &specs.Image{},
+		Image: &solver.ImageSpec{},
 	}, nil
 }
 
@@ -164,7 +163,7 @@ func (v *zeroValue) Reflect(t reflect.Type) (reflect.Value, error) {
 
 type Filesystem struct {
 	State       llb.State
-	Image       *specs.Image
+	Image       *solver.ImageSpec
 	SolveOpts   []solver.SolveOption
 	SessionOpts []llbutil.SessionOption
 }
@@ -184,7 +183,7 @@ func (v *fsValue) Kind() parser.Kind {
 }
 
 func (v *fsValue) Filesystem() (Filesystem, error) {
-	var image specs.Image
+	var image solver.ImageSpec
 	if v.fs.Image != nil {
 		image = *v.fs.Image
 	}

@@ -683,7 +683,7 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 
 type Mount struct {
 	Bind  string
-	Image *specs.Image
+	Image *solver.ImageSpec
 }
 
 func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, input Filesystem, mountpoint string) error {

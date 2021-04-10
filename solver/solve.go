@@ -26,8 +26,23 @@ type SolveInfo struct {
 	OutputLocalTarball    bool
 	OutputLocalOCITarball bool
 	Callbacks             []SolveCallback `json:"-"`
-	ImageSpec             *specs.Image
+	ImageSpec             *ImageSpec
 	Entitlements          []entitlements.Entitlement
+}
+
+// ImageSpec is HLB's wrapper for the OCI specs image, allowing for backward
+// compatible features with Docker.
+type ImageSpec struct {
+	specs.Image
+
+	ContainerConfig ContainerConfig `json:"container_config,omitempty"`
+}
+
+// ContainerConfig is the schema1-compatible configuration of the container
+// that is committed into the image.
+type ContainerConfig struct {
+	Cmd    []string          `json:"Cmd"`
+	Labels map[string]string `json:"Labels"`
 }
 
 func WithDownloadDockerTarball(ref string) SolveOption {
@@ -72,9 +87,9 @@ func WithCallback(fn SolveCallback) SolveOption {
 	}
 }
 
-func WithImageSpec(cfg *specs.Image) SolveOption {
+func WithImageSpec(spec *ImageSpec) SolveOption {
 	return func(info *SolveInfo) error {
-		info.ImageSpec = cfg
+		info.ImageSpec = spec
 		return nil
 	}
 }
