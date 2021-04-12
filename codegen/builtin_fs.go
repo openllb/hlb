@@ -38,7 +38,7 @@ const (
 	HistoryComment = "hlb.v0"
 )
 
-func commitHistory(img *specs.Image, empty bool, format string, a ...interface{}) {
+func commitHistory(img *solver.ImageSpec, empty bool, format string, a ...interface{}) {
 	img.History = append(img.History, specs.History{
 		CreatedBy:  fmt.Sprintf(format, a...),
 		Comment:    HistoryComment,
@@ -71,7 +71,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	var (
 		st       = llb.Image(ref, imageOpts...)
-		image    = &specs.Image{}
+		image    = &solver.ImageSpec{}
 		resolver = ImageResolver(ctx)
 	)
 
@@ -339,7 +339,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		sessionOpts []llbutil.SessionOption
 		bind        string
 		shlex       = false
-		image       *specs.Image
+		image       *solver.ImageSpec
 	)
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -595,6 +595,13 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	if err != nil {
 		return err
 	}
+
+	// Maintains compatibility with systems depending on v1 `container_config`
+	// containing the last history `created_by`.
+	if len(exportFS.Image.History) > 0 {
+		exportFS.Image.ContainerConfig.Cmd = []string{exportFS.Image.History[len(exportFS.Image.History)-1].CreatedBy}
+	}
+	exportFS.Image.ContainerConfig.Labels = exportFS.Image.Config.Labels
 
 	var dgst string
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
