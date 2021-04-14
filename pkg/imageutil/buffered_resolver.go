@@ -2,6 +2,7 @@ package imageutil
 
 import (
 	"context"
+	"strings"
 
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
@@ -67,7 +68,15 @@ func (bir *BufferedImageResolver) ResolveImageConfig(ctx context.Context, ref st
 		return desc.Digest, nil, err
 	}
 
+	var ignoreRootfs images.HandlerFunc = func(ctx context.Context, desc specs.Descriptor) ([]specs.Descriptor, error) {
+		if strings.Contains(desc.MediaType, "rootfs") {
+			return nil, images.ErrSkipDesc
+		}
+		return nil, nil
+	}
+
 	handlers := images.Handlers(
+		ignoreRootfs,
 		remotes.FetchHandler(bir, fetcher),
 		images.ChildrenHandler(bir),
 	)
