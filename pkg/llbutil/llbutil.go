@@ -126,6 +126,26 @@ func (ct AllowEmptyWildcard) SetCopyOption(ci *llb.CopyInfo) {
 	ci.AllowEmptyWildcard = (bool)(ct)
 }
 
+type CopyIncludePatterns []string
+
+func WithIncludePatterns(includePatterns []string) CopyIncludePatterns {
+	return CopyIncludePatterns(includePatterns)
+}
+
+func (ip CopyIncludePatterns) SetCopyOption(ci *llb.CopyInfo) {
+	ci.IncludePatterns = ([]string)(ip)
+}
+
+type CopyExcludePatterns []string
+
+func WithExcludePatterns(excludePatterns []string) CopyExcludePatterns {
+	return CopyExcludePatterns(excludePatterns)
+}
+
+func (ep CopyExcludePatterns) SetCopyOption(ci *llb.CopyInfo) {
+	ci.ExcludePatterns = ([]string)(ep)
+}
+
 type Target string
 
 func WithTarget(t string) Target {

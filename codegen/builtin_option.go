@@ -802,6 +802,28 @@ func (sep SecretExcludePatterns) Call(ctx context.Context, cln *client.Client, r
 	return ret.Set(append(retOpts, &SecretExcludePatterns{patterns}))
 }
 
+type CopyIncludePatterns struct{}
+
+func (iip CopyIncludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
+	retOpts, err := ret.Option()
+	if err != nil {
+		return err
+	}
+
+	return ret.Set(append(retOpts, llbutil.WithIncludePatterns(patterns)))
+}
+
+type CopyExcludePatterns struct{}
+
+func (sep CopyExcludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
+	retOpts, err := ret.Option()
+	if err != nil {
+		return err
+	}
+
+	return ret.Set(append(retOpts, llbutil.WithExcludePatterns(patterns)))
+}
+
 type Readonly struct{}
 
 func (r Readonly) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
