@@ -133,7 +133,7 @@ func WithIncludePatterns(includePatterns []string) CopyIncludePatterns {
 }
 
 func (ip CopyIncludePatterns) SetCopyOption(ci *llb.CopyInfo) {
-	ci.IncludePatterns = ([]string)(ip)
+	ci.IncludePatterns = append(ci.IncludePatterns, ip...)
 }
 
 type CopyExcludePatterns []string
@@ -143,7 +143,7 @@ func WithExcludePatterns(excludePatterns []string) CopyExcludePatterns {
 }
 
 func (ep CopyExcludePatterns) SetCopyOption(ci *llb.CopyInfo) {
-	ci.ExcludePatterns = ([]string)(ep)
+	ci.ExcludePatterns = append(ci.ExcludePatterns, ep...)
 }
 
 type Target string
