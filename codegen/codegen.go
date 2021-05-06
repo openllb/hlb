@@ -192,14 +192,17 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 			pieces = append(pieces, *f.Text)
 		}
 	}
+	return emitHeredocPieces(heredoc.Start, heredoc.Terminate.Text, pieces, ret)
+}
 
+func emitHeredocPieces(start, terminate string, pieces []string, ret Register) error {
 	// Build raw heredoc.
 	raw := strings.Join(pieces, "")
 
 	// Trim leading newlines and trailing newlines / tabs.
 	raw = strings.TrimRight(strings.TrimLeft(raw, "\n"), "\n\t")
 
-	switch strings.TrimSuffix(heredoc.Start, heredoc.Terminate.Text) {
+	switch strings.TrimSuffix(start, terminate) {
 	case "<<-": // dedent
 		return ret.Set(dedent.Dedent(raw))
 	case "<<~": // fold
@@ -212,12 +215,11 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 	default:
 		return ret.Set(raw)
 	}
-
 }
 
-func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, rawHeredoc *parser.RawHeredoc, ret Register) error {
+func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, heredoc *parser.RawHeredoc, ret Register) error {
 	var pieces []string
-	for _, f := range rawHeredoc.Fragments {
+	for _, f := range heredoc.Fragments {
 		switch {
 		case f.Spaces != nil:
 			pieces = append(pieces, *f.Spaces)
@@ -225,13 +227,9 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, rawH
 			pieces = append(pieces, *f.Text)
 		}
 	}
-	// Build raw heredoc.
-	raw := strings.Join(pieces, "")
 
-	// Trim leading newlines and trailing newlines / tabs.
-	raw = strings.TrimRight(strings.TrimLeft(raw, "\n"), "\n\t")
-	return ret.Set(raw)
-
+	terminate := fmt.Sprintf("`%s`", heredoc.Terminate.Text)
+	return emitHeredocPieces(heredoc.Start, terminate, pieces, ret)
 }
 
 func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *parser.CallExpr, ret Register) error {
