@@ -365,7 +365,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		return err
 	}
 
-	customName := strings.ReplaceAll(shellquote.Join(runArgs...), "\n", "")
+	customName := strings.ReplaceAll(shellquote.Join(runArgs...), "\n", "\\n")
 	runOpts = append(runOpts, llb.Args(runArgs), llb.WithCustomName(customName))
 
 	err = llbutil.ShimReadonlyMountpoints(runOpts)
