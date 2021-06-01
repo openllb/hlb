@@ -400,6 +400,25 @@ func TestCodeGen(t *testing.T) {
 			))
 		},
 	}, {
+		"copy file with patterns",
+		[]string{"default"},
+		`
+		fs default() {
+			copy scratch "/" "/foo" with option {
+				includePatterns "pat*"
+				excludePatterns "*pat"
+			}
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Scratch().File(
+				llb.Copy(llb.Scratch(), "/", "/foo", &llb.CopyInfo{
+					IncludePatterns: []string{"pat*"},
+					ExcludePatterns: []string{"*pat"},
+				}),
+			))
+		},
+	}, {
 		"local env",
 		[]string{"default"},
 		`
