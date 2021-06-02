@@ -139,6 +139,8 @@ var (
 			"chown":              codegen.UtilChown{},
 			"chmod":              codegen.UtilChmod{},
 			"createdTime":        codegen.UtilCreatedTime{},
+			"includePatterns":    codegen.CopyIncludePatterns{},
+			"excludePatterns":    codegen.CopyExcludePatterns{},
 		},
 		"option::localRun": map[string]parser.Callable{
 			"ignoreError":   codegen.IgnoreError{},

@@ -239,6 +239,18 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
+					"includePatterns": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "pattern", true),
+						},
+						Effects: []*parser.Field{},
+					},
+					"excludePatterns": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "pattern", true),
+						},
+						Effects: []*parser.Field{},
+					},
 				},
 			},
 			"option::frontend": LookupByKind{
@@ -1113,6 +1125,20 @@ option::copy chmod(int filemode)
 # @param created the created time in the RFC3339 format.
 # @return an option to set the created time of the copy path.
 option::copy createdTime(string created)
+
+# Copy only files that match any of the included patterns. If source path is
+# for a file, then include patterns are ignored.
+#
+# @param pattern a list of patterns for files that should be copied.
+# @return an option to copy files that match any pattern.
+option::copy includePatterns(variadic string pattern)
+
+# Copy only files that do not match any of the excluded patterns. If source
+# path is for a file, then exclude patterns are ignored.
+#
+# @param pattern a list of patterns for files that should not be copied.
+# @return an option to copy files that don&#39;t match any pattern.
+option::copy excludePatterns(variadic string pattern)
 
 # Pushes the filesystem to a registry following the distribution
 # spec: https://github.com/opencontainers/distribution-spec/

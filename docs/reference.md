@@ -34,7 +34,9 @@
 			contentsOnly
 			createDestPath
 			createdTime "created"
+			excludePatterns "pattern"
 			followSymlinks
+			includePatterns "pattern"
 			unpack
 		}
 	}
@@ -81,8 +83,22 @@
 
 
 
+#### <span class='hlb-type'>option::copy</span> <span class='hlb-name'>excludePatterns</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>"
+	
+
+
+
 #### <span class='hlb-type'>option::copy</span> <span class='hlb-name'>followSymlinks</span>()
 
+
+
+
+#### <span class='hlb-type'>option::copy</span> <span class='hlb-name'>includePatterns</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>"
+	
 
 
 
