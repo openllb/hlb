@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
@@ -594,6 +595,17 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	exportFS, err := ret.Filesystem()
 	if err != nil {
 		return err
+	}
+
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case llb.CreatedTime:
+			t := time.Time(v)
+			exportFS.Image.Created = &t
+			for i := range exportFS.Image.History {
+				exportFS.Image.History[i].Created = &t
+			}
+		}
 	}
 
 	// Maintains compatibility with systems depending on v1 `container_config`

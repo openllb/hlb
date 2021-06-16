@@ -154,6 +154,9 @@ var (
 		"option::manifest": map[string]parser.Callable{
 			"platform": codegen.Platform{},
 		},
+		"option::dockerPush": map[string]parser.Callable{
+			"createdTime": codegen.CreatedTime{},
+		},
 	}
 )
 

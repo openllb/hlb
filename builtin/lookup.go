@@ -253,6 +253,16 @@ var (
 					},
 				},
 			},
+			"option::dockerPush": LookupByKind{
+				Func: map[string]FuncLookup{
+					"createdTime": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "created", false),
+						},
+						Effects: []*parser.Field{},
+					},
+				},
+			},
 			"option::frontend": LookupByKind{
 				Func: map[string]FuncLookup{
 					"input": FuncLookup{
@@ -1147,6 +1157,13 @@ option::copy excludePatterns(variadic string pattern)
 # expanded the same as the docker CLI.
 # @return an option to push the filesystem to a registry.
 fs dockerPush(string ref) binds (string digest)
+
+# Sets the created time of the pushed image.
+#
+# @param created the created time in the RFC3339 format.
+# @return an option to set the created time of the pushed image.
+option::dockerPush createdTime(string created)
+
 
 # Loads the filesystem as a Docker image to the docker client found in your
 # environment.

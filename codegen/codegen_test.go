@@ -857,6 +857,23 @@ func TestCodeGen(t *testing.T) {
 				llb.Dir("/etc"),
 			).Root())
 		},
+	}, {
+		"dockerPush with options",
+		[]string{"default"},
+		`
+		fs default() {
+			scratch
+			run "echo Hello"
+			dockerPush "example/ref" with option {
+				createdTime "2020-04-27T15:04:05Z"
+			}
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Scratch().Run(
+				llb.Shlex("/bin/sh -c 'echo Hello'"),
+			).Root())
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
