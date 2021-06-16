@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
@@ -602,6 +603,13 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 		exportFS.Image.ContainerConfig.Cmd = []string{exportFS.Image.History[len(exportFS.Image.History)-1].CreatedBy}
 	}
 	exportFS.Image.ContainerConfig.Labels = exportFS.Image.Config.Labels
+
+	// Set a blank "created" timestamp to make builds more reproducible
+	t := time.Time{}
+	exportFS.Image.Created = &t
+	for i := range exportFS.Image.History {
+		exportFS.Image.History[i].Created = &t
+	}
 
 	var dgst string
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
