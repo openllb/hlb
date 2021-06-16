@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/cli/cli/command"
@@ -40,10 +41,13 @@ const (
 
 func commitHistory(img *solver.ImageSpec, empty bool, format string, a ...interface{}) {
 	img.History = append(img.History, specs.History{
+		// Set a zero value on Created for more reproducible builds
+		Created:    &time.Time{},
 		CreatedBy:  fmt.Sprintf(format, a...),
 		Comment:    HistoryComment,
 		EmptyLayer: empty,
 	})
+	img.Created = &time.Time{}
 }
 
 type Scratch struct{}
