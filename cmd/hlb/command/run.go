@@ -142,7 +142,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		if err != nil {
 			return err
 		}
-		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
+		ctx = codegen.WithWriter(ctx, p.Writer())
 	}
 
 	ctx = diagnostic.WithSources(ctx, builtin.Sources())
@@ -247,7 +247,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	p.Go(func(ctx context.Context) error {
 		defer p.Release()
-		return solveReq.Solve(ctx, cln, p.MultiWriter())
+		return solveReq.Solve(ctx, cln, p.Writer())
 	})
 
 	return p.Wait()

@@ -3,13 +3,12 @@ import go from "./go.hlb"
 
 import mkdocs from "./mkdocs.hlb"
 
-fs default() {
+pipeline default() {
 	crossHLB
 }
 
-fs crossHLB() {
+pipeline crossHLB() {
 	go.crossBinaries src "github.com/openllb/hlb/cmd/hlb" "github.com/openllb/hlb"
-	download "./build/dist"
 }
 
 fs lint() {

@@ -161,9 +161,9 @@ func (r *remoteResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs 
 	}
 
 	var pw progress.Writer
-	mw := codegen.MultiWriter(ctx)
-	if mw != nil {
-		pw = mw.WithPrefix(fmt.Sprintf("import %s", id.Name), true)
+	w := codegen.Writer(ctx)
+	if w != nil {
+		pw = progress.WithPrefix(w, fmt.Sprintf("import %s", id.Name), true)
 	}
 
 	// Block constructing remoteResolved until the graph is solved and assigned to

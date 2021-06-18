@@ -184,12 +184,16 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 	}
 
 	var (
-		statusCh chan *client.SolveStatus
-		resp     *client.SolveResponse
+		statusCh     chan *client.SolveStatus
+		progressDone chan struct{}
+		resp         *client.SolveResponse
 	)
 	if pw != nil {
 		pw = progress.ResetTime(pw)
-		statusCh = pw.Status()
+		statusCh, progressDone = progress.NewChannel(pw)
+		defer func() {
+			<-progressDone
+		}()
 	}
 
 	resp, err := c.Build(ctx, solveOpt, "", f, statusCh)
