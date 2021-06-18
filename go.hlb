@@ -1,3 +1,5 @@
+import go from image("openllb/go.hlb")
+
 export binary
 
 export crossBinaries
@@ -9,7 +11,7 @@ string versionCmd() {
 }
 
 fs golang() {
-	image "golang:1.14.10-alpine"
+	image "golang:1.16.4-alpine"
 }
 
 fs build(fs src, string package, string verPackage) {
@@ -23,19 +25,13 @@ fs build(fs src, string package, string verPackage) {
 	}
 }
 
-fs crossBuild(fs src, string package, string verPackage) {
-	image "hinshun/go-cross:1.14.10"
-	env "GOPATH" "/root/go"
-	env "GO111MODULE" "on"
-	dir "/go/src/hlb"
-	run "v=$(${versionCmd}) && LDFLAGS=\"-X ${verPackage}.Version=$v\" /cross/build \"${package}\"" with option {
-		env "CGO_ENABLED" "0"
-		cacheMounts src
-		mount git("https://github.com/hinshun/go-cross.git", "") "/cross" with option {
-			sourcePath "/scripts"
-			readonly
-		}
-		mount scratch "/root/go/bin" as crossBinaries
+pipeline crossBinaries(fs src, string package, string verPackage) {
+	go.buildCommonWithOptions src package option::template {
+		stringField "base" "docker.elastic.co/beats-dev/golang-crossbuild"
+		stringField "goVersion" "1.16.4"
+		stringField "goBuildFlags" "-ldflags \"-X ${verPackage}.Version=$(${versionCmd})\""
+	} option::run {
+		env "CGO_ENABLED" "1"
 	}
 }
 

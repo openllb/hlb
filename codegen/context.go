@@ -23,7 +23,7 @@ type (
 	argKey            struct{ n int }
 	bindingKey        struct{}
 	sessionIDKey      struct{}
-	multiwriterKey    struct{}
+	writerKey         struct{}
 	imageResolverKey  struct{}
 	backtraceKey      struct{}
 )
@@ -87,13 +87,13 @@ func SessionID(ctx context.Context) string {
 	return sessionID
 }
 
-func WithMultiWriter(ctx context.Context, mw *progress.MultiWriter) context.Context {
-	return context.WithValue(ctx, multiwriterKey{}, mw)
+func WithWriter(ctx context.Context, w progress.Writer) context.Context {
+	return context.WithValue(ctx, writerKey{}, w)
 }
 
-func MultiWriter(ctx context.Context) *progress.MultiWriter {
-	mw, _ := ctx.Value(multiwriterKey{}).(*progress.MultiWriter)
-	return mw
+func Writer(ctx context.Context) progress.Writer {
+	w, _ := ctx.Value(writerKey{}).(progress.Writer)
+	return w
 }
 
 func WithImageResolver(ctx context.Context, resolver llb.ImageMetaResolver) context.Context {
