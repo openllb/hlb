@@ -15,7 +15,7 @@ require (
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/moby/buildkit v0.8.2-0.20210618091426-c325f89fa1b4
+	github.com/moby/buildkit v0.8.2-0.20210629085500-bb6f11c28d55
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.1
 	github.com/openllb/doxygen-parser v0.0.0-20201031162929-e0b5cceb2d0c
@@ -28,7 +28,7 @@ require (
 	github.com/xlab/treeprint v1.0.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	google.golang.org/grpc v1.37.0
+	google.golang.org/grpc v1.38.0
 )
 
 // includes the changes in github.com/slushie/fsutil v0.0.0-20200508061958-7d16a3dcbd1d
