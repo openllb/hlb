@@ -88,8 +88,9 @@ func NewValue(iface interface{}) (Value, error) {
 
 func validateState(st llb.State) error {
 	ctx := context.Background()
-	if st.Output() != nil && st.Output().Vertex(ctx) != nil {
-		return st.Validate(ctx)
+	c := &llb.Constraints{}
+	if st.Output() != nil && st.Output().Vertex(ctx, c) != nil {
+		return st.Validate(ctx, c)
 	}
 	return nil
 }
@@ -169,7 +170,8 @@ type Filesystem struct {
 }
 
 func (fs Filesystem) Digest(ctx context.Context) (digest.Digest, error) {
-	dgst, _, _, _, err := fs.State.Output().Vertex(ctx).Marshal(ctx, &llb.Constraints{})
+	c := &llb.Constraints{}
+	dgst, _, _, _, err := fs.State.Output().Vertex(ctx, c).Marshal(ctx, &llb.Constraints{})
 	return dgst, err
 }
 
