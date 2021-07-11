@@ -115,7 +115,7 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 	// graceful exit and report error.
 	pctx, cancel := context.WithCancel(context.Background())
 
-	var pw progress.Writer
+	var pw *progress.Printer
 
 	switch info.LogOutput {
 	case LogOutputTTY:
@@ -128,14 +128,21 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	return &progressUI{pw, ctx, g, cancel}, nil
+	done := make(chan struct{})
+	g.Go(func() error {
+		defer cancel()
+		<-done
+		return pw.Wait()
+	})
+
+	return &progressUI{pw, ctx, g, done}, nil
 }
 
 type progressUI struct {
-	w      progress.Writer
-	ctx    context.Context
-	g      *errgroup.Group
-	cancel context.CancelFunc
+	w    progress.Writer
+	ctx  context.Context
+	g    *errgroup.Group
+	done chan struct{}
 }
 
 func (p *progressUI) Writer() progress.Writer {
@@ -214,7 +221,7 @@ func write(pw progress.Writer, name string, fn func() error) error {
 }
 
 func (p *progressUI) Release() {
-	p.cancel()
+	close(p.done)
 }
 
 func (p *progressUI) Wait() error {
