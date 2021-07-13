@@ -1,9 +1,12 @@
 package llbutil
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/tonistiigi/fsutil"
 )
 
 type IncludePatterns struct {
@@ -26,52 +29,16 @@ func FilterLocalFiles(localPath string, includePatterns, excludePatterns []strin
 		localPaths = append(localPaths, localPath)
 		return
 	case fi.Mode().IsDir():
-		err = filepath.Walk(localPath, func(walkPath string, info os.FileInfo, err error) error {
+		opt := &fsutil.WalkOpt{
+			IncludePatterns: includePatterns,
+			ExcludePatterns: excludePatterns,
+		}
+		err = fsutil.Walk(context.TODO(), localPath, opt, func(walkPath string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
-			}
-			relPath, err := filepath.Rel(localPath, walkPath)
-			if err != nil {
-				return err
-			}
-			if relPath == "." {
-				return nil
-			}
-			if len(includePatterns) > 0 {
-				for _, pattern := range includePatterns {
-					if ok, err := filepath.Match(pattern, relPath); ok && err == nil {
-						if info.Mode().IsRegular() {
-							localPaths = append(localPaths, walkPath)
-						}
-						return nil
-					} else if err != nil {
-						return err
-					}
-				}
-				// Didn't match include, so skip directory.
-				if info.Mode().IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			} else if len(excludePatterns) > 0 {
-				for _, pattern := range excludePatterns {
-					if ok, err := filepath.Match(pattern, relPath); !ok && err == nil {
-						if info.Mode().IsDir() {
-							return filepath.SkipDir
-						}
-						return nil
-					} else if err != nil {
-						return err
-					}
-				}
-				// Didn't match exclude to add it to list.
-				if info.Mode().IsRegular() {
-					localPaths = append(localPaths, walkPath)
-				}
-				return nil
 			}
 			if info.Mode().IsRegular() {
-				localPaths = append(localPaths, walkPath)
+				localPaths = append(localPaths, filepath.Join(localPath, walkPath))
 			}
 			return nil
 		})
