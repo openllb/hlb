@@ -244,9 +244,9 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 	g.Go(func() error {
 		var pw progress.Writer
 
-		w := Writer(ctx)
-		if w != nil {
-			pw = progress.WithPrefix(w, "", false)
+		mw := MultiWriter(ctx)
+		if mw != nil {
+			pw = mw.WithPrefix("", false)
 		}
 
 		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
@@ -630,7 +630,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, Writer(ctx))
+		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
 	if Binding(ctx).Binds() == "digest" {
@@ -690,7 +690,7 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, Writer(ctx))
+		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
 	g.Go(func() (err error) {
@@ -726,13 +726,13 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		}
 		defer resp.Body.Close()
 
-		w := Writer(ctx)
-		if w == nil {
+		mw := MultiWriter(ctx)
+		if mw == nil {
 			_, err = io.Copy(ioutil.Discard, resp.Body)
 			return err
 		}
 
-		pw := progress.WithPrefix(w, "", false)
+		pw := mw.WithPrefix("", false)
 		progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
 		return nil
 	})
@@ -776,7 +776,7 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, Writer(ctx))
+		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()
@@ -828,7 +828,7 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, Writer(ctx))
+		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()
@@ -880,7 +880,7 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, Writer(ctx))
+		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()
@@ -935,7 +935,7 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return request.Solve(ctx, cln, Writer(ctx))
+		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
 	fs, err := ret.Filesystem()

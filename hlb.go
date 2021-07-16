@@ -52,7 +52,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, target
 	}
 
 	var opts []codegen.CodeGenOption
-	if codegen.Writer(ctx) == nil {
+	if codegen.MultiWriter(ctx) == nil {
 		r := bufio.NewReader(os.Stdin)
 		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r)))
 	}
