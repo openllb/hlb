@@ -174,7 +174,7 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 
 	p.Go(func(ctx context.Context) error {
 		defer p.Release()
-		ctx = codegen.WithWriter(ctx, p.Writer())
+		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 		return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
 	})
 
@@ -290,7 +290,7 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 			defer p.Release()
 
 			var err error
-			ctx = codegen.WithWriter(ctx, p.Writer())
+			ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 			tree, err = module.NewTree(ctx, cln, mod, info.Long)
 			return err
 		})

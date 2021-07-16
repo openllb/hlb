@@ -50,7 +50,7 @@ func WithLogOutput(con Console, logOutput LogOutput) ProgressOption {
 }
 
 type Progress interface {
-	Writer() progress.Writer
+	MultiWriter() *MultiWriter
 
 	Write(pfx, name string, fn func(ctx context.Context) error)
 
@@ -128,6 +128,7 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
+
 	done := make(chan struct{})
 	g.Go(func() error {
 		defer cancel()
@@ -135,18 +136,23 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 		return pw.Wait()
 	})
 
-	return &progressUI{pw, ctx, g, done}, nil
+	return &progressUI{
+		mw:   NewMultiWriter(pw),
+		ctx:  ctx,
+		g:    g,
+		done: done,
+	}, nil
 }
 
 type progressUI struct {
-	w    progress.Writer
+	mw   *MultiWriter
 	ctx  context.Context
 	g    *errgroup.Group
 	done chan struct{}
 }
 
-func (p *progressUI) Writer() progress.Writer {
-	return p.w
+func (p *progressUI) MultiWriter() *MultiWriter {
+	return p.mw
 }
 
 func (p *progressUI) Go(fn func(ctx context.Context) error) {
@@ -156,7 +162,7 @@ func (p *progressUI) Go(fn func(ctx context.Context) error) {
 }
 
 func (p *progressUI) Write(pfx, name string, fn func(ctx context.Context) error) {
-	pw := progress.WithPrefix(p.w, pfx, false)
+	pw := p.mw.WithPrefix(pfx, false)
 
 	p.g.Go(func() error {
 		return write(pw, name, func() error {
@@ -250,7 +256,7 @@ type debugProgress struct {
 	done chan struct{}
 }
 
-func (p *debugProgress) Writer() progress.Writer {
+func (p *debugProgress) MultiWriter() *MultiWriter {
 	return nil
 }
 

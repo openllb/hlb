@@ -54,9 +54,9 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 	g.Go(func() error {
 		var pw progress.Writer
 
-		w := Writer(ctx)
-		if w != nil {
-			pw = progress.WithPrefix(w, "", false)
+		mw := MultiWriter(ctx)
+		if mw != nil {
+			pw = mw.WithPrefix("", false)
 		}
 
 		return solver.Build(ctx, r.cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
