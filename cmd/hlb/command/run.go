@@ -67,8 +67,7 @@ var runCommand = &cli.Command{
 			return err
 		}
 
-		return Run(ctx, cln, rc, RunInfo{
-			Debug:     c.Bool("debug"),
+		ri := RunInfo{
 			Tree:      c.Bool("tree"),
 			Targets:   c.StringSlice("target"),
 			LLB:       c.Bool("llb"),
@@ -76,12 +75,18 @@ var runCommand = &cli.Command{
 			LogOutput: c.String("log-output"),
 			ErrOutput: os.Stderr,
 			Output:    os.Stdout,
-		})
+		}
+
+		if c.Bool("debug") {
+			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, os.Stdin)
+		}
+
+		return Run(ctx, cln, rc, ri)
 	},
 }
 
 type RunInfo struct {
-	Debug     bool
+	Debugger  codegen.Debugger
 	Tree      bool
 	Backtrace bool
 	Targets   []string
@@ -134,7 +139,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	}
 
 	var p solver.Progress
-	if info.Debug {
+	if info.Debugger != nil {
 		p = solver.NewDebugProgress(ctx)
 	} else {
 		var err error
@@ -213,7 +218,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	}
 
 	ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
-	solveReq, err := hlb.Compile(ctx, cln, mod, targets)
+
+	var opts []codegen.CodeGenOption
+	if info.Debugger != nil {
+		opts = append(opts, codegen.WithDebugger(info.Debugger))
+	}
+
+	solveReq, err := hlb.Compile(ctx, cln, mod, targets, opts...)
 	if err != nil {
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
@@ -222,14 +233,14 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return err
 	}
 
-	if solveReq == nil || info.Debug || info.Tree {
+	if solveReq == nil || info.Debugger != nil || info.Tree {
 		p.Release()
 		err = p.Wait()
 		if err != nil {
 			return err
 		}
 
-		if solveReq == nil || info.Debug {
+		if solveReq == nil || info.Debugger != nil {
 			return nil
 		}
 	}
