@@ -414,7 +414,7 @@ func (re RunEnv) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.AddEnv(key, value)))
+	return ret.Set(append(retOpts, llbutil.WithEnv(key, value)))
 }
 
 type RunDir struct{}
@@ -425,7 +425,7 @@ func (rd RunDir) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.Dir(path)))
+	return ret.Set(append(retOpts, llbutil.WithDir(path)))
 }
 
 type RunUser struct{}
@@ -436,7 +436,7 @@ func (ru RunUser) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.User(name)))
+	return ret.Set(append(retOpts, llbutil.WithUser(name)))
 }
 
 type IgnoreCache struct{}

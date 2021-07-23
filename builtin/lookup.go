@@ -193,6 +193,42 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
+					"breakpoint": FuncLookup{
+						Params:  []*parser.Field{},
+						Effects: []*parser.Field{},
+					},
+				},
+			},
+			"option::breakpoint": LookupByKind{
+				Func: map[string]FuncLookup{
+					"env": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "key", false),
+							parser.NewField(parser.String, "value", false),
+						},
+						Effects: []*parser.Field{},
+					},
+					"dir": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "path", false),
+						},
+						Effects: []*parser.Field{},
+					},
+					"user": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "name", false),
+						},
+						Effects: []*parser.Field{},
+					},
+					"mount": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.Filesystem, "input", false),
+							parser.NewField(parser.String, "mountPoint", false),
+						},
+						Effects: []*parser.Field{
+							parser.NewField(parser.Filesystem, "target", false),
+						},
+					},
 				},
 			},
 			"option::copy": LookupByKind{
@@ -1337,5 +1373,39 @@ option::template stringField(string name, string value)
 # @return a pipeline that returns when all its targets have finished.
 pipeline stage(variadic pipeline pipelines)
 
+# Sets a static breakpoint in the debugger.
+#
+# @return the filesystem after the breakpoint
+fs breakpoint()
+
+# Sets an environment key pair for the duration of shell execution at the
+# breakpoint.
+#
+# @param key the environment key.
+# @param value the environment value.
+# @return an option to set an environment key pair.
+option::breakpoint env(string key, string value)
+
+# Sets the working directory for the duration of shell execution at the
+# breakpoint.
+#
+# @param path the new working directory.
+# @return an option to set the working directory.
+option::breakpoint dir(string path)
+
+# Sets the current user for the duration of shell execution at the breakpoint.
+#
+# @param name the name of the user.
+# @return an option to set the current user.
+option::breakpoint user(string name)
+
+# Attaches an additional filesystem for the duration of shell execution at the
+# breakpoint.
+#
+# @param input the additional filesystem to mount. the input&#39;s root filesystem
+# becomes available from the mountPoint directory.
+# @param mountPoint the directory where the mount is attached.
+# @return an option to mount an additional filesystem.
+option::breakpoint mount(fs input, string mountPoint) binds (fs target)
 `
 )

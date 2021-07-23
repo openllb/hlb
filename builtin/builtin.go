@@ -46,6 +46,7 @@ var (
 			"downloadTarball":       codegen.DownloadTarball{},
 			"downloadOCITarball":    codegen.DownloadOCITarball{},
 			"downloadDockerTarball": codegen.DownloadDockerTarball{},
+			"breakpoint":            codegen.SetBreakpoint{},
 		},
 		parser.String: map[string]parser.Callable{
 			"format":    codegen.Format{},
@@ -153,6 +154,12 @@ var (
 		},
 		"option::manifest": map[string]parser.Callable{
 			"platform": codegen.Platform{},
+		},
+		"option::breakpoint": map[string]parser.Callable{
+			"env":   codegen.RunEnv{},
+			"dir":   codegen.RunDir{},
+			"user":  codegen.RunUser{},
+			"mount": codegen.Mount{},
 		},
 	}
 )

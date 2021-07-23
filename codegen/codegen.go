@@ -59,7 +59,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		}
 
 		// Yield before compiling anything.
-		err := cg.Debug(ctx, mod.Scope, mod, nil)
+		err := cg.Debug(ctx, mod.Scope, mod, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +236,7 @@ func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *
 	ctx = WithFrame(ctx, Frame{call.Name})
 
 	// Yield before executing call expression.
-	err := cg.Debug(ctx, scope, call.Name, ret)
+	err := cg.Debug(ctx, scope, call.Name, ret, nil)
 	if err != nil {
 		return err
 	}
@@ -389,7 +389,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 	}
 
 	// Yield before executing a function.
-	err := cg.Debug(ctx, scope, fun.Name, ret)
+	err := cg.Debug(ctx, scope, fun.Name, ret, nil)
 	if err != nil {
 		return err
 	}
@@ -425,17 +425,6 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, b *parser.Binding, ret Register) error {
 	ctx = WithFrame(ctx, Frame{call.Name})
 
-	// Yield for breakpoints in the source.
-	if call.Breakpoint() {
-		return cg.Debug(ctx, scope, call.Name, ret)
-	}
-
-	// Yield before executing the next call statement.
-	err := cg.Debug(ctx, scope, call.Name, ret)
-	if err != nil {
-		return err
-	}
-
 	// No type hint for arg evaluation because the call.Name hasn't been resolved
 	// yet, so codegen has no type information.
 	args, err := cg.Evaluate(ctx, scope, parser.None, nil, call.Args...)
@@ -461,6 +450,12 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 		if err != nil {
 			return err
 		}
+	}
+
+	// Yield before executing the next call statement.
+	err = cg.Debug(ctx, scope, call.Name, ret, opts)
+	if err != nil {
+		return err
 	}
 
 	// Pass the binding if this is the matching CallStmt.

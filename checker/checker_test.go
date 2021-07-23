@@ -464,6 +464,20 @@ func TestChecker_Check(t *testing.T) {
 				parser.Find(mod, "option::run"),
 			)
 		},
+	}, {
+		"breakpoint with options",
+		`
+		fs default() {
+			scratch
+			breakpoint with option {
+				dir "/"
+				mount scratch "/"
+				env "myenv1" "value1"
+				user "nfuser"
+			}
+		}
+		`,
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

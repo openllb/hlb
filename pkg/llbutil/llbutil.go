@@ -183,3 +183,40 @@ func (gid GID) SetSSHOption(si *llb.SSHInfo) {
 func (gid GID) SetSecretOption(si *llb.SecretInfo) {
 	si.GID = (int)(gid)
 }
+
+type UserOption struct {
+	User string
+}
+
+func WithUser(user string) llb.RunOption {
+	return UserOption{User: user}
+}
+
+func (user UserOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.User(user.User).SetRunOption(ei)
+}
+
+type DirOption struct {
+	Dir string
+}
+
+func WithDir(dir string) llb.RunOption {
+	return DirOption{Dir: dir}
+}
+
+func (dir DirOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.Dir(dir.Dir).SetRunOption(ei)
+}
+
+type EnvOption struct {
+	Name  string
+	Value string
+}
+
+func WithEnv(name, value string) llb.RunOption {
+	return EnvOption{Name: name, Value: value}
+}
+
+func (env EnvOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.AddEnv(env.Name, env.Value).SetRunOption(ei)
+}

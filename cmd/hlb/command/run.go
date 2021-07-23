@@ -233,14 +233,14 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return err
 	}
 
-	if solveReq == nil || info.Debugger != nil || info.Tree {
+	if solveReq == nil || info.Tree {
 		p.Release()
 		err = p.Wait()
 		if err != nil {
 			return err
 		}
 
-		if solveReq == nil || info.Debugger != nil {
+		if solveReq == nil {
 			return nil
 		}
 	}

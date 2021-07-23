@@ -1,4 +1,53 @@
 ## <span class='hlb-type'>fs</span> functions
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>breakpoint</span>()
+
+
+
+
+	#!hlb
+	fs default() {
+		breakpoint with option {
+			dir "path"
+			env "key" "value"
+			mount scratch "mountPoint"
+			user "name"
+		}
+	}
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>dir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>"
+	
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>env</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>"
+	
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>"
+	
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>mount</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>)
+
+!!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>"
+	
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>"
+	
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>user</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>"
+	
+
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>cmd</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>"

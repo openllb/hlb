@@ -31,10 +31,10 @@ var (
 	ErrDebugExit = errors.Errorf("exiting debugger")
 )
 
-type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value) error
+type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value, opts Option) error
 
 func NewNoopDebugger() Debugger {
-	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ Value) error {
+	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ Value, _ Option) error {
 		return nil
 	}
 }
@@ -43,6 +43,7 @@ type snapshot struct {
 	scope *parser.Scope
 	node  parser.Node
 	ret   Value
+	opts  Option
 }
 
 func (s snapshot) fs() (Filesystem, error) {
@@ -68,10 +69,10 @@ func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debu
 	r := bufio.NewReader(pr)
 	inputSteerer := NewInputSteerer(unbufferedReader, pw)
 
-	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value) error {
+	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value, opts Option) error {
 		// Store a snapshot of the current debug step so we can backtrack.
 		historyIndex++
-		history = append(history, &snapshot{scope, node, ret})
+		history = append(history, &snapshot{scope, node, ret, opts})
 
 		debug := func(s *snapshot) error {
 			showList := true
@@ -241,13 +242,15 @@ func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debu
 					execPR, execPW := io.Pipe()
 					inputSteerer.Push(execPW)
 
-					err = Exec(ctx, c, fs, execPR, w, args[1:]...)
-					if err != nil {
-						fmt.Fprintln(w, "err:", err)
-						continue
-					}
+					func() {
+						defer inputSteerer.Pop()
 
-					inputSteerer.Pop()
+						err = Exec(ctx, c, fs, execPR, w, opts, args[1:]...)
+						if err != nil {
+							fmt.Fprintln(w, "err:", err)
+							return
+						}
+					}()
 				case "exit":
 					return ErrDebugExit
 				case "funcs":
@@ -540,9 +543,35 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 	}
 }
 
-func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, args ...string) error {
+func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
 	if len(args) == 0 {
 		args = []string{"/bin/sh"}
+	}
+
+	var (
+		user string
+		env  []string
+	)
+	cwd := "/"
+	mounts := []*llbutil.MountRunOption{
+		{
+			Source: fs.State,
+			Target: "/",
+		},
+	}
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case *llbutil.MountRunOption:
+			mounts = append(mounts, o)
+		case llbutil.UserOption:
+			user = o.User
+		case llbutil.DirOption:
+			cwd = o.Dir
+		case llbutil.EnvOption:
+			env = append(env, o.Name+"="+o.Value)
+		case llbutil.SessionOption:
+			fs.SessionOpts = append(fs.SessionOpts, o)
+		}
 	}
 
 	s, err := llbutil.NewSession(ctx, fs.SessionOpts...)
@@ -565,37 +594,46 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 		}
 
 		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
-			def, err := fs.State.Marshal(ctx, llb.LinuxAmd64)
-			if err != nil {
-				return
-			}
+			var ctrReq gateway.NewContainerRequest
+			for _, mount := range mounts {
+				var def *llb.Definition
+				def, err = mount.Source.Marshal(ctx, llb.LinuxAmd64)
+				if err != nil {
+					return
+				}
 
-			res, err = c.Solve(ctx, gateway.SolveRequest{
-				Definition: def.ToPB(),
-			})
-			if err != nil {
-				return
-			}
+				res, err = c.Solve(ctx, gateway.SolveRequest{
+					Definition: def.ToPB(),
+				})
+				if err != nil {
+					return
+				}
 
-			ctr, err := c.NewContainer(ctx, gateway.NewContainerRequest{
-				Mounts: []gateway.Mount{{
-					Dest:      "/",
+				ctrReq.Mounts = append(ctrReq.Mounts, gateway.Mount{
+					Dest:      mount.Target,
 					MountType: pb.MountType_BIND,
 					Ref:       res.Ref,
-				}},
-			})
+					Readonly:  mount.IsReadonly(),
+				})
+			}
+
+			ctr, err := c.NewContainer(ctx, ctrReq)
 			if err != nil {
 				return
 			}
 			defer ctr.Release(ctx)
 
-			proc, err := ctr.Start(ctx, gateway.StartRequest{
+			startReq := gateway.StartRequest{
 				Args:   args,
-				Cwd:    "/",
+				Cwd:    cwd,
+				User:   user,
+				Env:    env,
 				Tty:    true,
 				Stdin:  r,
 				Stdout: NopWriteCloser(w),
-			})
+			}
+
+			proc, err := ctr.Start(ctx, startReq)
 			if err != nil {
 				return
 			}
