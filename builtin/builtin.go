@@ -156,10 +156,11 @@ var (
 			"platform": codegen.Platform{},
 		},
 		"option::breakpoint": map[string]parser.Callable{
-			"env":   codegen.RunEnv{},
-			"dir":   codegen.RunDir{},
-			"user":  codegen.RunUser{},
-			"mount": codegen.Mount{},
+			"env":      codegen.RunEnv{},
+			"dir":      codegen.RunDir{},
+			"user":     codegen.RunUser{},
+			"mount":    codegen.Mount{},
+			"security": codegen.Security{},
 		},
 	}
 )

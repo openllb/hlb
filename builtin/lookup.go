@@ -231,6 +231,12 @@ var (
 							parser.NewField(parser.Filesystem, "target", false),
 						},
 					},
+					"security": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "securitymode", false),
+						},
+						Effects: []*parser.Field{},
+					},
 				},
 			},
 			"option::copy": LookupByKind{
@@ -1414,5 +1420,15 @@ option::breakpoint user(string name)
 # @param mountPoint the directory where the mount is attached.
 # @return an option to mount an additional filesystem.
 option::breakpoint mount(fs input, string mountPoint) binds (fs target)
+
+# Sets the security mode for the duration of the shell execution at the
+# breakpoint. By default, the value is &#34;sandbox&#34;.
+#
+# @param securitymode the security mode of the container, must be one of the
+# following:
+# - sandbox: use the default containerd seccomp profile.
+# - insecure: enables all capabilities.
+option::breakpoint security(string securitymode)
+
 `
 )

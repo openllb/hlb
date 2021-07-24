@@ -12,6 +12,7 @@
 			dir "path"
 			env "key" "value"
 			mount scratch "mountPoint"
+			security "securitymode"
 			user "name"
 		}
 	}
@@ -38,6 +39,13 @@
 !!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>"
 	
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>"
+	
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>security</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>securitymode</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>securitymode</span>"
 	
 
 

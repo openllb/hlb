@@ -6,6 +6,7 @@ import (
 
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	"github.com/moby/buildkit/solver/pb"
 )
 
 const (
@@ -219,4 +220,16 @@ func WithEnv(name, value string) llb.RunOption {
 
 func (env EnvOption) SetRunOption(ei *llb.ExecInfo) {
 	llb.AddEnv(env.Name, env.Value).SetRunOption(ei)
+}
+
+type SecurityOption struct {
+	pb.SecurityMode
+}
+
+func WithSecurity(securityMode pb.SecurityMode) llb.RunOption {
+	return SecurityOption{securityMode}
+}
+
+func (security SecurityOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.Security(security.SecurityMode).SetRunOption(ei)
 }

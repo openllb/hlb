@@ -545,8 +545,9 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 
 func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
 	var (
-		user string
-		env  []string
+		user         string
+		env          []string
+		securityMode pb.SecurityMode
 	)
 	cwd := "/"
 	mounts := []*llbutil.MountRunOption{
@@ -565,6 +566,8 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 			cwd = o.Dir
 		case llbutil.EnvOption:
 			env = append(env, o.Name+"="+o.Value)
+		case llbutil.SecurityOption:
+			securityMode = o.SecurityMode
 		case llbutil.SessionOption:
 			fs.SessionOpts = append(fs.SessionOpts, o)
 		case breakpointCommand:
@@ -628,13 +631,14 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 			defer ctr.Release(ctx)
 
 			startReq := gateway.StartRequest{
-				Args:   args,
-				Cwd:    cwd,
-				User:   user,
-				Env:    env,
-				Tty:    true,
-				Stdin:  r,
-				Stdout: NopWriteCloser(w),
+				Args:         args,
+				Cwd:          cwd,
+				User:         user,
+				Env:          env,
+				Tty:          true,
+				Stdin:        r,
+				Stdout:       NopWriteCloser(w),
+				SecurityMode: securityMode,
 			}
 
 			proc, err := ctr.Start(ctx, startReq)

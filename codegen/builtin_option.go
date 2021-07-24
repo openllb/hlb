@@ -493,7 +493,7 @@ func (s Security) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return errdefs.WithInvalidSecurityMode(Arg(ctx, 0), mode, []string{"sandbox", "insecure"})
 	}
 
-	return ret.Set(append(retOpts, llb.Security(securityMode)))
+	return ret.Set(append(retOpts, llbutil.WithSecurity(securityMode)))
 }
 
 type Host struct{}
