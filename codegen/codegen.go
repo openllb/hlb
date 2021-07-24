@@ -453,6 +453,22 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	}
 
 	// Yield before executing the next call statement.
+	if call.Breakpoint() {
+		var command []string
+		for _, arg := range args {
+			if arg.Kind() != parser.String {
+				return errors.New("breakpoint args must be strings")
+			}
+			argStr, err := arg.String()
+			if err != nil {
+				return err
+			}
+			command = append(command, argStr)
+		}
+		if len(command) != 0 {
+			opts = append(opts, breakpointCommand(command))
+		}
+	}
 	err = cg.Debug(ctx, scope, call.Name, ret, opts)
 	if err != nil {
 		return err
@@ -466,6 +482,8 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 
 	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, opts, binding, ret)
 }
+
+type breakpointCommand []string
 
 func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, hint parser.Kind, b *parser.Binding, exprs ...*parser.Expr) (values []Value, err error) {
 	for _, expr := range exprs {

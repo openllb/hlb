@@ -194,7 +194,9 @@ var (
 						Effects: []*parser.Field{},
 					},
 					"breakpoint": FuncLookup{
-						Params:  []*parser.Field{},
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "command", true),
+						},
 						Effects: []*parser.Field{},
 					},
 				},
@@ -1375,8 +1377,13 @@ pipeline stage(variadic pipeline pipelines)
 
 # Sets a static breakpoint in the debugger.
 #
+# @param command optional command to invoke followed by optional arguments
+# If no value is given, it will execute /bin/sh.
+# If exactly one value is given, the specified command will be invoked.
+# If more than one value is given, values after the first one are treated as
+# arguments for the command.
 # @return the filesystem after the breakpoint
-fs breakpoint()
+fs breakpoint(variadic string command)
 
 # Sets an environment key pair for the duration of shell execution at the
 # breakpoint.

@@ -1,12 +1,14 @@
 ## <span class='hlb-type'>fs</span> functions
-### <span class='hlb-type'>fs</span> <span class='hlb-name'>breakpoint</span>()
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>breakpoint</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>)
 
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>"
+	
 
 
 
 	#!hlb
 	fs default() {
-		breakpoint with option {
+		breakpoint "command" with option {
 			dir "path"
 			env "key" "value"
 			mount scratch "mountPoint"

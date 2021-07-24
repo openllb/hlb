@@ -544,10 +544,6 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 }
 
 func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
-	if len(args) == 0 {
-		args = []string{"/bin/sh"}
-	}
-
 	var (
 		user string
 		env  []string
@@ -571,7 +567,15 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 			env = append(env, o.Name+"="+o.Value)
 		case llbutil.SessionOption:
 			fs.SessionOpts = append(fs.SessionOpts, o)
+		case breakpointCommand:
+			if len(args) == 0 {
+				args = []string(o)
+			}
 		}
+	}
+
+	if len(args) == 0 {
+		args = []string{"/bin/sh"}
 	}
 
 	s, err := llbutil.NewSession(ctx, fs.SessionOpts...)
