@@ -544,18 +544,25 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 }
 
 func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
-	var (
-		user         string
-		env          []string
-		securityMode pb.SecurityMode
-	)
+	var securityMode pb.SecurityMode
+
 	cwd := "/"
+	if fs.Image.Config.WorkingDir != "" {
+		cwd = fs.Image.Config.WorkingDir
+	}
+
+	env := make([]string, len(fs.Image.Config.Env))
+	copy(env, fs.Image.Config.Env)
+
+	user := fs.Image.Config.User
+
 	mounts := []*llbutil.MountRunOption{
 		{
 			Source: fs.State,
 			Target: "/",
 		},
 	}
+
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case *llbutil.MountRunOption:
