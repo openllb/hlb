@@ -96,6 +96,7 @@ var (
 			"forward":        codegen.Forward{},
 			"secret":         codegen.Secret{},
 			"mount":          codegen.Mount{},
+			"breakpoint":     codegen.RunBreakpoint{},
 		},
 		"option::ssh": map[string]parser.Callable{
 			"target":     codegen.MountTarget{},

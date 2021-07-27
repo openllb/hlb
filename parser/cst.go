@@ -463,7 +463,10 @@ func NewCallStmt(name string, args []*Expr, with *WithClause, binds *BindClause)
 	}
 }
 
-func (cs *CallStmt) Breakpoint() bool {
+func (cs *CallStmt) Breakpoint(returnType Kind) bool {
+	if returnType == Kind(fmt.Sprintf("%s::%s", Option, "run")) {
+		return false
+	}
 	if cs.Name == nil || cs.Name.Ident == nil {
 		return false
 	}

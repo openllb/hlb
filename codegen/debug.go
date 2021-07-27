@@ -80,14 +80,14 @@ func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debu
 			// Keep track of whether we're in global scope or a lexical scope.
 			switch n := node.(type) {
 			case *parser.Module:
-				staticBreakpoints = FindStaticBreakpoints(n)
+				staticBreakpoints = FindStaticBreakpoints(ctx, n)
 				breakpoints = staticBreakpoints
 
 				// Don't print source code on the first debug section.
 				showList = false
 			default:
 				fun = scope.Node.(*parser.FuncDecl)
-				if AtBreakpoint(node, fun, breakpoints) {
+				if AtBreakpoint(node, fun, breakpoints, opts) {
 					cont = false
 				}
 			}
@@ -404,12 +404,12 @@ type Breakpoint struct {
 	Call *parser.CallStmt
 }
 
-func FindStaticBreakpoints(mod *parser.Module) []*Breakpoint {
+func FindStaticBreakpoints(ctx context.Context, mod *parser.Module) []*Breakpoint {
 	var breakpoints []*Breakpoint
 
 	parser.Match(mod, parser.MatchOpts{},
 		func(fun *parser.FuncDecl, call *parser.CallStmt) {
-			if !call.Breakpoint() {
+			if !call.Breakpoint(ReturnType(ctx)) {
 				return
 			}
 			bp := &Breakpoint{
@@ -423,7 +423,12 @@ func FindStaticBreakpoints(mod *parser.Module) []*Breakpoint {
 	return breakpoints
 }
 
-func AtBreakpoint(node parser.Node, fun *parser.FuncDecl, breakpoints []*Breakpoint) bool {
+func AtBreakpoint(node parser.Node, fun *parser.FuncDecl, breakpoints []*Breakpoint, opts Option) bool {
+	for _, opt := range opts {
+		if _, hasBreakpointCommand := opt.(breakpointCommand); hasBreakpointCommand {
+			return true
+		}
+	}
 	for _, bp := range breakpoints {
 		if node == fun.Name {
 			if bp.Call == nil && bp.Func == fun {

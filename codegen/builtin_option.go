@@ -439,6 +439,17 @@ func (ru RunUser) Call(ctx context.Context, cln *client.Client, ret Register, op
 	return ret.Set(append(retOpts, llbutil.WithUser(name)))
 }
 
+type RunBreakpoint struct{}
+
+func (rb RunBreakpoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, command ...string) error {
+	retOpts, err := ret.Option()
+	if err != nil {
+		return err
+	}
+
+	return ret.Set(append(retOpts, breakpointCommand(command)))
+}
+
 type IgnoreCache struct{}
 
 func (ig IgnoreCache) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {

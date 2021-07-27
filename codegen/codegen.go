@@ -453,7 +453,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	}
 
 	// Yield before executing the next call statement.
-	if call.Breakpoint() {
+	if call.Breakpoint(ReturnType(ctx)) {
 		var command []string
 		for _, arg := range args {
 			if arg.Kind() != parser.String {

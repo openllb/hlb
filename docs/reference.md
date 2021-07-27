@@ -619,6 +619,7 @@
 	#!hlb
 	fs default() {
 		run "arg" with option {
+			breakpoint "command"
 			dir "path"
 			env "key" "value"
 			forward "src" "dest"
@@ -634,6 +635,13 @@
 			user "name"
 		}
 	}
+
+
+#### <span class='hlb-type'>option::run</span> <span class='hlb-name'>breakpoint</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>command</span>"
+	
+
 
 
 #### <span class='hlb-type'>option::run</span> <span class='hlb-name'>dir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
