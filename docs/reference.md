@@ -8,77 +8,8 @@
 
 	#!hlb
 	fs default() {
-		breakpoint "command" with option {
-			dir "path"
-			env "key" "value"
-			mount scratch "mountPoint"
-			network "networkmode"
-			readonlyRootfs
-			secret "localPath" "mountPoint"
-			security "securitymode"
-			user "name"
-		}
+		breakpoint "command"
 	}
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>dir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>env</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>key</span>"
-	
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>value</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>mount</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>)
-
-!!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>"
-	
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>network</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>networkmode</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>networkmode</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>readonlyRootfs</span>()
-
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>secret</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>localPath</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>localPath</span>"
-	
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>security</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>securitymode</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>securitymode</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>user</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>name</span>"
-	
-
 
 
 

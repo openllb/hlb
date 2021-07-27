@@ -156,16 +156,6 @@ var (
 		"option::manifest": map[string]parser.Callable{
 			"platform": codegen.Platform{},
 		},
-		"option::breakpoint": map[string]parser.Callable{
-			"readonlyRootfs": codegen.ReadonlyRootfs{},
-			"env":            codegen.RunEnv{},
-			"dir":            codegen.RunDir{},
-			"user":           codegen.RunUser{},
-			"network":        codegen.Network{},
-			"security":       codegen.Security{},
-			"secret":         codegen.Secret{},
-			"mount":          codegen.Mount{},
-		},
 	}
 )
 

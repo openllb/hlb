@@ -465,15 +465,15 @@ func TestChecker_Check(t *testing.T) {
 			)
 		},
 	}, {
-		"breakpoint with options",
+		"run with options",
 		`
 		fs default() {
 			scratch
-			breakpoint with option {
+			run with option {
 				dir "/"
 				mount scratch "/"
 				env "myenv1" "value1"
-				user "nfuser"
+				breakpoint "/bin/sh"
 			}
 		}
 		`,
