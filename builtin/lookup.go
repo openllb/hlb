@@ -237,6 +237,23 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
+					"readonlyRootfs": FuncLookup{
+						Params:  []*parser.Field{},
+						Effects: []*parser.Field{},
+					},
+					"network": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "networkmode", false),
+						},
+						Effects: []*parser.Field{},
+					},
+					"secret": FuncLookup{
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "localPath", false),
+							parser.NewField(parser.String, "mountPoint", false),
+						},
+						Effects: []*parser.Field{},
+					},
 				},
 			},
 			"option::copy": LookupByKind{
@@ -1430,5 +1447,30 @@ option::breakpoint mount(fs input, string mountPoint) binds (fs target)
 # - insecure: enables all capabilities.
 option::breakpoint security(string securitymode)
 
+# Sets the rootfs as read-only for the duration of the shell execution at the
+# breakpoint.
+#
+# @return an option to set the rootfs as read-only.
+option::breakpoint readonlyRootfs()
+
+# Sets the networking mode for the duration of the shell execution at the
+# breakpoint. The default value is &#34;unset&#34; (using BuildKit&#39;s CNI provider,
+# otherwise its host namespace).
+#
+# @param networkmode the network mode of the container, must be one of the
+# following:
+# - unset: use the default network provider.
+# - host: use the host&#39;s network namespace.
+# - none: disable networking.
+option::breakpoint network(string networkmode)
+
+# Mounts a secure file for the duration of the shell execution at the
+#breakpoint. Secrets are attached via a tmpfs mount, so all the data stays in
+# volatile memory.
+#
+# @param localPath the filepath for a secure file or directory.
+# @param mountPoint the directory where the secret is attached.
+# @return an option to mount a secret.
+option::breakpoint secret(string localPath, string mountPoint)
 `
 )

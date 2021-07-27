@@ -403,7 +403,7 @@ func (rr ReadonlyRootfs) Call(ctx context.Context, cln *client.Client, ret Regis
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.ReadonlyRootFS()))
+	return ret.Set(append(retOpts, llbutil.WithReadonlyRootFS()))
 }
 
 type RunEnv struct{}
@@ -471,7 +471,7 @@ func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		return errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "node"})
 	}
 
-	return ret.Set(append(retOpts, llb.Network(netMode)))
+	return ret.Set(append(retOpts, llbutil.WithNetwork(netMode)))
 }
 
 type Security struct{}
@@ -667,9 +667,9 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		id := llbutil.SecretID(localFile)
 
 		retOpts = append(retOpts,
-			llb.AddSecret(
+			llbutil.WithSecret(
 				mountpoint,
-				append(secretOpts, llb.SecretID(id))...,
+				append(secretOpts, llbutil.WithSecretID(id))...,
 			),
 			llbutil.WithSecretSource(id, secretsprovider.Source{
 				ID:       id,

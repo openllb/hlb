@@ -12,6 +12,9 @@
 			dir "path"
 			env "key" "value"
 			mount scratch "mountPoint"
+			network "networkmode"
+			readonlyRootfs
+			secret "localPath" "mountPoint"
 			security "securitymode"
 			user "name"
 		}
@@ -37,6 +40,27 @@
 #### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>mount</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>)
 
 !!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>"
+	
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>"
+	
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>network</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>networkmode</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>networkmode</span>"
+	
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>readonlyRootfs</span>()
+
+
+
+
+#### <span class='hlb-type'>option::breakpoint</span> <span class='hlb-name'>secret</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>localPath</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>localPath</span>"
 	
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>mountPoint</span>"
 	

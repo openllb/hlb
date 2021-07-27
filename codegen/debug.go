@@ -544,7 +544,11 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 }
 
 func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
-	var securityMode pb.SecurityMode
+	var (
+		securityMode pb.SecurityMode
+		netMode      pb.NetMode
+		secrets      []llbutil.SecretOption
+	)
 
 	cwd := "/"
 	if fs.Image.Config.WorkingDir != "" {
@@ -565,6 +569,8 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 
 	for _, opt := range opts {
 		switch o := opt.(type) {
+		case llbutil.ReadonlyRootFSOption:
+			mounts[0].Opts = append(mounts[0].Opts, &llbutil.ReadonlyMount{})
 		case *llbutil.MountRunOption:
 			mounts = append(mounts, o)
 		case llbutil.UserOption:
@@ -575,6 +581,10 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 			env = append(env, o.Name+"="+o.Value)
 		case llbutil.SecurityOption:
 			securityMode = o.SecurityMode
+		case llbutil.NetworkOption:
+			netMode = o.NetMode
+		case llbutil.SecretOption:
+			secrets = append(secrets, o)
 		case llbutil.SessionOption:
 			fs.SessionOpts = append(fs.SessionOpts, o)
 		case breakpointCommand:
@@ -608,7 +618,9 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 		}
 
 		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
-			var ctrReq gateway.NewContainerRequest
+			ctrReq := gateway.NewContainerRequest{
+				NetMode: netMode,
+			}
 			for _, mount := range mounts {
 				var def *llb.Definition
 				def, err = mount.Source.Marshal(ctx, llb.LinuxAmd64)
@@ -629,6 +641,26 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 					Ref:       res.Ref,
 					Readonly:  mount.IsReadonly(),
 				})
+			}
+			for _, secret := range secrets {
+				secretMount := gateway.Mount{
+					Dest:      secret.Dest,
+					MountType: pb.MountType_SECRET,
+					SecretOpt: &pb.SecretOpt{},
+				}
+				for _, opt := range secret.Opts {
+					switch o := opt.(type) {
+					case llbutil.SecretIDOption:
+						secretMount.SecretOpt.ID = string(o)
+					case llbutil.UID:
+						secretMount.SecretOpt.Uid = uint32(o)
+					case llbutil.GID:
+						secretMount.SecretOpt.Gid = uint32(o)
+					case llbutil.Chmod:
+						secretMount.SecretOpt.Mode = uint32(o)
+					}
+				}
+				ctrReq.Mounts = append(ctrReq.Mounts, secretMount)
 			}
 
 			ctr, err := c.NewContainer(ctx, ctrReq)

@@ -28,6 +28,16 @@ func FrontendOpt(key, value string) GatewayOption {
 	}
 }
 
+type SecretIDOption string
+
+func WithSecretID(id string) llb.SecretOption {
+	return SecretIDOption(id)
+}
+
+func (secretID SecretIDOption) SetSecretOption(si *llb.SecretInfo) {
+	llb.SecretID(string(secretID)).SetSecretOption(si)
+}
+
 type Chmod os.FileMode
 
 func WithChmod(mode os.FileMode) Chmod {
@@ -232,4 +242,42 @@ func WithSecurity(securityMode pb.SecurityMode) llb.RunOption {
 
 func (security SecurityOption) SetRunOption(ei *llb.ExecInfo) {
 	llb.Security(security.SecurityMode).SetRunOption(ei)
+}
+
+type NetworkOption struct {
+	pb.NetMode
+}
+
+func WithNetwork(netMode pb.NetMode) llb.RunOption {
+	return NetworkOption{netMode}
+}
+
+func (network NetworkOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.Network(network.NetMode).SetRunOption(ei)
+}
+
+type SecretOption struct {
+	Dest string
+	Opts []llb.SecretOption
+}
+
+func WithSecret(dest string, opts ...llb.SecretOption) llb.RunOption {
+	return SecretOption{
+		Dest: dest,
+		Opts: opts,
+	}
+}
+
+func (secret SecretOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.AddSecret(secret.Dest, secret.Opts...).SetRunOption(ei)
+}
+
+type ReadonlyRootFSOption struct{}
+
+func WithReadonlyRootFS() llb.RunOption {
+	return ReadonlyRootFSOption{}
+}
+
+func (readonlyRootfs ReadonlyRootFSOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.ReadonlyRootFS().SetRunOption(ei)
 }
