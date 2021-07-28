@@ -15,6 +15,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	solvererrdefs "github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/diagnostic"
@@ -53,7 +54,7 @@ func (s snapshot) fs() (Filesystem, error) {
 	return s.ret.Filesystem()
 }
 
-func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debugger {
+func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, promptReader *bufio.Reader) Debugger {
 	var (
 		fun               *parser.FuncDecl
 		next              *parser.FuncDecl
@@ -64,10 +65,6 @@ func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debu
 		staticBreakpoints []*Breakpoint
 		breakpoints       []*Breakpoint
 	)
-
-	pr, pw := io.Pipe()
-	r := bufio.NewReader(pr)
-	inputSteerer := NewInputSteerer(unbufferedReader, pw)
 
 	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value, opts Option) error {
 		// Store a snapshot of the current debug step so we can backtrack.
@@ -112,7 +109,7 @@ func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debu
 			for {
 				fmt.Fprint(w, "(hlb) ")
 
-				command, err := r.ReadString('\n')
+				command, err := promptReader.ReadString('\n')
 				if err != nil {
 					return err
 				}
@@ -245,7 +242,7 @@ func NewDebugger(c *client.Client, w io.Writer, unbufferedReader io.Reader) Debu
 					func() {
 						defer inputSteerer.Pop()
 
-						err = Exec(ctx, c, fs, execPR, w, opts, args[1:]...)
+						err = ExecWithFS(ctx, c, fs, execPR, w, opts, args[1:]...)
 						if err != nil {
 							fmt.Fprintln(w, "err:", err)
 							return
@@ -548,7 +545,7 @@ func attr(dgst digest.Digest, op pb.Op) (string, string) {
 	}
 }
 
-func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
+func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadCloser, w io.Writer, opts Option, args ...string) error {
 	var (
 		securityMode pb.SecurityMode
 		netMode      pb.NetMode
@@ -764,12 +761,72 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 		}, fs.SolveOpts...)
 	})
 
-	err = g.Wait()
+	return g.Wait()
+}
+
+func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.SolveError, r io.ReadCloser, w io.Writer, args ...string) error {
+	op := se.Op
+	solveExec, ok := op.Op.(*pb.Op_Exec)
+	if !ok {
+		return nil
+	}
+
+	exec := solveExec.Exec
+
+	if len(args) == 0 {
+		args = []string{"/bin/sh"}
+	}
+
+	var mounts []gateway.Mount
+	for i, mnt := range exec.Mounts {
+		mounts = append(mounts, gateway.Mount{
+			Selector:  mnt.Selector,
+			Dest:      mnt.Dest,
+			ResultID:  se.Solve.MountIDs[i],
+			Readonly:  mnt.Readonly,
+			MountType: mnt.MountType,
+			CacheOpt:  mnt.CacheOpt,
+			SecretOpt: mnt.SecretOpt,
+			SSHOpt:    mnt.SSHOpt,
+		})
+	}
+
+	ctr, err := c.NewContainer(ctx, gateway.NewContainerRequest{
+		Mounts:      mounts,
+		NetMode:     exec.Network,
+		Platform:    op.Platform,
+		Constraints: op.Constraints,
+	})
+	if err != nil {
+		return err
+	}
+	defer ctr.Release(ctx)
+
+	startReq := gateway.StartRequest{
+		Args:         args,
+		Cwd:          exec.Meta.Cwd,
+		User:         exec.Meta.User,
+		Env:          exec.Meta.Env,
+		Tty:          true,
+		Stdin:        r,
+		Stdout:       NopWriteCloser(w),
+		SecurityMode: exec.Security,
+	}
+
+	proc, err := ctr.Start(ctx, startReq)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
+	if err == nil {
+		defer terminal.Restore(int(os.Stdin.Fd()), oldState)
+
+		cleanup := addResizeHandler(ctx, proc)
+		defer cleanup()
+	}
+
+	return proc.Wait()
 }
 
 func NopWriteCloser(w io.Writer) io.WriteCloser {

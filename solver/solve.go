@@ -20,6 +20,8 @@ type SolveOption func(*SolveInfo) error
 type SolveCallback func(ctx context.Context, resp *client.SolveResponse) error
 
 type SolveInfo struct {
+	Evaluate              bool
+	ErrorHandler          func(gateway.Client, error)
 	OutputDockerRef       string
 	OutputPushImage       string
 	OutputLocal           string
@@ -101,6 +103,18 @@ func WithEntitlement(e entitlements.Entitlement) SolveOption {
 	}
 }
 
+func WithEvaluate(info *SolveInfo) error {
+	info.Evaluate = true
+	return nil
+}
+
+func WithErrorHandler(errorHandler func(gateway.Client, error)) SolveOption {
+	return func(info *SolveInfo) error {
+		info.ErrorHandler = errorHandler
+		return nil
+	}
+}
+
 func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progress.Writer, def *llb.Definition, opts ...SolveOption) error {
 	info := &SolveInfo{}
 	for _, opt := range opts {
@@ -113,8 +127,12 @@ func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progres
 	return Build(ctx, c, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 		res, err := c.Solve(ctx, gateway.SolveRequest{
 			Definition: def.ToPB(),
+			Evaluate:   info.Evaluate,
 		})
 		if err != nil {
+			if info.ErrorHandler != nil {
+				info.ErrorHandler(c, err)
+			}
 			return nil, err
 		}
 
