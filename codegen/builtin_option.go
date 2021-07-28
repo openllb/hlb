@@ -541,7 +541,7 @@ func (s SSH) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 
 	sort.Strings(localPaths)
 	id := llbutil.SSHID(localPaths...)
-	sshOpts = append(sshOpts, llb.SSHID(id))
+	sshOpts = append(sshOpts, llbutil.WithID(id))
 
 	retOpts = append(retOpts, llbutil.WithAgentConfig(id, sockproxy.AgentConfig{
 		ID:    id,
@@ -549,7 +549,7 @@ func (s SSH) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		Paths: localPaths,
 	}))
 
-	return ret.Set(append(retOpts, llb.AddSSHSocket(sshOpts...)))
+	return ret.Set(append(retOpts, llbutil.WithSSHSocket("", sshOpts...)))
 }
 
 type Forward struct{}
@@ -624,9 +624,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		Paths: []string{localPath},
 	}))
 
-	sshOpts := []llb.SSHOption{llb.SSHID(id), llb.SSHSocketTarget(dest)}
-
-	return ret.Set(append(retOpts, llb.AddSSHSocket(sshOpts...)))
+	return ret.Set(append(retOpts, llbutil.WithSSHSocket(dest, llbutil.WithID(id))))
 }
 
 func isClosedNetworkError(err error) bool {
@@ -680,7 +678,7 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		retOpts = append(retOpts,
 			llbutil.WithSecret(
 				mountpoint,
-				append(secretOpts, llbutil.WithSecretID(id))...,
+				append(secretOpts, llbutil.WithID(id))...,
 			),
 			llbutil.WithSecretSource(id, secretsprovider.Source{
 				ID:       id,

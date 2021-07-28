@@ -96,14 +96,18 @@ func FrontendOpt(key, value string) GatewayOption {
 	}
 }
 
-type SecretIDOption string
+type IDOption string
 
-func WithSecretID(id string) llb.SecretOption {
-	return SecretIDOption(id)
+func WithID(id string) IDOption {
+	return IDOption(id)
 }
 
-func (secretID SecretIDOption) SetSecretOption(si *llb.SecretInfo) {
-	llb.SecretID(string(secretID)).SetSecretOption(si)
+func (id IDOption) SetSecretOption(si *llb.SecretInfo) {
+	llb.SecretID(string(id)).SetSecretOption(si)
+}
+
+func (id IDOption) SetSSHOption(si *llb.SSHInfo) {
+	llb.SSHID(string(id)).SetSSHOption(si)
 }
 
 type Chmod os.FileMode
@@ -348,4 +352,25 @@ func WithReadonlyRootFS() llb.RunOption {
 
 func (readonlyRootfs ReadonlyRootFSOption) SetRunOption(ei *llb.ExecInfo) {
 	llb.ReadonlyRootFS().SetRunOption(ei)
+}
+
+type SSHOption struct {
+	Dest string
+	Opts []llb.SSHOption
+}
+
+func WithSSHSocket(target string, opts ...llb.SSHOption) llb.RunOption {
+	return SSHOption{
+		Dest: target,
+		Opts: opts,
+	}
+}
+
+func (sshOpt SSHOption) SetRunOption(ei *llb.ExecInfo) {
+	var opts []llb.SSHOption
+	if sshOpt.Dest != "" {
+		opts = append(opts, llb.SSHSocketTarget(sshOpt.Dest))
+	}
+	opts = append(opts, sshOpt.Opts...)
+	llb.AddSSHSocket(opts...).SetRunOption(ei)
 }

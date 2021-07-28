@@ -553,6 +553,7 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 		securityMode pb.SecurityMode
 		netMode      pb.NetMode
 		secrets      []llbutil.SecretOption
+		ssh          []llbutil.SSHOption
 	)
 
 	cwd := "/"
@@ -590,6 +591,8 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 			netMode = o.NetMode
 		case llbutil.SecretOption:
 			secrets = append(secrets, o)
+		case llbutil.SSHOption:
+			ssh = append(ssh, o)
 		case llbutil.SessionOption:
 			fs.SessionOpts = append(fs.SessionOpts, o)
 		case breakpointCommand:
@@ -678,6 +681,7 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 				ctrReq.Mounts = append(ctrReq.Mounts, gatewayMount)
 
 			}
+
 			for _, secret := range secrets {
 				secretMount := gateway.Mount{
 					Dest:      secret.Dest,
@@ -686,7 +690,7 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 				}
 				for _, opt := range secret.Opts {
 					switch o := opt.(type) {
-					case llbutil.SecretIDOption:
+					case llbutil.IDOption:
 						secretMount.SecretOpt.ID = string(o)
 					case llbutil.UID:
 						secretMount.SecretOpt.Uid = uint32(o)
@@ -697,6 +701,33 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 					}
 				}
 				ctrReq.Mounts = append(ctrReq.Mounts, secretMount)
+			}
+
+			for i, sshOpt := range ssh {
+				sshMount := gateway.Mount{
+					Dest:      sshOpt.Dest,
+					MountType: pb.MountType_SSH,
+					SSHOpt:    &pb.SSHOpt{},
+				}
+				for _, opt := range sshOpt.Opts {
+					switch o := opt.(type) {
+					case llbutil.IDOption:
+						sshMount.SSHOpt.ID = string(o)
+					case llbutil.UID:
+						sshMount.SSHOpt.Uid = uint32(o)
+					case llbutil.GID:
+						sshMount.SSHOpt.Gid = uint32(o)
+					case llbutil.Chmod:
+						sshMount.SSHOpt.Mode = uint32(o)
+					}
+				}
+				if sshMount.Dest == "" {
+					sshMount.Dest = fmt.Sprintf("/run/buildkit/ssh_agent.%d", i)
+				}
+				if i == 0 {
+					env = append(env, "SSH_AUTH_SOCK="+sshMount.Dest)
+				}
+				ctrReq.Mounts = append(ctrReq.Mounts, sshMount)
 			}
 
 			ctr, err := c.NewContainer(ctx, ctrReq)
