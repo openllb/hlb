@@ -46,6 +46,7 @@ var (
 			"downloadTarball":       codegen.DownloadTarball{},
 			"downloadOCITarball":    codegen.DownloadOCITarball{},
 			"downloadDockerTarball": codegen.DownloadDockerTarball{},
+			"breakpoint":            codegen.SetBreakpoint{},
 		},
 		parser.String: map[string]parser.Callable{
 			"format":    codegen.Format{},
@@ -95,6 +96,7 @@ var (
 			"forward":        codegen.Forward{},
 			"secret":         codegen.Secret{},
 			"mount":          codegen.Mount{},
+			"breakpoint":     codegen.RunBreakpoint{},
 		},
 		"option::ssh": map[string]parser.Callable{
 			"target":     codegen.MountTarget{},

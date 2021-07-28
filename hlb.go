@@ -1,7 +1,6 @@
 package hlb
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -17,7 +16,7 @@ import (
 	"github.com/openllb/hlb/solver"
 )
 
-func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, targets []codegen.Target) (solver.Request, error) {
+func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, targets []codegen.Target, opts ...codegen.CodeGenOption) (solver.Request, error) {
 	err := checker.SemanticPass(mod)
 	if err != nil {
 		return nil, err
@@ -26,7 +25,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, target
 	err = linter.Lint(ctx, mod, linter.WithRecursive())
 	if err != nil {
 		for _, span := range diagnostic.Spans(err) {
-			fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+			fmt.Fprintln(os.Stderr, span.Pretty(ctx))
 		}
 	}
 
@@ -49,12 +48,6 @@ func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, target
 	err = module.ResolveGraph(ctx, cln, resolver, res, mod, nil)
 	if err != nil {
 		return nil, err
-	}
-
-	var opts []codegen.CodeGenOption
-	if codegen.MultiWriter(ctx) == nil {
-		r := bufio.NewReader(os.Stdin)
-		opts = append(opts, codegen.WithDebugger(codegen.NewDebugger(cln, os.Stderr, r)))
 	}
 
 	cg, err := codegen.New(cln, opts...)

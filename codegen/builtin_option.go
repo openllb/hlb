@@ -403,7 +403,7 @@ func (rr ReadonlyRootfs) Call(ctx context.Context, cln *client.Client, ret Regis
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.ReadonlyRootFS()))
+	return ret.Set(append(retOpts, llbutil.WithReadonlyRootFS()))
 }
 
 type RunEnv struct{}
@@ -414,7 +414,7 @@ func (re RunEnv) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.AddEnv(key, value)))
+	return ret.Set(append(retOpts, llbutil.WithEnv(key, value)))
 }
 
 type RunDir struct{}
@@ -425,7 +425,7 @@ func (rd RunDir) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.Dir(path)))
+	return ret.Set(append(retOpts, llbutil.WithDir(path)))
 }
 
 type RunUser struct{}
@@ -436,7 +436,18 @@ func (ru RunUser) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.User(name)))
+	return ret.Set(append(retOpts, llbutil.WithUser(name)))
+}
+
+type RunBreakpoint struct{}
+
+func (rb RunBreakpoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, command ...string) error {
+	retOpts, err := ret.Option()
+	if err != nil {
+		return err
+	}
+
+	return ret.Set(append(retOpts, breakpointCommand(command)))
 }
 
 type IgnoreCache struct{}
@@ -471,7 +482,7 @@ func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		return errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "node"})
 	}
 
-	return ret.Set(append(retOpts, llb.Network(netMode)))
+	return ret.Set(append(retOpts, llbutil.WithNetwork(netMode)))
 }
 
 type Security struct{}
@@ -493,7 +504,7 @@ func (s Security) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return errdefs.WithInvalidSecurityMode(Arg(ctx, 0), mode, []string{"sandbox", "insecure"})
 	}
 
-	return ret.Set(append(retOpts, llb.Security(securityMode)))
+	return ret.Set(append(retOpts, llbutil.WithSecurity(securityMode)))
 }
 
 type Host struct{}
@@ -530,7 +541,7 @@ func (s SSH) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 
 	sort.Strings(localPaths)
 	id := llbutil.SSHID(localPaths...)
-	sshOpts = append(sshOpts, llb.SSHID(id))
+	sshOpts = append(sshOpts, llbutil.WithID(id))
 
 	retOpts = append(retOpts, llbutil.WithAgentConfig(id, sockproxy.AgentConfig{
 		ID:    id,
@@ -538,7 +549,7 @@ func (s SSH) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		Paths: localPaths,
 	}))
 
-	return ret.Set(append(retOpts, llb.AddSSHSocket(sshOpts...)))
+	return ret.Set(append(retOpts, llbutil.WithSSHSocket("", sshOpts...)))
 }
 
 type Forward struct{}
@@ -613,9 +624,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		Paths: []string{localPath},
 	}))
 
-	sshOpts := []llb.SSHOption{llb.SSHID(id), llb.SSHSocketTarget(dest)}
-
-	return ret.Set(append(retOpts, llb.AddSSHSocket(sshOpts...)))
+	return ret.Set(append(retOpts, llbutil.WithSSHSocket(dest, llbutil.WithID(id))))
 }
 
 func isClosedNetworkError(err error) bool {
@@ -667,9 +676,9 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		id := llbutil.SecretID(localFile)
 
 		retOpts = append(retOpts,
-			llb.AddSecret(
+			llbutil.WithSecret(
 				mountpoint,
-				append(secretOpts, llb.SecretID(id))...,
+				append(secretOpts, llbutil.WithID(id))...,
 			),
 			llbutil.WithSecretSource(id, secretsprovider.Source{
 				ID:       id,
@@ -832,7 +841,7 @@ func (r Readonly) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
-	return ret.Set(append(retOpts, &llbutil.ReadonlyMount{}))
+	return ret.Set(append(retOpts, llbutil.WithReadonlyMount()))
 }
 
 type Tmpfs struct{}
@@ -843,7 +852,7 @@ func (t Tmpfs) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.Tmpfs()))
+	return ret.Set(append(retOpts, llbutil.WithTmpfs()))
 }
 
 type SourcePath struct{}
@@ -854,7 +863,7 @@ func (sp SourcePath) Call(ctx context.Context, cln *client.Client, ret Register,
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.SourcePath(path)))
+	return ret.Set(append(retOpts, llbutil.WithSourcePath(path)))
 }
 
 type Cache struct {
@@ -879,7 +888,7 @@ func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		return errdefs.WithInvalidSharingMode(Arg(ctx, 1), mode, []string{"shared", "private", "locked"})
 	}
 
-	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llb.AsPersistentCacheDir(id, sharing))
+	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llbutil.WithPersistentCacheDir(id, sharing))
 	return ret.Set(retOpts)
 }
 

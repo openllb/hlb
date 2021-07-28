@@ -28,6 +28,7 @@ require (
 	github.com/xlab/treeprint v1.0.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57
 	google.golang.org/grpc v1.38.0
 )
 

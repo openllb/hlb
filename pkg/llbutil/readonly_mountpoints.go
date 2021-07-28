@@ -8,38 +8,6 @@ import (
 	"github.com/moby/buildkit/client/llb"
 )
 
-// MountRunOption gives access to capture custom MountOptions so we
-// can easily capture if the mount is to be readonly
-type MountRunOption struct {
-	Source llb.State
-	Target string
-	Opts   []interface{}
-}
-
-type ReadonlyMount struct{}
-
-func (m *MountRunOption) SetRunOption(es *llb.ExecInfo) {
-	opts := []llb.MountOption{}
-	for _, opt := range m.Opts {
-		switch o := opt.(type) {
-		case *ReadonlyMount:
-			opts = append(opts, llb.Readonly)
-		case llb.MountOption:
-			opts = append(opts, o)
-		}
-	}
-	llb.AddMount(m.Target, m.Source, opts...).SetRunOption(es)
-}
-
-func (m *MountRunOption) IsReadonly() bool {
-	for _, opt := range m.Opts {
-		if _, ok := opt.(*ReadonlyMount); ok {
-			return true
-		}
-	}
-	return false
-}
-
 // ShimReadonlyMountpoints will modify the source for readonly mounts so
 // subsequent mounts that mount onto the readonly-mounts will have the
 // mountpoint present.

@@ -327,9 +327,6 @@ func (c *checker) checkType(node parser.Node, kset *parser.KindSet, actual parse
 }
 
 func (c *checker) checkCallStmt(scope *parser.Scope, kset *parser.KindSet, call *parser.CallStmt) error {
-	if call.Breakpoint() {
-		return nil
-	}
 	return c.checkCall(scope, kset, call.Name, call.Args, call.WithClause)
 }
 

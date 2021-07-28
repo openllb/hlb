@@ -399,6 +399,12 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 	return ret.Set(fs)
 }
 
+type SetBreakpoint struct{}
+
+func (r SetBreakpoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, args ...string) error {
+	return nil
+}
+
 type Mkdir struct{}
 
 func (m Mkdir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string, mode os.FileMode) error {
