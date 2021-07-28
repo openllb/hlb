@@ -226,6 +226,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	solveReq, err := hlb.Compile(ctx, cln, mod, targets, opts...)
 	if err != nil {
+		p.Release()
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
 			return nil
