@@ -14,6 +14,74 @@ const (
 	KeyContainerImageConfig = "containerimage.config"
 )
 
+// MountRunOption gives access to capture custom MountOptions so we
+// can easily capture if the mount is to be readonly
+type MountRunOption struct {
+	Source llb.State
+	Target string
+	Opts   []interface{}
+}
+
+type ReadonlyMountOption struct{}
+
+func WithReadonlyMount() ReadonlyMountOption {
+	return ReadonlyMountOption{}
+}
+
+type SourcePathMountOption struct {
+	Path string
+}
+
+func WithSourcePath(path string) SourcePathMountOption {
+	return SourcePathMountOption{Path: path}
+}
+
+type CacheMountOption struct {
+	ID      string
+	Sharing llb.CacheMountSharingMode
+}
+
+func WithPersistentCacheDir(id string, sharing llb.CacheMountSharingMode) CacheMountOption {
+	return CacheMountOption{
+		ID:      id,
+		Sharing: sharing,
+	}
+}
+
+type TmpfsMountOption struct{}
+
+func WithTmpfs() TmpfsMountOption {
+	return TmpfsMountOption{}
+}
+
+func (m *MountRunOption) SetRunOption(es *llb.ExecInfo) {
+	opts := []llb.MountOption{}
+	for _, opt := range m.Opts {
+		switch o := opt.(type) {
+		case ReadonlyMountOption:
+			opts = append(opts, llb.Readonly)
+		case SourcePathMountOption:
+			opts = append(opts, llb.SourcePath(o.Path))
+		case CacheMountOption:
+			opts = append(opts, llb.AsPersistentCacheDir(o.ID, o.Sharing))
+		case TmpfsMountOption:
+			opts = append(opts, llb.Tmpfs())
+		case llb.MountOption:
+			opts = append(opts, o)
+		}
+	}
+	llb.AddMount(m.Target, m.Source, opts...).SetRunOption(es)
+}
+
+func (m *MountRunOption) IsReadonly() bool {
+	for _, opt := range m.Opts {
+		if _, ok := opt.(ReadonlyMountOption); ok {
+			return true
+		}
+	}
+	return false
+}
+
 type GatewayOption func(r *gateway.SolveRequest)
 
 func FrontendInput(key string, def *llb.Definition) GatewayOption {

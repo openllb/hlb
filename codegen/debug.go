@@ -575,7 +575,7 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case llbutil.ReadonlyRootFSOption:
-			mounts[0].Opts = append(mounts[0].Opts, &llbutil.ReadonlyMount{})
+			mounts[0].Opts = append(mounts[0].Opts, llbutil.WithReadonlyMount())
 		case *llbutil.MountRunOption:
 			mounts = append(mounts, o)
 		case llbutil.UserOption:
@@ -627,25 +627,56 @@ func Exec(ctx context.Context, cln *client.Client, fs Filesystem, r io.ReadClose
 				NetMode: netMode,
 			}
 			for _, mount := range mounts {
-				var def *llb.Definition
-				def, err = mount.Source.Marshal(ctx, llb.LinuxAmd64)
-				if err != nil {
-					return
-				}
-
-				res, err = c.Solve(ctx, gateway.SolveRequest{
-					Definition: def.ToPB(),
-				})
-				if err != nil {
-					return
-				}
-
-				ctrReq.Mounts = append(ctrReq.Mounts, gateway.Mount{
+				gatewayMount := gateway.Mount{
 					Dest:      mount.Target,
 					MountType: pb.MountType_BIND,
-					Ref:       res.Ref,
-					Readonly:  mount.IsReadonly(),
-				})
+				}
+
+				for _, opt := range mount.Opts {
+					switch o := opt.(type) {
+					case llbutil.ReadonlyMountOption:
+						gatewayMount.Readonly = true
+					case llbutil.SourcePathMountOption:
+						gatewayMount.Selector = o.Path
+					case llbutil.CacheMountOption:
+						gatewayMount.MountType = pb.MountType_CACHE
+						gatewayMount.CacheOpt = &pb.CacheOpt{
+							ID:      o.ID,
+							Sharing: pb.CacheSharingOpt(o.Sharing),
+						}
+						switch o.Sharing {
+						case llb.CacheMountShared:
+							gatewayMount.CacheOpt.Sharing = pb.CacheSharingOpt_SHARED
+						case llb.CacheMountPrivate:
+							gatewayMount.CacheOpt.Sharing = pb.CacheSharingOpt_PRIVATE
+						case llb.CacheMountLocked:
+							gatewayMount.CacheOpt.Sharing = pb.CacheSharingOpt_LOCKED
+						default:
+							return nil, errors.Errorf("unrecognized cache sharing mode %v", o.Sharing)
+						}
+					case llbutil.TmpfsMountOption:
+						gatewayMount.MountType = pb.MountType_TMPFS
+					}
+				}
+
+				if gatewayMount.MountType == pb.MountType_BIND {
+					var def *llb.Definition
+					def, err = mount.Source.Marshal(ctx, llb.LinuxAmd64)
+					if err != nil {
+						return
+					}
+
+					res, err = c.Solve(ctx, gateway.SolveRequest{
+						Definition: def.ToPB(),
+					})
+					if err != nil {
+						return
+					}
+					gatewayMount.Ref = res.Ref
+				}
+
+				ctrReq.Mounts = append(ctrReq.Mounts, gatewayMount)
+
 			}
 			for _, secret := range secrets {
 				secretMount := gateway.Mount{

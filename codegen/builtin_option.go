@@ -843,7 +843,7 @@ func (r Readonly) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return err
 	}
 
-	return ret.Set(append(retOpts, &llbutil.ReadonlyMount{}))
+	return ret.Set(append(retOpts, llbutil.WithReadonlyMount()))
 }
 
 type Tmpfs struct{}
@@ -854,7 +854,7 @@ func (t Tmpfs) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.Tmpfs()))
+	return ret.Set(append(retOpts, llbutil.WithTmpfs()))
 }
 
 type SourcePath struct{}
@@ -865,7 +865,7 @@ func (sp SourcePath) Call(ctx context.Context, cln *client.Client, ret Register,
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.SourcePath(path)))
+	return ret.Set(append(retOpts, llbutil.WithSourcePath(path)))
 }
 
 type Cache struct {
@@ -890,7 +890,7 @@ func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		return errdefs.WithInvalidSharingMode(Arg(ctx, 1), mode, []string{"shared", "private", "locked"})
 	}
 
-	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llb.AsPersistentCacheDir(id, sharing))
+	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llbutil.WithPersistentCacheDir(id, sharing))
 	return ret.Set(retOpts)
 }
 
