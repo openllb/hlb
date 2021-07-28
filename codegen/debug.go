@@ -409,6 +409,9 @@ func FindStaticBreakpoints(ctx context.Context, mod *parser.Module) []*Breakpoin
 
 	parser.Match(mod, parser.MatchOpts{},
 		func(fun *parser.FuncDecl, call *parser.CallStmt) {
+			if fun.Kind() == "option::run" {
+				return
+			}
 			if !call.Breakpoint(ReturnType(ctx)) {
 				return
 			}
