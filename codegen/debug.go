@@ -66,6 +66,8 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 		breakpoints       []*Breakpoint
 	)
 
+	var previousCommand string
+
 	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value, opts Option) error {
 		// Store a snapshot of the current debug step so we can backtrack.
 		historyIndex++
@@ -94,7 +96,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 			}
 
 			if next != nil {
-				// If nment is not in the same function scope, skip over it.
+				// If next is not in the same function scope, skip over it.
 				if next != fun {
 					return nil
 				}
@@ -107,6 +109,10 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 			}
 
 			for {
+				err := Progress(ctx).Sync()
+				if err != nil {
+					return err
+				}
 				fmt.Fprint(w, "(hlb) ")
 
 				command, err := promptReader.ReadString('\n')
@@ -116,9 +122,12 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 				command = strings.Replace(command, "\n", "", -1)
 
-				if command == "" {
+				if command == "" && previousCommand == "" {
 					continue
+				} else if command == "" {
+					command = previousCommand
 				}
+				previousCommand = command
 
 				args, err := shellquote.Split(command)
 				if err != nil {
@@ -248,7 +257,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 							return
 						}
 					}()
-				case "exit":
+				case "exit", "quit", "q":
 					return ErrDebugExit
 				case "funcs":
 					for _, obj := range s.scope.Defined() {
@@ -736,6 +745,11 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 			}
 			defer ctr.Release(ctx)
 
+			err = Progress(ctx).Sync()
+			if err != nil {
+				return
+			}
+
 			startReq := gateway.StartRequest{
 				Args:         args,
 				Cwd:          cwd,
@@ -804,6 +818,11 @@ func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.S
 		return err
 	}
 	defer ctr.Release(ctx)
+
+	err = Progress(ctx).Sync()
+	if err != nil {
+		return err
+	}
 
 	startReq := gateway.StartRequest{
 		Args:         args,

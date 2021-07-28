@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
 
+	"github.com/containerd/console"
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/identity"
@@ -54,11 +56,12 @@ type Progress interface {
 
 	Write(pfx, name string, fn func(ctx context.Context) error)
 
-	Go(func(ctx context.Context) error)
-
 	Release()
 
 	Wait() error
+
+	// Sync will ensure that all progress has been written.
+	Sync() error
 }
 
 // NewProgress returns a Progress that presents all the progress on multiple
@@ -111,59 +114,60 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 		}
 	}
 
-	// Not using shared context to not disrupt display on errors, and allow
-	// graceful exit and report error.
-	pctx, cancel := context.WithCancel(context.Background())
-
-	var pw *progress.Printer
-
+	var mode string
 	switch info.LogOutput {
 	case LogOutputTTY:
-		pw = progress.NewPrinter(pctx, info.Console, "tty")
+		mode = "tty"
 	case LogOutputPlain:
-		pw = progress.NewPrinter(pctx, info.Console, "plain")
+		mode = "plain"
 	default:
-		cancel()
 		return nil, errors.Errorf("unknown log output %q", info.LogOutput)
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	spp := newSyncProgressPrinter(info.Console, mode)
+	p := &progressUI{
+		origCtx: ctx,
+		spp:     spp,
+		mw:      NewMultiWriter(spp),
+		done:    make(chan struct{}),
+	}
+	p.g, p.ctx = errgroup.WithContext(p.origCtx)
+	return p, nil
+}
 
-	done := make(chan struct{})
-	g.Go(func() error {
-		defer cancel()
-		<-done
-		return pw.Wait()
-	})
-
-	return &progressUI{
-		mw:   NewMultiWriter(pw),
-		ctx:  ctx,
-		g:    g,
-		done: done,
-	}, nil
+func (p *progressUI) Sync() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Release()
+	err := p.waitNoLock()
+	if err != nil {
+		return err
+	}
+	p.spp.reset()
+	p.g, p.ctx = errgroup.WithContext(p.origCtx)
+	p.done = make(chan struct{})
+	return nil
 }
 
 type progressUI struct {
-	mw   *MultiWriter
-	ctx  context.Context
-	g    *errgroup.Group
-	done chan struct{}
+	mu      sync.Mutex
+	mw      *MultiWriter
+	spp     *syncProgressPrinter
+	origCtx context.Context
+	ctx     context.Context
+	g       *errgroup.Group
+	done    chan struct{}
 }
 
 func (p *progressUI) MultiWriter() *MultiWriter {
 	return p.mw
 }
 
-func (p *progressUI) Go(fn func(ctx context.Context) error) {
-	p.g.Go(func() error {
-		return fn(p.ctx)
-	})
-}
-
 func (p *progressUI) Write(pfx, name string, fn func(ctx context.Context) error) {
 	pw := p.mw.WithPrefix(pfx, false)
 
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.g.Go(func() error {
 		return write(pw, name, func() error {
 			return fn(p.ctx)
@@ -230,52 +234,58 @@ func (p *progressUI) Release() {
 	close(p.done)
 }
 
-func (p *progressUI) Wait() error {
-	return p.g.Wait()
+func (p *progressUI) Wait() (err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.waitNoLock()
 }
 
-func NewDebugProgress(ctx context.Context) Progress {
-	g, ctx := errgroup.WithContext(ctx)
-
-	done := make(chan struct{})
-	g.Go(func() error {
-		<-done
-		return nil
-	})
-
-	return &debugProgress{
-		ctx:  ctx,
-		g:    g,
-		done: done,
+func (p *progressUI) waitNoLock() error {
+	defer p.spp.cancel()
+	<-p.done
+	err := p.spp.wait()
+	gerr := p.g.Wait()
+	if err == nil {
+		return gerr
 	}
+	return err
 }
 
-type debugProgress struct {
-	ctx  context.Context
-	g    *errgroup.Group
-	done chan struct{}
+type syncProgressPrinter struct {
+	mu     sync.Mutex
+	p      *progress.Printer
+	out    console.File
+	cancel func()
+	mode   string
 }
 
-func (p *debugProgress) MultiWriter() *MultiWriter {
-	return nil
+var _ progress.Writer = (*syncProgressPrinter)(nil)
+
+func newSyncProgressPrinter(out console.File, mode string) *syncProgressPrinter {
+	spp := &syncProgressPrinter{
+		out:  out,
+		mode: mode,
+	}
+	spp.reset()
+	return spp
 }
 
-func (p *debugProgress) Go(fn func(ctx context.Context) error) {
-	p.g.Go(func() error {
-		return fn(p.ctx)
-	})
+func (spp *syncProgressPrinter) reset() {
+	// Not using shared context to not disrupt display on errors, and allow
+	// graceful exit and report error.
+	pctx, cancel := context.WithCancel(context.Background())
+	spp.mu.Lock()
+	defer spp.mu.Unlock()
+	spp.cancel = cancel
+	spp.p = progress.NewPrinter(pctx, spp.out, spp.mode)
 }
 
-func (p *debugProgress) Write(pfx, name string, fn func(ctx context.Context) error) {
-	p.g.Go(func() error {
-		return fn(p.ctx)
-	})
+func (spp *syncProgressPrinter) Write(s *client.SolveStatus) {
+	spp.mu.Lock()
+	defer spp.mu.Unlock()
+	spp.p.Write(s)
 }
 
-func (p *debugProgress) Release() {
-	close(p.done)
-}
-
-func (p *debugProgress) Wait() error {
-	return p.g.Wait()
+func (spp *syncProgressPrinter) wait() error {
+	return spp.p.Wait()
 }

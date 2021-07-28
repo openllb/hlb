@@ -25,6 +25,7 @@ type (
 	multiwriterKey    struct{}
 	imageResolverKey  struct{}
 	backtraceKey      struct{}
+	progressKey       struct{}
 )
 
 func WithProgramCounter(ctx context.Context, node parser.Node) context.Context {
@@ -93,6 +94,15 @@ func WithMultiWriter(ctx context.Context, mw *solver.MultiWriter) context.Contex
 func MultiWriter(ctx context.Context) *solver.MultiWriter {
 	mw, _ := ctx.Value(multiwriterKey{}).(*solver.MultiWriter)
 	return mw
+}
+
+func WithProgress(ctx context.Context, p solver.Progress) context.Context {
+	return context.WithValue(ctx, progressKey{}, p)
+}
+
+func Progress(ctx context.Context) solver.Progress {
+	p, _ := ctx.Value(progressKey{}).(solver.Progress)
+	return p
 }
 
 func WithImageResolver(ctx context.Context, resolver llb.ImageMetaResolver) context.Context {

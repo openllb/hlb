@@ -45,6 +45,10 @@ var runCommand = &cli.Command{
 			Usage: "jump into a source level debugger for hlb",
 		},
 		&cli.BoolFlag{
+			Name:  "shell-on-error",
+			Usage: "execute an interactive shell in the build container when an error occurs",
+		},
+		&cli.BoolFlag{
 			Name:  "tree",
 			Usage: "print out the request tree without solving",
 		},
@@ -72,13 +76,14 @@ var runCommand = &cli.Command{
 		}
 
 		ri := RunInfo{
-			Tree:      c.Bool("tree"),
-			Targets:   c.StringSlice("target"),
-			LLB:       c.Bool("llb"),
-			Backtrace: c.Bool("backtrace"),
-			LogOutput: c.String("log-output"),
-			ErrOutput: os.Stderr,
-			Output:    os.Stdout,
+			Tree:         c.Bool("tree"),
+			Targets:      c.StringSlice("target"),
+			LLB:          c.Bool("llb"),
+			Backtrace:    c.Bool("backtrace"),
+			LogOutput:    c.String("log-output"),
+			ShellOnError: c.Bool("shell-on-error"),
+			ErrOutput:    os.Stderr,
+			Output:       os.Stdout,
 		}
 
 		if c.Bool("debug") {
@@ -140,6 +145,12 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		}
 	}
 
+	// Always force plain output in debug mode so the prompts are displayed
+	// correctly
+	if info.Debugger != nil {
+		info.LogOutput = "plain"
+	}
+
 	switch info.LogOutput {
 	case "tty":
 		progressOpts = append(progressOpts, solver.WithLogOutput(info.ErrOutput, solver.LogOutputTTY))
@@ -149,17 +160,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return fmt.Errorf("unrecognized log-output %q", info.LogOutput)
 	}
 
-	var p solver.Progress
-	if info.Debugger != nil {
-		p = solver.NewDebugProgress(ctx)
-	} else {
-		var err error
-		p, err = solver.NewProgress(ctx, progressOpts...)
-		if err != nil {
-			return err
-		}
-		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
+	p, err := solver.NewProgress(ctx, progressOpts...)
+	if err != nil {
+		return err
 	}
+	// store Progress in context in case we need to synchronize output later
+	ctx = codegen.WithProgress(ctx, p)
+	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 
 	ctx = diagnostic.WithSources(ctx, builtin.Sources())
 
@@ -253,16 +260,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		}
 	}
 
-	p.Go(func(pCtx context.Context) error {
-		defer p.Release()
-		var solveOpts []solver.SolveOption
-		if info.ShellOnError && info.InputSteerer != nil {
-			solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(solveErrorHandler))
-		}
-		return solveReq.Solve(pCtx, cln, p.MultiWriter(), solveOpts...)
-	})
-
-	return p.Wait()
+	defer p.Wait()
+	defer p.Release()
+	var solveOpts []solver.SolveOption
+	if info.ShellOnError && info.InputSteerer != nil {
+		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(solveErrorHandler))
+	}
+	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
 }
 
 func displayError(ctx context.Context, info RunInfo, err error) {
