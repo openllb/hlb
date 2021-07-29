@@ -257,6 +257,7 @@ type syncProgressPrinter struct {
 	out    console.File
 	cancel func()
 	mode   string
+	done   chan struct{}
 }
 
 var _ progress.Writer = (*syncProgressPrinter)(nil)
@@ -277,15 +278,24 @@ func (spp *syncProgressPrinter) reset() {
 	spp.mu.Lock()
 	defer spp.mu.Unlock()
 	spp.cancel = cancel
+	spp.done = make(chan struct{})
 	spp.p = progress.NewPrinter(pctx, spp.out, spp.mode)
 }
 
 func (spp *syncProgressPrinter) Write(s *client.SolveStatus) {
 	spp.mu.Lock()
 	defer spp.mu.Unlock()
-	spp.p.Write(s)
+	select {
+	case <-spp.done:
+		return
+	default:
+		spp.p.Write(s)
+	}
 }
 
 func (spp *syncProgressPrinter) wait() error {
+	spp.mu.Lock()
+	defer spp.mu.Unlock()
+	close(spp.done)
 	return spp.p.Wait()
 }
