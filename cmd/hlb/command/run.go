@@ -1,7 +1,9 @@
 package command
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +11,8 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
+	gateway "github.com/moby/buildkit/frontend/gateway/client"
+	solvererrdefs "github.com/moby/buildkit/solver/errdefs"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/codegen"
@@ -78,7 +82,12 @@ var runCommand = &cli.Command{
 		}
 
 		if c.Bool("debug") {
-			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, os.Stdin)
+			pr, pw := io.Pipe()
+			r := bufio.NewReader(pr)
+			ri.InputSteerer = codegen.NewInputSteerer(os.Stdin, pw)
+
+			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, ri.InputSteerer, r)
+			ri.ShellOnError = true
 		}
 
 		return Run(ctx, cln, rc, ri)
@@ -86,14 +95,16 @@ var runCommand = &cli.Command{
 }
 
 type RunInfo struct {
-	Debugger  codegen.Debugger
-	Tree      bool
-	Backtrace bool
-	Targets   []string
-	LLB       bool
-	LogOutput string
-	ErrOutput solver.Console
-	Output    io.Writer
+	Debugger     codegen.Debugger
+	InputSteerer *codegen.InputSteerer
+	ShellOnError bool
+	Tree         bool
+	Backtrace    bool
+	Targets      []string
+	LLB          bool
+	LogOutput    string
+	ErrOutput    solver.Console
+	Output       io.Writer
 
 	// override defaults sources as necessary
 	Environ []string
@@ -152,56 +163,21 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	ctx = diagnostic.WithSources(ctx, builtin.Sources())
 
+	var errorShown bool
 	defer func() {
 		if err == nil {
 			return
 		}
+		if !errorShown {
+			displayError(ctx, info, err)
+		}
 
-		// Handle backtrace.
+		numErrs := 1
 		backtrace := diagnostic.Backtrace(ctx, err)
-		if len(backtrace) > 0 {
-			color := diagnostic.Color(ctx)
-			fmt.Fprintf(info.ErrOutput, color.Sprintf(
-				"%s: %s\n",
-				color.Bold(color.Red("error")),
-				color.Bold(diagnostic.Cause(err)),
-			))
-		}
-		for i, span := range backtrace {
-			if !info.Backtrace && i != len(backtrace)-1 {
-				if i == 0 {
-					color := diagnostic.Color(ctx)
-					frame := "frame"
-					if len(backtrace) > 2 {
-						frame = "frames"
-					}
-					fmt.Fprintf(info.ErrOutput, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
-				}
-				continue
-			}
-
-			pretty := span.Pretty(ctx, diagnostic.WithNumContext(2))
-			lines := strings.Split(pretty, "\n")
-			for j, line := range lines {
-				if j == 0 {
-					lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
-				} else {
-					lines[j] = fmt.Sprintf("    %s", line)
-				}
-			}
-			fmt.Fprintf(info.ErrOutput, "%s\n", strings.Join(lines, "\n"))
-		}
-
-		var numErrs int
 		if len(backtrace) == 0 {
 			// Handle diagnostic errors.
 			spans := diagnostic.Spans(err)
-			for _, span := range spans {
-				fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
-			}
 			numErrs = len(spans)
-		} else {
-			numErrs = 1
 		}
 
 		err = errdefs.WithAbort(err, numErrs)
@@ -257,12 +233,76 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return nil
 	}
 
-	p.Go(func(ctx context.Context) error {
+	p.Go(func(pCtx context.Context) error {
 		defer p.Release()
-		return solveReq.Solve(ctx, cln, p.MultiWriter())
+		var solveOpts []solver.SolveOption
+		if info.ShellOnError && info.InputSteerer != nil {
+			solveErrorHandler := func(c gateway.Client, err error) {
+				var se *solvererrdefs.SolveError
+				if errors.As(err, &se) {
+					displayError(ctx, info, err)
+					errorShown = true
+
+					pr, pw := io.Pipe()
+					info.InputSteerer.Push(pw)
+					if err := codegen.ExecWithSolveErr(ctx, c, se, pr, info.Output); err != nil {
+						fmt.Fprintf(info.ErrOutput, "failed to exec debug shell after error: %s\n", err)
+					}
+					info.InputSteerer.Pop()
+				}
+			}
+
+			solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(solveErrorHandler))
+		}
+		return solveReq.Solve(pCtx, cln, p.MultiWriter(), solveOpts...)
 	})
 
 	return p.Wait()
+}
+
+func displayError(ctx context.Context, info RunInfo, err error) {
+	// Handle backtrace.
+	backtrace := diagnostic.Backtrace(ctx, err)
+	if len(backtrace) > 0 {
+		color := diagnostic.Color(ctx)
+		fmt.Fprintf(info.ErrOutput, color.Sprintf(
+			"%s: %s\n",
+			color.Bold(color.Red("error")),
+			color.Bold(diagnostic.Cause(err)),
+		))
+	}
+	for i, span := range backtrace {
+		if !info.Backtrace && i != len(backtrace)-1 {
+			if i == 0 {
+				color := diagnostic.Color(ctx)
+				frame := "frame"
+				if len(backtrace) > 2 {
+					frame = "frames"
+				}
+				fmt.Fprintf(info.ErrOutput, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
+			}
+			continue
+		}
+
+		pretty := span.Pretty(ctx, diagnostic.WithNumContext(2))
+		lines := strings.Split(pretty, "\n")
+		for j, line := range lines {
+			if j == 0 {
+				lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
+			} else {
+				lines[j] = fmt.Sprintf("    %s", line)
+			}
+		}
+		fmt.Fprintf(info.ErrOutput, "%s\n", strings.Join(lines, "\n"))
+	}
+
+	if len(backtrace) == 0 {
+		// Handle diagnostic errors.
+		spans := diagnostic.Spans(err)
+		for _, span := range spans {
+			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+		}
+	}
 }
 
 func ModuleReadCloser(args []string) (io.ReadCloser, error) {
