@@ -233,25 +233,30 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return nil
 	}
 
+	solveErrorHandler := func(c gateway.Client, err error) {
+		var se *solvererrdefs.SolveError
+		if !errors.As(err, &se) {
+			return
+		}
+
+		displayError(ctx, info, err)
+		errorShown = true
+
+		pr, pw := io.Pipe()
+		defer pw.Close()
+
+		info.InputSteerer.Push(pw)
+		defer info.InputSteerer.Pop()
+
+		if err := codegen.ExecWithSolveErr(ctx, c, se, pr, info.Output); err != nil {
+			fmt.Fprintf(info.ErrOutput, "failed to exec debug shell after error: %s\n", err)
+		}
+	}
+
 	p.Go(func(pCtx context.Context) error {
 		defer p.Release()
 		var solveOpts []solver.SolveOption
 		if info.ShellOnError && info.InputSteerer != nil {
-			solveErrorHandler := func(c gateway.Client, err error) {
-				var se *solvererrdefs.SolveError
-				if errors.As(err, &se) {
-					displayError(ctx, info, err)
-					errorShown = true
-
-					pr, pw := io.Pipe()
-					info.InputSteerer.Push(pw)
-					if err := codegen.ExecWithSolveErr(ctx, c, se, pr, info.Output); err != nil {
-						fmt.Fprintf(info.ErrOutput, "failed to exec debug shell after error: %s\n", err)
-					}
-					info.InputSteerer.Pop()
-				}
-			}
-
 			solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(solveErrorHandler))
 		}
 		return solveReq.Solve(pCtx, cln, p.MultiWriter(), solveOpts...)
