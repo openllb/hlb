@@ -172,13 +172,10 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 		return err
 	}
 
-	p.Go(func(ctx context.Context) error {
-		defer p.Release()
-		ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-		return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
-	})
-
-	return p.Wait()
+	defer p.Release()
+	defer p.Wait()
+	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
+	return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
 }
 
 func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
@@ -286,16 +283,11 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 			return err
 		}
 
-		p.Go(func(ctx context.Context) error {
-			defer p.Release()
+		defer p.Release()
+		defer p.Wait()
 
-			var err error
-			ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-			tree, err = module.NewTree(ctx, cln, mod, info.Long)
-			return err
-		})
-
-		err = p.Wait()
+		ctx := codegen.WithMultiWriter(ctx, p.MultiWriter())
+		tree, err = module.NewTree(ctx, cln, mod, info.Long)
 		if err != nil {
 			return err
 		}
