@@ -781,7 +781,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 	return g.Wait()
 }
 
-func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.SolveError, r io.ReadCloser, w io.Writer, args ...string) error {
+func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.SolveError, r io.ReadCloser, w io.Writer, env []string, args ...string) error {
 	op := se.Op
 	solveExec, ok := op.Op.(*pb.Op_Exec)
 	if !ok {
@@ -828,7 +828,7 @@ func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.S
 		Args:         args,
 		Cwd:          exec.Meta.Cwd,
 		User:         exec.Meta.User,
-		Env:          exec.Meta.Env,
+		Env:          append(exec.Meta.Env, env...),
 		Tty:          true,
 		Stdin:        r,
 		Stdout:       NopWriteCloser(w),

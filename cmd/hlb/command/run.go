@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
@@ -76,23 +77,50 @@ var runCommand = &cli.Command{
 		}
 
 		ri := RunInfo{
-			Tree:         c.Bool("tree"),
-			Targets:      c.StringSlice("target"),
-			LLB:          c.Bool("llb"),
-			Backtrace:    c.Bool("backtrace"),
-			LogOutput:    c.String("log-output"),
-			ShellOnError: c.Bool("shell-on-error"),
-			ErrOutput:    os.Stderr,
-			Output:       os.Stdout,
+			DisplayErrorOnce: &sync.Once{},
+			Tree:             c.Bool("tree"),
+			Targets:          c.StringSlice("target"),
+			LLB:              c.Bool("llb"),
+			Backtrace:        c.Bool("backtrace"),
+			LogOutput:        c.String("log-output"),
+			ErrOutput:        os.Stderr,
+			Output:           os.Stdout,
 		}
 
+		var inputSteerer *codegen.InputSteerer
 		if c.Bool("debug") {
 			pr, pw := io.Pipe()
 			r := bufio.NewReader(pr)
-			ri.InputSteerer = codegen.NewInputSteerer(os.Stdin, pw)
+			inputSteerer = codegen.NewInputSteerer(os.Stdin, pw)
 
-			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, ri.InputSteerer, r)
-			ri.ShellOnError = true
+			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
+		}
+
+		if c.Bool("shell-on-error") {
+			if inputSteerer == nil {
+				inputSteerer = codegen.NewInputSteerer(os.Stdin)
+			}
+
+			ri.SolveErrorHandler = func(ctx context.Context, c gateway.Client, err error) {
+				var se *solvererrdefs.SolveError
+				if !errors.As(err, &se) {
+					return
+				}
+
+				ri.DisplayErrorOnce.Do(func() {
+					DisplayError(ctx, ri, err)
+				})
+
+				pr, pw := io.Pipe()
+				defer pw.Close()
+
+				inputSteerer.Push(pw)
+				defer inputSteerer.Pop()
+
+				if err := codegen.ExecWithSolveErr(ctx, c, se, pr, ri.Output, nil); err != nil {
+					fmt.Fprintf(ri.ErrOutput, "failed to exec debug shell after error: %s\n", err)
+				}
+			}
 		}
 
 		return Run(ctx, cln, rc, ri)
@@ -100,16 +128,16 @@ var runCommand = &cli.Command{
 }
 
 type RunInfo struct {
-	Debugger     codegen.Debugger
-	InputSteerer *codegen.InputSteerer
-	ShellOnError bool
-	Tree         bool
-	Backtrace    bool
-	Targets      []string
-	LLB          bool
-	LogOutput    string
-	ErrOutput    solver.Console
-	Output       io.Writer
+	Debugger          codegen.Debugger
+	SolveErrorHandler func(context.Context, gateway.Client, error)
+	DisplayErrorOnce  *sync.Once
+	Tree              bool
+	Backtrace         bool
+	Targets           []string
+	LLB               bool
+	LogOutput         string
+	ErrOutput         solver.Console
+	Output            io.Writer
 
 	// override defaults sources as necessary
 	Environ []string
@@ -170,14 +198,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	ctx = diagnostic.WithSources(ctx, builtin.Sources())
 
-	var errorShown bool
 	defer func() {
 		if err == nil {
 			return
 		}
-		if !errorShown {
-			displayError(ctx, info, err)
-		}
+		info.DisplayErrorOnce.Do(func() {
+			DisplayError(ctx, info, err)
+		})
 
 		numErrs := 1
 		backtrace := diagnostic.Backtrace(ctx, err)
@@ -241,36 +268,16 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return nil
 	}
 
-	solveErrorHandler := func(c gateway.Client, err error) {
-		var se *solvererrdefs.SolveError
-		if !errors.As(err, &se) {
-			return
-		}
-
-		displayError(ctx, info, err)
-		errorShown = true
-
-		pr, pw := io.Pipe()
-		defer pw.Close()
-
-		info.InputSteerer.Push(pw)
-		defer info.InputSteerer.Pop()
-
-		if err := codegen.ExecWithSolveErr(ctx, c, se, pr, info.Output); err != nil {
-			fmt.Fprintf(info.ErrOutput, "failed to exec debug shell after error: %s\n", err)
-		}
-	}
-
 	defer p.Wait()
 	defer p.Release()
 	var solveOpts []solver.SolveOption
-	if info.ShellOnError && info.InputSteerer != nil {
-		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(solveErrorHandler))
+	if info.SolveErrorHandler != nil {
+		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(info.SolveErrorHandler))
 	}
 	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
 }
 
-func displayError(ctx context.Context, info RunInfo, err error) {
+func DisplayError(ctx context.Context, info RunInfo, err error) {
 	// Handle backtrace.
 	backtrace := diagnostic.Backtrace(ctx, err)
 	if len(backtrace) > 0 {
