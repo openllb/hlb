@@ -21,7 +21,7 @@ type SolveCallback func(ctx context.Context, resp *client.SolveResponse) error
 
 type SolveInfo struct {
 	Evaluate              bool
-	ErrorHandler          func(gateway.Client, error)
+	ErrorHandler          func(context.Context, gateway.Client, error)
 	OutputDockerRef       string
 	OutputPushImage       string
 	OutputLocal           string
@@ -108,7 +108,7 @@ func WithEvaluate(info *SolveInfo) error {
 	return nil
 }
 
-func WithErrorHandler(errorHandler func(gateway.Client, error)) SolveOption {
+func WithErrorHandler(errorHandler func(context.Context, gateway.Client, error)) SolveOption {
 	return func(info *SolveInfo) error {
 		info.ErrorHandler = errorHandler
 		return nil
@@ -131,7 +131,7 @@ func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		})
 		if err != nil {
 			if info.ErrorHandler != nil {
-				info.ErrorHandler(c, err)
+				info.ErrorHandler(ctx, c, err)
 			}
 			return nil, err
 		}
