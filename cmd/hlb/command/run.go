@@ -234,6 +234,12 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		opts = append(opts, codegen.WithDebugger(info.Debugger))
 	}
 
+	var solveOpts []solver.SolveOption
+	if info.SolveErrorHandler != nil {
+		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(info.SolveErrorHandler))
+		opts = append(opts, codegen.WithExtraSolveOpts(solveOpts))
+	}
+
 	solveReq, err := hlb.Compile(ctx, cln, mod, targets, opts...)
 	if err != nil {
 		p.Release()
@@ -270,10 +276,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	defer p.Wait()
 	defer p.Release()
-	var solveOpts []solver.SolveOption
-	if info.SolveErrorHandler != nil {
-		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(info.SolveErrorHandler))
-	}
 	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
 }
 

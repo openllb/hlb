@@ -40,8 +40,10 @@ func (t Template) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	data := map[string]interface{}{}
 	for _, opt := range opts {
-		o := opt.(*TemplateField)
-		data[o.Name] = o.Value
+		switch o := opt.(type) {
+		case *TemplateField:
+			data[o.Name] = o.Value
+		}
 	}
 
 	buf := bytes.NewBufferString("")
