@@ -17,8 +17,9 @@ import (
 )
 
 type CodeGen struct {
-	Debug Debugger
-	cln   *client.Client
+	Debug          Debugger
+	cln            *client.Client
+	extraSolveOpts []solver.SolveOption
 }
 
 type CodeGenOption func(*CodeGen) error
@@ -26,6 +27,13 @@ type CodeGenOption func(*CodeGen) error
 func WithDebugger(dbgr Debugger) CodeGenOption {
 	return func(i *CodeGen) error {
 		i.Debug = dbgr
+		return nil
+	}
+}
+
+func WithExtraSolveOpts(extraOpts []solver.SolveOption) CodeGenOption {
+	return func(i *CodeGen) error {
+		i.extraSolveOpts = append(i.extraSolveOpts, extraOpts...)
 		return nil
 	}
 }
@@ -307,6 +315,10 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 	// Pass binding if available.
 	if b != nil {
 		ctx = WithBinding(ctx, b)
+	}
+
+	for _, opt := range cg.extraSolveOpts {
+		opts = append(opts, opt)
 	}
 
 	var (

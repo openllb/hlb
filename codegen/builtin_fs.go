@@ -61,7 +61,10 @@ type Image struct{}
 func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
 	var imageOpts []llb.ImageOption
 	for _, opt := range opts {
-		imageOpts = append(imageOpts, opt.(llb.ImageOption))
+		switch o := opt.(type) {
+		case llb.ImageOption:
+			imageOpts = append(imageOpts, o)
+		}
 	}
 	for _, opt := range SourceMap(ctx) {
 		imageOpts = append(imageOpts, opt)
@@ -107,7 +110,10 @@ type HTTP struct{}
 func (h HTTP) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, url string) error {
 	var httpOpts []llb.HTTPOption
 	for _, opt := range opts {
-		httpOpts = append(httpOpts, opt.(llb.HTTPOption))
+		switch o := opt.(type) {
+		case llb.HTTPOption:
+			httpOpts = append(httpOpts, o)
+		}
 	}
 	for _, opt := range SourceMap(ctx) {
 		httpOpts = append(httpOpts, opt)
@@ -121,7 +127,10 @@ type Git struct{}
 func (g Git) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, remote, ref string) error {
 	var gitOpts []llb.GitOption
 	for _, opt := range opts {
-		gitOpts = append(gitOpts, opt.(llb.GitOption))
+		switch o := opt.(type) {
+		case llb.GitOption:
+			gitOpts = append(gitOpts, o)
+		}
 	}
 	for _, opt := range SourceMap(ctx) {
 		gitOpts = append(gitOpts, opt)
@@ -145,7 +154,10 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	var localOpts []llb.LocalOption
 	for _, opt := range opts {
-		localOpts = append(localOpts, opt.(llb.LocalOption))
+		switch o := opt.(type) {
+		case llb.LocalOption:
+			localOpts = append(localOpts, o)
+		}
 	}
 	for _, opt := range SourceMap(ctx) {
 		localOpts = append(localOpts, opt)
@@ -415,7 +427,10 @@ func (m Mkdir) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	var mkdirOpts []llb.MkdirOption
 	for _, opt := range opts {
-		mkdirOpts = append(mkdirOpts, opt.(llb.MkdirOption))
+		switch o := opt.(type) {
+		case llb.MkdirOption:
+			mkdirOpts = append(mkdirOpts, o)
+		}
 	}
 
 	fs.State = fs.State.File(
@@ -435,7 +450,10 @@ func (m Mkfile) Call(ctx context.Context, cln *client.Client, ret Register, opts
 
 	var mkfileOpts []llb.MkfileOption
 	for _, opt := range opts {
-		mkfileOpts = append(mkfileOpts, opt.(llb.MkfileOption))
+		switch o := opt.(type) {
+		case llb.MkfileOption:
+			mkfileOpts = append(mkfileOpts, o)
+		}
 	}
 
 	fs.State = fs.State.File(
@@ -455,7 +473,10 @@ func (m Rm) Call(ctx context.Context, cln *client.Client, ret Register, opts Opt
 
 	var rmOpts []llb.RmOption
 	for _, opt := range opts {
-		rmOpts = append(rmOpts, opt.(llb.RmOption))
+		switch o := opt.(type) {
+		case llb.RmOption:
+			rmOpts = append(rmOpts, o)
+		}
 	}
 
 	fs.State = fs.State.File(
@@ -475,8 +496,10 @@ func (m Copy) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 
 	var info = &llb.CopyInfo{}
 	for _, opt := range opts {
-		o := opt.(llb.CopyOption)
-		o.SetCopyOption(info)
+		switch o := opt.(type) {
+		case llb.CopyOption:
+			o.SetCopyOption(info)
+		}
 	}
 
 	fs.State = fs.State.File(
@@ -622,6 +645,12 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 			return nil
 		}),
 	)
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case solver.SolveOption:
+			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		}
+	}
 
 	v, err := NewValue(exportFS)
 	if err != nil {
@@ -679,6 +708,12 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		solver.WithImageSpec(exportFS.Image),
 		solver.WithDownloadDockerTarball(ref),
 	)
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case solver.SolveOption:
+			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		}
+	}
 
 	r, w := io.Pipe()
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)))
@@ -767,6 +802,13 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownload(localPath))
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case solver.SolveOption:
+			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		}
+	}
+
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTargetDir(localPath))
 
 	v, err := NewValue(exportFS)
@@ -819,6 +861,13 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadTarball())
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case solver.SolveOption:
+			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		}
+	}
+
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
 	v, err := NewValue(exportFS)
@@ -871,6 +920,13 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadOCITarball())
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case solver.SolveOption:
+			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		}
+	}
+
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
 	v, err := NewValue(exportFS)
@@ -926,6 +982,13 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 		solver.WithImageSpec(exportFS.Image),
 		solver.WithDownloadDockerTarball(ref),
 	)
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case solver.SolveOption:
+			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		}
+	}
+
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
 	v, err := NewValue(exportFS)
