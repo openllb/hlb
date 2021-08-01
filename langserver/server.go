@@ -173,7 +173,7 @@ func (ls *LangServer) publishSemanticHighlighting(ctx context.Context, td TextDo
 		})
 	}
 
-	return ls.server.Push(ctx, "textDocument/semanticHighlighting", params)
+	return ls.server.Notify(ctx, "textDocument/semanticHighlighting", params)
 }
 
 func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.Module) {
