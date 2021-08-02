@@ -575,9 +575,13 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		}
 		id = digest.FromString(localPath).String()
 	} else {
-		conn, err := net.Dial(src.Scheme, src.Host)
-		if err != nil {
-			return Arg(ctx, 0).WithError(fmt.Errorf("cannot dial %s", src))
+		dialerFunc := func() (net.Conn, error) {
+			var dialer net.Dialer
+			conn, err := dialer.DialContext(ctx, src.Scheme, src.Host)
+			if err != nil {
+				return nil, Arg(ctx, 0).WithError(fmt.Errorf("cannot dial %s", src))
+			}
+			return conn, err
 		}
 
 		dir, err := ioutil.TempDir("", "hlb-forward")
@@ -586,14 +590,15 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		}
 
 		localPath = filepath.Join(dir, "proxy.sock")
-		id = digest.FromString(localPath).String()
+		id = digest.FromString(src.String()).String()
 
-		l, err := net.Listen("unix", localPath)
+		var lc net.ListenConfig
+		l, err := lc.Listen(ctx, "unix", localPath)
 		if err != nil {
 			return errors.Wrap(err, "failed to listen on forwarding sock")
 		}
 
-		g, ctx := errgroup.WithContext(ctx)
+		var g errgroup.Group
 
 		retOpts = append(retOpts, solver.WithCallback(func(ctx context.Context, resp *client.SolveResponse) error {
 			defer os.RemoveAll(dir)
@@ -607,9 +612,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		}))
 
 		g.Go(func() error {
-			defer conn.Close()
-
-			err := sockproxy.Run(ctx, conn, l)
+			err := sockproxy.Run(l, dialerFunc)
 
 			if err != nil && !isClosedNetworkError(err) {
 				return err
