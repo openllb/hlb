@@ -1,20 +1,17 @@
 package sockproxy
 
 import (
-	"context"
 	"io"
 	"net"
 )
 
-func Run(ctx context.Context, conn net.Conn, l net.Listener) error {
+func Run(l net.Listener, dialer func() (net.Conn, error)) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
 		proxy, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		conn, err := dialer()
 		if err != nil {
 			return err
 		}
@@ -25,6 +22,7 @@ func Run(ctx context.Context, conn net.Conn, l net.Listener) error {
 		}()
 
 		go func() {
+			defer conn.Close()
 			_, _ = io.Copy(proxy, conn)
 		}()
 	}
