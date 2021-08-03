@@ -515,7 +515,7 @@ func (s Host) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 		return err
 	}
 
-	return ret.Set(append(retOpts, llb.AddExtraHost(host, address)))
+	return ret.Set(append(retOpts, llbutil.WithExtraHost(host, address)))
 }
 
 type SSH struct{}
