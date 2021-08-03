@@ -561,6 +561,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 	var (
 		securityMode pb.SecurityMode
 		netMode      pb.NetMode
+		extraHosts   []*pb.HostIP
 		secrets      []llbutil.SecretOption
 		ssh          []llbutil.SSHOption
 	)
@@ -598,6 +599,11 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 			securityMode = o.SecurityMode
 		case llbutil.NetworkOption:
 			netMode = o.NetMode
+		case llbutil.HostOption:
+			extraHosts = append(extraHosts, &pb.HostIP{
+				Host: o.Host,
+				IP:   o.IP.String(),
+			})
 		case llbutil.SecretOption:
 			secrets = append(secrets, o)
 		case llbutil.SSHOption:
@@ -636,7 +642,8 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 
 		return solver.Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
 			ctrReq := gateway.NewContainerRequest{
-				NetMode: netMode,
+				NetMode:    netMode,
+				ExtraHosts: extraHosts,
 			}
 			for _, mount := range mounts {
 				gatewayMount := gateway.Mount{
@@ -811,6 +818,7 @@ func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.S
 	ctr, err := c.NewContainer(ctx, gateway.NewContainerRequest{
 		Mounts:      mounts,
 		NetMode:     exec.Network,
+		ExtraHosts:  exec.Meta.ExtraHosts,
 		Platform:    op.Platform,
 		Constraints: op.Constraints,
 	})

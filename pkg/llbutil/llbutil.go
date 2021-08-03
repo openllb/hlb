@@ -1,6 +1,7 @@
 package llbutil
 
 import (
+	"net"
 	"os"
 	"time"
 
@@ -326,6 +327,19 @@ func WithNetwork(netMode pb.NetMode) llb.RunOption {
 
 func (network NetworkOption) SetRunOption(ei *llb.ExecInfo) {
 	llb.Network(network.NetMode).SetRunOption(ei)
+}
+
+type HostOption struct {
+	Host string
+	IP   net.IP
+}
+
+func WithExtraHost(host string, ip net.IP) llb.RunOption {
+	return HostOption{Host: host, IP: ip}
+}
+
+func (host HostOption) SetRunOption(ei *llb.ExecInfo) {
+	llb.AddExtraHost(host.Host, host.IP).SetRunOption(ei)
 }
 
 type SecretOption struct {
