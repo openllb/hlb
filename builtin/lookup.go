@@ -117,6 +117,12 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
+					"merge": {
+						Params: []*parser.Field{
+							parser.NewField(parser.Filesystem, "inputs", true),
+						},
+						Effects: []*parser.Field{},
+					},
 					"dockerPush": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ref", false),
@@ -1175,6 +1181,12 @@ option::copy includePatterns(variadic string pattern)
 # @return an option to copy files that don&#39;t match any pattern.
 option::copy excludePatterns(variadic string pattern)
 
+# Merges one or more input filesystems into the current filesystem.
+#
+# @param input filesystems to merge.
+# @return merged filesystem with union of the current filesystem and inputs.
+fs merge(variadic fs inputs)
+
 # Pushes the filesystem to a registry following the distribution
 # spec: https://github.com/opencontainers/distribution-spec/
 #
@@ -1382,5 +1394,6 @@ pipeline stage(variadic pipeline pipelines)
 # arguments for the command.
 # @return the filesystem after the breakpoint
 fs breakpoint(variadic string command)
+
 `
 )

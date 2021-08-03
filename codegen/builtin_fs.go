@@ -29,6 +29,7 @@ import (
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
+	"github.com/pkg/errors"
 	fstypes "github.com/tonistiigi/fsutil/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -519,6 +520,31 @@ func (m Copy) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 	fs.SolveOpts = append(fs.SolveOpts, input.SolveOpts...)
 	fs.SessionOpts = append(fs.SessionOpts, input.SessionOpts...)
 	commitHistory(fs.Image, false, "COPY %s %s", src, dest)
+
+	return ret.Set(fs)
+}
+
+type Merge struct{}
+
+func (m Merge) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, inputs ...Filesystem) error {
+	fs, err := ret.Filesystem()
+	if err != nil {
+		return err
+	}
+
+	if len(inputs) == 0 {
+		return errors.New("merge takes at least one filesystem as arguments")
+	}
+
+	states := []llb.State{fs.State}
+	for _, input := range inputs {
+		states = append(states, input.State)
+		fs.SolveOpts = append(fs.SolveOpts, input.SolveOpts...)
+		fs.SessionOpts = append(fs.SessionOpts, input.SessionOpts...)
+	}
+	fs.State = llb.Merge(states, SourceMap(ctx)...)
+
+	commitHistory(fs.Image, false, "MERGE %s %s", "/", "/")
 
 	return ret.Set(fs)
 }

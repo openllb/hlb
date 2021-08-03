@@ -449,6 +449,20 @@
 
 
 
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>merge</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>inputs</span>)
+
+!!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>inputs</span>"
+	
+
+
+
+	#!hlb
+	fs default() {
+		merge scratch
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>mkdir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>, <span class='hlb-type'>int</span> <span class='hlb-variable'>filemode</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>"

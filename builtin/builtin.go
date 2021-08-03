@@ -34,6 +34,7 @@ var (
 			"mkfile":                codegen.Mkfile{},
 			"rm":                    codegen.Rm{},
 			"copy":                  codegen.Copy{},
+			"merge":                 codegen.Merge{},
 			"entrypoint":            codegen.Entrypoint{},
 			"cmd":                   codegen.Cmd{},
 			"label":                 codegen.Label{},

@@ -14,6 +14,7 @@ import (
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/pkg/llbutil"
+	"github.com/pkg/errors"
 	"github.com/xlab/treeprint"
 	"golang.org/x/sync/errgroup"
 )
@@ -223,6 +224,10 @@ func (o op) Tree(tree treeprint.Tree) error {
 		branch = tree.AddMetaBranch("file", v.File)
 	case *pb.Op_Build:
 		branch = tree.AddMetaBranch("build", v.Build)
+	case *pb.Op_Merge:
+		branch = tree.AddMetaBranch("merge", v.Merge)
+	default:
+		return errors.Errorf("unrecognized op %T", pbOp.Op)
 	}
 
 	solve := branch.AddBranch("solve options")
