@@ -476,10 +476,10 @@ func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	case "host":
 		netMode = pb.NetMode_HOST
 		retOpts = append(retOpts, solver.WithEntitlement(entitlements.EntitlementNetworkHost))
-	case "node":
+	case "none":
 		netMode = pb.NetMode_NONE
 	default:
-		return errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "node"})
+		return errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "none"})
 	}
 
 	return ret.Set(append(retOpts, llbutil.WithNetwork(netMode)))
