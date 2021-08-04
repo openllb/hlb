@@ -19,7 +19,7 @@ var (
 	FileBuffer *filebuffer.FileBuffer
 
 	Callables = map[parser.Kind]map[string]parser.Callable{
-		parser.Filesystem: map[string]parser.Callable{
+		parser.Filesystem: {
 			"scratch":               codegen.Scratch{},
 			"image":                 codegen.Image{},
 			"http":                  codegen.HTTP{},
@@ -48,7 +48,7 @@ var (
 			"downloadDockerTarball": codegen.DownloadDockerTarball{},
 			"breakpoint":            codegen.SetBreakpoint{},
 		},
-		parser.String: map[string]parser.Callable{
+		parser.String: {
 			"format":    codegen.Format{},
 			"template":  codegen.Template{},
 			"manifest":  codegen.Manifest{},
@@ -58,31 +58,31 @@ var (
 			"localEnv":  codegen.LocalEnv{},
 			"localRun":  codegen.LocalRun{},
 		},
-		parser.Pipeline: map[string]parser.Callable{
+		parser.Pipeline: {
 			"stage":    codegen.Stage{},
 			"parallel": codegen.Stage{},
 		},
-		"option::image": map[string]parser.Callable{
+		"option::image": {
 			"resolve": codegen.Resolve{},
 		},
-		"option::http": map[string]parser.Callable{
+		"option::http": {
 			"checksum": codegen.Checksum{},
 			"chmod":    codegen.Chmod{},
 			"filename": codegen.Filename{},
 		},
-		"option::git": map[string]parser.Callable{
+		"option::git": {
 			"keepGitDir": codegen.KeepGitDir{},
 		},
-		"option::local": map[string]parser.Callable{
+		"option::local": {
 			"includePatterns": codegen.IncludePatterns{},
 			"excludePatterns": codegen.ExcludePatterns{},
 			"followPaths":     codegen.FollowPaths{},
 		},
-		"option::frontend": map[string]parser.Callable{
+		"option::frontend": {
 			"input": codegen.FrontendInput{},
 			"opt":   codegen.FrontendOpt{},
 		},
-		"option::run": map[string]parser.Callable{
+		"option::run": {
 			"readonlyRootfs": codegen.ReadonlyRootfs{},
 			"env":            codegen.RunEnv{},
 			"dir":            codegen.RunDir{},
@@ -98,40 +98,40 @@ var (
 			"mount":          codegen.Mount{},
 			"breakpoint":     codegen.RunBreakpoint{},
 		},
-		"option::ssh": map[string]parser.Callable{
+		"option::ssh": {
 			"target":     codegen.MountTarget{},
 			"uid":        codegen.UID{},
 			"gid":        codegen.GID{},
 			"mode":       codegen.UtilChmod{},
 			"localPaths": codegen.LocalPaths{},
 		},
-		"option::secret": map[string]parser.Callable{
+		"option::secret": {
 			"uid":             codegen.UID{},
 			"gid":             codegen.GID{},
 			"mode":            codegen.UtilChmod{},
 			"includePatterns": codegen.SecretIncludePatterns{},
 			"excludePatterns": codegen.SecretExcludePatterns{},
 		},
-		"option::mount": map[string]parser.Callable{
+		"option::mount": {
 			"readonly":   codegen.Readonly{},
 			"tmpfs":      codegen.Tmpfs{},
 			"sourcePath": codegen.SourcePath{},
 			"cache":      codegen.Cache{},
 		},
-		"option::mkdir": map[string]parser.Callable{
+		"option::mkdir": {
 			"createParents": codegen.CreateParents{},
 			"chown":         codegen.Chown{},
 			"createdTime":   codegen.CreatedTime{},
 		},
-		"option::mkfile": map[string]parser.Callable{
+		"option::mkfile": {
 			"chown":       codegen.Chown{},
 			"createdTime": codegen.CreatedTime{},
 		},
-		"option::rm": map[string]parser.Callable{
+		"option::rm": {
 			"allowNotFound": codegen.AllowNotFound{},
 			"allowWildcard": codegen.AllowWildcard{},
 		},
-		"option::copy": map[string]parser.Callable{
+		"option::copy": {
 			"followSymlinks":     codegen.FollowSymlinks{},
 			"contentsOnly":       codegen.ContentsOnly{},
 			"unpack":             codegen.Unpack{},
@@ -144,16 +144,16 @@ var (
 			"includePatterns":    codegen.CopyIncludePatterns{},
 			"excludePatterns":    codegen.CopyExcludePatterns{},
 		},
-		"option::localRun": map[string]parser.Callable{
+		"option::localRun": {
 			"ignoreError":   codegen.IgnoreError{},
 			"onlyStderr":    codegen.OnlyStderr{},
 			"includeStderr": codegen.IncludeStderr{},
 			"shlex":         codegen.Shlex{},
 		},
-		"option::template": map[string]parser.Callable{
+		"option::template": {
 			"stringField": codegen.StringField{},
 		},
-		"option::manifest": map[string]parser.Callable{
+		"option::manifest": {
 			"platform": codegen.Platform{},
 		},
 	}

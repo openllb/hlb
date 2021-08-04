@@ -122,9 +122,9 @@ type FuncLookup struct {
 var (
 	Lookup = BuiltinLookup{
 		ByKind: map[parser.Kind]LookupByKind{
-			{{range $kind, $funcs := .FuncsByKind}}{{kind $kind}}: LookupByKind{
+			{{range $kind, $funcs := .FuncsByKind}}{{kind $kind}}: {
 				Func: map[string]FuncLookup{
-					{{range $i, $func := $funcs}}"{{$func.Name}}": FuncLookup{
+					{{range $i, $func := $funcs}}"{{$func.Name}}": {
 						Params:  []*parser.Field{
 							{{range $i, $param := $func.Params}}parser.NewField({{kind $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Modifier}}true{{else}}false{{end}}),
 							{{end}}
