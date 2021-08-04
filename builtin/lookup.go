@@ -20,82 +20,82 @@ type FuncLookup struct {
 var (
 	Lookup = BuiltinLookup{
 		ByKind: map[parser.Kind]LookupByKind{
-			parser.Filesystem: LookupByKind{
+			parser.Filesystem: {
 				Func: map[string]FuncLookup{
-					"scratch": FuncLookup{
+					"scratch": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"image": FuncLookup{
+					"image": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ref", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"http": FuncLookup{
+					"http": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "url", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"git": FuncLookup{
+					"git": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "remote", false),
 							parser.NewField(parser.String, "ref", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"local": FuncLookup{
+					"local": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"frontend": FuncLookup{
+					"frontend": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "source", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"shell": FuncLookup{
+					"shell": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "arg", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"run": FuncLookup{
+					"run": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "arg", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"env": FuncLookup{
+					"env": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "key", false),
 							parser.NewField(parser.String, "value", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"dir": FuncLookup{
+					"dir": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"user": FuncLookup{
+					"user": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "name", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"mkdir": FuncLookup{
+					"mkdir": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 							parser.NewField(parser.Int, "filemode", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"mkfile": FuncLookup{
+					"mkfile": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 							parser.NewField(parser.Int, "filemode", false),
@@ -103,13 +103,13 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
-					"rm": FuncLookup{
+					"rm": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"copy": FuncLookup{
+					"copy": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Filesystem, "input", false),
 							parser.NewField(parser.String, "src", false),
@@ -117,7 +117,7 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
-					"dockerPush": FuncLookup{
+					"dockerPush": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ref", false),
 						},
@@ -125,75 +125,75 @@ var (
 							parser.NewField(parser.String, "digest", false),
 						},
 					},
-					"dockerLoad": FuncLookup{
+					"dockerLoad": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ref", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"download": FuncLookup{
+					"download": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "localPath", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"downloadTarball": FuncLookup{
+					"downloadTarball": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "localPath", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"downloadOCITarball": FuncLookup{
+					"downloadOCITarball": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "localPath", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"downloadDockerTarball": FuncLookup{
+					"downloadDockerTarball": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "localPath", false),
 							parser.NewField(parser.String, "ref", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"entrypoint": FuncLookup{
+					"entrypoint": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "args", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"cmd": FuncLookup{
+					"cmd": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "args", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"label": FuncLookup{
+					"label": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "key", false),
 							parser.NewField(parser.String, "value", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"expose": FuncLookup{
+					"expose": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ports", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"volumes": FuncLookup{
+					"volumes": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "mountpoints", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"stopSignal": FuncLookup{
+					"stopSignal": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "signal", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"breakpoint": FuncLookup{
+					"breakpoint": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "command", true),
 						},
@@ -201,57 +201,57 @@ var (
 					},
 				},
 			},
-			"option::copy": LookupByKind{
+			"option::copy": {
 				Func: map[string]FuncLookup{
-					"followSymlinks": FuncLookup{
+					"followSymlinks": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"contentsOnly": FuncLookup{
+					"contentsOnly": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"unpack": FuncLookup{
+					"unpack": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"createDestPath": FuncLookup{
+					"createDestPath": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"allowWildcard": FuncLookup{
+					"allowWildcard": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"allowEmptyWildcard": FuncLookup{
+					"allowEmptyWildcard": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"chown": FuncLookup{
+					"chown": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "owner", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"chmod": FuncLookup{
+					"chmod": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"createdTime": FuncLookup{
+					"createdTime": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "created", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"includePatterns": FuncLookup{
+					"includePatterns": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "pattern", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"excludePatterns": FuncLookup{
+					"excludePatterns": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "pattern", true),
 						},
@@ -259,16 +259,16 @@ var (
 					},
 				},
 			},
-			"option::frontend": LookupByKind{
+			"option::frontend": {
 				Func: map[string]FuncLookup{
-					"input": FuncLookup{
+					"input": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "key", false),
 							parser.NewField(parser.Filesystem, "value", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"opt": FuncLookup{
+					"opt": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "key", false),
 							parser.NewField(parser.String, "value", false),
@@ -277,29 +277,29 @@ var (
 					},
 				},
 			},
-			"option::git": LookupByKind{
+			"option::git": {
 				Func: map[string]FuncLookup{
-					"keepGitDir": FuncLookup{
+					"keepGitDir": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
 				},
 			},
-			"option::http": LookupByKind{
+			"option::http": {
 				Func: map[string]FuncLookup{
-					"checksum": FuncLookup{
+					"checksum": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "digest", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"chmod": FuncLookup{
+					"chmod": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"filename": FuncLookup{
+					"filename": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "name", false),
 						},
@@ -307,29 +307,29 @@ var (
 					},
 				},
 			},
-			"option::image": LookupByKind{
+			"option::image": {
 				Func: map[string]FuncLookup{
-					"resolve": FuncLookup{
+					"resolve": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
 				},
 			},
-			"option::local": LookupByKind{
+			"option::local": {
 				Func: map[string]FuncLookup{
-					"includePatterns": FuncLookup{
+					"includePatterns": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "pattern", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"excludePatterns": FuncLookup{
+					"excludePatterns": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "pattern", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"followPaths": FuncLookup{
+					"followPaths": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", true),
 						},
@@ -337,29 +337,29 @@ var (
 					},
 				},
 			},
-			"option::localRun": LookupByKind{
+			"option::localRun": {
 				Func: map[string]FuncLookup{
-					"ignoreError": FuncLookup{
+					"ignoreError": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"includeStderr": FuncLookup{
+					"includeStderr": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"onlyStderr": FuncLookup{
+					"onlyStderr": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"shlex": FuncLookup{
+					"shlex": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
 				},
 			},
-			"option::manifest": LookupByKind{
+			"option::manifest": {
 				Func: map[string]FuncLookup{
-					"platform": FuncLookup{
+					"platform": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "os", false),
 							parser.NewField(parser.String, "arch", false),
@@ -368,19 +368,19 @@ var (
 					},
 				},
 			},
-			"option::mkdir": LookupByKind{
+			"option::mkdir": {
 				Func: map[string]FuncLookup{
-					"createParents": FuncLookup{
+					"createParents": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"chown": FuncLookup{
+					"chown": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "owner", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"createdTime": FuncLookup{
+					"createdTime": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "created", false),
 						},
@@ -388,15 +388,15 @@ var (
 					},
 				},
 			},
-			"option::mkfile": LookupByKind{
+			"option::mkfile": {
 				Func: map[string]FuncLookup{
-					"chown": FuncLookup{
+					"chown": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "owner", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"createdTime": FuncLookup{
+					"createdTime": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "created", false),
 						},
@@ -404,23 +404,23 @@ var (
 					},
 				},
 			},
-			"option::mount": LookupByKind{
+			"option::mount": {
 				Func: map[string]FuncLookup{
-					"readonly": FuncLookup{
+					"readonly": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"tmpfs": FuncLookup{
+					"tmpfs": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"sourcePath": FuncLookup{
+					"sourcePath": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"cache": FuncLookup{
+					"cache": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "cacheid", false),
 							parser.NewField(parser.String, "sharingmode", false),
@@ -429,89 +429,89 @@ var (
 					},
 				},
 			},
-			"option::rm": LookupByKind{
+			"option::rm": {
 				Func: map[string]FuncLookup{
-					"allowNotFound": FuncLookup{
+					"allowNotFound": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"allowWildcard": FuncLookup{
+					"allowWildcard": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
 				},
 			},
-			"option::run": LookupByKind{
+			"option::run": {
 				Func: map[string]FuncLookup{
-					"readonlyRootfs": FuncLookup{
+					"readonlyRootfs": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"env": FuncLookup{
+					"env": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "key", false),
 							parser.NewField(parser.String, "value", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"dir": FuncLookup{
+					"dir": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"user": FuncLookup{
+					"user": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "name", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"ignoreCache": FuncLookup{
+					"ignoreCache": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"network": FuncLookup{
+					"network": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "networkmode", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"security": FuncLookup{
+					"security": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "securitymode", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"shlex": FuncLookup{
+					"shlex": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"host": FuncLookup{
+					"host": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "hostname", false),
 							parser.NewField(parser.String, "address", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"ssh": FuncLookup{
+					"ssh": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"forward": FuncLookup{
+					"forward": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "src", false),
 							parser.NewField(parser.String, "dest", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"secret": FuncLookup{
+					"secret": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "localPath", false),
 							parser.NewField(parser.String, "mountPoint", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"mount": FuncLookup{
+					"mount": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Filesystem, "input", false),
 							parser.NewField(parser.String, "mountPoint", false),
@@ -520,7 +520,7 @@ var (
 							parser.NewField(parser.Filesystem, "target", false),
 						},
 					},
-					"breakpoint": FuncLookup{
+					"breakpoint": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "command", true),
 						},
@@ -528,33 +528,33 @@ var (
 					},
 				},
 			},
-			"option::secret": LookupByKind{
+			"option::secret": {
 				Func: map[string]FuncLookup{
-					"uid": FuncLookup{
+					"uid": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"gid": FuncLookup{
+					"gid": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"mode": FuncLookup{
+					"mode": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"includePatterns": FuncLookup{
+					"includePatterns": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "pattern", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"excludePatterns": FuncLookup{
+					"excludePatterns": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "pattern", true),
 						},
@@ -562,33 +562,33 @@ var (
 					},
 				},
 			},
-			"option::ssh": LookupByKind{
+			"option::ssh": {
 				Func: map[string]FuncLookup{
-					"target": FuncLookup{
+					"target": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "mountPoint", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"localPaths": FuncLookup{
+					"localPaths": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "path", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"uid": FuncLookup{
+					"uid": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"gid": FuncLookup{
+					"gid": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "id", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"mode": FuncLookup{
+					"mode": {
 						Params: []*parser.Field{
 							parser.NewField(parser.Int, "filemode", false),
 						},
@@ -596,9 +596,9 @@ var (
 					},
 				},
 			},
-			"option::template": LookupByKind{
+			"option::template": {
 				Func: map[string]FuncLookup{
-					"stringField": FuncLookup{
+					"stringField": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "name", false),
 							parser.NewField(parser.String, "value", false),
@@ -607,9 +607,9 @@ var (
 					},
 				},
 			},
-			"pipeline": LookupByKind{
+			"pipeline": {
 				Func: map[string]FuncLookup{
-					"stage": FuncLookup{
+					"stage": {
 						Params: []*parser.Field{
 							parser.NewField("pipeline", "pipelines", true),
 						},
@@ -617,41 +617,41 @@ var (
 					},
 				},
 			},
-			parser.String: LookupByKind{
+			parser.String: {
 				Func: map[string]FuncLookup{
-					"format": FuncLookup{
+					"format": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "formatString", false),
 							parser.NewField(parser.String, "values", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"localArch": FuncLookup{
+					"localArch": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"localCwd": FuncLookup{
+					"localCwd": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"localEnv": FuncLookup{
+					"localEnv": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "key", false),
 						},
 						Effects: []*parser.Field{},
 					},
-					"localOs": FuncLookup{
+					"localOs": {
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
-					"localRun": FuncLookup{
+					"localRun": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "command", false),
 							parser.NewField(parser.String, "args", true),
 						},
 						Effects: []*parser.Field{},
 					},
-					"manifest": FuncLookup{
+					"manifest": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ref", false),
 						},
@@ -661,7 +661,7 @@ var (
 							parser.NewField(parser.String, "index", false),
 						},
 					},
-					"template": FuncLookup{
+					"template": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "text", false),
 						},
