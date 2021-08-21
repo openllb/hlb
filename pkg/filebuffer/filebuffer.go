@@ -37,16 +37,16 @@ func (s *Sources) Set(filename string, fb *FileBuffer) {
 
 type FileBuffer struct {
 	filename  string
-	buf       *bytes.Buffer
+	buf       bytes.Buffer
 	offset    int
 	offsets   []int
 	sourceMap *llb.SourceMap
+	mu        sync.Mutex
 }
 
 func New(filename string) *FileBuffer {
 	return &FileBuffer{
 		filename: filename,
-		buf:      new(bytes.Buffer),
 	}
 }
 
@@ -55,6 +55,8 @@ func (fb *FileBuffer) Filename() string {
 }
 
 func (fb *FileBuffer) SourceMap() *llb.SourceMap {
+	fb.mu.Lock()
+	defer fb.mu.Unlock()
 	if fb.sourceMap == nil {
 		fb.sourceMap = llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
 	}
