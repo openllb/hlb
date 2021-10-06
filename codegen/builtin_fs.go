@@ -60,10 +60,16 @@ type Image struct{}
 
 func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
 	var imageOpts []llb.ImageOption
+	platform := DefaultPlatform(ctx)
+	resolveOpt := llb.ResolveImageConfigOpt{
+		Platform: &platform,
+	}
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case llb.ImageOption:
 			imageOpts = append(imageOpts, o)
+		case *specs.Platform:
+			resolveOpt.Platform = o
 		}
 	}
 	for _, opt := range SourceMap(ctx) {
@@ -83,7 +89,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	)
 
 	if resolver != nil {
-		_, config, err := resolver.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{})
+		_, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
 		if err != nil {
 			return err
 		}

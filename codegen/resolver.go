@@ -17,13 +17,19 @@ import (
 func NewCachedImageResolver(cln *client.Client) llb.ImageMetaResolver {
 	return &cachedImageResolver{
 		cln:   cln,
-		cache: make(map[string]*imageConfig),
+		cache: make(map[cacheKey]*imageConfig),
 	}
+}
+
+type cacheKey struct {
+	ref  string
+	os   string
+	arch string
 }
 
 type cachedImageResolver struct {
 	cln   *client.Client
-	cache map[string]*imageConfig
+	cache map[cacheKey]*imageConfig
 	mu    sync.RWMutex
 }
 
@@ -33,8 +39,13 @@ type imageConfig struct {
 }
 
 func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt llb.ResolveImageConfigOpt) (dgst digest.Digest, config []byte, err error) {
+	key := cacheKey{ref: ref}
+	if opt.Platform != nil {
+		key.os = opt.Platform.OS
+		key.arch = opt.Platform.Architecture
+	}
 	r.mu.RLock()
-	cfg, ok := r.cache[ref]
+	cfg, ok := r.cache[key]
 	r.mu.RUnlock()
 	if ok {
 		return cfg.dgst, cfg.config, nil
@@ -71,7 +82,7 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 	}
 
 	r.mu.Lock()
-	r.cache[ref] = &imageConfig{dgst, config}
+	r.cache[key] = &imageConfig{dgst, config}
 	r.mu.Unlock()
 	return
 }

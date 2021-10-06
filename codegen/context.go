@@ -8,6 +8,7 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
@@ -26,6 +27,7 @@ type (
 	imageResolverKey  struct{}
 	backtraceKey      struct{}
 	progressKey       struct{}
+	platformKey       struct{}
 )
 
 func WithProgramCounter(ctx context.Context, node parser.Node) context.Context {
@@ -175,4 +177,16 @@ func SourceMap(ctx context.Context) (opts []llb.ConstraintsOpt) {
 	}
 
 	return
+}
+
+func WithDefaultPlatform(ctx context.Context, platform specs.Platform) context.Context {
+	return context.WithValue(ctx, platformKey{}, platform)
+}
+
+func DefaultPlatform(ctx context.Context) specs.Platform {
+	platform, ok := ctx.Value(platformKey{}).(specs.Platform)
+	if !ok {
+		return specs.Platform{OS: "linux", Architecture: "amd64"}
+	}
+	return platform
 }

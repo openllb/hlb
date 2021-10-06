@@ -451,7 +451,7 @@ func AtBreakpoint(node parser.Node, fun *parser.FuncDecl, breakpoints []*Breakpo
 }
 
 func printGraph(ctx context.Context, st llb.State, sh string) error {
-	def, err := st.Marshal(ctx, llb.LinuxAmd64)
+	def, err := st.Marshal(ctx, llb.Platform(DefaultPlatform(ctx)))
 	if err != nil {
 		return err
 	}
@@ -680,7 +680,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 
 				if gatewayMount.MountType == pb.MountType_BIND {
 					var def *llb.Definition
-					def, err = mount.Source.Marshal(ctx, llb.LinuxAmd64)
+					def, err = mount.Source.Marshal(ctx, llb.Platform(DefaultPlatform(ctx)))
 					if err != nil {
 						return
 					}

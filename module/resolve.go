@@ -155,7 +155,7 @@ func (r *remoteResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs 
 		return nil, err
 	}
 
-	def, err := fs.State.Marshal(ctx, llb.LinuxAmd64)
+	def, err := fs.State.Marshal(ctx, llb.Platform(codegen.DefaultPlatform(ctx)))
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/moby/buildkit/client"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	solvererrdefs "github.com/moby/buildkit/solver/errdefs"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/codegen"
@@ -63,6 +64,10 @@ var runCommand = &cli.Command{
 			Usage:   "print out the backtrace when encountering an error",
 			EnvVars: []string{"HLB_BACKTRACE"},
 		},
+		&cli.StringFlag{
+			Name:  "platform",
+			Usage: "set default platform for image resolution",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		rc, err := ModuleReadCloser(c.Args().Slice())
@@ -85,6 +90,7 @@ var runCommand = &cli.Command{
 			LogOutput:        c.String("log-output"),
 			ErrOutput:        os.Stderr,
 			Output:           os.Stdout,
+			DefaultPlatform:  c.String("platform"),
 		}
 
 		var inputSteerer *codegen.InputSteerer
@@ -138,6 +144,7 @@ type RunInfo struct {
 	LogOutput         string
 	ErrOutput         solver.Console
 	Output            io.Writer
+	DefaultPlatform   string // format: osname/osarch
 
 	// override defaults sources as necessary
 	Environ []string
@@ -161,6 +168,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	}
 	ctx = local.WithOs(ctx, info.Os)
 	ctx = local.WithArch(ctx, info.Arch)
+	if info.DefaultPlatform != "" {
+		platformParts := strings.SplitN(info.DefaultPlatform, "/", 2)
+		if len(platformParts) < 2 {
+			return fmt.Errorf("Invalid platform specified: %s", info.DefaultPlatform)
+		}
+		ctx = codegen.WithDefaultPlatform(ctx, specs.Platform{OS: platformParts[0], Architecture: platformParts[1]})
+	}
 
 	var progressOpts []solver.ProgressOption
 	if info.LogOutput == "" || info.LogOutput == "auto" {

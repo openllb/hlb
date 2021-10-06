@@ -373,9 +373,19 @@
 	#!hlb
 	fs default() {
 		image "ref" with option {
+			platform "os" "arch"
 			resolve
 		}
 	}
+
+
+#### <span class='hlb-type'>option::image</span> <span class='hlb-name'>platform</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>os</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>arch</span>)
+
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>os</span>"
+	
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>arch</span>"
+	
+
 
 
 #### <span class='hlb-type'>option::image</span> <span class='hlb-name'>resolve</span>()
