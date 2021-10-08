@@ -16,6 +16,11 @@ fs image(string ref)
 # @return an option to resolve the image's OCI image config.
 option::image resolve()
 
+# Specifies the desired platform for a multi-platform docker image.
+#
+# @return an option to specify the platform for an OCI image config.
+option::image platform(string os, string arch)
+
 # A filesystem with a file retrieved from a HTTP URL.
 #
 # @param url a fully-qualified URL to send a HTTP GET request.

@@ -13,6 +13,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
@@ -201,7 +202,14 @@ func (v *fsValue) Filesystem() (Filesystem, error) {
 }
 
 func (v *fsValue) Request() (solver.Request, error) {
-	def, err := v.fs.State.Marshal(context.Background(), llb.LinuxAmd64)
+	// TODO this should probably derive from DefaultPlatform(ctx) but we
+	// dont have ctx in scope here. Not sure of the implications of adding
+	// ctx to the API yet.
+	p := llb.LinuxAmd64
+	if v.fs.Image != nil && v.fs.Image.OS != "" && v.fs.Image.Architecture != "" {
+		p = llb.Platform(specs.Platform{OS: v.fs.Image.OS, Architecture: v.fs.Image.Architecture})
+	}
+	def, err := v.fs.State.Marshal(context.Background(), p)
 	if err != nil {
 		return nil, err
 	}

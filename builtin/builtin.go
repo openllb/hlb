@@ -63,7 +63,8 @@ var (
 			"parallel": codegen.Stage{},
 		},
 		"option::image": {
-			"resolve": codegen.Resolve{},
+			"resolve":  codegen.Resolve{},
+			"platform": codegen.Platform{},
 		},
 		"option::http": {
 			"checksum": codegen.Checksum{},

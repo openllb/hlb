@@ -313,6 +313,13 @@ var (
 						Params:  []*parser.Field{},
 						Effects: []*parser.Field{},
 					},
+					"platform": {
+						Params: []*parser.Field{
+							parser.NewField(parser.String, "os", false),
+							parser.NewField(parser.String, "arch", false),
+						},
+						Effects: []*parser.Field{},
+					},
 				},
 			},
 			"option::local": {
@@ -689,6 +696,11 @@ fs image(string ref)
 #
 # @return an option to resolve the image&#39;s OCI image config.
 option::image resolve()
+
+# Specifies the desired platform for a multi-platform docker image.
+#
+# @return an option to specify the platform for an OCI image config.
+option::image platform(string os, string arch)
 
 # A filesystem with a file retrieved from a HTTP URL.
 #
