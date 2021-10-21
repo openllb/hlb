@@ -226,6 +226,8 @@ func (o op) Tree(tree treeprint.Tree) error {
 		branch = tree.AddMetaBranch("build", v.Build)
 	case *pb.Op_Merge:
 		branch = tree.AddMetaBranch("merge", v.Merge)
+	case *pb.Op_Diff:
+		branch = tree.AddMetaBranch("diff", v.Diff)
 	default:
 		return errors.Errorf("unrecognized op %T", pbOp.Op)
 	}

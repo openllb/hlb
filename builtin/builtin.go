@@ -35,6 +35,7 @@ var (
 			"rm":                    codegen.Rm{},
 			"copy":                  codegen.Copy{},
 			"merge":                 codegen.Merge{},
+			"diff":                  codegen.Diff{},
 			"entrypoint":            codegen.Entrypoint{},
 			"cmd":                   codegen.Cmd{},
 			"label":                 codegen.Label{},

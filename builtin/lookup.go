@@ -123,6 +123,12 @@ var (
 						},
 						Effects: []*parser.Field{},
 					},
+					"diff": {
+						Params: []*parser.Field{
+							parser.NewField(parser.Filesystem, "base", false),
+						},
+						Effects: []*parser.Field{},
+					},
 					"dockerPush": {
 						Params: []*parser.Field{
 							parser.NewField(parser.String, "ref", false),
@@ -1186,6 +1192,13 @@ option::copy excludePatterns(variadic string pattern)
 # @param input filesystems to merge.
 # @return merged filesystem with union of the current filesystem and inputs.
 fs merge(variadic fs inputs)
+
+# Returns the differences between the current filesystem and the filesystem
+# provided as an argument.
+#
+# @param base filesystem to use as diff base
+# @return differences from base
+fs diff(fs base)
 
 # Pushes the filesystem to a registry following the distribution
 # spec: https://github.com/opencontainers/distribution-spec/

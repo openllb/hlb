@@ -549,6 +549,25 @@ func (m Merge) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	return ret.Set(fs)
 }
 
+type Diff struct{}
+
+func (d Diff) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, inputs ...Filesystem) error {
+	fs, err := ret.Filesystem()
+	if err != nil {
+		return err
+	}
+
+	if len(inputs) != 1 {
+		return errors.New("diff takes a filesystem to diff against as an argument")
+	}
+
+	fs.State = llb.Diff(inputs[0].State, fs.State)
+
+	commitHistory(fs.Image, false, "DIFF %s %s", "/", "/")
+
+	return ret.Set(fs)
+}
+
 type Entrypoint struct{}
 
 func (e Entrypoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, entrypoint ...string) error {
