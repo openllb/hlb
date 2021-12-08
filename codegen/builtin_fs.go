@@ -61,16 +61,16 @@ type Image struct{}
 func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
 	var imageOpts []llb.ImageOption
 	platform := DefaultPlatform(ctx)
-	resolveOpt := llb.ResolveImageConfigOpt{
-		Platform: &platform,
-	}
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case llb.ImageOption:
 			imageOpts = append(imageOpts, o)
 		case *specs.Platform:
-			resolveOpt.Platform = o
+			platform = *o
 		}
+	}
+	resolveOpt := llb.ResolveImageConfigOpt{
+		Platform: &platform,
 	}
 	for _, opt := range SourceMap(ctx) {
 		imageOpts = append(imageOpts, opt)
@@ -106,8 +106,9 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	}
 
 	return ret.Set(Filesystem{
-		State: st,
-		Image: image,
+		State:    st,
+		Image:    image,
+		Platform: platform,
 	})
 }
 
@@ -197,7 +198,10 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		localOpts = append(localOpts, llb.SessionID(sessionID))
 	}
 
-	fs := Filesystem{State: llb.Local(id, localOpts...)}
+	fs := Filesystem{
+		State:    llb.Local(id, localOpts...),
+		Platform: DefaultPlatform(ctx),
+	}
 	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(id, filesync.SyncedDir{
 		Name: id,
 		Dir:  localPath,

@@ -18,6 +18,7 @@ import (
 	solvererrdefs "github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
 	digest "github.com/opencontainers/go-digest"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
@@ -219,7 +220,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 						sh = args[1]
 					}
 
-					err = printGraph(ctx, fs.State, sh)
+					err = printGraph(ctx, fs.State, fs.Platform, sh)
 					if err != nil {
 						fmt.Fprintln(w, "err:", err)
 					}
@@ -450,8 +451,8 @@ func AtBreakpoint(node parser.Node, fun *parser.FuncDecl, breakpoints []*Breakpo
 	return false
 }
 
-func printGraph(ctx context.Context, st llb.State, sh string) error {
-	def, err := st.Marshal(ctx, llb.Platform(DefaultPlatform(ctx)))
+func printGraph(ctx context.Context, st llb.State, p specs.Platform, sh string) error {
+	def, err := st.Marshal(ctx, llb.Platform(p))
 	if err != nil {
 		return err
 	}
@@ -680,7 +681,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, r io.Rea
 
 				if gatewayMount.MountType == pb.MountType_BIND {
 					var def *llb.Definition
-					def, err = mount.Source.Marshal(ctx, llb.Platform(DefaultPlatform(ctx)))
+					def, err = mount.Source.Marshal(ctx, llb.Platform(fs.Platform))
 					if err != nil {
 						return
 					}

@@ -121,7 +121,7 @@ func (fi FrontendInput) Call(ctx context.Context, cln *client.Client, ret Regist
 		return err
 	}
 
-	def, err := input.State.Marshal(ctx, llb.Platform(DefaultPlatform(ctx)))
+	def, err := input.State.Marshal(ctx, llb.Platform(input.Platform))
 	if err != nil {
 		return err
 	}
