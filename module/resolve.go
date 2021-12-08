@@ -382,7 +382,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 			g.Go(func() error {
 				var (
 					ctx = codegen.WithProgramCounter(ctx, id.Expr)
-					ret = codegen.NewRegister()
+					ret = codegen.NewRegister(ctx)
 				)
 				err := cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
 				if err != nil {

@@ -84,7 +84,7 @@ func (l *Linter) LintRecursive(ctx context.Context, mod *parser.Module, expr *pa
 		return
 	}
 
-	ret := codegen.NewRegister()
+	ret := codegen.NewRegister(ctx)
 	err = cg.EmitExpr(ctx, mod.Scope, expr, nil, nil, nil, ret)
 	if err != nil {
 		return

@@ -258,7 +258,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return s.Run(ctx, cln.Dialer())
 	})
 
-	fs, err := ZeroValue().Filesystem()
+	fs, err := ZeroValue(ctx).Filesystem()
 	if err != nil {
 		return err
 	}
@@ -662,7 +662,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 		}
 	}
 
-	v, err := NewValue(exportFS)
+	v, err := NewValue(ctx, exportFS)
 	if err != nil {
 		return err
 	}
@@ -728,7 +728,7 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 	r, w := io.Pipe()
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)))
 
-	v, err := NewValue(exportFS)
+	v, err := NewValue(ctx, exportFS)
 	if err != nil {
 		return err
 	}
@@ -821,7 +821,7 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTargetDir(localPath))
 
-	v, err := NewValue(exportFS)
+	v, err := NewValue(ctx, exportFS)
 	if err != nil {
 		return err
 	}
@@ -880,7 +880,7 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
-	v, err := NewValue(exportFS)
+	v, err := NewValue(ctx, exportFS)
 	if err != nil {
 		return err
 	}
@@ -939,7 +939,7 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
-	v, err := NewValue(exportFS)
+	v, err := NewValue(ctx, exportFS)
 	if err != nil {
 		return err
 	}
@@ -1001,7 +1001,7 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
-	v, err := NewValue(exportFS)
+	v, err := NewValue(ctx, exportFS)
 	if err != nil {
 		return err
 	}

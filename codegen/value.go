@@ -39,14 +39,20 @@ type Register interface {
 
 type register struct {
 	Value
+	ctor func(iface interface{}) (Value, error)
 }
 
-func NewRegister() Register {
-	return &register{Value: ZeroValue()}
+func NewRegister(ctx context.Context) Register {
+	return &register{
+		Value: ZeroValue(ctx),
+		ctor: func(iface interface{}) (Value, error) {
+			return NewValue(ctx, iface)
+		},
+	}
 }
 
 func (r *register) Set(iface interface{}) (err error) {
-	r.Value, err = NewValue(iface)
+	r.Value, err = r.ctor(iface)
 	return err
 }
 
@@ -60,14 +66,14 @@ type Value interface {
 	Reflect(reflect.Type) (reflect.Value, error)
 }
 
-func NewValue(iface interface{}) (Value, error) {
+func NewValue(ctx context.Context, iface interface{}) (Value, error) {
 	switch v := iface.(type) {
 	case Value:
 		return v, nil
 	case Filesystem:
 		return &fsValue{&nilValue{}, v}, validateState(v.State)
 	case llb.State:
-		zero := ZeroValue()
+		zero := ZeroValue(ctx)
 		fs, err := zero.Filesystem()
 		if err != nil {
 			return zero, err
@@ -126,10 +132,14 @@ func (v *nilValue) Reflect(t reflect.Type) (reflect.Value, error) {
 	return reflect.Value{}, fmt.Errorf("cannot reflect nil value")
 }
 
-type zeroValue struct{}
+type zeroValue struct {
+	defaultPlatform specs.Platform
+}
 
-func ZeroValue() Value {
-	return &zeroValue{}
+func ZeroValue(ctx context.Context) Value {
+	return &zeroValue{
+		defaultPlatform: DefaultPlatform(ctx),
+	}
 }
 
 func (v *zeroValue) Kind() parser.Kind {
@@ -138,8 +148,9 @@ func (v *zeroValue) Kind() parser.Kind {
 
 func (v *zeroValue) Filesystem() (Filesystem, error) {
 	return Filesystem{
-		State: llb.Scratch(),
-		Image: &solver.ImageSpec{},
+		State:    llb.Scratch(),
+		Image:    &solver.ImageSpec{},
+		Platform: v.defaultPlatform,
 	}, nil
 }
 
