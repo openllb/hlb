@@ -78,7 +78,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		ie.Pos.Line = i
 
 		// Every target has a return register.
-		ret := NewRegister()
+		ret := NewRegister(ctx)
 		err = cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
 		if err != nil {
 			return nil, err
@@ -151,7 +151,7 @@ func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *parser.Scope, str *
 				pieces = append(pieces, string(value))
 			}
 		case f.Interpolated != nil:
-			exprRet := NewRegister()
+			exprRet := NewRegister(ctx)
 			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, nil, exprRet)
 			if err != nil {
 				return err
@@ -184,7 +184,7 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 				pieces = append(pieces, escaped)
 			}
 		case f.Interpolated != nil:
-			exprRet := NewRegister()
+			exprRet := NewRegister(ctx)
 			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, nil, exprRet)
 			if err != nil {
 				return err
@@ -284,7 +284,7 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 		}
 		return cg.EmitIdentExpr(ctx, importScope, ie, ie.Reference.Ident, args, opts, nil, ret)
 	case *parser.Field:
-		val, err := NewValue(obj.Data)
+		val, err := NewValue(ctx, obj.Data)
 		if err != nil {
 			return err
 		}
@@ -503,7 +503,7 @@ func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, hint parse
 		ctx = WithReturnType(ctx, hint)
 
 		// Evaluated expressions write to a new return register.
-		ret := NewRegister()
+		ret := NewRegister(ctx)
 
 		err = cg.EmitExpr(ctx, scope, expr, nil, nil, b, ret)
 		if err != nil {

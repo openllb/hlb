@@ -539,7 +539,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				return
 			}
 
-			ret := codegen.NewRegister()
+			ret := codegen.NewRegister(ctx)
 			err = cg.EmitExpr(ctx, block.Scope, id.Expr, nil, nil, nil, ret)
 			if err != nil {
 				log.Printf("failed to generate import: %s", err)
