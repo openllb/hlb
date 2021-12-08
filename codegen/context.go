@@ -3,6 +3,7 @@ package codegen
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
@@ -186,7 +187,7 @@ func WithDefaultPlatform(ctx context.Context, platform specs.Platform) context.C
 func DefaultPlatform(ctx context.Context) specs.Platform {
 	platform, ok := ctx.Value(platformKey{}).(specs.Platform)
 	if !ok {
-		return specs.Platform{OS: "linux", Architecture: "amd64"}
+		return specs.Platform{OS: runtime.GOOS, Architecture: runtime.GOARCH}
 	}
 	return platform
 }

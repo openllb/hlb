@@ -168,6 +168,7 @@ type Filesystem struct {
 	Image       *solver.ImageSpec
 	SolveOpts   []solver.SolveOption
 	SessionOpts []llbutil.SessionOption
+	Platform    specs.Platform
 }
 
 func (fs Filesystem) Digest(ctx context.Context) (digest.Digest, error) {
@@ -195,6 +196,7 @@ func (v *fsValue) Filesystem() (Filesystem, error) {
 		Image:       &image,
 		SolveOpts:   make([]solver.SolveOption, len(v.fs.SolveOpts)),
 		SessionOpts: make([]llbutil.SessionOption, len(v.fs.SessionOpts)),
+		Platform:    v.fs.Platform,
 	}
 	copy(fs.SolveOpts, v.fs.SolveOpts)
 	copy(fs.SessionOpts, v.fs.SessionOpts)
@@ -202,14 +204,7 @@ func (v *fsValue) Filesystem() (Filesystem, error) {
 }
 
 func (v *fsValue) Request() (solver.Request, error) {
-	// TODO this should probably derive from DefaultPlatform(ctx) but we
-	// dont have ctx in scope here. Not sure of the implications of adding
-	// ctx to the API yet.
-	p := llb.LinuxAmd64
-	if v.fs.Image != nil && v.fs.Image.OS != "" && v.fs.Image.Architecture != "" {
-		p = llb.Platform(specs.Platform{OS: v.fs.Image.OS, Architecture: v.fs.Image.Architecture})
-	}
-	def, err := v.fs.State.Marshal(context.Background(), p)
+	def, err := v.fs.State.Marshal(context.Background(), llb.Platform(v.fs.Platform))
 	if err != nil {
 		return nil, err
 	}
