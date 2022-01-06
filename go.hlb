@@ -11,7 +11,7 @@ string versionCmd() {
 }
 
 fs golang() {
-	image "golang:1.16.4-alpine"
+	image "golang:1.17.5-alpine"
 }
 
 fs build(fs src, string package, string verPackage) {
@@ -28,7 +28,7 @@ fs build(fs src, string package, string verPackage) {
 pipeline crossBinaries(fs src, string package, string verPackage) {
 	go.buildCommonWithOptions src package option::template {
 		stringField "base" "docker.elastic.co/beats-dev/golang-crossbuild"
-		stringField "goVersion" "1.16.4"
+		stringField "goVersion" "1.17.5"
 		stringField "goBuildFlags" "-ldflags \"-X ${verPackage}.Version=$(${versionCmd})\""
 	} option::run {
 		env "CGO_ENABLED" "1"
