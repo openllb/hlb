@@ -122,6 +122,20 @@
 
 
 
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>diff</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>base</span>)
+
+!!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>base</span>"
+	
+
+
+
+	#!hlb
+	fs default() {
+		diff scratch
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>dir</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>"

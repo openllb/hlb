@@ -39,7 +39,7 @@ func TestFilterLocalFiles(t *testing.T) {
 	got, err = FilterLocalFiles(localPath, []string{"*/secret"}, nil)
 	require.NoError(t, err)
 	relativeFiles(localPath, got)
-	require.Equal(t, []string{"decrypted/secret", "secret"}, got)
+	require.Equal(t, []string{"decrypted/secret"}, got)
 
 	got, err = FilterLocalFiles(localPath, []string{"**/secret"}, nil)
 	require.NoError(t, err)
