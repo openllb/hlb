@@ -100,9 +100,11 @@ fs _runBuiltinGen() {
 
 fs staticGoBuild(string package, fs src) {
 	go.buildWithOptions src package option::template {
+		stringField "base" "docker.elastic.co/beats-dev/golang-crossbuild"
 		stringField "goBuildFlags" <<~EOM
 			-ldflags "-extldflags -static"
 		EOM
+		stringField "goVersion" "1.17.5"
 		stringField "platform" "linux"
 		stringField "arch" "amd64"
 	} option::run {

@@ -857,6 +857,34 @@ func TestCodeGen(t *testing.T) {
 				llb.Dir("/etc"),
 			).Root())
 		},
+	}, {
+		"merge op",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+			merge image("root1") image("root2")
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Merge([]llb.State{
+				llb.Image("alpine"),
+				llb.Image("root1"),
+				llb.Image("root2"),
+			}))
+		},
+	}, {
+		"diff op",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+			diff image("root1")
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Diff(llb.Image("root1"), llb.Image("alpine")))
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
