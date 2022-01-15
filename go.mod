@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/participle v1.0.0-alpha2
 	github.com/containerd/console v1.0.3
 	github.com/containerd/containerd v1.6.0-beta.3
-	github.com/creachadair/jrpc2 v0.26.1
+	github.com/creachadair/jrpc2 v0.35.3
 	github.com/docker/buildx v0.7.1-0.20220106170226-2b4d305c5823
 	github.com/docker/cli v20.10.11+incompatible
 	github.com/docker/distribution v2.7.1+incompatible
