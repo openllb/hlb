@@ -17,6 +17,7 @@ import (
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
+	"github.com/xlab/treeprint"
 )
 
 var (
@@ -186,6 +187,16 @@ func (fs Filesystem) Digest(ctx context.Context) (digest.Digest, error) {
 	c := &llb.Constraints{}
 	dgst, _, _, _, err := fs.State.Output().Vertex(ctx, c).Marshal(ctx, &llb.Constraints{})
 	return dgst, err
+}
+
+func (fs Filesystem) Tree() (treeprint.Tree, error) {
+	def, err := fs.State.Marshal(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	tree := treeprint.New()
+	return tree, solver.TreeFromDef(tree, def, fs.SolveOpts)
 }
 
 type fsValue struct {

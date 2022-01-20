@@ -70,6 +70,8 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 			platform = *o
 		}
 	}
+	imageOpts = append(imageOpts, llb.Platform(platform))
+
 	resolveOpt := llb.ResolveImageConfigOpt{
 		Platform: &platform,
 	}
