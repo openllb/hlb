@@ -13,6 +13,7 @@ import (
 	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/entitlements"
+	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -884,6 +885,39 @@ func TestCodeGen(t *testing.T) {
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Diff(llb.Image("root1"), llb.Image("alpine")))
+		},
+	}, {
+		"multiple platforms",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine" with platform("linux", "amd64")
+			run "echo Amd" with option {
+				shlex
+				mount fs {
+					image "alpine" with platform("linux", "arm64")
+					run "echo Arm" with shlex
+				} "/foobar"
+			}
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			st := llb.Image("alpine", llb.Platform(specs.Platform{
+				OS:           "linux",
+				Architecture: "amd64",
+			}))
+
+			mnt := llb.Image("alpine", llb.Platform(specs.Platform{
+				OS:           "linux",
+				Architecture: "arm64",
+			})).Run(
+				llb.Shlex("echo Arm"),
+			).Root()
+
+			return Expect(t, st.Run(
+				llb.Shlex("echo Amd"),
+				llb.AddMount("/foobar", mnt),
+			).Root())
 		},
 	}} {
 		tc := tc
