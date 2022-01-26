@@ -11,11 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	// LocalPathDescriptionKey is the key name in the metadata description map for the input path to a local fs.
-	LocalPathDescriptionKey = "hlb.local.path"
-)
-
 // Request is a node in the solve request tree produced by the compiler. The
 // solve request tree has peer nodes that should be executed in parallel, and
 // next nodes that should be executed sequentially. These can be intermingled

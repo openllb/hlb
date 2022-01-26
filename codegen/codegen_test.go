@@ -2,8 +2,8 @@ package codegen_test
 
 import (
 	"context"
-	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -38,17 +38,18 @@ func Expect(t *testing.T, st llb.State, opts ...solver.SolveOption) solver.Reque
 }
 
 func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb.LocalOption) llb.State {
-	cwd, err := local.Cwd(ctx)
-	require.NoError(t, err)
+	absPath := localPath
+	if !filepath.IsAbs(localPath) {
+		cwd, err := local.Cwd(ctx)
+		require.NoError(t, err)
 
-	id, err := llbutil.LocalID(ctx, cwd, ".", opts...)
+		absPath = filepath.Join(cwd, localPath)
+	}
+	id, err := llbutil.LocalID(ctx, absPath, opts...)
 	require.NoError(t, err)
 
 	opts = append([]llb.LocalOption{
-		llb.SharedKeyHint(localPath),
-		llb.WithDescription(map[string]string{
-			solver.LocalPathDescriptionKey: fmt.Sprintf("local://%s", localPath),
-		}),
+		llb.SharedKeyHint(id),
 	}, opts...)
 
 	sessionID := codegen.SessionID(ctx)
@@ -56,7 +57,7 @@ func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb
 		opts = append(opts, llb.SessionID(sessionID))
 	}
 
-	return llb.Local(id, opts...)
+	return llb.Local(localPath, opts...)
 }
 
 type testCase struct {
@@ -380,7 +381,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
-			return Expect(t, LocalState(ctx, t, ".",
+			return Expect(t, LocalState(ctx, t, "codegen_test.go",
 				llb.IncludePatterns([]string{"codegen_test.go"}),
 			))
 		},
@@ -396,7 +397,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
-			return Expect(t, LocalState(ctx, t, ".",
+			return Expect(t, LocalState(ctx, t, "codegen_test.go",
 				llb.IncludePatterns([]string{"codegen_test.go"}),
 			))
 		},
