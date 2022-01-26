@@ -14,13 +14,13 @@ import (
 // LocalID returns a consistent hash for this local (path + options) so that
 // the same content doesn't get transported multiple times when referenced
 // repeatedly.
-func LocalID(ctx context.Context, cwd, path string, opts ...llb.LocalOption) (string, error) {
-	uniqID, err := LocalUniqueID(cwd)
+func LocalID(ctx context.Context, absPath string, opts ...llb.LocalOption) (string, error) {
+	uniqID, err := LocalUniqueID(absPath)
 	if err != nil {
 		return "", err
 	}
 	opts = append(opts, llb.LocalUniqueID(uniqID))
-	st := llb.Local(path, opts...)
+	st := llb.Local("", opts...)
 
 	def, err := st.Marshal(ctx)
 	if err != nil {

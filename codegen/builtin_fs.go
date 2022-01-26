@@ -173,28 +173,31 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		localOpts = append(localOpts, opt)
 	}
 
+	localDir := localPath
 	if !fi.IsDir() {
 		filename := filepath.Base(localPath)
-		localPath = filepath.Dir(localPath)
+		localDir = filepath.Dir(localPath)
 
 		// When localPath is a filename instead of a directory, include and exclude
 		// patterns should be ignored.
 		localOpts = append(localOpts, llb.IncludePatterns([]string{filename}), llb.ExcludePatterns([]string{}))
 	}
 
-	cwd, err := local.Cwd(ctx)
+	absPath := localPath
+	if !filepath.IsAbs(absPath) {
+		cwd, err := local.Cwd(ctx)
+		if err != nil {
+			return err
+		}
+
+		absPath = filepath.Join(cwd, localPath)
+	}
+
+	id, err := llbutil.LocalID(ctx, absPath, localOpts...)
 	if err != nil {
 		return err
 	}
-
-	id, err := llbutil.LocalID(ctx, cwd, localPath, localOpts...)
-	if err != nil {
-		return err
-	}
-
-	localOpts = append(localOpts, llb.SharedKeyHint(localPath), llb.WithDescription(map[string]string{
-		solver.LocalPathDescriptionKey: fmt.Sprintf("local://%s", localPath),
-	}))
+	localOpts = append(localOpts, llb.SharedKeyHint(id))
 
 	sessionID := SessionID(ctx)
 	if sessionID != "" {
@@ -202,12 +205,12 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	}
 
 	fs := Filesystem{
-		State:    llb.Local(id, localOpts...),
+		State:    llb.Local(localPath, localOpts...),
 		Platform: DefaultPlatform(ctx),
 	}
 	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(id, filesync.SyncedDir{
-		Name: id,
-		Dir:  localPath,
+		Name: localPath,
+		Dir:  localDir,
 		Map: func(_ string, st *fstypes.Stat) bool {
 			st.Uid = 0
 			st.Gid = 0
