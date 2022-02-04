@@ -448,8 +448,8 @@ github.com/dimchansky/utfbom v1.1.0/go.mod h1:rO41eb7gLfo8SF1jd9F8HplJm1Fewwi4mQ
 github.com/dimchansky/utfbom v1.1.1/go.mod h1:SxdoEBH5qIqFocHMyGOXVAybYJdr71b1Q/j0mACtrfE=
 github.com/distribution/distribution/v3 v3.0.0-20210316161203-a01c71e2477e/go.mod h1:xpWTC2KnJMiDLkoawhsPQcXjvwATEBcbq0xevG2YR9M=
 github.com/dnaeon/go-vcr v1.0.1/go.mod h1:aBB1+wY4s93YsC3HHjMBMrwTj2R9FHDzUr9KyGc8n1E=
-github.com/docker/buildx v0.7.1-0.20220204032525-595285736c66 h1:/TTMjaV7clfa1EIQTDGrhd0/AoYQweSsfUf194BWXdY=
-github.com/docker/buildx v0.7.1-0.20220204032525-595285736c66/go.mod h1:7nCeQ7ysmY5Im/vm5mk4fF3ZyOxaGKD920tJqT8b8vg=
+github.com/docker/buildx v0.7.1-0.20220207185201-60a025b22768 h1:JqsaZFzU5FiqJowo+h35kEZhfQv/ducQFVL2AOI3XjY=
+github.com/docker/buildx v0.7.1-0.20220207185201-60a025b22768/go.mod h1:7nCeQ7ysmY5Im/vm5mk4fF3ZyOxaGKD920tJqT8b8vg=
 github.com/docker/cli v20.10.3-0.20210702143511-f782d1355eff+incompatible h1:CaaxCD/l9Dxogu6lxf7AQautlv3sHULrasPadayp0fM=
 github.com/docker/cli v20.10.3-0.20210702143511-f782d1355eff+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/cli-docs-tool v0.3.0/go.mod h1:rgW5KKdNpLMBIuH4WQ/1RNh38nH+/Ay5jgL4P0ZMPpY=

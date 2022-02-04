@@ -46,7 +46,7 @@ var runCommand = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:  "debug",
-			Usage: "jump into a source level debugger for hlb",
+			Usage: "attach a debugger",
 		},
 		&cli.BoolFlag{
 			Name:  "shell-on-error",
@@ -83,70 +83,33 @@ var runCommand = &cli.Command{
 			return err
 		}
 
-		ri := RunInfo{
-			DisplayErrorOnce: &sync.Once{},
-			Tree:             c.Bool("tree"),
-			Targets:          c.StringSlice("target"),
-			LLB:              c.Bool("llb"),
-			Backtrace:        c.Bool("backtrace"),
-			LogOutput:        c.String("log-output"),
-			ErrOutput:        os.Stderr,
-			Output:           os.Stdout,
-			DefaultPlatform:  c.String("platform"),
-		}
-
-		var inputSteerer *steer.InputSteerer
-		if c.Bool("debug") {
-			pr, pw := io.Pipe()
-			r := bufio.NewReader(pr)
-			inputSteerer = steer.NewInputSteerer(os.Stdin, pw)
-
-			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
-		}
-
-		if c.Bool("shell-on-error") {
-			if inputSteerer == nil {
-				inputSteerer = steer.NewInputSteerer(os.Stdin)
-			}
-
-			ri.SolveErrorHandler = func(ctx context.Context, c gateway.Client, err error) {
-				var se *solvererrdefs.SolveError
-				if !errors.As(err, &se) {
-					return
-				}
-
-				ri.DisplayErrorOnce.Do(func() {
-					DisplayError(ctx, ri, err)
-				})
-
-				pr, pw := io.Pipe()
-				defer pw.Close()
-
-				inputSteerer.Push(pw)
-				defer inputSteerer.Pop()
-
-				if err := codegen.ExecWithSolveErr(ctx, c, se, pr, ri.Output, nil); err != nil {
-					fmt.Fprintf(ri.ErrOutput, "failed to exec debug shell after error: %s\n", err)
-				}
-			}
-		}
-
-		return Run(ctx, cln, rc, ri)
+		return Run(ctx, cln, rc, RunInfo{
+			Debug:           c.Bool("debug"),
+			ShellOnError:    c.Bool("shell-on-error"),
+			Tree:            c.Bool("tree"),
+			Targets:         c.StringSlice("target"),
+			LLB:             c.Bool("llb"),
+			Backtrace:       c.Bool("backtrace"),
+			LogOutput:       c.String("log-output"),
+			DefaultPlatform: c.String("platform"),
+		})
 	},
 }
 
 type RunInfo struct {
-	Debugger          codegen.Debugger
-	SolveErrorHandler func(context.Context, gateway.Client, error)
-	DisplayErrorOnce  *sync.Once
-	Tree              bool
-	Backtrace         bool
-	Targets           []string
-	LLB               bool
-	LogOutput         string
-	ErrOutput         solver.Console
-	Output            io.Writer
-	DefaultPlatform   string // format: osname/osarch
+	Debug            bool
+	ShellOnError     bool
+	ShellOnErrorArgs []string
+	Tree             bool
+	Backtrace        bool
+	Targets          []string
+	LLB              bool
+	LogOutput        string
+	DefaultPlatform  string // format: osname/osarch
+
+	Stdin  io.Reader
+	Stderr io.Writer
+	Stdout io.Writer
 
 	// override defaults sources as necessary
 	Environ []string
@@ -159,8 +122,14 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	if len(info.Targets) == 0 {
 		info.Targets = []string{"default"}
 	}
-	if info.Output == nil {
-		info.Output = os.Stdout
+	if info.Stdin == nil {
+		info.Stdin = os.Stdin
+	}
+	if info.Stdout == nil {
+		info.Stdout = os.Stdout
+	}
+	if info.Stderr == nil {
+		info.Stderr = os.Stderr
 	}
 
 	ctx = local.WithEnviron(ctx, info.Environ)
@@ -178,28 +147,32 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		ctx = codegen.WithDefaultPlatform(ctx, specs.Platform{OS: platformParts[0], Architecture: platformParts[1]})
 	}
 
-	var progressOpts []solver.ProgressOption
+	var (
+		progressOpts []solver.ProgressOption
+		con          solver.Console
+	)
 	if info.LogOutput == "" || info.LogOutput == "auto" {
-		// assume plain output, will upgrade if we detect tty
+		// Assume plain output, will upgrade if we detect tty.
 		info.LogOutput = "plain"
-		if fdAble, ok := info.Output.(interface{ Fd() uintptr }); ok {
-			if isatty.IsTerminal(fdAble.Fd()) {
-				info.LogOutput = "tty"
-			}
+
+		var ok bool
+		con, ok = info.Stderr.(solver.Console)
+		if ok && isatty.IsTerminal(con.Fd()) {
+			info.LogOutput = "tty"
 		}
 	}
 
 	// Always force plain output in debug mode so the prompts are displayed
 	// correctly
-	if info.Debugger != nil {
+	if info.Debug || info.ShellOnError {
 		info.LogOutput = "plain"
 	}
 
 	switch info.LogOutput {
 	case "tty":
-		progressOpts = append(progressOpts, solver.WithLogOutput(info.ErrOutput, solver.LogOutputTTY))
+		progressOpts = append(progressOpts, solver.WithLogOutputTTY(con))
 	case "plain":
-		progressOpts = append(progressOpts, solver.WithLogOutput(info.ErrOutput, solver.LogOutputPlain))
+		progressOpts = append(progressOpts, solver.WithLogOutputPlain(info.Stderr))
 	default:
 		return fmt.Errorf("unrecognized log-output %q", info.LogOutput)
 	}
@@ -213,12 +186,13 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 
+	displayOnce := &sync.Once{}
 	defer func() {
 		if err == nil {
 			return
 		}
-		info.DisplayErrorOnce.Do(func() {
-			DisplayError(ctx, info, err)
+		displayOnce.Do(func() {
+			DisplayError(ctx, info.Stderr, err, info.Backtrace)
 		})
 
 		numErrs := 1
@@ -244,14 +218,27 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
 
-	var opts []codegen.CodeGenOption
-	if info.Debugger != nil {
-		opts = append(opts, codegen.WithDebugger(info.Debugger))
+	var (
+		opts         []codegen.CodeGenOption
+		inputSteerer *steer.InputSteerer
+	)
+	if info.Debug {
+		pr, pw := io.Pipe()
+		r := bufio.NewReader(pr)
+		inputSteerer = steer.NewInputSteerer(info.Stdin, pw)
+
+		debugger := codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
+		opts = append(opts, codegen.WithDebugger(debugger))
 	}
 
 	var solveOpts []solver.SolveOption
-	if info.SolveErrorHandler != nil {
-		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(info.SolveErrorHandler))
+	if info.ShellOnError {
+		if inputSteerer == nil {
+			inputSteerer = steer.NewInputSteerer(info.Stdin)
+		}
+
+		handler := errorHandler(inputSteerer, displayOnce, info.Stdout, info.Stderr, info.Backtrace, info.ShellOnErrorArgs...)
+		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(handler))
 		opts = append(opts, codegen.WithExtraSolveOpts(solveOpts))
 	}
 
@@ -291,26 +278,26 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
 }
 
-func DisplayError(ctx context.Context, info RunInfo, err error) {
+func DisplayError(ctx context.Context, stderr io.Writer, err error, printBacktrace bool) {
 	// Handle backtrace.
 	backtrace := diagnostic.Backtrace(ctx, err)
 	if len(backtrace) > 0 {
 		color := diagnostic.Color(ctx)
-		fmt.Fprintf(info.ErrOutput, color.Sprintf(
+		fmt.Fprintf(stderr, color.Sprintf(
 			"%s: %s\n",
 			color.Bold(color.Red("error")),
 			color.Bold(diagnostic.Cause(err)),
 		))
 	}
 	for i, span := range backtrace {
-		if !info.Backtrace && i != len(backtrace)-1 {
+		if !printBacktrace && i != len(backtrace)-1 {
 			if i == 0 {
 				color := diagnostic.Color(ctx)
 				frame := "frame"
 				if len(backtrace) > 2 {
 					frame = "frames"
 				}
-				fmt.Fprintf(info.ErrOutput, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
+				fmt.Fprintf(stderr, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
 			}
 			continue
 		}
@@ -324,14 +311,14 @@ func DisplayError(ctx context.Context, info RunInfo, err error) {
 				lines[j] = fmt.Sprintf("    %s", line)
 			}
 		}
-		fmt.Fprintf(info.ErrOutput, "%s\n", strings.Join(lines, "\n"))
+		fmt.Fprintf(stderr, "%s\n", strings.Join(lines, "\n"))
 	}
 
 	if len(backtrace) == 0 {
 		// Handle diagnostic errors.
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
-			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+			fmt.Fprintf(stderr, "%s\n", span.Pretty(ctx))
 		}
 	}
 }
@@ -353,4 +340,27 @@ func ModuleReadCloser(args []string) (io.ReadCloser, error) {
 	}
 
 	return os.Open(args[0])
+}
+
+func errorHandler(inputSteerer *steer.InputSteerer, once *sync.Once, stdout, stderr io.Writer, backtrace bool, args ...string) solver.ErrorHandler {
+	return func(ctx context.Context, c gateway.Client, err error) {
+		var se *solvererrdefs.SolveError
+		if !errors.As(err, &se) {
+			return
+		}
+
+		once.Do(func() {
+			DisplayError(ctx, stderr, err, backtrace)
+		})
+
+		pr, pw := io.Pipe()
+		defer pw.Close()
+
+		inputSteerer.Push(pw)
+		defer inputSteerer.Pop()
+
+		if err := codegen.ExecWithSolveErr(ctx, c, se, pr, stdout, nil, args...); err != nil {
+			fmt.Fprintf(stderr, "failed to exec debug shell after error: %s\n", err)
+		}
+	}
 }

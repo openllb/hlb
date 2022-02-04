@@ -54,9 +54,9 @@ func TestProgress(t *testing.T) {
 				var opts []ProgressOption
 				switch mode {
 				case "tty":
-					opts = append(opts, WithLogOutput(pts, LogOutputTTY))
+					opts = append(opts, WithLogOutputTTY(pts))
 				case "plain":
-					opts = append(opts, WithLogOutput(pts, LogOutputPlain))
+					opts = append(opts, WithLogOutputPlain(pts))
 				}
 
 				p, err := NewProgress(ctx, opts...)
