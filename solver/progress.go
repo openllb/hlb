@@ -43,9 +43,13 @@ const (
 	LogOutputPlain
 )
 
-func WithLogOutput(con Console, logOutput LogOutput) ProgressOption {
+func WithLogOutput(stderr io.Writer, logOutput LogOutput) ProgressOption {
 	return func(info *ProgressInfo) error {
-		info.Console = con
+		var ok bool
+		info.Console, ok = stderr.(Console)
+		if !ok {
+			return errors.Errorf("stderr expected to match solver.Console, but got %T", stderr)
+		}
 		info.LogOutput = logOutput
 		return nil
 	}
