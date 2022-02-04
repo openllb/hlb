@@ -125,7 +125,9 @@ func WithEvaluate(info *SolveInfo) error {
 	return nil
 }
 
-func WithErrorHandler(errorHandler func(context.Context, gateway.Client, error)) SolveOption {
+type ErrorHandler func(context.Context, gateway.Client, error)
+
+func WithErrorHandler(errorHandler ErrorHandler) SolveOption {
 	return func(info *SolveInfo) error {
 		info.ErrorHandler = errorHandler
 		return nil

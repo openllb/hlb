@@ -25,24 +25,33 @@ type Console interface {
 	Name() string
 }
 
-type ProgressOption func(*ProgressInfo) error
+type ProgressOption func(*progressInfo) error
 
-type ProgressInfo struct {
-	Console   Console
-	LogOutput LogOutput
+type progressInfo struct {
+	writer    io.Writer
+	console   Console
+	logOutput logOutput
 }
 
-type LogOutput int
+type logOutput int
 
 const (
-	LogOutputTTY LogOutput = iota
-	LogOutputPlain
+	logOutputTTY logOutput = iota
+	logOutputPlain
 )
 
-func WithLogOutput(con Console, logOutput LogOutput) ProgressOption {
-	return func(info *ProgressInfo) error {
-		info.Console = con
-		info.LogOutput = logOutput
+func WithLogOutputPlain(w io.Writer) ProgressOption {
+	return func(info *progressInfo) error {
+		info.writer = w
+		info.logOutput = logOutputPlain
+		return nil
+	}
+}
+
+func WithLogOutputTTY(con Console) ProgressOption {
+	return func(info *progressInfo) error {
+		info.console = con
+		info.logOutput = logOutputTTY
 		return nil
 	}
 }
@@ -59,27 +68,25 @@ type Progress interface {
 // NewProgress returns a Progress that presents all the progress on multiple
 // solves to the terminal stdout.
 func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) {
-	info := &ProgressInfo{
-		Console: os.Stderr,
-	}
+	info := progressInfo{console: os.Stderr}
 	for _, opt := range opts {
-		err := opt(info)
+		err := opt(&info)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	var mode string
-	switch info.LogOutput {
-	case LogOutputTTY:
+	switch info.logOutput {
+	case logOutputTTY:
 		mode = "tty"
-	case LogOutputPlain:
+	case logOutputPlain:
 		mode = "plain"
 	default:
-		return nil, errors.Errorf("unknown log output %q", info.LogOutput)
+		return nil, errors.Errorf("unknown log output %q", info.logOutput)
 	}
 
-	spp := newSyncProgressPrinter(info.Console, mode)
+	spp := newSyncProgressPrinter(info.writer, info.console, mode)
 	p := &progressUI{
 		origCtx: ctx,
 		spp:     spp,
@@ -139,6 +146,7 @@ func (p *progressUI) waitNoLock() error {
 type syncProgressPrinter struct {
 	mu     sync.Mutex
 	p      *progress.Printer
+	w      io.Writer
 	out    console.File
 	cancel func()
 	mode   string
@@ -147,8 +155,9 @@ type syncProgressPrinter struct {
 
 var _ progress.Writer = (*syncProgressPrinter)(nil)
 
-func newSyncProgressPrinter(out console.File, mode string) *syncProgressPrinter {
+func newSyncProgressPrinter(w io.Writer, out console.File, mode string) *syncProgressPrinter {
 	spp := &syncProgressPrinter{
+		w:    w,
 		out:  out,
 		mode: mode,
 	}
@@ -164,7 +173,7 @@ func (spp *syncProgressPrinter) reset() {
 	defer spp.mu.Unlock()
 	spp.cancel = cancel
 	spp.done = make(chan struct{})
-	spp.p = progress.NewPrinter(pctx, spp.out, spp.mode)
+	spp.p = progress.NewPrinter(pctx, spp.w, spp.out, spp.mode)
 }
 
 func (spp *syncProgressPrinter) Write(s *client.SolveStatus) {
