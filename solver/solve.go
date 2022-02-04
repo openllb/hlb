@@ -22,6 +22,7 @@ type SolveCallback func(ctx context.Context, resp *client.SolveResponse) error
 type SolveInfo struct {
 	Evaluate              bool
 	ErrorHandler          func(context.Context, gateway.Client, error)
+	OutputMoby            bool
 	OutputDockerRef       string
 	OutputPushImage       string
 	OutputLocal           string
@@ -47,9 +48,25 @@ type ContainerConfig struct {
 	Labels map[string]string `json:"Labels"`
 }
 
+func WithDownloadMoby(ref string) SolveOption {
+	return func(info *SolveInfo) error {
+		info.OutputDockerRef = ref
+		info.OutputMoby = true
+		return nil
+	}
+}
+
 func WithDownloadDockerTarball(ref string) SolveOption {
 	return func(info *SolveInfo) error {
 		info.OutputDockerRef = ref
+		return nil
+	}
+}
+
+func WithPushMoby(ref string) SolveOption {
+	return func(info *SolveInfo) error {
+		info.OutputPushImage = ref
+		info.OutputMoby = true
 		return nil
 	}
 }
@@ -164,22 +181,30 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 	}
 
 	if info.OutputDockerRef != "" {
-		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
+		entry := client.ExportEntry{
 			Type: client.ExporterDocker,
 			Attrs: map[string]string{
 				"name": info.OutputDockerRef,
 			},
-		})
+		}
+		if info.OutputMoby {
+			entry.Type = "moby"
+		}
+		solveOpt.Exports = append(solveOpt.Exports, entry)
 	}
 
 	if info.OutputPushImage != "" {
-		solveOpt.Exports = append(solveOpt.Exports, client.ExportEntry{
+		entry := client.ExportEntry{
 			Type: client.ExporterImage,
 			Attrs: map[string]string{
 				"name": info.OutputPushImage,
 				"push": "true",
 			},
-		})
+		}
+		if info.OutputMoby {
+			entry.Type = "moby"
+		}
+		solveOpt.Exports = append(solveOpt.Exports, entry)
 	}
 
 	if info.OutputLocal != "" {

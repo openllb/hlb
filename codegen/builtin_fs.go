@@ -10,13 +10,13 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/docker/buildx/util/imagetools"
 	"github.com/docker/buildx/util/progress"
-	"github.com/docker/cli/cli/command"
-	"github.com/docker/cli/cli/flags"
 	"github.com/docker/distribution/reference"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/pkg/jsonmessage"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
@@ -695,7 +695,6 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	var dgst string
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
 		solver.WithImageSpec(exportFS.Image),
-		solver.WithPushImage(ref),
 		solver.WithCallback(func(_ context.Context, resp *client.SolveResponse) error {
 			dgst = resp.ExporterResponse[llbutil.KeyContainerImageDigest]
 			return nil
@@ -707,6 +706,34 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
 		}
 	}
+
+	dockerAPI := DockerAPI(ctx)
+	if dockerAPI.Moby {
+		// Return error only if dockerPush is using docker engine instead of buildkit.
+		if dockerAPI.Err != nil {
+			return ProgramCounter(ctx).WithError(dockerAPI.Err)
+		}
+
+		exportFS.SolveOpts = append(exportFS.SolveOpts,
+			solver.WithPushMoby(ref),
+			solver.WithCallback(func(_ context.Context, resp *client.SolveResponse) error {
+				mw := MultiWriter(ctx)
+				if mw == nil {
+					return nil
+				}
+
+				pw := mw.WithPrefix("", false)
+				return progress.Wrap("pushing "+ref, pw.Write, func(l progress.SubLogger) error {
+					return pushWithMoby(ctx, dockerAPI, ref, l)
+				})
+			}),
+		)
+		return ret.Set(exportFS)
+	}
+
+	exportFS.SolveOpts = append(exportFS.SolveOpts,
+		solver.WithPushImage(ref),
+	)
 
 	v, err := NewValue(ctx, exportFS)
 	if err != nil {
@@ -742,10 +769,80 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	return ret.Set(fs)
 }
 
-var (
-	dockerCli  *command.DockerCli
-	dockerOnce sync.Once
-)
+func pushWithMoby(ctx context.Context, dockerAPI DockerAPIClient, ref string, l progress.SubLogger) error {
+	creds, err := imagetools.RegistryAuthForRef(ref, dockerAPI.Auth)
+	if err != nil {
+		return err
+	}
+
+	rc, err := dockerAPI.ImagePush(ctx, ref, types.ImagePushOptions{
+		RegistryAuth: creds,
+	})
+	if err != nil {
+		return err
+	}
+
+	started := map[string]*client.VertexStatus{}
+
+	defer func() {
+		for _, st := range started {
+			if st.Completed == nil {
+				now := time.Now()
+				st.Completed = &now
+				l.SetStatus(st)
+			}
+		}
+	}()
+
+	dec := json.NewDecoder(rc)
+	var parsedError error
+	for {
+		var jm jsonmessage.JSONMessage
+		if err := dec.Decode(&jm); err != nil {
+			if parsedError != nil {
+				return parsedError
+			}
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if jm.ID != "" {
+			id := "pushing layer " + jm.ID
+			st, ok := started[id]
+			if !ok {
+				if jm.Progress == nil && jm.Status != "Pushed" {
+					continue
+				}
+				now := time.Now()
+				st = &client.VertexStatus{
+					ID:      id,
+					Started: &now,
+				}
+				started[id] = st
+			}
+			st.Timestamp = time.Now()
+			if jm.Progress != nil {
+				st.Current = jm.Progress.Current
+				st.Total = jm.Progress.Total
+			}
+			if jm.Error != nil {
+				now := time.Now()
+				st.Completed = &now
+			}
+			if jm.Status == "Pushed" {
+				now := time.Now()
+				st.Completed = &now
+				st.Current = st.Total
+			}
+			l.SetStatus(st)
+		}
+		if jm.Error != nil {
+			parsedError = jm.Error
+		}
+	}
+	return nil
+}
 
 type DockerLoad struct{}
 
@@ -755,15 +852,16 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
 
+	dockerAPI := DockerAPI(ctx)
+	if dockerAPI.Err != nil {
+		return ProgramCounter(ctx).WithError(dockerAPI.Err)
+	}
+
 	exportFS, err := ret.Filesystem()
 	if err != nil {
 		return err
 	}
 
-	exportFS.SolveOpts = append(exportFS.SolveOpts,
-		solver.WithImageSpec(exportFS.Image),
-		solver.WithDownloadDockerTarball(ref),
-	)
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case solver.SolveOption:
@@ -771,8 +869,22 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		}
 	}
 
+	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithImageSpec(exportFS.Image))
+	if dockerAPI.Moby {
+		exportFS.SolveOpts = append(exportFS.SolveOpts,
+			solver.WithDownloadMoby(ref),
+		)
+		return ret.Set(exportFS)
+	}
+
+	exportFS.SolveOpts = append(exportFS.SolveOpts,
+		solver.WithDownloadDockerTarball(ref),
+	)
+
 	r, w := io.Pipe()
-	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)))
+	exportFS.SessionOpts = append(exportFS.SessionOpts,
+		llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)),
+	)
 
 	v, err := NewValue(ctx, exportFS)
 	if err != nil {
@@ -791,24 +903,6 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 	})
 
 	g.Go(func() (err error) {
-		dockerOnce.Do(func() {
-			dockerCli, err = command.NewDockerCli()
-			if err != nil {
-				return
-			}
-
-			err = dockerCli.Initialize(flags.NewClientOptions())
-			if err != nil {
-				return
-			}
-
-			_, err = dockerCli.Client().ServerVersion(ctx)
-		})
-		if err != nil {
-			r.CloseWithError(err)
-			return err
-		}
-
 		defer func() {
 			if err != nil {
 				err = r.CloseWithError(err)
@@ -817,7 +911,7 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 			}
 		}()
 
-		resp, err := dockerCli.Client().ImageLoad(ctx, r, true)
+		resp, err := dockerAPI.ImageLoad(ctx, r, true)
 		if err != nil {
 			return err
 		}
@@ -960,6 +1054,11 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 		return err
 	}
 
+	dockerAPI := DockerAPI(ctx)
+	if dockerAPI.Moby {
+		return errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
+	}
+
 	err = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err != nil {
 		return err
@@ -1024,6 +1123,11 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 		return errdefs.WithInvalidImageRef(err, Arg(ctx, 1), ref)
 	}
 	ref = reference.TagNameOnly(named).String()
+
+	dockerAPI := DockerAPI(ctx)
+	if dockerAPI.Moby {
+		return errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
+	}
 
 	err = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err != nil {

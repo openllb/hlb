@@ -115,7 +115,7 @@ func (m Mixin) Position() lexer.Position             { return m.Pos }
 func (m Mixin) End() lexer.Position                  { return m.EndPos }
 
 func (m Mixin) WithError(err error, opts ...diagnostic.Option) error {
-	return diagnostic.WithError(err, m.Pos, opts...)
+	return diagnostic.WithError(err, m.Pos, m.EndPos, opts...)
 }
 
 func (m Mixin) Spanf(t diagnostic.Type, format string, a ...interface{}) diagnostic.Option {

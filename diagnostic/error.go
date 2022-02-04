@@ -53,10 +53,16 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 				var se *SpanError
 				if errors.As(err, &se) {
 					span := &SpanError{
-						Pos:   se.Pos,
-						Spans: make([]Span, len(se.Spans)),
+						Pos: se.Pos,
+						End: se.End,
 					}
-					copy(span.Spans, se.Spans)
+
+					if len(se.Spans) == 0 {
+						Spanf(Primary, se.Pos, se.End, se.Err.Error())(span)
+					} else {
+						span.Spans = make([]Span, len(se.Spans))
+						copy(span.Spans, se.Spans)
+					}
 					spans = append(spans, span)
 					continue
 				}
@@ -66,7 +72,7 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 
 			start := fb.PositionFromProto(src.Ranges[0].Start)
 			end := fb.PositionFromProto(src.Ranges[0].End)
-			se := WithError(nil, start, Spanf(Primary, start, end, msg))
+			se := WithError(nil, start, end, Spanf(Primary, start, end, msg))
 
 			var span *SpanError
 			if errors.As(se, &span) {

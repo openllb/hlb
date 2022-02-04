@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/docker/buildx/util/imagetools"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/solver/errdefs"
@@ -29,6 +31,7 @@ type (
 	backtraceKey      struct{}
 	progressKey       struct{}
 	platformKey       struct{}
+	dockerAPIKey      struct{}
 )
 
 func WithProgramCounter(ctx context.Context, node parser.Node) context.Context {
@@ -190,4 +193,31 @@ func DefaultPlatform(ctx context.Context) specs.Platform {
 		return specs.Platform{OS: "linux", Architecture: runtime.GOARCH}
 	}
 	return platform
+}
+
+type DockerAPIClient struct {
+	dockerclient.APIClient
+	Auth imagetools.Auth
+	Moby bool
+	Err  error
+}
+
+func WithDockerAPI(ctx context.Context, cln dockerclient.APIClient, auth imagetools.Auth, err error, moby bool) context.Context {
+	return context.WithValue(ctx, dockerAPIKey{}, DockerAPIClient{
+		APIClient: cln,
+		Auth:      auth,
+		Moby:      moby,
+		Err:       err,
+	})
+}
+
+func DockerAPI(ctx context.Context) DockerAPIClient {
+	d, ok := ctx.Value(dockerAPIKey{}).(DockerAPIClient)
+	if !ok {
+		return DockerAPIClient{
+			Moby: false,
+			Err:  errors.New("no docker api"),
+		}
+	}
+	return d
 }

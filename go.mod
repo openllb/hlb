@@ -7,9 +7,10 @@ require (
 	github.com/containerd/console v1.0.3
 	github.com/containerd/containerd v1.6.0-beta.3
 	github.com/creachadair/jrpc2 v0.26.1
-	github.com/docker/buildx v0.7.1-0.20220106170226-2b4d305c5823
+	github.com/docker/buildx v0.7.1-0.20220204032525-595285736c66
 	github.com/docker/cli v20.10.11+incompatible
 	github.com/docker/distribution v2.7.1+incompatible
+	github.com/docker/docker v20.10.7+incompatible
 	github.com/fvbommel/sortorder v1.0.2 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/lithammer/dedent v1.1.0
@@ -33,9 +34,10 @@ require (
 	google.golang.org/grpc v1.42.0
 )
 
-// necessary for langserver with vscode
-replace github.com/sourcegraph/go-lsp => github.com/radeksimko/go-lsp v0.0.0-20200223162147-9f2c54f29c9f
-
-replace github.com/docker/docker => github.com/docker/docker v20.10.3-0.20211208011758-87521affb077+incompatible
-
-replace github.com/docker/cli => github.com/docker/cli v20.10.3-0.20210907122809-698926882d53+incompatible
+replace (
+	github.com/docker/cli => github.com/docker/cli v20.10.3-0.20210702143511-f782d1355eff+incompatible
+	github.com/docker/docker => github.com/docker/docker v20.10.3-0.20211216190657-088afc99e4bf+incompatible
+	github.com/sourcegraph/go-lsp => github.com/radeksimko/go-lsp v0.0.0-20200223162147-9f2c54f29c9f
+	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace => github.com/tonistiigi/opentelemetry-go-contrib/instrumentation/net/http/httptrace/otelhttptrace v0.0.0-20211026174723-2f82a1e0c997
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => github.com/tonistiigi/opentelemetry-go-contrib/instrumentation/net/http/otelhttp v0.0.0-20211026174723-2f82a1e0c997
+)

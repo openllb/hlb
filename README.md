@@ -19,15 +19,21 @@ cd hlb
 go install ./cmd/hlb
 ```
 
-You'll also need to run `buildkitd` somewhere you can connect to. The easiest way if you have [Docker](https://www.docker.com/get-started), is to run a local buildkit container:
-```sh
-docker run -d --name buildkitd --privileged moby/buildkit:master
-```
-
 Then you can run one of the examples in `./examples`:
 ```sh
+hlb run ./examples/node.hlb
+```
+
+## Bring your own BuildKit
+
+By default, HLB uses the BuildKit embedded in a docker engine. HLB supports `BUILDKIT_HOST` the same way `buildctl` does, so you can run BuildKit in a container and connect to it:
+
+```sh
+docker run -d --name buildkitd --privileged moby/buildkit:master
 export BUILDKIT_HOST=docker-container://buildkitd
 hlb run ./examples/node.hlb
 ```
+
+## Language server
 
 If your editor has a decent LSP plugin, HLB does support LSP over stdio via the `hlb langserver` subcommand.

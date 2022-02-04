@@ -39,10 +39,11 @@ func Spanf(t Type, start, end lexer.Position, format string, a ...interface{}) O
 	}
 }
 
-func WithError(err error, pos lexer.Position, opts ...Option) error {
+func WithError(err error, pos, end lexer.Position, opts ...Option) error {
 	se := &SpanError{
 		Err: err,
 		Pos: pos,
+		End: end,
 	}
 	for _, opt := range opts {
 		opt(se)
@@ -51,9 +52,9 @@ func WithError(err error, pos lexer.Position, opts ...Option) error {
 }
 
 type SpanError struct {
-	Err   error
-	Pos   lexer.Position
-	Spans []Span
+	Err      error
+	Pos, End lexer.Position
+	Spans    []Span
 }
 
 func (se *SpanError) Error() string {
