@@ -11,6 +11,7 @@ require (
 	github.com/docker/cli v20.10.11+incompatible
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/fvbommel/sortorder v1.0.2 // indirect
+	github.com/google/go-dap v0.6.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
@@ -20,6 +21,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
 	github.com/openllb/doxygen-parser v0.0.0-20201031162929-e0b5cceb2d0c
+	github.com/peterh/liner v1.2.2 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sourcegraph/go-lsp v0.0.0-20200117082640-b19bb38222e2
 	github.com/stretchr/testify v1.7.0

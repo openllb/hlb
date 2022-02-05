@@ -58,6 +58,8 @@ func WithLogOutput(stderr io.Writer, logOutput LogOutput) ProgressOption {
 type Progress interface {
 	MultiWriter() *MultiWriter
 
+	Go(func(context.Context) error)
+
 	Write(pfx, name string, fn func(ctx context.Context) error)
 
 	Release()
@@ -165,6 +167,12 @@ type progressUI struct {
 
 func (p *progressUI) MultiWriter() *MultiWriter {
 	return p.mw
+}
+
+func (p *progressUI) Go(f func(context.Context) error) {
+	p.g.Go(func() error {
+		return f(p.ctx)
+	})
 }
 
 func (p *progressUI) Write(pfx, name string, fn func(ctx context.Context) error) {

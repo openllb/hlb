@@ -119,6 +119,16 @@ func ImageResolver(ctx context.Context) llb.ImageMetaResolver {
 
 type Frame struct {
 	parser.Node
+	Name string
+}
+
+func NewFrame(scope *parser.Scope, node parser.Node) Frame {
+	var name string
+	fn, ok := scope.Node.(*parser.FuncDecl)
+	if ok {
+		name = fn.Name.Text
+	}
+	return Frame{Node: node, Name: name}
 }
 
 func WithFrame(ctx context.Context, frame Frame) context.Context {
@@ -126,14 +136,9 @@ func WithFrame(ctx context.Context, frame Frame) context.Context {
 	return context.WithValue(ctx, backtraceKey{}, frames)
 }
 
-func Backtrace(ctx context.Context) []Frame {
-	frames, _ := ctx.Value(backtraceKey{}).([]Frame)
-	return frames
-}
-
-func WithBacktraceError(ctx context.Context, err error) error {
-	for _, frame := range Backtrace(ctx) {
-		err = errdefs.WithSource(err, errdefs.Source{
+func FramesToSources(frames []Frame) (sources []*errdefs.Source) {
+	for _, frame := range frames {
+		sources = append(sources, &errdefs.Source{
 			Info: &pb.SourceInfo{
 				Filename: frame.Position().Filename,
 			},
@@ -143,7 +148,22 @@ func WithBacktraceError(ctx context.Context, err error) error {
 			}},
 		})
 	}
+	return
+}
 
+func FramesToSpans(ctx context.Context, frames []Frame, se *diagnostic.SpanError) []*diagnostic.SpanError {
+	return diagnostic.SourcesToSpans(ctx, FramesToSources(frames), se)
+}
+
+func Backtrace(ctx context.Context) []Frame {
+	frames, _ := ctx.Value(backtraceKey{}).([]Frame)
+	return frames
+}
+
+func WithBacktraceError(ctx context.Context, err error) error {
+	for _, source := range FramesToSources(Backtrace(ctx)) {
+		err = errdefs.WithSource(err, *source)
+	}
 	return errors.WithStack(err)
 }
 

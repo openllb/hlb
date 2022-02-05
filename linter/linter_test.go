@@ -30,7 +30,7 @@ func TestLinter_Lint(t *testing.T) {
 		`,
 		func(mod *parser.Module) error {
 			return errdefs.WithDeprecated(
-				mod, parser.Find(mod, `"./foo.hlb"`).(*parser.StringLit),
+				mod, parser.Search(mod, `"./foo.hlb"`).(*parser.StringLit),
 				`import path without keyword "from" is deprecated`,
 			)
 		},

@@ -6,21 +6,42 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 )
 
+type ScopeLevel string
+
+var (
+	BuiltinScope  ScopeLevel = "Builtins"
+	ModuleScope   ScopeLevel = "Module"
+	FunctionScope ScopeLevel = "Function"
+	ArgsScope     ScopeLevel = "Arguments"
+)
+
 // Scope maintains the set of named language entities declared in the scope
 // and a link to the immediately surrounding (outer) scope.
 type Scope struct {
-	Node    Node
+	Node
+	Level   ScopeLevel
 	Outer   *Scope
 	Objects map[string]*Object
 }
 
 // NewScope creates a new scope linking to an outer scope.
-func NewScope(node Node, outer *Scope) *Scope {
+func NewScope(outer *Scope, level ScopeLevel, node Node) *Scope {
 	return &Scope{
 		Node:    node,
+		Level:   level,
 		Outer:   outer,
 		Objects: make(map[string]*Object),
 	}
+}
+
+func (s *Scope) ByLevel(level ScopeLevel) *Scope {
+	if s.Level == level {
+		return s
+	}
+	if s.Outer != nil {
+		return s.Outer.ByLevel(level)
+	}
+	return nil
 }
 
 // Lookup returns the object with the given name if it is
@@ -73,12 +94,18 @@ func (s *Scope) Defined() []*Object {
 	if s.Outer != nil {
 		objs = s.Outer.Defined()
 	}
-	for _, obj := range s.Objects {
-		objs = append(objs, obj)
-	}
+	objs = append(objs, s.Locals()...)
 	sort.SliceStable(objs, func(i, j int) bool {
 		return objs[i].Ident.Text < objs[j].Ident.Text
 	})
+	return objs
+}
+
+func (s *Scope) Locals() []*Object {
+	var objs []*Object
+	for _, obj := range s.Objects {
+		objs = append(objs, obj)
+	}
 	return objs
 }
 

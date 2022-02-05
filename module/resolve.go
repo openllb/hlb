@@ -383,6 +383,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				var (
 					ctx = codegen.WithProgramCounter(ctx, id.Expr)
 					ret = codegen.NewRegister(ctx)
+					opts []filebuffer.Option
 				)
 				err := cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
 				if err != nil {
@@ -404,6 +405,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					}
 					defer res.Close()
 
+					opts = append(opts, filebuffer.WithEphemeral())
 				case parser.String:
 					filename, err = ret.String()
 					if err != nil {
@@ -433,7 +435,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				}
 				defer rc.Close()
 
-				imod, err := parser.Parse(ctx, rc)
+				imod, err := parser.Parse(ctx, rc, opts...)
 				if err != nil {
 					return err
 				}

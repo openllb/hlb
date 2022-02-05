@@ -18,10 +18,12 @@ import (
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/codegen/debug"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/rpc/dapserver"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -45,6 +47,10 @@ var runCommand = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "attach a debugger",
+		},
+		&cli.BoolFlag{
+			Name:  "dap",
+			Usage: "set debugger fronted to DAP over stdio",
 		},
 		&cli.BoolFlag{
 			Name:  "shell-on-error",
@@ -82,7 +88,8 @@ var runCommand = &cli.Command{
 		}
 
 		return Run(ctx, cln, rc, RunInfo{
-			Debug:           c.Bool("debug"),
+			Debug:           c.Bool("debug") || c.Bool("dap"),
+			DAP:             c.Bool("dap"),
 			ShellOnError:    c.Bool("shell-on-error"),
 			Tree:            c.Bool("tree"),
 			Targets:         c.StringSlice("target"),
@@ -97,6 +104,7 @@ var runCommand = &cli.Command{
 
 type RunInfo struct {
 	Debug            bool
+	DAP              bool
 	ShellOnError     bool
 	ShellOnErrorArgs []string
 	Tree             bool
@@ -187,7 +195,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 			return
 		}
 		displayOnce.Do(func() {
-			DisplayError(ctx, info.Stderr, err, info.Backtrace)
+			diagnostic.DisplayError(ctx, info.Stderr, err, info.Backtrace)
 		})
 
 		numErrs := 1
@@ -222,8 +230,25 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		r := bufio.NewReader(pr)
 		inputSteerer = codegen.NewInputSteerer(info.Stdin, pw)
 
-		debugger := codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
+		// debugger := codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
+
+		var debuggerOpts []codegen.DebuggerOption
+		if info.DAP {
+			debuggerOpts = append(debuggerOpts,
+				codegen.WithInitialMode(codegen.DebugStartStop),
+			)
+		}
+
+		debugger := codegen.NewDebugger(cln, debuggerOpts...)
 		opts = append(opts, codegen.WithDebugger(debugger))
+
+		p.Go(func(ctx context.Context) error {
+			if info.DAP {
+				s := dapserver.New(debugger)
+				return s.Listen(ctx, info.Stdin, info.Stdout)
+			}
+			return debug.TUIFrontend(debugger, info.Stdout)
+		})
 	}
 
 	var solveOpts []solver.SolveOption
@@ -242,7 +267,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		p.Release()
 		perr := p.Wait()
 		// Ignore early exits from the debugger.
-		if err == codegen.ErrDebugExit {
+		if errors.Is(err, codegen.ErrDebugExit) {
 			return perr
 		}
 		return err
@@ -271,54 +296,16 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return nil
 	}
 
-	defer p.Wait()
-	defer p.Release()
-	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
-}
+	p.Go(func(ctx context.Context) error {
+		defer p.Release()
+		return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
+	})
 
-func DisplayError(ctx context.Context, stderr io.Writer, err error, printBacktrace bool) {
-	// Handle backtrace.
-	backtrace := diagnostic.Backtrace(ctx, err)
-	if len(backtrace) > 0 {
-		color := diagnostic.Color(ctx)
-		fmt.Fprintf(stderr, color.Sprintf(
-			"%s: %s\n",
-			color.Bold(color.Red("error")),
-			color.Bold(diagnostic.Cause(err)),
-		))
+	err = p.Wait()
+	if errors.Is(err, codegen.ErrDebugExit) {
+		return nil
 	}
-	for i, span := range backtrace {
-		if !printBacktrace && i != len(backtrace)-1 {
-			if i == 0 {
-				color := diagnostic.Color(ctx)
-				frame := "frame"
-				if len(backtrace) > 2 {
-					frame = "frames"
-				}
-				fmt.Fprintf(stderr, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
-			}
-			continue
-		}
-
-		pretty := span.Pretty(ctx, diagnostic.WithNumContext(2))
-		lines := strings.Split(pretty, "\n")
-		for j, line := range lines {
-			if j == 0 {
-				lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
-			} else {
-				lines[j] = fmt.Sprintf("    %s", line)
-			}
-		}
-		fmt.Fprintf(stderr, "%s\n", strings.Join(lines, "\n"))
-	}
-
-	if len(backtrace) == 0 {
-		// Handle diagnostic errors.
-		spans := diagnostic.Spans(err)
-		for _, span := range spans {
-			fmt.Fprintf(stderr, "%s\n", span.Pretty(ctx))
-		}
-	}
+	return err
 }
 
 func ModuleReadCloser(args []string) (io.ReadCloser, error) {
@@ -348,7 +335,7 @@ func errorHandler(inputSteerer *codegen.InputSteerer, once *sync.Once, stdout, s
 		}
 
 		once.Do(func() {
-			DisplayError(ctx, stderr, err, backtrace)
+			diagnostic.DisplayError(ctx, stderr, err, backtrace)
 		})
 
 		pr, pw := io.Pipe()

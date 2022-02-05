@@ -35,23 +35,54 @@ func (s *Sources) Set(filename string, fb *FileBuffer) {
 	s.fbs[filename] = fb
 }
 
+func (s *Sources) FileBuffers() []*FileBuffer {
+	var filenames []string
+	for filename := range s.fbs {
+		filenames = append(filenames, filename)
+	}
+	sort.Strings(filenames)
+	var fbs []*FileBuffer
+	for _, filename := range filenames {
+		fbs = append(fbs, s.Get(filename))
+	}
+	return fbs
+}
+
 type FileBuffer struct {
 	filename  string
 	buf       bytes.Buffer
 	offset    int
 	offsets   []int
-	sourceMap *llb.SourceMap
 	mu        sync.Mutex
+	sourceMap *llb.SourceMap
+	onDisk bool
 }
 
-func New(filename string) *FileBuffer {
-	return &FileBuffer{
-		filename: filename,
+type Option func(*FileBuffer)
+
+func WithEphemeral() Option {
+	return func(fb *FileBuffeR) {
+		fb.onDisk = false
 	}
+}
+
+func New(filename string, opts ...Option) *FileBuffer {
+	fb := &FileBuffer{
+		filename: filename,
+		onDisk: true,
+	}
+	for _, opt := range opts {
+		opt(fb)
+	}
+	return fb
 }
 
 func (fb *FileBuffer) Filename() string {
 	return fb.filename
+}
+
+func (fb *FileBuffer) OnDisk() bool {
+	return fb.onDisk
 }
 
 func (fb *FileBuffer) SourceMap() *llb.SourceMap {
@@ -86,8 +117,7 @@ func (fb *FileBuffer) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (fb *FileBuffer) PositionFromProto(pos pb.Position) lexer.Position {
-	line, column := int(pos.Line), int(pos.Character)
+func (fb *FileBuffer) Position(line, column int) lexer.Position {
 	var offset int
 	if line-2 < 0 {
 		offset = column - 1

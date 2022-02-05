@@ -101,6 +101,11 @@ type Node interface {
 	Spanf(t diagnostic.Type, format string, a ...interface{}) diagnostic.Option
 }
 
+type StopNode interface {
+	Node
+	Subject() Node
+}
+
 type Mixin struct {
 	Pos    lexer.Position
 	EndPos lexer.Position
@@ -261,6 +266,10 @@ type FuncDecl struct {
 	Params  *FieldList     `parser:"@@"`
 	Effects *EffectsClause `parser:"@@?"`
 	Body    *BlockStmt     `parser:"@@?"`
+}
+
+func (fd *FuncDecl) Subject() Node {
+	return fd.Name
 }
 
 func (fd *FuncDecl) Kind() Kind {
@@ -461,6 +470,10 @@ func NewCallStmt(name string, args []*Expr, with *WithClause, binds *BindClause)
 			BindClause: binds,
 		},
 	}
+}
+
+func (cs *CallStmt) Subject() Node {
+	return cs.Name
 }
 
 func (cs *CallStmt) Breakpoint(returnType Kind) bool {
@@ -835,6 +848,10 @@ type CallExpr struct {
 	List *ExprList  `parser:"@@?"`
 }
 
+func (ce *CallExpr) Subject() Node {
+	return ce.Name
+}
+
 func (ce *CallExpr) Args() []*Expr {
 	var args []*Expr
 	if ce.List != nil {
@@ -869,6 +886,13 @@ type IdentExpr struct {
 	Mixin
 	Ident     *Ident     `parser:"@@"`
 	Reference *Reference `parser:"@@?"`
+}
+
+func (ie *IdentExpr) Subject() Node {
+	if ie.Reference != nil {
+		return ie.Reference
+	}
+	return ie.Ident
 }
 
 // Reference represents the exported identifier from an imported module.
