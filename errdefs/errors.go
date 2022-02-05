@@ -243,6 +243,13 @@ func WithBindCacheMount(as, cache parser.Node) error {
 	)
 }
 
+func WithDockerEngineUnsupported(decl parser.Node) error {
+	return decl.WithError(
+		fmt.Errorf("not supported by buildkit embedded in docker engine, use standalone buildkit"),
+		decl.Spanf(diagnostic.Primary, "not supported by docker engine"),
+	)
+}
+
 func OneOfKinds(kinds []parser.Kind) string {
 	if len(kinds) == 1 {
 		return fmt.Sprintf("type %s", kinds[0])

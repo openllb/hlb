@@ -7,7 +7,6 @@ import (
 
 	_ "github.com/moby/buildkit/client/connhelper/dockercontainer"
 	_ "github.com/moby/buildkit/client/connhelper/kubepod"
-	"github.com/moby/buildkit/util/appdefaults"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -16,16 +15,13 @@ func App() *cli.App {
 	app.Name = "hlb"
 	app.Usage = "high-level build language compiler"
 
-	defaultAddress := os.Getenv("BUILDKIT_HOST")
-	if defaultAddress == "" {
-		defaultAddress = appdefaults.Address
-	}
-
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
 			Name:  "addr",
 			Usage: "buildkitd address",
-			Value: defaultAddress,
+			EnvVars: []string{
+				"BUILDKIT_HOST",
+			},
 		},
 	}
 
