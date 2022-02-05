@@ -3,7 +3,6 @@ module github.com/openllb/hlb
 go 1.16
 
 require (
-	github.com/alecthomas/participle v1.0.0-alpha1.0.20201031050245-4435aeea334f
 	github.com/alecthomas/participle/v2 v2.0.0-alpha7.0.20211230082035-5a357f57e525
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/containerd/console v1.0.3
@@ -15,6 +14,7 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/docker v20.10.7+incompatible
 	github.com/fvbommel/sortorder v1.0.2 // indirect
+	github.com/google/go-dap v0.6.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23

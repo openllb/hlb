@@ -41,7 +41,12 @@ type Target struct {
 
 func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Target) (result solver.Request, err error) {
 	if GetDebugger(ctx) != nil {
-		cg.dbgr = GetDebugger(ctx).(*debugger)
+		switch dbgr := GetDebugger(ctx).(type) {
+		case testDebugger:
+			cg.dbgr = dbgr.GetDebugger().(*debugger)
+		case *debugger:
+			cg.dbgr = dbgr
+		}
 		ctx = WithGlobalSolveOpts(ctx, solver.WithErrorHandler(cg.errorHandler))
 	}
 
@@ -96,7 +101,7 @@ func (cg *CodeGen) EmitExpr(ctx context.Context, scope *ast.Scope, expr *ast.Exp
 			if expr.CallExpr.Breakpoint() {
 				var err error
 				if cg.dbgr != nil {
-					ctx = WithFrame(ctx, Frame{expr.CallExpr.Name})
+					ctx = WithFrame(ctx, NewFrame(scope, expr.CallExpr.Name))
 					err = cg.dbgr.yield(ctx, scope, expr.CallExpr, val, nil, nil)
 				}
 				return val, err
@@ -256,7 +261,7 @@ func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *ast.Scope, call *ast
 	}
 
 	// Yield before executing call expression.
-	ctx = WithFrame(ctx, Frame{call.Name})
+	ctx = WithFrame(ctx, NewFrame(scope, call.Name))
 	if cg.dbgr != nil {
 		err := cg.dbgr.yield(ctx, scope, call, ret.Value(), nil, nil)
 		if err != nil {
@@ -530,7 +535,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Re
 		// The frame for the function signature is only kept for this yield so don't
 		// assign it to ctx. Once the debugger steps after the function signature, we
 		// don't want it as part of the backtrace.
-		err := cg.dbgr.yield(WithFrame(ctx, Frame{fd.Sig.Name}), scope, fd.Sig, ret.Value(), nil, nil)
+		err := cg.dbgr.yield(WithFrame(ctx, NewFrame(scope, fd.Sig.Name)), scope, fd.Sig, ret.Value(), nil, nil)
 		if err != nil {
 			return err
 		}
@@ -595,7 +600,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.B
 				if stmt.Call.Breakpoint() {
 					var err error
 					if cg.dbgr != nil {
-						ctx = WithFrame(ctx, Frame{stmt.Call.Name})
+						ctx = WithFrame(ctx, NewFrame(scope, stmt.Call.Name))
 						err = cg.dbgr.yield(ctx, scope, stmt.Call, val, nil, nil)
 					}
 					return val, err
@@ -653,7 +658,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast
 	}
 
 	// Yield before executing the next call statement.
-	ctx = WithFrame(ctx, Frame{call.Name})
+	ctx = WithFrame(ctx, NewFrame(scope, call.Name))
 	if cg.dbgr != nil {
 		opt, err := opts.Value().Option()
 		if err != nil {

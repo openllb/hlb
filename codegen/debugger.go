@@ -47,7 +47,7 @@ type Debugger interface {
 	Backtrace() ([]Frame, error)
 
 	// Breakpoints gets all breakpoints.
-	Breakpoints() []*Breakpoint
+	Breakpoints() ([]*Breakpoint, error)
 
 	// CreateBreakpoint creates a new breakpoint.
 	CreateBreakpoint(bp *Breakpoint) (*Breakpoint, error)
@@ -56,7 +56,7 @@ type Debugger interface {
 	ClearBreakpoint(bp *Breakpoint) error
 
 	// Terminate sends a signal to end the debugging session.
-	Terminate()
+	Terminate() error
 
 	// Exec starts a process in the current debugging state.
 	Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr io.Writer, args ...string) error
@@ -193,16 +193,20 @@ func (d *debugger) Backtrace() ([]Frame, error) {
 	return Backtrace(s.Ctx), nil
 }
 
-func (d *debugger) Breakpoints() []*Breakpoint {
-	return d.breakpoints
+func (d *debugger) Breakpoints() ([]*Breakpoint, error) {
+	return d.breakpoints, nil
 }
 
 func (d *debugger) CreateBreakpoint(bp *Breakpoint) (*Breakpoint, error) {
 	if _, ok := d.breakpointIDs[bp.ID()]; ok {
 		return bp, fmt.Errorf("breakpoint already exists at %s", bp.ID())
 	}
-	bp.dbgr = d
-	d.breakpoints = append(d.breakpoints, bp)
+	if bp.SourceDefined {
+		d.sourceDefinedBreakpoints = append(d.sourceDefinedBreakpoints, bp)
+	} else {
+		d.breakpoints = append(d.breakpoints, bp)
+	}
+	bp.Index = len(d.breakpoints)
 	d.breakpointIDs[bp.ID()] = struct{}{}
 	return bp, nil
 }
@@ -221,13 +225,17 @@ func (d *debugger) ClearBreakpoint(bp *Breakpoint) error {
 		}
 	}
 	delete(d.breakpointIDs, bp.ID())
+	for i, bp := range d.breakpoints {
+		bp.Index = i + 1
+	}
 	return nil
 }
 
-func (d *debugger) Terminate() {
+func (d *debugger) Terminate() error {
 	// Set debugger error so that next yield it exits early.
 	d.err = ErrDebugExit
 	d.sendControl(DebugTerminate, NoneDirection)
+	return nil
 }
 
 func (d *debugger) Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr io.Writer, args ...string) error {
@@ -485,18 +493,14 @@ func (d *debugger) findSourceDefinedBreakpoints(mod *ast.Module) {
 				}
 			}
 
-			bp := &Breakpoint{
+			_, err := d.CreateBreakpoint(&Breakpoint{
 				Node:          call.Name,
 				SourceDefined: true,
-				dbgr:          d,
-			}
-			// If there is already a breakpoint there, then skip.
-			_, ok := d.breakpointIDs[bp.ID()]
-			if ok {
+			})
+			if err != nil {
+				// If there is already a breakpoint there, then skip.
 				return
 			}
-			d.breakpointIDs[bp.ID()] = struct{}{}
-			d.sourceDefinedBreakpoints = append(d.sourceDefinedBreakpoints, bp)
 		},
 	)
 }
@@ -506,13 +510,13 @@ func (d *debugger) findSourceDefinedBreakpoints(mod *ast.Module) {
 type Breakpoint struct {
 	ast.Node
 
+	Index int
+
 	// Disabled is true if the breakpoint should not halt the program.
 	Disabled bool
 
 	// SourceDefined is true if the breakpoint is defined by the source.
 	SourceDefined bool
-
-	dbgr *debugger
 }
 
 func (bp *Breakpoint) ID() string {
@@ -520,16 +524,8 @@ func (bp *Breakpoint) ID() string {
 }
 
 func (bp *Breakpoint) Print(ctx context.Context, w io.Writer, cleared bool) {
-	index := 0
-	for i, breakpoint := range bp.dbgr.breakpoints {
-		if bp == breakpoint {
-			index = i
-			break
-		}
-	}
-
 	color := diagnostic.Color(ctx)
-	name := fmt.Sprintf("Breakpoint %d", index+1)
+	name := fmt.Sprintf("Breakpoint %d", bp.Index)
 	if cleared {
 		name = color.Sprintf(color.StrikeThrough(name))
 	}

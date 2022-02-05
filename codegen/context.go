@@ -127,6 +127,16 @@ func ImageResolver(ctx context.Context) llb.ImageMetaResolver {
 
 type Frame struct {
 	ast.Node
+	Name string
+}
+
+func NewFrame(scope *ast.Scope, node ast.Node) Frame {
+	var name string
+	fnScope := scope.ByLevel(ast.FunctionScope)
+	if fnScope != nil {
+		name = fnScope.Node.(*ast.FuncDecl).Sig.Name.Text
+	}
+	return Frame{Node: node, Name: name}
 }
 
 func WithFrame(ctx context.Context, frame Frame) context.Context {
