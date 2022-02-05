@@ -151,8 +151,8 @@ func FramesToSources(frames []Frame) (sources []*errdefs.Source) {
 	return
 }
 
-func FramesToSpans(ctx context.Context, frames []Frame, se *diagnostic.SpanError) []*diagnostic.SpanError {
-	return diagnostic.SourcesToSpans(ctx, FramesToSources(frames), se)
+func FramesToSpans(ctx context.Context, frames []Frame) []*diagnostic.SpanError {
+	return diagnostic.SourcesToSpans(ctx, FramesToSources(frames), nil)
 }
 
 func Backtrace(ctx context.Context) []Frame {

@@ -476,10 +476,7 @@ func (cs *CallStmt) Subject() Node {
 	return cs.Name
 }
 
-func (cs *CallStmt) Breakpoint(returnType Kind) bool {
-	if returnType == Kind(fmt.Sprintf("%s::%s", Option, "run")) {
-		return false
-	}
+func (cs *CallStmt) Breakpoint() bool {
 	if cs.Name == nil || cs.Name.Ident == nil {
 		return false
 	}
@@ -850,6 +847,13 @@ type CallExpr struct {
 
 func (ce *CallExpr) Subject() Node {
 	return ce.Name
+}
+
+func (ce *CallExpr) Breakpoint() bool {
+	if ce.Name == nil || ce.Name.Ident == nil {
+		return false
+	}
+	return ce.Name.Ident.Text == "breakpoint"
 }
 
 func (ce *CallExpr) Args() []*Expr {

@@ -9,7 +9,6 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/solver/pb"
 )
 
 type Sources struct {
@@ -55,13 +54,13 @@ type FileBuffer struct {
 	offsets   []int
 	mu        sync.Mutex
 	sourceMap *llb.SourceMap
-	onDisk bool
+	onDisk    bool
 }
 
 type Option func(*FileBuffer)
 
 func WithEphemeral() Option {
-	return func(fb *FileBuffeR) {
+	return func(fb *FileBuffer) {
 		fb.onDisk = false
 	}
 }
@@ -69,7 +68,7 @@ func WithEphemeral() Option {
 func New(filename string, opts ...Option) *FileBuffer {
 	fb := &FileBuffer{
 		filename: filename,
-		onDisk: true,
+		onDisk:   true,
 	}
 	for _, opt := range opts {
 		opt(fb)

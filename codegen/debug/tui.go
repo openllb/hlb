@@ -32,12 +32,9 @@ func TUIFrontend(debugger codegen.Debugger, w io.Writer) error {
 
 		stop, ok := s.Node.(parser.StopNode)
 		if s.Err != nil {
-			var se *diagnostic.SpanError
-			_ = errors.As(s.Err, &se)
-
-			spans := diagnostic.SourcesToSpans(s.Ctx, errdefs.Sources(s.Err), se)
+			spans := diagnostic.SourcesToSpans(s.Ctx, errdefs.Sources(s.Err), s.Err)
 			if len(spans) > 0 {
-				diagnostic.DisplayError(s.Ctx, spans, w, true)
+				diagnostic.DisplayError(s.Ctx, w, spans, true)
 			} else {
 				fmt.Fprintf(w, "error: %s", s.Err)
 			}
@@ -86,8 +83,8 @@ func TUIFrontend(debugger codegen.Debugger, w io.Writer) error {
 				continue
 			}
 
-			spans := codegen.FramesToSpans(s.Ctx, frames, nil)
-			diagnostic.DisplayError(s.Ctx, spans, w, true)
+			spans := codegen.FramesToSpans(s.Ctx, frames)
+			diagnostic.DisplayError(s.Ctx, w, spans, true)
 			goto prompt
 		case "break":
 			if stop == nil {
@@ -144,7 +141,7 @@ func TUIFrontend(debugger codegen.Debugger, w io.Writer) error {
 			s, serr = debugger.Restart()
 		case "rev":
 			if len(args) == 0 {
-				fmt.Fprintf(w, "rev must have at least one arg")
+				fmt.Fprintf(w, "rev must have at least one arg\n")
 				goto prompt
 			}
 			cmd, args = args[0], args[1:]

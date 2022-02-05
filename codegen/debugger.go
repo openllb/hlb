@@ -249,7 +249,10 @@ func (d *debugger) sendControl(control DebugControl) {
 
 func (d *debugger) exit(err error) {
 	// Set the global exit err.
-	d.err = err
+	d.err = ErrDebugExit
+	if err != nil {
+		d.err = err
+	}
 	// Cancel incoming control signals.
 	close(d.done)
 	// Wait for clients to exit gracefully.
@@ -282,7 +285,8 @@ func (d *debugger) yield(ctx context.Context, scope *parser.Scope, node parser.N
 }
 
 func (d *debugger) playback(s *State) error {
-	if mod, ok := s.Node.(*parser.Module); ok && !d.loadedHardCodedBreakpoints {
+	mod, ok := s.Node.(*parser.Module)
+	if ok && !d.loadedHardCodedBreakpoints {
 		// Load hard coded breakpoints from the source.
 		d.findHardCodedBreakpoints(mod)
 		d.loadedHardCodedBreakpoints = true

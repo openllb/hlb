@@ -56,9 +56,14 @@ type Target struct {
 	Name string
 }
 
-func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (solver.Request, error) {
-	var requests []solver.Request
+func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (result solver.Request, err error) {
+	defer func() {
+		if cg.dbgr != nil {
+			cg.dbgr.exit(err)
+		}
+	}()
 
+	var requests []solver.Request
 	for i, target := range targets {
 		_, ok := mod.Scope.Objects[target.Name]
 		if !ok {
@@ -69,7 +74,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		if cg.dbgr != nil {
 			err := cg.dbgr.yield(ctx, mod.Scope, mod, nil, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 
@@ -80,7 +85,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 
 		// Every target has a return register.
 		ret := NewRegister(ctx)
-		err = cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
+		err := cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
 		if err != nil {
 			return nil, err
 		}
@@ -374,18 +379,11 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 		}
 	}
 
-	var err error
 	outs := c.Call(ins)
 	if !outs[0].IsNil() {
-		err = WithBacktraceError(ctx, outs[0].Interface().(error))
-		if cg.dbgr != nil {
-			derr := cg.dbgr.yield(ctx, scope, ProgramCounter(ctx), ret, err)
-			if derr != nil {
-				return derr
-			}
-		}
+		return WithBacktraceError(ctx, outs[0].Interface().(error))
 	}
-	return err
+	return nil
 }
 
 func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args []Value, b *parser.Binding, ret Register) error {
@@ -400,7 +398,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", name, len(params), len(args))
 	}
 
-	scope := parser.NewScope(fun, fun.Scope)
+	scope := parser.NewScope(fun.Scope, parser.FunctionScope, fun)
 	for i, param := range params {
 		if param.Modifier != nil {
 			continue
@@ -445,18 +443,6 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, b *parser.Binding, ret Register) error {
 	ctx = WithFrame(ctx, NewFrame(scope, call.Name))
 
-	// Yield before executing the next call statement.
-	if cg.dbgr != nil {
-		err := cg.dbgr.yield(ctx, scope, call, ret, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	if call.Breakpoint() {
-		return nil
-	}
-
 	// No type hint for arg evaluation because the call.Name hasn't been resolved
 	// yet, so codegen has no type information.
 	args, err := cg.Evaluate(ctx, scope, parser.None, nil, call.Args...)
@@ -485,7 +471,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	}
 
 	// Yield before executing the next call statement.
-	if call.Breakpoint(ReturnType(ctx)) {
+	if call.Breakpoint() {
 		var command []string
 		for _, arg := range args {
 			if arg.Kind() != parser.String {
@@ -501,9 +487,17 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 			opts = append(opts, breakpointCommand(command))
 		}
 	}
-	err = cg.Debug(ctx, scope, call.Name, ret, opts)
-	if err != nil {
-		return err
+
+	// Yield before executing the next call statement.
+	if cg.dbgr != nil {
+		err := cg.dbgr.yield(ctx, scope, call, ret, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if call.Breakpoint() {
+		return nil
 	}
 
 	// Pass the binding if this is the matching CallStmt.

@@ -1,7 +1,6 @@
 package command
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -23,6 +22,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/steer"
 	"github.com/openllb/hlb/rpc/dapserver"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
@@ -194,18 +194,10 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		if err == nil {
 			return
 		}
+		var numErrs int
 		displayOnce.Do(func() {
-			diagnostic.DisplayError(ctx, info.Stderr, err, info.Backtrace)
+			numErrs = displayError(ctx, info.Stderr, err, info.Backtrace)
 		})
-
-		numErrs := 1
-		backtrace := diagnostic.Backtrace(ctx, err)
-		if len(backtrace) == 0 {
-			// Handle diagnostic errors.
-			spans := diagnostic.Spans(err)
-			numErrs = len(spans)
-		}
-
 		err = errdefs.WithAbort(err, numErrs)
 	}()
 
@@ -223,12 +215,12 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	var (
 		opts         []codegen.CodeGenOption
-		inputSteerer *codegen.InputSteerer
+		inputSteerer *steer.InputSteerer
 	)
 	if info.Debug {
-		pr, pw := io.Pipe()
-		r := bufio.NewReader(pr)
-		inputSteerer = codegen.NewInputSteerer(info.Stdin, pw)
+		// pr, pw := io.Pipe()
+		// r := bufio.NewReader(pr)
+		// inputSteerer = steer.NewInputSteerer(info.Stdin, pw)
 
 		// debugger := codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
 
@@ -254,7 +246,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	var solveOpts []solver.SolveOption
 	if info.ShellOnError {
 		if inputSteerer == nil {
-			inputSteerer = codegen.NewInputSteerer(info.Stdin)
+			inputSteerer = steer.NewInputSteerer(info.Stdin)
 		}
 
 		handler := errorHandler(inputSteerer, displayOnce, info.Stdout, info.Stderr, info.Backtrace, info.ShellOnErrorArgs...)
@@ -327,7 +319,21 @@ func ModuleReadCloser(args []string) (io.ReadCloser, error) {
 	return os.Open(args[0])
 }
 
-func errorHandler(inputSteerer *codegen.InputSteerer, once *sync.Once, stdout, stderr io.Writer, backtrace bool, args ...string) solver.ErrorHandler {
+func displayError(ctx context.Context, w io.Writer, err error, printBacktrace bool) (numErrs int) {
+	spans := diagnostic.SourcesToSpans(ctx, solvererrdefs.Sources(err), err)
+	if len(spans) > 0 {
+		diagnostic.DisplayError(ctx, w, spans, printBacktrace)
+		return 1
+	}
+
+	// Handle diagnostic errors.
+	for _, span := range diagnostic.Spans(err) {
+		fmt.Fprintf(w, "%s\n", span.Pretty(ctx))
+	}
+	return len(spans)
+}
+
+func errorHandler(inputSteerer *steer.InputSteerer, once *sync.Once, stdout, stderr io.Writer, printBacktrace bool, args ...string) solver.ErrorHandler {
 	return func(ctx context.Context, c gateway.Client, err error) {
 		var se *solvererrdefs.SolveError
 		if !errors.As(err, &se) {
@@ -335,7 +341,7 @@ func errorHandler(inputSteerer *codegen.InputSteerer, once *sync.Once, stdout, s
 		}
 
 		once.Do(func() {
-			diagnostic.DisplayError(ctx, stderr, err, backtrace)
+			displayError(ctx, stderr, err, printBacktrace)
 		})
 
 		pr, pw := io.Pipe()

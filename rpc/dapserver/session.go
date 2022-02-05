@@ -670,7 +670,7 @@ func (s *Session) onScopesRequest(ctx context.Context, req *dap.ScopesRequest) e
 
 	var scopes []dap.Scope
 	for _, level := range []parser.ScopeLevel{
-		parser.ArgScope,
+		parser.ArgsScope,
 		parser.ModuleScope,
 		parser.BuiltinScope,
 	} {
@@ -709,7 +709,7 @@ func (s *Session) onVariablesRequest(ctx context.Context, req *dap.VariablesRequ
 
 	for i, obj := range objs {
 		var value string
-		val, err := codegen.NewValue(obj.Data)
+		val, err := codegen.NewValue(ctx, obj.Data)
 		if err != nil {
 			value = fmt.Sprintf("<%s>", obj.Kind)
 		} else {

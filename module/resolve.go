@@ -19,6 +19,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"golang.org/x/sync/errgroup"
@@ -381,8 +382,8 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 			res := res
 			g.Go(func() error {
 				var (
-					ctx = codegen.WithProgramCounter(ctx, id.Expr)
-					ret = codegen.NewRegister(ctx)
+					ctx  = codegen.WithProgramCounter(ctx, id.Expr)
+					ret  = codegen.NewRegister(ctx)
 					opts []filebuffer.Option
 				)
 				err := cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)

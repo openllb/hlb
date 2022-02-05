@@ -45,26 +45,31 @@ func Spans(err error) (spans []*SpanError) {
 	return
 }
 
-func DisplayError(ctx context.Context, stderr io.Writer, err error, printBacktrace bool) {
-	// Handle backtrace.
-	backtrace := SourcesToSpans(ctx, solvererrdefs.Sources(err))
-	if len(backtrace) > 0 {
-		color := Color(ctx)
-		fmt.Fprintf(stderr, color.Sprintf(
+func DisplayError(ctx context.Context, w io.Writer, spans []*SpanError, printBacktrace bool) {
+	if len(spans) == 0 {
+		return
+	}
+
+	color := Color(ctx)
+
+	err := spans[len(spans)-1].Err
+	if err != nil {
+		fmt.Fprintf(w, color.Sprintf(
 			"%s: %s\n",
 			color.Bold(color.Red("error")),
 			color.Bold(Cause(err)),
 		))
 	}
-	for i, span := range backtrace {
-		if !printBacktrace && i != len(backtrace)-1 {
+
+	for i, span := range spans {
+		if !printBacktrace && i != len(spans)-1 {
 			if i == 0 {
 				color := Color(ctx)
 				frame := "frame"
-				if len(backtrace) > 2 {
+				if len(spans) > 2 {
 					frame = "frames"
 				}
-				fmt.Fprintf(stderr, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
+				fmt.Fprintf(w, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(spans)-1, frame))
 			}
 			continue
 		}
@@ -78,20 +83,11 @@ func DisplayError(ctx context.Context, stderr io.Writer, err error, printBacktra
 				lines[j] = fmt.Sprintf("    %s", line)
 			}
 		}
-		fmt.Fprintf(stderr, "%s\n", strings.Join(lines, "\n"))
-	}
-
-	if len(backtrace) == 0 {
-		// Handle diagnostic errors.
-		spans := Spans(err)
-		for _, span := range spans {
-			fmt.Fprintf(stderr, "%s\n", span.Pretty(ctx))
-		}
+		fmt.Fprintf(w, "%s\n", strings.Join(lines, "\n"))
 	}
 }
 
-func SourcesToSpans(ctx context.Context, err error) (spans []*SpanError) {
-	srcs := errdefs.Sources(err)
+func SourcesToSpans(ctx context.Context, srcs []*errdefs.Source, err error) (spans []*SpanError) {
 	for i, src := range srcs {
 		fb := Sources(ctx).Get(src.Info.Filename)
 		if fb != nil {
@@ -107,13 +103,11 @@ func SourcesToSpans(ctx context.Context, err error) (spans []*SpanError) {
 					spans = append(spans, span)
 					continue
 				}
-
-				msg = Cause(err)
 			}
 
 			loc := src.Ranges[0]
-			start := fb.Position(int(loc.Start.Line))
-			end := fb.Position(int(loc.End.Line))
+			start := fb.Position(int(loc.Start.Line), int(loc.Start.Character))
+			end := fb.Position(int(loc.End.Line), int(loc.End.Character))
 			se := WithError(nil, start, Spanf(Primary, start, end, msg))
 
 			var span *SpanError

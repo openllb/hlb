@@ -1,0 +1,5 @@
+fs default() {
+	image "alpine"
+	run "echo foo"
+	breakpoint
+}
