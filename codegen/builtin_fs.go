@@ -1019,6 +1019,12 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 		return err
 	}
 
+	named, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return errdefs.WithInvalidImageRef(err, Arg(ctx, 1), ref)
+	}
+	ref = reference.TagNameOnly(named).String()
+
 	err = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err != nil {
 		return err
