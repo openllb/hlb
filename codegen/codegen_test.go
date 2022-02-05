@@ -1012,6 +1012,16 @@ func TestCodegenError(t *testing.T) {
 		`,
 			"<stdin>:3:9: unrecognized builtin `includePatterns`",
 		},
+		{
+			"invalid downloadDockerTarball ref",
+			[]string{"default"},
+			`
+			fs default() {
+				downloadDockerTarball "image.tar" "#"
+			}
+		`,
+			"<stdin>:3:39: failed to parse `#`: invalid reference format",
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
