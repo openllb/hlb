@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -45,7 +46,7 @@ var moduleVendorCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		cln, ctx, err := Client(c)
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
 		if err != nil {
 			return err
 		}
@@ -64,7 +65,7 @@ var moduleTidyCommand = &cli.Command{
 	Usage:     "add missing and remove unused modules",
 	ArgsUsage: "<*.hlb>",
 	Action: func(c *cli.Context) error {
-		cln, ctx, err := Client(c)
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
 		if err != nil {
 			return err
 		}
@@ -88,7 +89,7 @@ var moduleTreeCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		cln, ctx, err := Client(c)
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
 		if err != nil {
 			return err
 		}
@@ -148,7 +149,7 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 		return err
 	}
 
-	_ = linter.Lint(ctx, mod, linter.WithRecursive())
+	_ = linter.Lint(ctx, mod)
 
 	err = checker.Check(mod)
 	if err != nil {
@@ -218,7 +219,7 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("ambiguous hlb module, specify more digest characters.")
 	}
 
-	return os.Open(filepath.Join(matchedModules[0], module.ModuleFilename))
+	return os.Open(filepath.Join(matchedModules[0], codegen.ModuleFilename))
 }
 
 type TreeInfo struct {
@@ -259,7 +260,7 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 		return err
 	}
 
-	_ = linter.Lint(ctx, mod, linter.WithRecursive())
+	_ = linter.Lint(ctx, mod)
 
 	err = checker.Check(mod)
 	if err != nil {

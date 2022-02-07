@@ -31,12 +31,12 @@ func Check(mod *parser.Module) error {
 
 // CheckReferences checks for semantic errors for references. Imported modules
 // are assumed to be reachable through the given module.
-func CheckReferences(mod *parser.Module) error {
+func CheckReferences(mod *parser.Module, name string) error {
 	c := &checker{
 		checkRefs: true,
 		dups:      make(map[string][]parser.Node),
 	}
-	return c.CheckReferences(mod)
+	return c.CheckReferences(mod, name)
 }
 
 type checker struct {
@@ -251,12 +251,24 @@ func (c *checker) Check(mod *parser.Module) error {
 	return nil
 }
 
-func (c *checker) CheckReferences(mod *parser.Module) error {
+func (c *checker) CheckReferences(mod *parser.Module, name string) error {
 	// Third pass over the CST.
 	// 3. After imports have resolved, semantic checks of imported identifiers.
 	parser.Match(mod, parser.MatchOpts{},
-		func(block *parser.BlockStmt) {
-			err := c.checkBlock(block)
+		func(id *parser.ImportDecl) {
+			kset := parser.NewKindSet(parser.String, parser.Filesystem)
+			err := c.checkExpr(mod.Scope, kset, id.Expr)
+			if err != nil {
+				c.err(err)
+			}
+		},
+		func(block *parser.BlockStmt, call *parser.CallStmt) {
+			if call.Name.Ident.Text != name {
+				return
+			}
+
+			kset := parser.NewKindSet(block.Kind())
+			err := c.checkCallStmt(block.Scope, kset, call)
 			if err != nil {
 				c.err(err)
 			}
@@ -327,30 +339,55 @@ func (c *checker) checkType(node parser.Node, kset *parser.KindSet, actual parse
 }
 
 func (c *checker) checkCallStmt(scope *parser.Scope, kset *parser.KindSet, call *parser.CallStmt) error {
-	return c.checkCall(scope, kset, call.Name, call.Args, call.WithClause)
+	signature, err := c.checkCall(scope, kset, call.Name, call.Args, call.WithClause)
+	if err != nil {
+		return err
+	}
+	var kinds []parser.Kind
+	for _, field := range signature {
+		kinds = append(kinds, field.Kind())
+	}
+	call.Signature = kinds
+	return nil
+}
+
+func (c *checker) checkCallExpr(scope *parser.Scope, kset *parser.KindSet, call *parser.CallExpr) error {
+	signature, err := c.checkCall(scope, kset, call.Name, call.Args(), nil)
+	if err != nil {
+		return err
+	}
+	var kinds []parser.Kind
+	for _, field := range signature {
+		kinds = append(kinds, field.Kind())
+	}
+	call.Signature = kinds
+	return nil
 }
 
 func (c *checker) skip(ie *parser.IdentExpr) bool {
-	// Skip references when not checking references and skip non-references
-	// when checking references.
-	return (!c.checkRefs && ie.Reference != nil) || (c.checkRefs && ie.Reference == nil)
+	// If not checking references, skip if IdentExpr has a reference.
+	if !c.checkRefs {
+		return ie.Reference != nil
+	}
+	return false
 }
 
-func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parser.IdentExpr, args []*parser.Expr, with *parser.WithClause) error {
-	if c.skip(ie) {
-		return nil
-	}
-
+func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parser.IdentExpr, args []*parser.Expr, with *parser.WithClause) ([]*parser.Field, error) {
 	decl, signature, err := c.checkIdentExpr(scope, kset, ie)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	// If not checking references, skip references after checking ie.Name.
+	if c.skip(ie) {
+		return nil, nil
 	}
 
 	// When the signature has a variadic field, construct a temporary signature to
 	// match the calling arguments.
 	params := extendSignatureWithVariadic(signature, args)
 	if len(params) != len(args) {
-		return errdefs.WithNumArgs(
+		return nil, errdefs.WithNumArgs(
 			ie.Ident, len(params), len(args),
 			errdefs.DefinedMaybeImported(scope, ie, decl)...,
 		)
@@ -360,7 +397,7 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 		kind := params[i].Type.Kind
 		err := c.checkExpr(scope, parser.NewKindSet(kind), arg)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -369,11 +406,11 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 		kind := parser.Kind(fmt.Sprintf("%s::%s", parser.Option, ie.Ident))
 		err := c.checkExpr(scope, parser.NewKindSet(kind), with.Expr)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return params, nil
 }
 
 func (c *checker) checkExpr(scope *parser.Scope, kset *parser.KindSet, expr *parser.Expr) error {
@@ -474,10 +511,6 @@ func (c *checker) checkHeredocFragments(scope *parser.Scope, fragments []*parser
 	return nil
 }
 
-func (c *checker) checkCallExpr(scope *parser.Scope, kset *parser.KindSet, call *parser.CallExpr) error {
-	return c.checkCall(scope, kset, call.Name, call.Args(), nil)
-}
-
 func (c *checker) checkIdentExpr(scope *parser.Scope, kset *parser.KindSet, ie *parser.IdentExpr) (ident *parser.Ident, signature []*parser.Field, err error) {
 	return c.checkIdentExprHelper(scope, kset, ie, ie.Ident)
 }
@@ -499,6 +532,10 @@ func (c *checker) checkIdentExprHelper(scope *parser.Scope, kset *parser.KindSet
 			err = errdefs.WithCallUnexported(ie.Reference.Ident, opts...)
 			return
 		}
+	}
+	// If not checking references, skip references after basic lookup and errors.
+	if c.skip(ie) {
+		return
 	}
 
 	switch n := obj.Node.(type) {
@@ -522,13 +559,13 @@ func (c *checker) checkIdentExprHelper(scope *parser.Scope, kset *parser.KindSet
 			err = errdefs.WithCallImport(ie.Ident, n.Name)
 			return
 		}
-		importScope, ok := obj.Data.(*parser.Scope)
+		imod, ok := obj.Data.(*parser.Module)
 		if !ok {
 			err = errdefs.WithInternalErrorf(ie.Ident, "import scope is not set")
 			return
 		}
 		opts = append(opts, errdefs.Imported(obj.Ident))
-		return c.checkIdentExprHelper(importScope, kset, ie, ie.Reference.Ident, opts...)
+		return c.checkIdentExprHelper(imod.Scope, kset, ie, ie.Reference.Ident, opts...)
 	case *parser.Field:
 		opts = append(opts, errdefs.Defined(obj.Ident))
 		return obj.Ident, nil, c.checkType(lookup, kset, n.Type.Kind, opts...)

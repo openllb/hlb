@@ -76,7 +76,7 @@ var runCommand = &cli.Command{
 		}
 		defer rc.Close()
 
-		cln, ctx, err := Client(c)
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
 		if err != nil {
 			return err
 		}

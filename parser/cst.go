@@ -2,12 +2,14 @@ package parser
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
 	"github.com/alecthomas/participle/lexer/stateful"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/diagnostic"
 )
 
@@ -152,6 +154,18 @@ func splitKind(kind Kind) []string {
 	return strings.Split(string(kind), "::")
 }
 
+// Directory represents the abstract directory that modules can be read from.
+// The directory can be a local path or the filesystem of a remote import.
+type Directory interface {
+	Path() string
+
+	Digest() digest.Digest
+
+	Open(filename string) (io.ReadCloser, error)
+
+	Close() error
+}
+
 // Module represents a HLB source file. HLB is file-scoped, so every file
 // represents a module.
 //
@@ -160,9 +174,10 @@ func splitKind(kind Kind) []string {
 // fields without parser struct tags like scopes and doc linking.
 type Module struct {
 	Mixin
-	Scope *Scope
-	Doc   *CommentGroup
-	Decls []*Decl `parser:"@@*"`
+	Scope     *Scope
+	Directory Directory
+	Doc       *CommentGroup
+	Decls     []*Decl `parser:"@@*"`
 }
 
 // Decl represents a declaration node.
@@ -215,8 +230,8 @@ type Export struct {
 type BuiltinDecl struct {
 	*Module
 	Name           string
+	Kinds          []Kind
 	FuncDeclByKind map[Kind]*FuncDecl
-	CallableByKind map[Kind]Callable
 }
 
 func (bd *BuiltinDecl) FuncDecl(kind Kind) *FuncDecl {
@@ -233,23 +248,6 @@ func (bd *BuiltinDecl) FuncDecl(kind Kind) *FuncDecl {
 	}
 	return fun
 }
-
-func (bd *BuiltinDecl) Callable(kind Kind) Callable {
-	callable, ok := bd.CallableByKind[kind]
-	if ok {
-		return callable
-	}
-	if len(bd.CallableByKind) != 1 {
-		return nil
-	}
-	for _, c := range bd.CallableByKind {
-		callable = c
-		break
-	}
-	return callable
-}
-
-type Callable interface{}
 
 // FuncDecl represents a function declaration.
 type FuncDecl struct {
@@ -444,7 +442,7 @@ type Stmt struct {
 type CallStmt struct {
 	Mixin
 	Doc        *CommentGroup
-	Callee     *FuncDecl
+	Signature  []Kind
 	Name       *IdentExpr  `parser:"@@"`
 	Args       []*Expr     `parser:"@@*"`
 	WithClause *WithClause `parser:"@@?"`
@@ -831,8 +829,9 @@ func NewBoolExpr(v bool) *Expr {
 // expression.
 type CallExpr struct {
 	Mixin
-	Name *IdentExpr `parser:"@@"`
-	List *ExprList  `parser:"@@?"`
+	Signature []Kind
+	Name      *IdentExpr `parser:"@@"`
+	List      *ExprList  `parser:"@@?"`
 }
 
 func (ce *CallExpr) Args() []*Expr {

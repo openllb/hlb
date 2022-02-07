@@ -57,7 +57,7 @@ func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
 		return err
 	}
 
-	err = linter.Lint(ctx, mod, linter.WithRecursive())
+	err = linter.Lint(ctx, mod)
 	if err != nil {
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {

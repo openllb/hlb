@@ -22,7 +22,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, target
 		return nil, err
 	}
 
-	err = linter.Lint(ctx, mod, linter.WithRecursive())
+	err = linter.Lint(ctx, mod)
 	if err != nil {
 		for _, span := range diagnostic.Spans(err) {
 			fmt.Fprintln(os.Stderr, span.Pretty(ctx))
@@ -39,18 +39,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, target
 		return nil, err
 	}
 
-	res, err := module.NewLocalResolved(mod)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Close()
-
-	err = module.ResolveGraph(ctx, cln, resolver, res, mod, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	cg, err := codegen.New(cln, opts...)
+	cg, err := codegen.New(cln, resolver, opts...)
 	if err != nil {
 		return nil, err
 	}

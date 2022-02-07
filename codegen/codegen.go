@@ -10,7 +10,9 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/errdefs"
+	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
@@ -19,6 +21,7 @@ import (
 type CodeGen struct {
 	Debug          Debugger
 	cln            *client.Client
+	resolver       Resolver
 	extraSolveOpts []solver.SolveOption
 }
 
@@ -38,10 +41,11 @@ func WithExtraSolveOpts(extraOpts []solver.SolveOption) CodeGenOption {
 	}
 }
 
-func New(cln *client.Client, opts ...CodeGenOption) (*CodeGen, error) {
+func New(cln *client.Client, resolver Resolver, opts ...CodeGenOption) (*CodeGen, error) {
 	cg := &CodeGen{
-		Debug: NewNoopDebugger(),
-		cln:   cln,
+		Debug:    NewNoopDebugger(),
+		cln:      cln,
+		resolver: resolver,
 	}
 	for _, opt := range opts {
 		err := opt(cg)
@@ -104,7 +108,17 @@ func (cg *CodeGen) EmitExpr(ctx context.Context, scope *parser.Scope, expr *pars
 	case expr.BasicLit != nil:
 		return cg.EmitBasicLit(ctx, scope, expr.BasicLit, ret)
 	case expr.CallExpr != nil:
-		return cg.EmitCallExpr(ctx, scope, expr.CallExpr, ret)
+		return ret.SetAsync(func(v Value) (Value, error) {
+			err := cg.lookupCall(ctx, scope, expr.CallExpr.Name.Ident)
+			if err != nil {
+				return nil, err
+			}
+
+			ret := NewRegister(ctx)
+			ret.Set(v)
+			err = cg.EmitCallExpr(ctx, scope, expr.CallExpr, ret)
+			return ret.Value(), err
+		})
 	default:
 		return errdefs.WithInternalErrorf(expr, "invalid expr")
 	}
@@ -249,9 +263,7 @@ func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *
 		return err
 	}
 
-	// No type hint for arg evaluation because the call.Name hasn't been resolved
-	// yet, so codegen has no type information.
-	args, err := cg.Evaluate(ctx, scope, parser.None, nil, call.Args()...)
+	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args()...)
 	if err != nil {
 		return err
 	}
@@ -280,11 +292,11 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	case *parser.BindClause:
 		return cg.EmitBinding(ctx, n.TargetBinding(lookup.Text), args, ret)
 	case *parser.ImportDecl:
-		importScope, ok := obj.Data.(*parser.Scope)
+		imod, ok := obj.Data.(*parser.Module)
 		if !ok {
-			return errdefs.WithImportWithinImport(ie, obj.Ident)
+			return errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected imported module to be resolved")
 		}
-		return cg.EmitIdentExpr(ctx, importScope, ie, ie.Reference.Ident, args, opts, nil, ret)
+		return cg.EmitIdentExpr(ctx, imod.Scope, ie, ie.Reference.Ident, args, opts, nil, ret)
 	case *parser.Field:
 		val, err := NewValue(ctx, obj.Data)
 		if err != nil {
@@ -308,8 +320,87 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	}
 }
 
+func (cg *CodeGen) EmitImport(ctx context.Context, mod *parser.Module, id *parser.ImportDecl) (imod *parser.Module, filename string, err error) {
+	// Import expression can be string or fs.
+	ctx = WithReturnType(ctx, parser.None)
+
+	ret := NewRegister(ctx)
+	err = cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
+	if err != nil {
+		return
+	}
+	val := ret.Value()
+
+	dir := mod.Directory
+	switch val.Kind() {
+	case parser.Filesystem:
+		var fs Filesystem
+		fs, err = val.Filesystem()
+		if err != nil {
+			return
+		}
+
+		filename = ModuleFilename
+		dir, err = cg.resolver.Resolve(ctx, id, fs)
+		if err != nil {
+			return
+		}
+	case parser.String:
+		filename, err = val.String()
+		if err != nil {
+			return
+		}
+	}
+
+	rc, err := dir.Open(filename)
+	if err != nil {
+		if !errdefs.IsNotExist(err) {
+			return
+		}
+		if id.DeprecatedPath != nil {
+			err = errdefs.WithImportPathNotExist(err, id.DeprecatedPath, filename)
+			return
+		}
+		if id.Expr.FuncLit != nil {
+			err = errdefs.WithImportPathNotExist(err, id.Expr.FuncLit.Type, filename)
+			return
+		}
+		err = errdefs.WithImportPathNotExist(err, id.Expr, filename)
+		return
+	}
+	defer rc.Close()
+
+	imod, err = parser.Parse(ctx, rc)
+	if err != nil {
+		return
+	}
+	imod.Directory = dir
+
+	err = checker.SemanticPass(imod)
+	if err != nil {
+		return
+	}
+
+	// Drop errors from linting.
+	_ = linter.Lint(ctx, imod)
+
+	err = checker.Check(imod)
+	return
+}
+
 func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd *parser.BuiltinDecl, args []Value, opts Option, b *parser.Binding, v Value) (Value, error) {
-	callable := bd.Callable(ReturnType(ctx))
+	var callable interface{}
+	if ReturnType(ctx) != parser.None {
+		callable = Callables[ReturnType(ctx)][bd.Name]
+	} else {
+		for _, kind := range bd.Kinds {
+			c, ok := Callables[kind][bd.Name]
+			if ok {
+				callable = c
+				break
+			}
+		}
+	}
 	if callable == nil {
 		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "unrecognized builtin `%s`", bd)
 	}
@@ -415,14 +506,57 @@ func (cg *CodeGen) EmitBinding(ctx context.Context, b *parser.Binding, args []Va
 	return cg.EmitFuncDecl(ctx, b.Bind.Closure, args, b, ret)
 }
 
-func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *parser.BlockStmt, b *parser.Binding, ret Register) error {
-	ctx = WithReturnType(ctx, block.Kind())
+func (cg *CodeGen) lookupCall(ctx context.Context, scope *parser.Scope, lookup *parser.Ident) error {
+	obj := scope.Lookup(lookup.Text)
+	if obj == nil {
+		return errors.WithStack(errdefs.WithUndefinedIdent(lookup, nil))
+	}
 
+	switch n := obj.Node.(type) {
+	case *parser.ImportDecl:
+		_, ok := obj.Data.(*parser.Module)
+		if ok {
+			break
+		}
+
+		mod := scope.Root().Node.(*parser.Module)
+		imod, _, err := cg.EmitImport(ctx, mod, n)
+		if err != nil {
+			return err
+		}
+		obj.Data = imod
+
+		err = checker.CheckReferences(mod, n.Name.Text)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *parser.BlockStmt, b *parser.Binding, ret Register) error {
+	if block == nil {
+		return nil
+	}
+
+	ctx = WithReturnType(ctx, block.Kind())
 	for _, stmt := range block.Stmts() {
+		stmt := stmt
 		var err error
 		switch {
 		case stmt.Call != nil:
-			err = cg.EmitCallStmt(ctx, scope, stmt.Call, b, ret)
+			err = ret.SetAsync(func(v Value) (Value, error) {
+				err := cg.lookupCall(ctx, scope, stmt.Call.Name.Ident)
+				if err != nil {
+					return nil, err
+				}
+
+				ret := NewRegister(ctx)
+				ret.Set(v)
+				err = cg.EmitCallStmt(ctx, scope, stmt.Call, b, ret)
+				return ret.Value(), err
+			})
 		case stmt.Expr != nil:
 			err = cg.EmitExpr(ctx, scope, stmt.Expr.Expr, nil, nil, b, ret)
 		default:
@@ -439,9 +573,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, b *parser.Binding, ret Register) error {
 	ctx = WithFrame(ctx, Frame{call.Name})
 
-	// No type hint for arg evaluation because the call.Name hasn't been resolved
-	// yet, so codegen has no type information.
-	args, err := cg.Evaluate(ctx, scope, parser.None, nil, call.Args...)
+	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args...)
 	if err != nil {
 		return err
 	}
@@ -452,10 +584,12 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	var opts Option
 	if call.WithClause != nil {
 		// Provide a type hint to avoid ambgiuous lookups.
-		hint := parser.Kind(fmt.Sprintf("%s::%s", parser.Option, call.Name))
+		kinds := []parser.Kind{
+			parser.Kind(fmt.Sprintf("%s::%s", parser.Option, call.Name)),
+		}
 
 		// WithClause provides option expressions access to the binding.
-		values, err := cg.Evaluate(ctx, scope, hint, b, call.WithClause.Expr)
+		values, err := cg.Evaluate(ctx, scope, b, kinds, call.WithClause.Expr)
 		if err != nil {
 			return err
 		}
@@ -499,10 +633,13 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 
 type breakpointCommand []string
 
-func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, hint parser.Kind, b *parser.Binding, exprs ...*parser.Expr) (values []Value, err error) {
-	for _, expr := range exprs {
+func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, b *parser.Binding, kinds []parser.Kind, exprs ...*parser.Expr) (values []Value, err error) {
+	if len(kinds) != len(exprs) {
+		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected %d kinds but got %d", len(exprs), len(kinds))
+	}
+	for i, expr := range exprs {
 		ctx = WithProgramCounter(ctx, expr)
-		ctx = WithReturnType(ctx, hint)
+		ctx = WithReturnType(ctx, kinds[i])
 
 		// Evaluated expressions write to a new return register.
 		ret := NewRegister(ctx)

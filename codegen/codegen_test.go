@@ -2,6 +2,7 @@ package codegen_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/diagnostic"
-	"github.com/openllb/hlb/linter"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
@@ -60,16 +61,17 @@ func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb
 	return llb.Local(localPath, opts...)
 }
 
-type testCase struct {
-	name      string
-	targets   []string
-	hlb       string
-	hlbImport string
-	fn        func(ctx context.Context, t *testing.T) solver.Request
-}
-
 func TestCodeGen(t *testing.T) {
 	t.Parallel()
+
+	type testCase struct {
+		name      string
+		targets   []string
+		hlb       string
+		hlbImport string
+		fn        func(ctx context.Context, t *testing.T) solver.Request
+	}
+
 	for _, tc := range []testCase{{
 		"image",
 		[]string{"default"},
@@ -469,21 +471,21 @@ func TestCodeGen(t *testing.T) {
 			).Root())
 		},
 	}, {
-		"empty group",
+		"empty pipeline",
 		[]string{"default"},
 		`
-		group default() {}
+		pipeline default() {}
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.NilRequest()
 		},
 	}, {
-		"sequential group",
+		"sequential pipeline",
 		[]string{"default"},
 		`
-		group default() {
-			parallel fs { image "alpine"; }
-			parallel fs { image "busybox"; }
+		pipeline default() {
+			stage fs { image "alpine"; }
+			stage fs { image "busybox"; }
 		}
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
@@ -493,11 +495,11 @@ func TestCodeGen(t *testing.T) {
 			)
 		},
 	}, {
-		"parallel group",
+		"stage pipeline",
 		[]string{"default"},
 		`
-		group default() {
-			parallel fs {
+		pipeline default() {
+			stage fs {
 				image "alpine"
 			} fs {
 				image "busybox"
@@ -511,17 +513,17 @@ func TestCodeGen(t *testing.T) {
 			)
 		},
 	}, {
-		"parallel and sequential groups",
+		"stage and sequential pipelines",
 		[]string{"default"},
 		`
-		group default() {
-			parallel fs { image "golang:alpine"; }
-			parallel fs {
+		pipeline default() {
+			stage fs { image "golang:alpine"; }
+			stage fs {
 				image "alpine"
 			} fs {
 				image "busybox"
 			}
-			parallel fs { image "node:alpine"; }
+			stage fs { image "node:alpine"; }
 		}
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
@@ -535,18 +537,18 @@ func TestCodeGen(t *testing.T) {
 			)
 		},
 	}, {
-		"invoking group functions",
+		"invoking pipeline functions",
 		[]string{"default"},
 		`
-		group default() {
+		pipeline default() {
 			foo "stable"
 		}
 
-		group foo(string ref) {
-			parallel fs {
+		pipeline foo(string ref) {
+			stage fs {
 				image string { format "alpine:%s" ref; }
 			}
-			parallel fs {
+			stage fs {
 				image string { format "busybox:%s" ref; }
 			}
 		}
@@ -558,11 +560,11 @@ func TestCodeGen(t *testing.T) {
 			)
 		},
 	}, {
-		"parallel coercing fs to group",
+		"stage coercing fs to pipeline",
 		[]string{"default"},
 		`
-		group default() {
-			parallel fs {
+		pipeline default() {
+			stage fs {
 				image "alpine"
 			} fs {
 				scratch
@@ -930,8 +932,6 @@ func TestCodeGen(t *testing.T) {
 			err = checker.SemanticPass(mod)
 			require.NoError(t, err, tc.name)
 
-			_ = linter.Lint(ctx, mod)
-
 			err = checker.Check(mod)
 			require.NoError(t, err, tc.name)
 
@@ -947,14 +947,12 @@ func TestCodeGen(t *testing.T) {
 				err = checker.SemanticPass(imod)
 				require.NoError(t, err, tc.name)
 
-				_ = linter.Lint(ctx, imod)
-
 				err = checker.Check(imod)
 				require.NoError(t, err, tc.name)
 
-				obj.Data = imod.Scope
+				obj.Data = imod
 
-				err = checker.CheckReferences(mod)
+				err = checker.CheckReferences(mod, "other")
 				require.NoError(t, err, tc.name)
 			}
 
@@ -963,7 +961,7 @@ func TestCodeGen(t *testing.T) {
 				targets = append(targets, codegen.Target{Name: target})
 			}
 
-			cg, err := codegen.New(nil)
+			cg, err := codegen.New(nil, nil)
 			require.NoError(t, err, tc.name)
 
 			ctx = codegen.WithSessionID(ctx, identity.NewID())
@@ -991,27 +989,14 @@ func TestCodeGen(t *testing.T) {
 func TestCodegenError(t *testing.T) {
 	t.Parallel()
 
-	type errorTestCase struct {
-		name          string
-		targets       []string
-		input         string
-		expectedError string
+	type testCase struct {
+		name    string
+		targets []string
+		input   string
+		fn      func(*parser.Module) error
 	}
 
-	for _, tc := range []errorTestCase{
-		{
-			"invalid builtin",
-			[]string{"default"},
-			`
-			fs default() {
-				bug includePatterns("*.go")
-			}
-			fs bug(option::local pattern) {
-				local "." with pattern
-			}
-		`,
-			"<stdin>:3:9: unrecognized builtin `includePatterns`",
-		},
+	for _, tc := range []testCase{
 		{
 			"invalid downloadDockerTarball ref",
 			[]string{"default"},
@@ -1019,8 +1004,14 @@ func TestCodegenError(t *testing.T) {
 			fs default() {
 				downloadDockerTarball "image.tar" "#"
 			}
-		`,
-			"<stdin>:3:39: failed to parse `#`: invalid reference format",
+			`,
+			func(mod *parser.Module) error {
+				return errdefs.WithInvalidImageRef(
+					errors.New("invalid reference format"),
+					parser.Find(mod, `"#"`),
+					"#",
+				)
+			},
 		},
 	} {
 		tc := tc
@@ -1032,8 +1023,6 @@ func TestCodegenError(t *testing.T) {
 			err = checker.SemanticPass(mod)
 			require.NoError(t, err, tc.name)
 
-			_ = linter.Lint(ctx, mod)
-
 			err = checker.Check(mod)
 			require.NoError(t, err, tc.name)
 
@@ -1042,12 +1031,275 @@ func TestCodegenError(t *testing.T) {
 				targets = append(targets, codegen.Target{Name: target})
 			}
 
-			cg, err := codegen.New(nil)
+			cg, err := codegen.New(nil, nil)
 			require.NoError(t, err, tc.name)
 
 			ctx = codegen.WithSessionID(ctx, identity.NewID())
 			_, err = cg.Generate(ctx, mod, targets)
-			require.EqualError(t, err, tc.expectedError)
+			var expected error
+			if tc.fn != nil {
+				expected = tc.fn(mod)
+			}
+			validateError(t, ctx, expected, err, tc.name)
 		})
+	}
+}
+
+func TestCodeGenImport(t *testing.T) {
+	t.Parallel()
+
+	type testImport struct {
+		filename string
+		content  string
+	}
+
+	type testCase struct {
+		name    string
+		hlb     string
+		imports []testImport
+		fn      func(*parser.Module) error
+	}
+
+	for _, tc := range []testCase{{
+		"can call defined reference",
+		`
+		import other from "./other.hlb"
+
+		fs default() {
+			other.foo
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			fs foo()
+			`,
+		}},
+		nil,
+	}, {
+		"cannot call undefined reference",
+		`
+		import other from "./other.hlb"
+
+		fs default() {
+			other.bar
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			fs foo()
+			`,
+		}},
+		func(mod *parser.Module) error {
+			return errdefs.WithUndefinedIdent(
+				parser.Find(mod, "bar"),
+				nil,
+				errdefs.Imported(parser.Find(mod, "other")),
+			)
+		},
+	}, {
+		"unable to call unexported function",
+		`
+		import other from "./other.hlb"
+
+		fs default() {
+			other.foo
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			fs foo()
+			`,
+		}},
+		func(mod *parser.Module) error {
+			return errdefs.WithCallUnexported(
+				parser.Find(mod, "foo"),
+				errdefs.Imported(parser.Find(mod, "other")),
+			)
+		},
+	}, {
+		"able to use valid reference as mount input",
+		`
+		import other from "./other.hlb"
+
+		fs default() {
+			run "xyz" with option {
+				mount other.foo "/in"
+			}
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			fs foo()
+			`,
+		}},
+		nil,
+	}, {
+		"able to use pass function field as argument to reference",
+		`
+		import other from "./other.hlb"
+
+		fs default(string bar) {
+			other.foo bar
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			fs foo(string bar)
+			`,
+		}},
+		nil,
+	}, {
+		"able to use imported option",
+		`
+		import other from "./other.hlb"
+
+		fs default(string bar) {
+			image "busybox" with other.foo
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			option::image foo()
+			`,
+		}},
+		nil,
+	}, {
+		"able to append option",
+		`
+		import other from "./other.hlb"
+
+		fs default(string bar) {
+			image "busybox" with option {
+				other.foo
+			}
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			option::image foo()
+			`,
+		}},
+		nil,
+	}, {
+		"able to import within import",
+		`
+		import other from "./other.hlb"
+		import other2 from other.wrap("./other2.hlb")
+
+		fs default() {
+			other2.build
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export wrap
+			string wrap(string path) {
+				path
+			}
+			`,
+		}, {
+			"other2.hlb",
+			`
+			export build
+			fs build()
+			`,
+		}},
+		nil,
+	}} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			r := &parser.NamedReader{
+				Reader: strings.NewReader(dedent.Dedent(tc.hlb)),
+				Value:  "build.hlb",
+			}
+			mod, err := parser.Parse(ctx, r)
+			require.NoError(t, err, tc.name)
+
+			err = checker.SemanticPass(mod)
+			require.NoError(t, err, tc.name)
+
+			err = checker.Check(mod)
+			require.NoError(t, err, tc.name)
+
+			var actual error
+			for _, imp := range tc.imports {
+				name := strings.TrimSuffix(imp.filename, ".hlb")
+				obj := mod.Scope.Lookup(name)
+				if obj == nil {
+					t.Fatalf(`%q should be imported by the test module`, name)
+				}
+
+				ir := &parser.NamedReader{
+					Reader: strings.NewReader(dedent.Dedent(imp.content)),
+					Value:  imp.filename,
+				}
+				imod, err := parser.Parse(ctx, ir)
+				require.NoError(t, err, tc.name)
+
+				err = checker.SemanticPass(imod)
+				require.NoError(t, err, tc.name)
+
+				err = checker.Check(imod)
+				require.NoError(t, err, tc.name)
+
+				obj.Data = imod
+				err = checker.CheckReferences(mod, name)
+				if err != nil {
+					actual = err
+				}
+			}
+
+			var expected error
+			if tc.fn != nil {
+				expected = tc.fn(mod)
+			}
+			validateError(t, ctx, expected, actual, tc.name)
+		})
+	}
+}
+
+func validateError(t *testing.T, ctx context.Context, expected, actual error, name string) {
+	switch {
+	case expected == nil:
+		if actual != nil {
+			for _, span := range diagnostic.Spans(actual) {
+				t.Logf("[Actual]\n%s", span.Pretty(ctx))
+			}
+		}
+		require.NoError(t, actual, name)
+	case actual == nil:
+		if expected != nil {
+			for _, span := range diagnostic.Spans(expected) {
+				t.Logf("[Expected]\n%s", span.Pretty(ctx))
+			}
+		}
+		require.NotNil(t, actual, name)
+	default:
+		espans := diagnostic.Spans(expected)
+		aspans := diagnostic.Spans(actual)
+		require.Equal(t, len(espans), len(aspans))
+
+		for i := 0; i < len(espans); i++ {
+			epretty := espans[i].Pretty(ctx)
+			t.Logf("[Expected]\n%s", epretty)
+			apretty := aspans[i].Pretty(ctx)
+			t.Logf("[Actual]\n%s", apretty)
+			require.Equal(t, epretty, apretty, name)
+		}
 	}
 }

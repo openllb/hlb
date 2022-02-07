@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"path/filepath"
 	"sort"
@@ -15,8 +14,7 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/channel"
 	"github.com/creachadair/jrpc2/handler"
-	"github.com/moby/buildkit/client/llb"
-	digest "github.com/opencontainers/go-digest"
+	"github.com/moby/buildkit/client"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -27,6 +25,9 @@ import (
 )
 
 type LangServer struct {
+	cln      *client.Client
+	resolver codegen.Resolver
+
 	server *jrpc2.Server
 	capset map[Capability]struct{}
 
@@ -44,11 +45,18 @@ const (
 	SemanticHighlightingCapability
 )
 
-func NewServer() *LangServer {
+func NewServer(ctx context.Context, cln *client.Client) (*LangServer, error) {
+	resolver, err := module.NewResolver(cln)
+	if err != nil {
+		return nil, err
+	}
+
 	ls := &LangServer{
-		capset: make(map[Capability]struct{}),
-		tds:    make(map[lsp.DocumentURI]TextDocument),
-		dbs:    make(map[lsp.DocumentURI]*debouncer),
+		cln:      cln,
+		resolver: resolver,
+		capset:   make(map[Capability]struct{}),
+		tds:      make(map[lsp.DocumentURI]TextDocument),
+		dbs:      make(map[lsp.DocumentURI]*debouncer),
 	}
 
 	ls.server = jrpc2.NewServer(handler.Map{
@@ -63,12 +71,15 @@ func NewServer() *LangServer {
 		"textDocument/completion": handler.New(ls.textDocumentCompletionHandler),
 	}, &jrpc2.ServerOptions{
 		AllowPush: true,
+		NewContext: func() context.Context {
+			return ctx
+		},
 	})
 
-	return ls
+	return ls, nil
 }
 
-func (ls *LangServer) Listen(ctx context.Context, r io.Reader, w io.WriteCloser) error {
+func (ls *LangServer) Listen(r io.Reader, w io.WriteCloser) error {
 	defer func() {
 		r := recover()
 		if r != nil {
@@ -133,7 +144,11 @@ func (ls *LangServer) textDocumentDidOpenHandler(ctx context.Context, params lsp
 	uri := params.TextDocument.URI
 	log.Printf("did open %q", uri)
 
-	td := NewTextDocument(ctx, uri, params.TextDocument.Text)
+	r := &parser.NamedReader{
+		Reader: strings.NewReader(params.TextDocument.Text),
+		Value:  strings.TrimPrefix(string(uri), "file://"),
+	}
+	td := NewTextDocument(ctx, uri, r, nil)
 
 	ls.tmu.Lock()
 	ls.tds[uri] = td
@@ -410,7 +425,11 @@ func (ls *LangServer) textDocumentDidChangeHandler(ctx context.Context, params l
 		}
 
 		for _, change := range params.ContentChanges {
-			td := NewTextDocument(ctx, uri, change.Text)
+			r := &parser.NamedReader{
+				Reader: strings.NewReader(change.Text),
+				Value:  strings.TrimPrefix(string(uri), "file://"),
+			}
+			td := NewTextDocument(ctx, uri, r, nil)
 			if _, ok := ls.capset[SemanticHighlightingCapability]; ok {
 				go func() {
 					err := ls.publishSemanticHighlighting(ctx, td)
@@ -533,67 +552,43 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				return
 			}
 
-			cg, err := codegen.New(nil)
+			cg, err := codegen.New(ls.cln, ls.resolver)
 			if err != nil {
 				log.Printf("failed to create codegen: %s", err)
 				return
 			}
 
-			ret := codegen.NewRegister(ctx)
-			err = cg.EmitExpr(ctx, block.Scope, id.Expr, nil, nil, nil, ret)
+			ctx = codegen.WithProgramCounter(ctx, id.Expr)
+			imod, filename, err := cg.EmitImport(ctx, td.Module, id)
 			if err != nil {
-				log.Printf("failed to generate import: %s", err)
+				log.Printf("failed to emit import: %s", err)
 				return
 			}
-			val := ret.Value()
+			obj.Data = imod
 
-			rootDir := filepath.Dir(strings.TrimPrefix(string(uri), "file://"))
-			var filename string
-			switch val.Kind() {
-			case parser.Filesystem:
-				fs, err := val.Filesystem()
-				if err != nil {
-					return
-				}
-
-				def, err := fs.State.Marshal(ctx, llb.LinuxAmd64)
-				if err != nil {
-					log.Printf("failed to marshal import vertex: %s", err)
-					return
-				}
-
-				dgst := digest.FromBytes(def.Def[len(def.Def)-1])
-				vp := module.VendorPath(filepath.Join(rootDir, module.ModulesPath), dgst)
-				filename = filepath.Join(vp, module.ModuleFilename)
-			case parser.String:
-				localPath, err := val.String()
-				if err != nil {
-					return
-				}
-
-				filename = filepath.Join(rootDir, localPath)
-			default:
+			err = checker.CheckReferences(td.Module, id.Name.Text)
+			if err != nil {
+				log.Printf("failed to check references: %s", err)
 				return
 			}
-
-			importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filename))
 
 			ls.tmu.Lock()
-			importTD, ok := ls.tds[importUri]
+			importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filepath.Join(imod.Directory.Path(), filename)))
+			_, ok = ls.tds[importUri]
 			if !ok {
-				data, err := ioutil.ReadFile(filename)
+				rc, err := imod.Directory.Open(filename)
 				if err != nil {
-					log.Printf("failed to read file: %s", err)
+					log.Printf("failed to open file: %s", err)
 					ls.tmu.Unlock()
 					return
 				}
+				defer rc.Close()
 
-				importTD = NewTextDocument(ctx, importUri, string(data))
-				ls.tds[importUri] = importTD
+				ls.tds[importUri] = NewTextDocument(ctx, importUri, rc, imod.Directory)
 			}
 			ls.tmu.Unlock()
 
-			loc = newLocationFromIdent(importTD.Module.Scope, importUri, ie.Reference.Ident.Text)
+			loc = newLocationFromIdent(imod.Scope, importUri, ie.Reference.Ident.Text)
 		},
 	)
 
@@ -737,26 +732,26 @@ func newRangeFromNode(node parser.Node) lsp.Range {
 type TextDocument struct {
 	Identifier lsp.VersionedTextDocumentIdentifier
 	Module     *parser.Module
-	Text       string
 	Err        error
 }
 
-func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, text string) TextDocument {
+func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, r io.Reader, dir parser.Directory) TextDocument {
 	td := TextDocument{
 		Identifier: lsp.VersionedTextDocumentIdentifier{
 			TextDocumentIdentifier: lsp.TextDocumentIdentifier{
 				URI: uri,
 			},
 		},
-		Text: text,
 	}
 
-	td.Module, td.Err = parser.Parse(ctx, strings.NewReader(text))
+	td.Module, td.Err = parser.Parse(ctx, r)
 	if td.Err != nil {
 		log.Printf("failed to parse hlb: %s", td.Err)
 		return td
 	}
-	td.Module.Pos.Filename = strings.TrimPrefix(string(uri), "file://")
+	if dir != nil {
+		td.Module.Directory = dir
+	}
 
 	td.Err = checker.SemanticPass(td.Module)
 	if td.Err != nil {

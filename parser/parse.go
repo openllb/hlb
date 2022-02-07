@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/alecthomas/participle/lexer"
+	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/pkg/filebuffer"
 	"golang.org/x/sync/errgroup"
@@ -32,7 +35,12 @@ func Parse(ctx context.Context, r io.Reader) (*Module, error) {
 		}()
 	}
 
-	return mod, Parser.Parse(name, r, mod)
+	err := Parser.Parse(name, r, mod)
+	if err != nil {
+		return nil, err
+	}
+	mod.Directory = NewLocalDirectory(filepath.Dir(mod.Pos.Filename), "")
+	return mod, nil
 }
 
 func ParseMultiple(ctx context.Context, rs []io.Reader) ([]*Module, error) {
@@ -94,3 +102,29 @@ func (nr *NewlinedReader) Read(p []byte) (n int, err error) {
 	}
 	return n, nil
 }
+
+type localDirectory struct {
+	root string
+	dgst digest.Digest
+}
+
+func NewLocalDirectory(root string, dgst digest.Digest) Directory {
+	return &localDirectory{root, dgst}
+}
+
+func (r *localDirectory) Path() string {
+	return r.root
+}
+
+func (r *localDirectory) Digest() digest.Digest {
+	return r.dgst
+}
+
+func (r *localDirectory) Open(filename string) (io.ReadCloser, error) {
+	if filepath.IsAbs(filename) {
+		return os.Open(filename)
+	}
+	return os.Open(filepath.Join(r.root, filename))
+}
+
+func (r *localDirectory) Close() error { return nil }
