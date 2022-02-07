@@ -27,34 +27,68 @@ var (
 
 type Prototype struct{}
 
-func (p Prototype) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	return nil
+func (p Prototype) Call(ctx context.Context, cln *client.Client, v Value, opts Option) (Value, error) {
+	return nil, nil
 }
 
 type Option []interface{}
 
 type Register interface {
-	Value
+	Value() Value
 	Set(interface{}) error
+	SetAsync(func(Value) (Value, error)) error
 }
 
 type register struct {
-	Value
-	ctor func(iface interface{}) (Value, error)
+	value Value
+	last  chan Value
+	ctor  func(iface interface{}) (Value, error)
 }
 
 func NewRegister(ctx context.Context) Register {
 	return &register{
-		Value: ZeroValue(ctx),
+		value: ZeroValue(ctx),
 		ctor: func(iface interface{}) (Value, error) {
 			return NewValue(ctx, iface)
 		},
 	}
 }
 
-func (r *register) Set(iface interface{}) (err error) {
-	r.Value, err = r.ctor(iface)
-	return err
+func (r *register) Set(iface interface{}) error {
+	return r.SetAsync(func(Value) (Value, error) {
+		return r.ctor(iface)
+	})
+}
+
+func (r *register) SetAsync(f func(Value) (Value, error)) error {
+	var prev chan Value
+	if r.last == nil {
+		prev = make(chan Value, 1)
+		prev <- r.value
+	} else {
+		prev = r.last
+	}
+
+	ret := make(chan Value)
+	r.last = ret
+
+	go func() {
+		next, err := f(<-prev)
+		if err != nil {
+			next = &errorValue{err}
+		}
+		ret <- next
+	}()
+
+	return nil
+}
+
+func (r *register) Value() Value {
+	if r.last != nil {
+		r.value = <-r.last
+		r.last = nil
+	}
+	return r.value
 }
 
 type Value interface {
@@ -131,6 +165,38 @@ func (v *nilValue) Request() (solver.Request, error) {
 
 func (v *nilValue) Reflect(t reflect.Type) (reflect.Value, error) {
 	return reflect.Value{}, fmt.Errorf("cannot reflect nil value")
+}
+
+type errorValue struct {
+	err error
+}
+
+func (v *errorValue) Kind() parser.Kind {
+	return parser.None
+}
+
+func (v *errorValue) Filesystem() (Filesystem, error) {
+	return Filesystem{}, v.err
+}
+
+func (v *errorValue) Int() (int, error) {
+	return 0, v.err
+}
+
+func (v *errorValue) String() (string, error) {
+	return "", v.err
+}
+
+func (v *errorValue) Option() (Option, error) {
+	return nil, v.err
+}
+
+func (v *errorValue) Request() (solver.Request, error) {
+	return solver.NilRequest(), v.err
+}
+
+func (v *errorValue) Reflect(t reflect.Type) (reflect.Value, error) {
+	return reflect.Value{}, v.err
 }
 
 type zeroValue struct {

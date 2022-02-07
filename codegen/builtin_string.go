@@ -22,20 +22,20 @@ import (
 
 type Format struct{}
 
-func (f Format) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, formatStr string, values ...string) error {
+func (f Format) Call(ctx context.Context, cln *client.Client, val Value, opts Option, formatStr string, values ...string) (Value, error) {
 	var a []interface{}
 	for _, value := range values {
 		a = append(a, value)
 	}
-	return ret.Set(fmt.Sprintf(formatStr, a...))
+	return NewValue(ctx, fmt.Sprintf(formatStr, a...))
 }
 
 type Template struct{}
 
-func (t Template) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, text string) error {
+func (t Template) Call(ctx context.Context, cln *client.Client, val Value, opts Option, text string) (Value, error) {
 	tmpl, err := template.New("").Parse(text)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	data := map[string]interface{}{}
@@ -49,43 +49,43 @@ func (t Template) Call(ctx context.Context, cln *client.Client, ret Register, op
 	buf := bytes.NewBufferString("")
 	err = tmpl.Execute(buf, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(buf.String())
+	return NewValue(ctx, buf.String())
 }
 
 type LocalArch struct{}
 
-func (la LocalArch) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	return ret.Set(local.Arch(ctx))
+func (la LocalArch) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	return NewValue(ctx, local.Arch(ctx))
 }
 
 type LocalCwd struct{}
 
-func (lc LocalCwd) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
+func (lc LocalCwd) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
 	cwd, err := local.Cwd(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return ret.Set(cwd)
+	return NewValue(ctx, cwd)
 }
 
 type LocalOS struct{}
 
-func (lo LocalOS) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	return ret.Set(local.Os(ctx))
+func (lo LocalOS) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	return NewValue(ctx, local.Os(ctx))
 }
 
 type LocalEnv struct{}
 
-func (le LocalEnv) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, key string) error {
-	return ret.Set(local.Env(ctx, key))
+func (le LocalEnv) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key string) (Value, error) {
+	return NewValue(ctx, local.Env(ctx, key))
 }
 
 type LocalRun struct{}
 
-func (lr LocalRun) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, args ...string) error {
+func (lr LocalRun) Call(ctx context.Context, cln *client.Client, val Value, opts Option, args ...string) (Value, error) {
 	var (
 		localRunOpts = &LocalRunOption{}
 		shlex        = false
@@ -101,7 +101,7 @@ func (lr LocalRun) Call(ctx context.Context, cln *client.Client, ret Register, o
 
 	runArgs, err := ShlexArgs(args, shlex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	cmd := exec.CommandContext(ctx, runArgs[0], runArgs[1:]...)
@@ -120,18 +120,18 @@ func (lr LocalRun) Call(ctx context.Context, cln *client.Client, ret Register, o
 
 	err = cmd.Run()
 	if err != nil && !localRunOpts.IgnoreError {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(strings.TrimRight(buf.String(), "\n"))
+	return NewValue(ctx, strings.TrimRight(buf.String(), "\n"))
 }
 
 type Manifest struct{}
 
-func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+func (m Manifest) Call(ctx context.Context, cln *client.Client, val Value, opts Option, ref string) (Value, error) {
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
 	ref = reference.TagNameOnly(named).String()
 
@@ -149,54 +149,54 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	dgst, config, err := resolver.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{Platform: platform})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if dgst == "" {
-		return fmt.Errorf("no digest available for ref %q", ref)
+		return nil, fmt.Errorf("no digest available for ref %q", ref)
 	}
 
 	desc, err := resolver.DigestDescriptor(ctx, dgst)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	switch Binding(ctx).Binds() {
 	case "digest":
-		return ret.Set(dgst.String())
+		return NewValue(ctx, dgst.String())
 	case "config":
-		return ret.Set(string(config))
+		return NewValue(ctx, string(config))
 	case "index":
 		switch desc.MediaType {
 		case images.MediaTypeDockerSchema2ManifestList,
 			specs.MediaTypeImageIndex:
 			ra, err := resolver.ReaderAt(ctx, desc)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			defer ra.Close()
 
 			dt := make([]byte, ra.Size())
 			_, err = ra.ReadAt(dt, 0)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			return ret.Set(string(dt))
+			return NewValue(ctx, string(dt))
 
 		default:
-			return Arg(ctx, 0).WithError(fmt.Errorf("has no manifest index"))
+			return nil, Arg(ctx, 0).WithError(fmt.Errorf("has no manifest index"))
 		}
 	}
 
 	manifest, err := images.Manifest(ctx, resolver, desc, matcher)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	p, err := json.Marshal(manifest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(string(p))
+	return NewValue(ctx, string(p))
 }

@@ -32,98 +32,98 @@ import (
 
 type Resolve struct{}
 
-func (ir Resolve) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	return nil
+func (ir Resolve) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	return ZeroValue(ctx), nil
 }
 
 type Checksum struct{}
 
-func (c Checksum) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, dgst digest.Digest) error {
-	retOpts, err := ret.Option()
+func (c Checksum) Call(ctx context.Context, cln *client.Client, val Value, opts Option, dgst digest.Digest) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.Checksum(dgst)))
+	return NewValue(ctx, append(retOpts, llb.Checksum(dgst)))
 }
 
 type Chmod struct{}
 
-func (c Chmod) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, mode os.FileMode) error {
-	retOpts, err := ret.Option()
+func (c Chmod) Call(ctx context.Context, cln *client.Client, val Value, opts Option, mode os.FileMode) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.Chmod(mode)))
+	return NewValue(ctx, append(retOpts, llb.Chmod(mode)))
 }
 
 type Filename struct{}
 
-func (f Filename) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, filename string) error {
-	retOpts, err := ret.Option()
+func (f Filename) Call(ctx context.Context, cln *client.Client, val Value, opts Option, filename string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.Filename(filename)))
+	return NewValue(ctx, append(retOpts, llb.Filename(filename)))
 }
 
 type KeepGitDir struct{}
 
-func (kgd KeepGitDir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (kgd KeepGitDir) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.KeepGitDir()))
+	return NewValue(ctx, append(retOpts, llb.KeepGitDir()))
 }
 
 type IncludePatterns struct{}
 
-func (ip IncludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
-	retOpts, err := ret.Option()
+func (ip IncludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.IncludePatterns(patterns)))
+	return NewValue(ctx, append(retOpts, llb.IncludePatterns(patterns)))
 }
 
 type ExcludePatterns struct{}
 
-func (ep ExcludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
-	retOpts, err := ret.Option()
+func (ep ExcludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.ExcludePatterns(patterns)))
+	return NewValue(ctx, append(retOpts, llb.ExcludePatterns(patterns)))
 }
 
 type FollowPaths struct{}
 
-func (fp FollowPaths) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, paths ...string) error {
-	retOpts, err := ret.Option()
+func (fp FollowPaths) Call(ctx context.Context, cln *client.Client, val Value, opts Option, paths ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.FollowPaths(paths)))
+	return NewValue(ctx, append(retOpts, llb.FollowPaths(paths)))
 }
 
 type FrontendInput struct{}
 
-func (fi FrontendInput) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, key string, input Filesystem) error {
-	retOpts, err := ret.Option()
+func (fi FrontendInput) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key string, input Filesystem) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	def, err := input.State.Marshal(ctx, llb.Platform(input.Platform))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	retOpts = append(retOpts, llbutil.FrontendInput(key, def))
@@ -134,172 +134,172 @@ func (fi FrontendInput) Call(ctx context.Context, cln *client.Client, ret Regist
 		retOpts = append(retOpts, opt)
 	}
 
-	return ret.Set(retOpts)
+	return NewValue(ctx, retOpts)
 }
 
 type FrontendOpt struct{}
 
-func (fo FrontendOpt) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, key, value string) error {
-	retOpts, err := ret.Option()
+func (fo FrontendOpt) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key, value string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.FrontendOpt(key, value)))
+	return NewValue(ctx, append(retOpts, llbutil.FrontendOpt(key, value)))
 }
 
 type CreateParents struct{}
 
-func (cp CreateParents) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (cp CreateParents) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.WithParents(true)))
+	return NewValue(ctx, append(retOpts, llb.WithParents(true)))
 }
 
 type Chown struct{}
 
-func (c Chown) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, owner string) error {
-	retOpts, err := ret.Option()
+func (c Chown) Call(ctx context.Context, cln *client.Client, val Value, opts Option, owner string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.WithUser(owner)))
+	return NewValue(ctx, append(retOpts, llb.WithUser(owner)))
 }
 
 type CreatedTime struct{}
 
-func (ct CreatedTime) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, t time.Time) error {
-	retOpts, err := ret.Option()
+func (ct CreatedTime) Call(ctx context.Context, cln *client.Client, val Value, opts Option, t time.Time) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.WithCreatedTime(t)))
+	return NewValue(ctx, append(retOpts, llb.WithCreatedTime(t)))
 }
 
 type AllowNotFound struct{}
 
-func (anf AllowNotFound) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (anf AllowNotFound) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.WithAllowNotFound(true)))
+	return NewValue(ctx, append(retOpts, llb.WithAllowNotFound(true)))
 }
 
 type AllowWildcard struct{}
 
-func (aw AllowWildcard) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (aw AllowWildcard) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.WithAllowWildcard(true)))
+	return NewValue(ctx, append(retOpts, llb.WithAllowWildcard(true)))
 }
 
 type FollowSymlinks struct{}
 
-func (fs FollowSymlinks) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (fs FollowSymlinks) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithFollowSymlinks(true)))
+	return NewValue(ctx, append(retOpts, llbutil.WithFollowSymlinks(true)))
 }
 
 type ContentsOnly struct{}
 
-func (co ContentsOnly) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (co ContentsOnly) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithCopyDirContentsOnly(true)))
+	return NewValue(ctx, append(retOpts, llbutil.WithCopyDirContentsOnly(true)))
 }
 
 type Unpack struct{}
 
-func (u Unpack) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (u Unpack) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithAttemptUnpack(true)))
+	return NewValue(ctx, append(retOpts, llbutil.WithAttemptUnpack(true)))
 }
 
 type CreateDestPath struct{}
 
-func (cdp CreateDestPath) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (cdp CreateDestPath) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithCreateDestPath(true)))
+	return NewValue(ctx, append(retOpts, llbutil.WithCreateDestPath(true)))
 }
 
 type CopyAllowWildcard struct{}
 
-func (caw CopyAllowWildcard) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (caw CopyAllowWildcard) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithAllowWildcard(true)))
+	return NewValue(ctx, append(retOpts, llbutil.WithAllowWildcard(true)))
 }
 
 type AllowEmptyWildcard struct{}
 
-func (aew AllowEmptyWildcard) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (aew AllowEmptyWildcard) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithAllowEmptyWildcard(true)))
+	return NewValue(ctx, append(retOpts, llbutil.WithAllowEmptyWildcard(true)))
 }
 
 type UtilChown struct{}
 
-func (uc UtilChown) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, owner string) error {
-	retOpts, err := ret.Option()
+func (uc UtilChown) Call(ctx context.Context, cln *client.Client, val Value, opts Option, owner string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithChown(owner)))
+	return NewValue(ctx, append(retOpts, llbutil.WithChown(owner)))
 }
 
 type UtilChmod struct{}
 
-func (uc UtilChmod) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, mode os.FileMode) error {
-	retOpts, err := ret.Option()
+func (uc UtilChmod) Call(ctx context.Context, cln *client.Client, val Value, opts Option, mode os.FileMode) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithChmod(mode)))
+	return NewValue(ctx, append(retOpts, llbutil.WithChmod(mode)))
 }
 
 type UtilCreatedTime struct{}
 
-func (uct UtilCreatedTime) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, t time.Time) error {
-	retOpts, err := ret.Option()
+func (uct UtilCreatedTime) Call(ctx context.Context, cln *client.Client, val Value, opts Option, t time.Time) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithCreatedTime(t)))
+	return NewValue(ctx, append(retOpts, llbutil.WithCreatedTime(t)))
 }
 
 type TemplateField struct {
@@ -309,13 +309,13 @@ type TemplateField struct {
 
 type StringField struct{}
 
-func (sf StringField) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, name, value string) error {
-	retOpts, err := ret.Option()
+func (sf StringField) Call(ctx context.Context, cln *client.Client, val Value, opts Option, name, value string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, &TemplateField{name, value}))
+	return NewValue(ctx, append(retOpts, &TemplateField{name, value}))
 }
 
 type LocalRunOption struct {
@@ -326,52 +326,52 @@ type LocalRunOption struct {
 
 type IgnoreError struct{}
 
-func (ie IgnoreError) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (ie IgnoreError) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, func(o *LocalRunOption) {
+	return NewValue(ctx, append(retOpts, func(o *LocalRunOption) {
 		o.IgnoreError = true
 	}))
 }
 
 type OnlyStderr struct{}
 
-func (os OnlyStderr) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (os OnlyStderr) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, func(o *LocalRunOption) {
+	return NewValue(ctx, append(retOpts, func(o *LocalRunOption) {
 		o.OnlyStderr = true
 	}))
 }
 
 type IncludeStderr struct{}
 
-func (is IncludeStderr) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (is IncludeStderr) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, func(o *LocalRunOption) {
+	return NewValue(ctx, append(retOpts, func(o *LocalRunOption) {
 		o.IncludeStderr = true
 	}))
 }
 
 type Shlex struct{}
 
-func (s Shlex) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (s Shlex) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, &Shlex{}))
+	return NewValue(ctx, append(retOpts, &Shlex{}))
 }
 
 func ShlexArgs(args []string, shlex bool) ([]string, error) {
@@ -397,76 +397,76 @@ func ShlexArgs(args []string, shlex bool) ([]string, error) {
 
 type ReadonlyRootfs struct{}
 
-func (rr ReadonlyRootfs) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (rr ReadonlyRootfs) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithReadonlyRootFS()))
+	return NewValue(ctx, append(retOpts, llbutil.WithReadonlyRootFS()))
 }
 
 type RunEnv struct{}
 
-func (re RunEnv) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, key, value string) error {
-	retOpts, err := ret.Option()
+func (re RunEnv) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key, value string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithEnv(key, value)))
+	return NewValue(ctx, append(retOpts, llbutil.WithEnv(key, value)))
 }
 
 type RunDir struct{}
 
-func (rd RunDir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string) error {
-	retOpts, err := ret.Option()
+func (rd RunDir) Call(ctx context.Context, cln *client.Client, val Value, opts Option, path string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithDir(path)))
+	return NewValue(ctx, append(retOpts, llbutil.WithDir(path)))
 }
 
 type RunUser struct{}
 
-func (ru RunUser) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, name string) error {
-	retOpts, err := ret.Option()
+func (ru RunUser) Call(ctx context.Context, cln *client.Client, val Value, opts Option, name string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithUser(name)))
+	return NewValue(ctx, append(retOpts, llbutil.WithUser(name)))
 }
 
 type RunBreakpoint struct{}
 
-func (rb RunBreakpoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, command ...string) error {
-	retOpts, err := ret.Option()
+func (rb RunBreakpoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, command ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, breakpointCommand(command)))
+	return NewValue(ctx, append(retOpts, breakpointCommand(command)))
 }
 
 type IgnoreCache struct{}
 
-func (ig IgnoreCache) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (ig IgnoreCache) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llb.AddEnv("HLB_IGNORE_CACHE", identity.NewID())))
+	return NewValue(ctx, append(retOpts, llb.AddEnv("HLB_IGNORE_CACHE", identity.NewID())))
 }
 
 type Network struct{}
 
-func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, mode string) error {
-	retOpts, err := ret.Option()
+func (n Network) Call(ctx context.Context, cln *client.Client, val Value, opts Option, mode string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var netMode pb.NetMode
@@ -479,18 +479,18 @@ func (n Network) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	case "none":
 		netMode = pb.NetMode_NONE
 	default:
-		return errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "none"})
+		return nil, errdefs.WithInvalidNetworkMode(Arg(ctx, 0), mode, []string{"unset", "host", "none"})
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithNetwork(netMode)))
+	return NewValue(ctx, append(retOpts, llbutil.WithNetwork(netMode)))
 }
 
 type Security struct{}
 
-func (s Security) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, mode string) error {
-	retOpts, err := ret.Option()
+func (s Security) Call(ctx context.Context, cln *client.Client, val Value, opts Option, mode string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var securityMode pb.SecurityMode
@@ -501,29 +501,29 @@ func (s Security) Call(ctx context.Context, cln *client.Client, ret Register, op
 		securityMode = pb.SecurityMode_INSECURE
 		retOpts = append(retOpts, solver.WithEntitlement(entitlements.EntitlementSecurityInsecure))
 	default:
-		return errdefs.WithInvalidSecurityMode(Arg(ctx, 0), mode, []string{"sandbox", "insecure"})
+		return nil, errdefs.WithInvalidSecurityMode(Arg(ctx, 0), mode, []string{"sandbox", "insecure"})
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithSecurity(securityMode)))
+	return NewValue(ctx, append(retOpts, llbutil.WithSecurity(securityMode)))
 }
 
 type Host struct{}
 
-func (s Host) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, host string, address net.IP) error {
-	retOpts, err := ret.Option()
+func (s Host) Call(ctx context.Context, cln *client.Client, val Value, opts Option, host string, address net.IP) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithExtraHost(host, address)))
+	return NewValue(ctx, append(retOpts, llbutil.WithExtraHost(host, address)))
 }
 
 type SSH struct{}
 
-func (s SSH) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (s SSH) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var (
@@ -549,15 +549,15 @@ func (s SSH) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		Paths: localPaths,
 	}))
 
-	return ret.Set(append(retOpts, llbutil.WithSSHSocket("", sshOpts...)))
+	return NewValue(ctx, append(retOpts, llbutil.WithSSHSocket("", sshOpts...)))
 }
 
 type Forward struct{}
 
-func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, src *url.URL, dest string) error {
-	retOpts, err := ret.Option()
+func (f Forward) Call(ctx context.Context, cln *client.Client, val Value, opts Option, src *url.URL, dest string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var (
@@ -567,11 +567,11 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 	if src.Scheme == "unix" {
 		localPath, err = parser.ResolvePath(ModuleDir(ctx), src.Path)
 		if err != nil {
-			return Arg(ctx, 0).WithError(err)
+			return nil, Arg(ctx, 0).WithError(err)
 		}
 		_, err = os.Stat(filepath.Dir(localPath))
 		if err != nil {
-			return Arg(ctx, 0).WithError(err)
+			return nil, Arg(ctx, 0).WithError(err)
 		}
 		id = digest.FromString(localPath).String()
 	} else {
@@ -586,7 +586,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 
 		dir, err := ioutil.TempDir("", "hlb-forward")
 		if err != nil {
-			return errors.Wrap(err, "failed to create tmp dir for forwarding sock")
+			return nil, errors.Wrap(err, "failed to create tmp dir for forwarding sock")
 		}
 
 		localPath = filepath.Join(dir, "proxy.sock")
@@ -595,7 +595,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		var lc net.ListenConfig
 		l, err := lc.Listen(ctx, "unix", localPath)
 		if err != nil {
-			return errors.Wrap(err, "failed to listen on forwarding sock")
+			return nil, errors.Wrap(err, "failed to listen on forwarding sock")
 		}
 
 		var g errgroup.Group
@@ -613,7 +613,6 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 
 		g.Go(func() error {
 			err := sockproxy.Run(l, dialerFunc)
-
 			if err != nil && !isClosedNetworkError(err) {
 				return err
 			}
@@ -627,7 +626,7 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		Paths: []string{localPath},
 	}))
 
-	return ret.Set(append(retOpts, llbutil.WithSSHSocket(dest, llbutil.WithID(id))))
+	return NewValue(ctx, append(retOpts, llbutil.WithSSHSocket(dest, llbutil.WithID(id))))
 }
 
 func isClosedNetworkError(err error) bool {
@@ -638,10 +637,10 @@ func isClosedNetworkError(err error) bool {
 
 type Secret struct{}
 
-func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPath, mountpoint string) error {
-	retOpts, err := ret.Option()
+func (s Secret) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath, mountpoint string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var (
@@ -662,12 +661,12 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 
 	localPath, err = parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	localFiles, err := llbutil.FilterLocalFiles(localPath, includePatterns, excludePatterns)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, localFile := range localFiles {
@@ -690,7 +689,7 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		)
 	}
 
-	return ret.Set(retOpts)
+	return NewValue(ctx, retOpts)
 }
 
 type Mount struct {
@@ -698,10 +697,10 @@ type Mount struct {
 	Image *solver.ImageSpec
 }
 
-func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, input Filesystem, mountpoint string) error {
-	retOpts, err := ret.Option()
+func (m Mount) Call(ctx context.Context, cln *client.Client, val Value, opts Option, input Filesystem, mountpoint string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var cache *Cache
@@ -715,7 +714,7 @@ func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	if Binding(ctx).Binds() == "target" {
 		if cache != nil {
-			return errdefs.WithBindCacheMount(Binding(ctx).Bind.As, cache)
+			return nil, errdefs.WithBindCacheMount(Binding(ctx).Bind.As, cache)
 		}
 		retOpts = append(retOpts, &Mount{Bind: mountpoint, Image: input.Image})
 	}
@@ -733,150 +732,150 @@ func (m Mount) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		retOpts = append(retOpts, opt)
 	}
 
-	return ret.Set(retOpts)
+	return NewValue(ctx, retOpts)
 }
 
 type MountTarget struct{}
 
-func (mt MountTarget) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, target string) error {
-	retOpts, err := ret.Option()
+func (mt MountTarget) Call(ctx context.Context, cln *client.Client, val Value, opts Option, target string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithTarget(target)))
+	return NewValue(ctx, append(retOpts, llbutil.WithTarget(target)))
 }
 
 type UID struct{}
 
-func (u UID) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, uid int) error {
-	retOpts, err := ret.Option()
+func (u UID) Call(ctx context.Context, cln *client.Client, val Value, opts Option, uid int) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithUID(uid)))
+	return NewValue(ctx, append(retOpts, llbutil.WithUID(uid)))
 }
 
 type GID struct{}
 
-func (g GID) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, gid int) error {
-	retOpts, err := ret.Option()
+func (g GID) Call(ctx context.Context, cln *client.Client, val Value, opts Option, gid int) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithGID(gid)))
+	return NewValue(ctx, append(retOpts, llbutil.WithGID(gid)))
 }
 
 type LocalPaths struct{}
 
-func (lp LocalPaths) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPaths ...string) error {
-	retOpts, err := ret.Option()
+func (lp LocalPaths) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPaths ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, localPath := range localPaths {
 		resolvedPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		retOpts = append(retOpts, resolvedPath)
 	}
 
-	return ret.Set(retOpts)
+	return NewValue(ctx, retOpts)
 }
 
 type SecretIncludePatterns struct {
 	Patterns []string
 }
 
-func (iip SecretIncludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
-	retOpts, err := ret.Option()
+func (iip SecretIncludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, &SecretIncludePatterns{patterns}))
+	return NewValue(ctx, append(retOpts, &SecretIncludePatterns{patterns}))
 }
 
 type SecretExcludePatterns struct {
 	Patterns []string
 }
 
-func (sep SecretExcludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
-	retOpts, err := ret.Option()
+func (sep SecretExcludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, &SecretExcludePatterns{patterns}))
+	return NewValue(ctx, append(retOpts, &SecretExcludePatterns{patterns}))
 }
 
 type CopyIncludePatterns struct{}
 
-func (iip CopyIncludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
-	retOpts, err := ret.Option()
+func (iip CopyIncludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithIncludePatterns(patterns)))
+	return NewValue(ctx, append(retOpts, llbutil.WithIncludePatterns(patterns)))
 }
 
 type CopyExcludePatterns struct{}
 
-func (sep CopyExcludePatterns) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, patterns ...string) error {
-	retOpts, err := ret.Option()
+func (sep CopyExcludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithExcludePatterns(patterns)))
+	return NewValue(ctx, append(retOpts, llbutil.WithExcludePatterns(patterns)))
 }
 
 type Readonly struct{}
 
-func (r Readonly) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (r Readonly) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithReadonlyMount()))
+	return NewValue(ctx, append(retOpts, llbutil.WithReadonlyMount()))
 }
 
 type Tmpfs struct{}
 
-func (t Tmpfs) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	retOpts, err := ret.Option()
+func (t Tmpfs) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithTmpfs()))
+	return NewValue(ctx, append(retOpts, llbutil.WithTmpfs()))
 }
 
 type SourcePath struct{}
 
-func (sp SourcePath) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string) error {
-	retOpts, err := ret.Option()
+func (sp SourcePath) Call(ctx context.Context, cln *client.Client, val Value, opts Option, path string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, llbutil.WithSourcePath(path)))
+	return NewValue(ctx, append(retOpts, llbutil.WithSourcePath(path)))
 }
 
 type Cache struct {
 	parser.Node
 }
 
-func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, id, mode string) error {
-	retOpts, err := ret.Option()
+func (c Cache) Call(ctx context.Context, cln *client.Client, val Value, opts Option, id, mode string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var sharing llb.CacheMountSharingMode
@@ -888,22 +887,22 @@ func (c Cache) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	case "locked":
 		sharing = llb.CacheMountLocked
 	default:
-		return errdefs.WithInvalidSharingMode(Arg(ctx, 1), mode, []string{"shared", "private", "locked"})
+		return nil, errdefs.WithInvalidSharingMode(Arg(ctx, 1), mode, []string{"shared", "private", "locked"})
 	}
 
 	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llbutil.WithPersistentCacheDir(id, sharing))
-	return ret.Set(retOpts)
+	return NewValue(ctx, retOpts)
 }
 
 type Platform struct{}
 
-func (p Platform) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, os, arch string) error {
-	retOpts, err := ret.Option()
+func (p Platform) Call(ctx context.Context, cln *client.Client, val Value, opts Option, os, arch string) (Value, error) {
+	retOpts, err := val.Option()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(append(retOpts, &specs.Platform{
+	return NewValue(ctx, append(retOpts, &specs.Platform{
 		OS:           os,
 		Architecture: arch,
 	}))

@@ -9,16 +9,16 @@ import (
 
 type Stage struct{}
 
-func (s Stage) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, requests ...solver.Request) error {
+func (s Stage) Call(ctx context.Context, cln *client.Client, val Value, opts Option, requests ...solver.Request) (Value, error) {
 	if len(requests) == 0 {
-		return nil
+		return ZeroValue(ctx), nil
 	}
 
-	current, err := ret.Request()
+	current, err := val.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	next := solver.Parallel(requests...)
-	return ret.Set(solver.Sequential(current, next))
+	return NewValue(ctx, solver.Sequential(current, next))
 }

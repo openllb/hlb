@@ -33,10 +33,10 @@ var (
 	ErrDebugExit = errors.Errorf("exiting debugger")
 )
 
-type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value, opts Option) error
+type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Register, opts Option) error
 
 func NewNoopDebugger() Debugger {
-	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ Value, _ Option) error {
+	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ Register, _ Option) error {
 		return nil
 	}
 }
@@ -44,15 +44,15 @@ func NewNoopDebugger() Debugger {
 type snapshot struct {
 	scope *parser.Scope
 	node  parser.Node
-	ret   Value
+	val   Value
 	opts  Option
 }
 
 func (s snapshot) fs() (Filesystem, error) {
-	if s.ret == nil {
-		return Filesystem{}, errors.New("no ret value available")
+	if s.val == nil {
+		return Filesystem{}, errors.New("no value available")
 	}
-	return s.ret.Filesystem()
+	return s.val.Filesystem()
 }
 
 func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, promptReader *bufio.Reader) Debugger {
@@ -69,10 +69,10 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 	var previousCommand string
 
-	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Value, opts Option) error {
+	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Register, opts Option) error {
 		// Store a snapshot of the current debug step so we can backtrack.
 		historyIndex++
-		history = append(history, &snapshot{scope, node, ret, opts})
+		history = append(history, &snapshot{scope, node, ret.Value(), opts})
 
 		debug := func(s *snapshot) error {
 			showList := true

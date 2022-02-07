@@ -84,7 +84,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 			return nil, err
 		}
 
-		request, err := ret.Request()
+		request, err := ret.Value().Request()
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +157,7 @@ func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *parser.Scope, str *
 				return err
 			}
 
-			piece, err := exprRet.String()
+			piece, err := exprRet.Value().String()
 			if err != nil {
 				return err
 			}
@@ -190,7 +190,7 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc
 				return err
 			}
 
-			piece, err := exprRet.String()
+			piece, err := exprRet.Value().String()
 			if err != nil {
 				return err
 			}
@@ -272,7 +272,9 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 
 	switch n := obj.Node.(type) {
 	case *parser.BuiltinDecl:
-		return cg.EmitBuiltinDecl(ctx, scope, n, args, opts, b, ret)
+		return ret.SetAsync(func(v Value) (Value, error) {
+			return cg.EmitBuiltinDecl(ctx, scope, n, args, opts, b, v)
+		})
 	case *parser.FuncDecl:
 		return cg.EmitFuncDecl(ctx, n, args, nil, ret)
 	case *parser.BindClause:
@@ -288,10 +290,10 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 		if err != nil {
 			return err
 		}
-		if val.Kind() != parser.Option || ret.Kind() != parser.Option {
+		if val.Kind() != parser.Option || ret.Value().Kind() != parser.Option {
 			return ret.Set(val)
 		} else {
-			retOpts, err := ret.Option()
+			retOpts, err := ret.Value().Option()
 			if err != nil {
 				return err
 			}
@@ -306,10 +308,10 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	}
 }
 
-func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd *parser.BuiltinDecl, args []Value, opts Option, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd *parser.BuiltinDecl, args []Value, opts Option, b *parser.Binding, v Value) (Value, error) {
 	callable := bd.Callable(ReturnType(ctx))
 	if callable == nil {
-		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "unrecognized builtin `%s`", bd)
+		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "unrecognized builtin `%s`", bd)
 	}
 
 	// Pass binding if available.
@@ -326,7 +328,7 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 		ins = []reflect.Value{
 			reflect.ValueOf(ctx),
 			reflect.ValueOf(cg.cln),
-			reflect.ValueOf(ret),
+			reflect.ValueOf(v),
 			reflect.ValueOf(opts),
 		}
 	)
@@ -339,7 +341,7 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 
 	expected := numIn - len(PrototypeIn)
 	if len(args) < expected {
-		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", bd, expected, len(args))
+		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", bd, expected, len(args))
 	}
 
 	// Reflect regular arguments.
@@ -350,7 +352,7 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 		)
 		v, err := arg.Reflect(param)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		ins = append(ins, v)
 	}
@@ -361,17 +363,17 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 			param := c.Type().In(numIn).Elem()
 			v, err := args[i].Reflect(param)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			ins = append(ins, v)
 		}
 	}
 
 	outs := c.Call(ins)
-	if !outs[0].IsNil() {
-		return WithBacktraceError(ctx, outs[0].Interface().(error))
+	if !outs[1].IsNil() {
+		return nil, WithBacktraceError(ctx, outs[1].Interface().(error))
 	}
-	return nil
+	return outs[0].Interface().(Value), nil
 }
 
 func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args []Value, b *parser.Binding, ret Register) error {
@@ -504,12 +506,11 @@ func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, hint parse
 
 		// Evaluated expressions write to a new return register.
 		ret := NewRegister(ctx)
-
 		err = cg.EmitExpr(ctx, scope, expr, nil, nil, b, ret)
 		if err != nil {
 			return
 		}
-		values = append(values, ret)
+		values = append(values, ret.Value())
 	}
 	return
 }

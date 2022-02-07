@@ -89,12 +89,13 @@ func (l *Linter) LintRecursive(ctx context.Context, mod *parser.Module, expr *pa
 	if err != nil {
 		return
 	}
+	val := ret.Value()
 
-	if ret.Kind() != parser.String {
+	if val.Kind() != parser.String {
 		return
 	}
 
-	relPath, err := ret.String()
+	relPath, err := val.String()
 	if err != nil {
 		return
 	}
