@@ -67,7 +67,8 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		}
 
 		// Yield before compiling anything.
-		err := cg.Debug(ctx, mod.Scope, mod, nil, nil)
+		ret := NewRegister(ctx)
+		err := cg.Debug(ctx, mod.Scope, mod, ret, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +79,6 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		ie.Pos.Line = i
 
 		// Every target has a return register.
-		ret := NewRegister(ctx)
 		err = cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
 		if err != nil {
 			return nil, err
