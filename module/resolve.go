@@ -343,7 +343,7 @@ type VisitInfo struct {
 	Parent     *parser.Module
 	Import     *parser.Module
 	ImportDecl *parser.ImportDecl
-	Ret        codegen.Value
+	Value      codegen.Value
 	Digest     digest.Digest
 }
 
@@ -388,11 +388,12 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 				if err != nil {
 					return err
 				}
+				val := ret.Value()
 
 				var filename string
-				switch ret.Kind() {
+				switch val.Kind() {
 				case parser.Filesystem:
-					fs, err := ret.Filesystem()
+					fs, err := val.Filesystem()
 					if err != nil {
 						return err
 					}
@@ -405,7 +406,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 					defer res.Close()
 
 				case parser.String:
-					filename, err = ret.String()
+					filename, err = val.String()
 					if err != nil {
 						return err
 					}
@@ -461,7 +462,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, res Resolved, mod
 						Parent:     mod,
 						Import:     imod,
 						ImportDecl: id,
-						Ret:        ret,
+						Value:      val,
 						Digest:     res.Digest(),
 					})
 					if err != nil {

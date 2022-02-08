@@ -53,13 +53,13 @@ func commitHistory(img *solver.ImageSpec, empty bool, format string, a ...interf
 
 type Scratch struct{}
 
-func (s Scratch) Call(ctx context.Context, cln *client.Client, ret Register, opts Option) error {
-	return ret.Set(llb.Scratch())
+func (s Scratch) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	return NewValue(ctx, llb.Scratch())
 }
 
 type Image struct{}
 
-func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Option, ref string) (Value, error) {
 	var imageOpts []llb.ImageOption
 	platform := DefaultPlatform(ctx)
 	for _, opt := range opts {
@@ -81,7 +81,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
 	ref = reference.TagNameOnly(named).String()
 
@@ -94,21 +94,21 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	if resolver != nil {
 		_, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		st, err = st.WithImageConfig(config)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		err = json.Unmarshal(config, image)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return ret.Set(Filesystem{
+	return NewValue(ctx, Filesystem{
 		State:    st,
 		Image:    image,
 		Platform: platform,
@@ -117,7 +117,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 type HTTP struct{}
 
-func (h HTTP) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, url string) error {
+func (h HTTP) Call(ctx context.Context, cln *client.Client, val Value, opts Option, url string) (Value, error) {
 	var httpOpts []llb.HTTPOption
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -129,12 +129,12 @@ func (h HTTP) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 		httpOpts = append(httpOpts, opt)
 	}
 
-	return ret.Set(llb.HTTP(url, httpOpts...))
+	return NewValue(ctx, llb.HTTP(url, httpOpts...))
 }
 
 type Git struct{}
 
-func (g Git) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, remote, ref string) error {
+func (g Git) Call(ctx context.Context, cln *client.Client, val Value, opts Option, remote, ref string) (Value, error) {
 	var gitOpts []llb.GitOption
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -146,20 +146,20 @@ func (g Git) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 		gitOpts = append(gitOpts, opt)
 	}
 
-	return ret.Set(llb.Git(remote, ref, gitOpts...))
+	return NewValue(ctx, llb.Git(remote, ref, gitOpts...))
 }
 
 type Local struct{}
 
-func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPath string) error {
+func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath string) (Value, error) {
 	localPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fi, err := os.Stat(localPath)
 	if err != nil {
-		return Arg(ctx, 0).WithError(err)
+		return nil, Arg(ctx, 0).WithError(err)
 	}
 
 	var localOpts []llb.LocalOption
@@ -187,7 +187,7 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	if !filepath.IsAbs(absPath) {
 		cwd, err := local.Cwd(ctx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		absPath = filepath.Join(cwd, localPath)
@@ -195,7 +195,7 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	id, err := llbutil.LocalID(ctx, absPath, localOpts...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	localOpts = append(localOpts, llb.SharedKeyHint(id))
 
@@ -218,15 +218,15 @@ func (l Local) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		},
 	}))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Frontend struct{}
 
-func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, source string) error {
+func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts Option, source string) (Value, error) {
 	named, err := reference.ParseNormalizedNamed(source)
 	if err != nil {
-		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), source)
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 0), source)
 	}
 	source = reference.TagNameOnly(named).String()
 
@@ -255,7 +255,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	s, err := llbutil.NewSession(ctx, sessionOpts...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -266,7 +266,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	fs, err := ZeroValue(ctx).Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g.Go(func() error {
@@ -311,31 +311,31 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	err = g.Wait()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Env struct{}
 
-func (e Env) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, key, value string) error {
-	fs, err := ret.Filesystem()
+func (e Env) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key, value string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.State = fs.State.AddEnv(key, value)
 	fs.Image.Config.Env = append(fs.Image.Config.Env, fmt.Sprintf("%s=%s", key, value))
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Dir struct{}
 
-func (d Dir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, wd string) error {
-	fs, err := ret.Filesystem()
+func (d Dir) Call(ctx context.Context, cln *client.Client, val Value, opts Option, wd string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !path.IsAbs(wd) {
@@ -345,26 +345,26 @@ func (d Dir) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 	fs.State = fs.State.Dir(wd)
 	fs.Image.Config.WorkingDir = wd
 	commitHistory(fs.Image, true, "WORKDIR %s", wd)
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type User struct{}
 
-func (u User) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, name string) error {
-	fs, err := ret.Filesystem()
+func (u User) Call(ctx context.Context, cln *client.Client, val Value, opts Option, name string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.State = fs.State.User(name)
 	fs.Image.Config.User = name
 	commitHistory(fs.Image, true, "USER %s", name)
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Run struct{}
 
-func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, args ...string) error {
+func (r Run) Call(ctx context.Context, cln *client.Client, val Value, opts Option, args ...string) (Value, error) {
 	var (
 		runOpts     []llb.RunOption
 		solveOpts   []solver.SolveOption
@@ -394,7 +394,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 
 	runArgs, err := ShlexArgs(args, shlex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	customName := strings.ReplaceAll(shellquote.Join(runArgs...), "\n", "\\n")
@@ -402,12 +402,12 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 
 	err = llbutil.ShimReadonlyMountpoints(runOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	run := fs.State.Run(runOpts...)
@@ -424,21 +424,21 @@ func (r Run) Call(ctx context.Context, cln *client.Client, ret Register, opts Op
 	fs.SessionOpts = append(fs.SessionOpts, sessionOpts...)
 	commitHistory(fs.Image, false, "RUN %s", strings.Join(runArgs, " "))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type SetBreakpoint struct{}
 
-func (r SetBreakpoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, args ...string) error {
-	return nil
+func (r SetBreakpoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, args ...string) (Value, error) {
+	return ZeroValue(ctx), nil
 }
 
 type Mkdir struct{}
 
-func (m Mkdir) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string, mode os.FileMode) error {
-	fs, err := ret.Filesystem()
+func (m Mkdir) Call(ctx context.Context, cln *client.Client, val Value, opts Option, path string, mode os.FileMode) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var mkdirOpts []llb.MkdirOption
@@ -453,15 +453,15 @@ func (m Mkdir) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 		llb.Mkdir(path, mode, mkdirOpts...),
 		SourceMap(ctx)...,
 	)
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Mkfile struct{}
 
-func (m Mkfile) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string, mode os.FileMode, content string) error {
-	fs, err := ret.Filesystem()
+func (m Mkfile) Call(ctx context.Context, cln *client.Client, val Value, opts Option, path string, mode os.FileMode, content string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var mkfileOpts []llb.MkfileOption
@@ -476,15 +476,15 @@ func (m Mkfile) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		llb.Mkfile(path, mode, []byte(content), mkfileOpts...),
 		SourceMap(ctx)...,
 	)
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Rm struct{}
 
-func (m Rm) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, path string) error {
-	fs, err := ret.Filesystem()
+func (m Rm) Call(ctx context.Context, cln *client.Client, val Value, opts Option, path string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var rmOpts []llb.RmOption
@@ -499,15 +499,15 @@ func (m Rm) Call(ctx context.Context, cln *client.Client, ret Register, opts Opt
 		llb.Rm(path, rmOpts...),
 		SourceMap(ctx)...,
 	)
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Copy struct{}
 
-func (m Copy) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, input Filesystem, src, dest string) error {
-	fs, err := ret.Filesystem()
+func (m Copy) Call(ctx context.Context, cln *client.Client, val Value, opts Option, input Filesystem, src, dest string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var info = &llb.CopyInfo{}
@@ -526,19 +526,19 @@ func (m Copy) Call(ctx context.Context, cln *client.Client, ret Register, opts O
 	fs.SessionOpts = append(fs.SessionOpts, input.SessionOpts...)
 	commitHistory(fs.Image, false, "COPY %s %s", src, dest)
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Merge struct{}
 
-func (m Merge) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, inputs ...Filesystem) error {
-	fs, err := ret.Filesystem()
+func (m Merge) Call(ctx context.Context, cln *client.Client, val Value, opts Option, inputs ...Filesystem) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(inputs) == 0 {
-		return errors.New("merge takes at least one filesystem as arguments")
+		return nil, errors.New("merge takes at least one filesystem as arguments")
 	}
 
 	states := []llb.State{fs.State}
@@ -551,55 +551,55 @@ func (m Merge) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 
 	commitHistory(fs.Image, false, "MERGE %s %s", "/", "/")
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Diff struct{}
 
-func (d Diff) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, input Filesystem) error {
-	fs, err := ret.Filesystem()
+func (d Diff) Call(ctx context.Context, cln *client.Client, val Value, opts Option, input Filesystem) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.State = llb.Diff(input.State, fs.State)
 
 	commitHistory(fs.Image, false, "DIFF %s %s", "/", "/")
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Entrypoint struct{}
 
-func (e Entrypoint) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, entrypoint ...string) error {
-	fs, err := ret.Filesystem()
+func (e Entrypoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, entrypoint ...string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.Image.Config.Entrypoint = entrypoint
 	commitHistory(fs.Image, true, "ENTRYPOINT %q", entrypoint)
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Cmd struct{}
 
-func (c Cmd) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, cmd ...string) error {
-	fs, err := ret.Filesystem()
+func (c Cmd) Call(ctx context.Context, cln *client.Client, val Value, opts Option, cmd ...string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.Image.Config.Cmd = cmd
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Label struct{}
 
-func (l Label) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, key, value string) error {
-	fs, err := ret.Filesystem()
+func (l Label) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key, value string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if fs.Image.Config.Labels == nil {
@@ -618,15 +618,15 @@ func (l Label) Call(ctx context.Context, cln *client.Client, ret Register, opts 
 	} else {
 		commitHistory(fs.Image, true, "LABEL %s=%s", key, value)
 	}
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Expose struct{}
 
-func (e Expose) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ports ...string) error {
-	fs, err := ret.Filesystem()
+func (e Expose) Call(ctx context.Context, cln *client.Client, val Value, opts Option, ports ...string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if fs.Image.Config.ExposedPorts == nil {
@@ -637,15 +637,15 @@ func (e Expose) Call(ctx context.Context, cln *client.Client, ret Register, opts
 		fs.Image.Config.ExposedPorts[port] = struct{}{}
 	}
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Volumes struct{}
 
-func (v Volumes) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, mountpoints ...string) error {
-	fs, err := ret.Filesystem()
+func (Volumes) Call(ctx context.Context, cln *client.Client, val Value, opts Option, mountpoints ...string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if fs.Image.Config.Volumes == nil {
@@ -656,33 +656,33 @@ func (v Volumes) Call(ctx context.Context, cln *client.Client, ret Register, opt
 		fs.Image.Config.Volumes[mountpoint] = struct{}{}
 	}
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type StopSignal struct{}
 
-func (ss StopSignal) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, signal string) error {
-	fs, err := ret.Filesystem()
+func (ss StopSignal) Call(ctx context.Context, cln *client.Client, val Value, opts Option, signal string) (Value, error) {
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.Image.Config.StopSignal = signal
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type DockerPush struct{}
 
-func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+func (dp DockerPush) Call(ctx context.Context, cln *client.Client, val Value, opts Option, ref string) (Value, error) {
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
 	ref = reference.TagNameOnly(named).String()
 
-	exportFS, err := ret.Filesystem()
+	exportFS, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Maintains compatibility with systems depending on v1 `container_config`
@@ -711,7 +711,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	if dockerAPI.Moby {
 		// Return error only if dockerPush is using docker engine instead of buildkit.
 		if dockerAPI.Err != nil {
-			return ProgramCounter(ctx).WithError(dockerAPI.Err)
+			return nil, ProgramCounter(ctx).WithError(dockerAPI.Err)
 		}
 
 		exportFS.SolveOpts = append(exportFS.SolveOpts,
@@ -728,21 +728,21 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 				})
 			}),
 		)
-		return ret.Set(exportFS)
+		return NewValue(ctx, exportFS)
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
 		solver.WithPushImage(ref),
 	)
 
-	v, err := NewValue(ctx, exportFS)
+	exportValue, err := NewValue(ctx, exportFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	request, err := v.Request()
+	request, err := exportValue.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -754,19 +754,19 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, ret Register,
 	if Binding(ctx).Binds() == "digest" {
 		err = g.Wait()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		return ret.Set(dgst)
+		return NewValue(ctx, dgst)
 	}
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 func pushWithMoby(ctx context.Context, dockerAPI DockerAPIClient, ref string, l progress.SubLogger) error {
@@ -846,20 +846,20 @@ func pushWithMoby(ctx context.Context, dockerAPI DockerAPIClient, ref string, l 
 
 type DockerLoad struct{}
 
-func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, ref string) error {
+func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, val Value, opts Option, ref string) (Value, error) {
 	_, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 0), ref)
 	}
 
 	dockerAPI := DockerAPI(ctx)
 	if dockerAPI.Err != nil {
-		return ProgramCounter(ctx).WithError(dockerAPI.Err)
+		return nil, ProgramCounter(ctx).WithError(dockerAPI.Err)
 	}
 
-	exportFS, err := ret.Filesystem()
+	exportFS, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, opt := range opts {
@@ -874,7 +874,7 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		exportFS.SolveOpts = append(exportFS.SolveOpts,
 			solver.WithDownloadMoby(ref),
 		)
-		return ret.Set(exportFS)
+		return NewValue(ctx, exportFS)
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
@@ -886,14 +886,14 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		llbutil.WithSyncTarget(llbutil.OutputFromWriter(w)),
 	)
 
-	v, err := NewValue(ctx, exportFS)
+	exportValue, err := NewValue(ctx, exportFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	request, err := v.Request()
+	request, err := exportValue.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -928,27 +928,27 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, ret Register,
 		return nil
 	})
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type Download struct{}
 
-func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPath string) error {
+func (d Download) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath string) (Value, error) {
 	localPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	exportFS, err := ret.Filesystem()
+	exportFS, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownload(localPath))
@@ -961,14 +961,14 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTargetDir(localPath))
 
-	v, err := NewValue(ctx, exportFS)
+	exportValue, err := NewValue(ctx, exportFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	request, err := v.Request()
+	request, err := exportValue.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -977,37 +977,37 @@ func (d Download) Call(ctx context.Context, cln *client.Client, ret Register, op
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type DownloadTarball struct{}
 
-func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPath string) error {
+func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath string) (Value, error) {
 	localPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	f, err := os.Create(localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	exportFS, err := ret.Filesystem()
+	exportFS, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadTarball())
@@ -1020,14 +1020,14 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
-	v, err := NewValue(ctx, exportFS)
+	exportValue, err := NewValue(ctx, exportFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	request, err := v.Request()
+	request, err := exportValue.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -1036,42 +1036,42 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, ret Regi
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type DownloadOCITarball struct{}
 
-func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPath string) error {
+func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath string) (Value, error) {
 	localPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dockerAPI := DockerAPI(ctx)
 	if dockerAPI.Moby {
-		return errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
+		return nil, errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
 	}
 
 	err = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	f, err := os.Create(localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	exportFS, err := ret.Filesystem()
+	exportFS, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithDownloadOCITarball())
@@ -1084,14 +1084,14 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
-	v, err := NewValue(ctx, exportFS)
+	exportValue, err := NewValue(ctx, exportFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	request, err := v.Request()
+	request, err := exportValue.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -1100,48 +1100,48 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, ret 
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }
 
 type DownloadDockerTarball struct{}
 
-func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, ret Register, opts Option, localPath, ref string) error {
+func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath, ref string) (Value, error) {
 	localPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	named, err := reference.ParseNormalizedNamed(ref)
 	if err != nil {
-		return errdefs.WithInvalidImageRef(err, Arg(ctx, 1), ref)
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 1), ref)
 	}
 	ref = reference.TagNameOnly(named).String()
 
 	dockerAPI := DockerAPI(ctx)
 	if dockerAPI.Moby {
-		return errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
+		return nil, errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
 	}
 
 	err = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	f, err := os.Create(localPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	exportFS, err := ret.Filesystem()
+	exportFS, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
@@ -1157,14 +1157,14 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 
 	exportFS.SessionOpts = append(exportFS.SessionOpts, llbutil.WithSyncTarget(llbutil.OutputFromWriter(f)))
 
-	v, err := NewValue(ctx, exportFS)
+	exportValue, err := NewValue(ctx, exportFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	request, err := v.Request()
+	request, err := exportValue.Request()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -1173,12 +1173,12 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, r
 		return request.Solve(ctx, cln, MultiWriter(ctx))
 	})
 
-	fs, err := ret.Filesystem()
+	fs, err := val.Filesystem()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fs.SolveOpts = append(fs.SolveOpts, WithCallbackErrgroup(ctx, g))
 
-	return ret.Set(fs)
+	return NewValue(ctx, fs)
 }

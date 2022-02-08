@@ -98,11 +98,11 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 			}
 
 			var filename string
-			switch info.Ret.Kind() {
+			switch info.Value.Kind() {
 			case parser.Filesystem:
 				filename = ModuleFilename
 			case parser.String:
-				filename, err = info.Ret.String()
+				filename, err = info.Value.String()
 				if err != nil {
 					return err
 				}

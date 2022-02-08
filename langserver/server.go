@@ -545,12 +545,13 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				log.Printf("failed to generate import: %s", err)
 				return
 			}
+			val := ret.Value()
 
 			rootDir := filepath.Dir(strings.TrimPrefix(string(uri), "file://"))
 			var filename string
-			switch ret.Kind() {
+			switch val.Kind() {
 			case parser.Filesystem:
-				fs, err := ret.Filesystem()
+				fs, err := val.Filesystem()
 				if err != nil {
 					return
 				}
@@ -565,7 +566,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				vp := module.VendorPath(filepath.Join(rootDir, module.ModulesPath), dgst)
 				filename = filepath.Join(vp, module.ModuleFilename)
 			case parser.String:
-				localPath, err := ret.String()
+				localPath, err := val.String()
 				if err != nil {
 					return
 				}

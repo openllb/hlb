@@ -46,11 +46,11 @@ func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long b
 		}
 
 		var value string
-		switch info.Ret.Kind() {
+		switch info.Value.Kind() {
 		case parser.Filesystem:
 			value = filepath.Join(prefix, ModuleFilename)
 		case parser.String:
-			value, err = info.Ret.String()
+			value, err = info.Value.String()
 			if err != nil {
 				return err
 			}
