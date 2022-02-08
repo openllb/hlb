@@ -209,7 +209,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	// store Progress in context in case we need to synchronize output later
 	ctx = codegen.WithProgress(ctx, p)
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-
 	ctx = diagnostic.WithSources(ctx, builtin.Sources())
 
 	defer func() {
