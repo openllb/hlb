@@ -171,9 +171,9 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 	if err != nil {
 		return err
 	}
-
-	defer p.Release()
 	defer p.Wait()
+	defer p.Release()
+
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
 }
@@ -272,27 +272,24 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 	}
 
 	var tree treeprint.Tree
+	defer func() {
+		if err == nil {
+			fmt.Println(tree)
+		}
+	}()
 	if exist {
 		tree, err = module.NewTree(ctx, cln, mod, info.Long)
-		if err != nil {
-			return err
-		}
-	} else {
-		p, err := solver.NewProgress(ctx)
-		if err != nil {
-			return err
-		}
-
-		defer p.Release()
-		defer p.Wait()
-
-		ctx := codegen.WithMultiWriter(ctx, p.MultiWriter())
-		tree, err = module.NewTree(ctx, cln, mod, info.Long)
-		if err != nil {
-			return err
-		}
+		return err
 	}
 
-	fmt.Println(tree)
-	return nil
+	p, err := solver.NewProgress(ctx)
+	if err != nil {
+		return err
+	}
+	defer p.Wait()
+	defer p.Release()
+
+	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
+	tree, err = module.NewTree(ctx, cln, mod, info.Long)
+	return err
 }

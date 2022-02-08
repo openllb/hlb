@@ -61,7 +61,7 @@ func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long b
 		}
 
 		mu.Lock()
-		node := nodeByModule[mod]
+		node := nodeByModule[info.Parent]
 		inode := node.AddMetaBranch(info.ImportDecl.Name.Text, value)
 		nodeByModule[info.Import] = inode
 		mu.Unlock()
