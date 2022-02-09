@@ -7,6 +7,7 @@ require (
 	github.com/containerd/console v1.0.3
 	github.com/containerd/containerd v1.6.0-beta.3
 	github.com/creachadair/jrpc2 v0.26.1
+	github.com/creack/pty v1.1.11
 	github.com/docker/buildx v0.7.1-0.20220204032525-595285736c66
 	github.com/docker/cli v20.10.11+incompatible
 	github.com/docker/distribution v2.7.1+incompatible
