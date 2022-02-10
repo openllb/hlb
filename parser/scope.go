@@ -61,7 +61,9 @@ func (s *Scope) Insert(obj *Object) {
 
 // Root returns the outer-most scope.
 func (s *Scope) Root() *Scope {
-	if s.Outer == nil {
+	// Outer-most scope is the one right before a global scope of all the
+	// builtins, which doesn't have a node defined.
+	if s.Outer.Node == nil {
 		return s
 	}
 	return s.Outer.Root()

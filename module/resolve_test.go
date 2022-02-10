@@ -14,7 +14,6 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
-	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
 	"github.com/stretchr/testify/require"
 )
@@ -25,15 +24,19 @@ type testCase struct {
 	fn    func(mod *parser.Module, imods map[string]*parser.Module) error
 }
 
-type testResolved struct {
+type testDirectory struct {
 	fixtures map[string]string
 }
 
-func (r *testResolved) Digest() digest.Digest {
+func (r *testDirectory) Path() string {
 	return ""
 }
 
-func (r *testResolved) Open(filename string) (io.ReadCloser, error) {
+func (r *testDirectory) Digest() digest.Digest {
+	return ""
+}
+
+func (r *testDirectory) Open(filename string) (io.ReadCloser, error) {
 	fixture, ok := r.fixtures[filename]
 	if !ok {
 		return nil, os.ErrNotExist
@@ -41,14 +44,14 @@ func (r *testResolved) Open(filename string) (io.ReadCloser, error) {
 	return ioutil.NopCloser(strings.NewReader(fixture)), nil
 }
 
-func (r *testResolved) Close() error {
+func (r *testDirectory) Close() error {
 	return nil
 }
 
 func TestResolveGraph(t *testing.T) {
 	t.Parallel()
 
-	res := &testResolved{map[string]string{
+	dir := &testDirectory{map[string]string{
 		"simple.hlb": `
 			export build
 			fs build() {}
@@ -114,18 +117,16 @@ func TestResolveGraph(t *testing.T) {
 			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
+			mod.Directory = dir
 
 			err = checker.SemanticPass(mod)
-			require.NoError(t, err)
-
-			err = linter.Lint(ctx, mod)
 			require.NoError(t, err)
 
 			err = checker.Check(mod)
 			require.NoError(t, err)
 
 			imods := make(map[string]*parser.Module)
-			err = ResolveGraph(ctx, nil, nil, res, mod, func(info VisitInfo) error {
+			err = ResolveGraph(ctx, nil, nil, mod, func(info VisitInfo) error {
 				imods[info.ImportDecl.Name.Text] = info.Import
 				return nil
 			})

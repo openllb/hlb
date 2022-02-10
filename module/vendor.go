@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/parser"
 	"golang.org/x/sync/errgroup"
 )
@@ -22,7 +23,7 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 	var mu sync.Mutex
 	markedPaths := make(map[string]struct{})
 
-	var resolver Resolver
+	var resolver codegen.Resolver
 	if tidy {
 		resolver = &tidyResolver{
 			cln:    cln,
@@ -37,16 +38,10 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 		}
 	}
 
-	res, err := NewLocalResolved(mod)
-	if err != nil {
-		return err
-	}
-	defer res.Close()
-
 	g, ctx := errgroup.WithContext(ctx)
 
 	ready := make(chan struct{})
-	err = ResolveGraph(ctx, cln, resolver, res, mod, func(info VisitInfo) error {
+	err := ResolveGraph(ctx, cln, resolver, mod, func(info VisitInfo) error {
 		g.Go(func() error {
 			<-ready
 
@@ -97,18 +92,7 @@ func Vendor(ctx context.Context, cln *client.Client, mod *parser.Module, targets
 				return err
 			}
 
-			var filename string
-			switch info.Value.Kind() {
-			case parser.Filesystem:
-				filename = ModuleFilename
-			case parser.String:
-				filename, err = info.Value.String()
-				if err != nil {
-					return err
-				}
-			}
-
-			f, err := os.Create(filepath.Join(vp, filename))
+			f, err := os.Create(filepath.Join(vp, info.Filename))
 			if err != nil {
 				return err
 			}

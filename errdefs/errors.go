@@ -55,7 +55,10 @@ func WithDeprecated(mod *parser.Module, node parser.Node, format string, a ...in
 }
 
 func WithInternalErrorf(node parser.Node, format string, a ...interface{}) error {
-	return errors.WithStack(node.WithError(fmt.Errorf(format, a...)))
+	return node.WithError(
+		fmt.Errorf(format, a...),
+		node.Spanf(diagnostic.Primary, format, a...),
+	)
 }
 
 func WithInvalidCompileTarget(ident parser.Node) error {
@@ -224,14 +227,6 @@ func WithInvalidSharingMode(arg parser.Node, mode string, modes []string) error 
 	return arg.WithError(
 		fmt.Errorf("invalid cache sharing mode `%s`", mode),
 		arg.Spanf(diagnostic.Primary, "invalid sharing mode `%s`%s", mode, suggestion),
-	)
-}
-
-func WithImportWithinImport(ie, decl parser.Node) error {
-	return ie.WithError(
-		fmt.Errorf("cannot use import within import"),
-		ie.Spanf(diagnostic.Primary, "cannot use import within import"),
-		decl.Spanf(diagnostic.Secondary, "imported here"),
 	)
 }
 

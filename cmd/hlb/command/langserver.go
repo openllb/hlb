@@ -1,10 +1,10 @@
 package command
 
 import (
-	"context"
 	"log"
 	"os"
 
+	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/langserver"
 	cli "github.com/urfave/cli/v2"
 )
@@ -27,9 +27,16 @@ var langserverCommand = &cli.Command{
 		defer f.Close()
 		log.SetOutput(f)
 
-		s := langserver.NewServer()
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		if err != nil {
+			return err
+		}
 
-		ctx := context.Background()
-		return s.Listen(ctx, os.Stdin, os.Stdout)
+		s, err := langserver.NewServer(ctx, cln)
+		if err != nil {
+			return err
+		}
+
+		return s.Listen(os.Stdin, os.Stdout)
 	},
 }

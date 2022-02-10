@@ -161,16 +161,6 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		nil,
 	}, {
-		"import file",
-		`
-		import foo from "./go.hlb"
-
-		fs default() {
-			foo.bar
-		}
-		`,
-		nil,
-	}, {
 		"wrong number of args",
 		`
 		fs default() {
@@ -306,7 +296,7 @@ func TestChecker_Check(t *testing.T) {
 			)
 		},
 	}, {
-		"errors when a reference is called on a name that isn't an import",
+		"errors when a reference called on non-import",
 		`
 		fs myFunction() {}
 		fs badReferenceCaller() {
@@ -491,150 +481,6 @@ func TestChecker_Check(t *testing.T) {
 			if err == nil {
 				err = Check(mod)
 			}
-			if err == nil && tc.fn != nil {
-				err = CheckReferences(mod)
-				validateError(t, ctx, tc.fn(mod), err, tc.name)
-			} else {
-				var expected error
-				if tc.fn != nil {
-					expected = tc.fn(mod)
-				}
-				validateError(t, ctx, expected, err, tc.name)
-			}
-		})
-	}
-}
-
-func TestChecker_CheckReferences(t *testing.T) {
-	t.Parallel()
-
-	modFixture := `
-		export foo
-		export fooWithArgs
-		export resolveImage
-		fs foo() {}
-		fs bar() {}
-		fs fooWithArgs(string bar) {}
-		option::image resolveImage() { resolve; }
-	`
-
-	ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
-	imod, err := parser.Parse(ctx, strings.NewReader(modFixture))
-	require.NoError(t, err)
-
-	err = SemanticPass(imod)
-	require.NoError(t, err)
-
-	err = Check(imod)
-	require.NoError(t, err)
-
-	for _, tc := range []testCase{{
-		"can call defined reference",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default() {
-			myImportedModule.foo
-		}
-		`,
-		nil,
-	}, {
-		"cannot call undefined reference",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default() {
-			myImportedModule.undefined
-		}
-		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithUndefinedIdent(
-				parser.Find(mod, "undefined"),
-				nil,
-				errdefs.Imported(parser.Find(mod, "myImportedModule")),
-			)
-		},
-	}, {
-		"unable to call unexported functions",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default() {
-			myImportedModule.bar
-		}
-		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithCallUnexported(
-				parser.Find(mod, "bar"),
-				errdefs.Imported(parser.Find(mod, "myImportedModule")),
-			)
-		},
-	}, {
-		"able to use valid reference as mount input",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default() {
-			scratch
-			run "xyz" with option {
-				mount myImportedModule.foo "/mountpoint"
-			}
-		}
-		`,
-		nil,
-	}, {
-		"able to pass function field as argument to reference",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default(string foo) {
-			myImportedModule.fooWithArgs foo
-		}
-		`,
-		nil,
-	}, {
-		"use imported option",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default(string foo) {
-			image "busybox" with myImportedModule.resolveImage
-		}
-		`,
-		nil,
-	}, {
-		"merge imported option",
-		`
-		import myImportedModule from "./myModule.hlb"
-
-		fs default(string foo) {
-			image "busybox" with option {
-				myImportedModule.resolveImage
-			}
-		}
-		`,
-		nil,
-	}} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			in := strings.NewReader(dedent.Dedent(tc.input))
-
-			mod, err := parser.Parse(ctx, in)
-			require.NoError(t, err)
-
-			err = SemanticPass(mod)
-			require.NoError(t, err)
-
-			err = Check(mod)
-			require.NoError(t, err)
-
-			obj := mod.Scope.Lookup("myImportedModule")
-			if obj == nil {
-				t.Fatal("myImportedModule should be imported for this test to work")
-			}
-			obj.Data = imod.Scope
-
-			err = CheckReferences(mod)
 			var expected error
 			if tc.fn != nil {
 				expected = tc.fn(mod)
@@ -647,8 +493,18 @@ func TestChecker_CheckReferences(t *testing.T) {
 func validateError(t *testing.T, ctx context.Context, expected, actual error, name string) {
 	switch {
 	case expected == nil:
+		if actual != nil {
+			for _, span := range diagnostic.Spans(actual) {
+				t.Logf("[Actual]\n%s", span.Pretty(ctx))
+			}
+		}
 		require.NoError(t, actual, name)
 	case actual == nil:
+		if expected != nil {
+			for _, span := range diagnostic.Spans(expected) {
+				t.Logf("[Expected]\n%s", span.Pretty(ctx))
+			}
+		}
 		require.NotNil(t, actual, name)
 	default:
 		espans := diagnostic.Spans(expected)

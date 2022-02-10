@@ -2,27 +2,17 @@ package linter
 
 import (
 	"context"
-	"os"
 
-	"github.com/openllb/hlb/checker"
-	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
 )
 
 type Linter struct {
-	Recursive bool
-	errs      []error
+	errs []error
 }
 
 type LintOption func(*Linter)
-
-func WithRecursive() LintOption {
-	return func(l *Linter) {
-		l.Recursive = true
-	}
-}
 
 func Lint(ctx context.Context, mod *parser.Module, opts ...LintOption) error {
 	l := Linter{}
@@ -51,9 +41,6 @@ func (l *Linter) Lint(ctx context.Context, mod *parser.Module) {
 					},
 				}
 			}
-			if l.Recursive {
-				l.LintRecursive(ctx, mod, id.Expr)
-			}
 		},
 		func(t *parser.Type) {
 			if string(t.Kind) == "group" {
@@ -74,52 +61,4 @@ func (l *Linter) Lint(ctx context.Context, mod *parser.Module) {
 			}
 		},
 	)
-}
-
-func (l *Linter) LintRecursive(ctx context.Context, mod *parser.Module, expr *parser.Expr) {
-	ctx = codegen.WithProgramCounter(ctx, mod)
-
-	cg, err := codegen.New(nil)
-	if err != nil {
-		return
-	}
-
-	ret := codegen.NewRegister(ctx)
-	err = cg.EmitExpr(ctx, mod.Scope, expr, nil, nil, nil, ret)
-	if err != nil {
-		return
-	}
-	val := ret.Value()
-
-	if val.Kind() != parser.String {
-		return
-	}
-
-	relPath, err := val.String()
-	if err != nil {
-		return
-	}
-
-	filename, err := parser.ResolvePath(codegen.ModuleDir(ctx), relPath)
-	if err != nil {
-		return
-	}
-
-	f, err := os.Open(filename)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	imod, err := parser.Parse(ctx, f)
-	if err != nil {
-		return
-	}
-
-	err = checker.SemanticPass(imod)
-	if err != nil {
-		return
-	}
-
-	l.Lint(ctx, imod)
 }

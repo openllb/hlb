@@ -24,7 +24,7 @@ func TestLinter_Lint(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []testCase{{
-		"empty",
+		"import without from",
 		`
 		import foo "./foo.hlb"
 		`,
@@ -33,6 +33,30 @@ func TestLinter_Lint(t *testing.T) {
 				mod, parser.Find(mod, `"./foo.hlb"`).(*parser.StringLit),
 				`import path without keyword "from" is deprecated`,
 			)
+		},
+	}, {
+		"group and parallel",
+		`
+		group default() {
+			parallel foo bar
+		}
+
+		fs foo()
+		fs bar()
+		`,
+		func(mod *parser.Module) error {
+			return &diagnostic.Error{
+				Diagnostics: []error{
+					errdefs.WithDeprecated(
+						mod, parser.Find(mod, "group"),
+						"type `group` is deprecated, use `pipeline` instead",
+					),
+					errdefs.WithDeprecated(
+						mod, parser.Find(mod, "parallel"),
+						"function `parallel` is deprecated, use `stage` instead",
+					),
+				},
+			}
 		},
 	}} {
 		tc := tc
@@ -46,12 +70,11 @@ func TestLinter_Lint(t *testing.T) {
 			err = checker.SemanticPass(mod)
 			require.NoError(t, err)
 
-			err = Lint(ctx, mod)
-
 			var expected error
 			if tc.fn != nil {
 				expected = tc.fn(mod)
 			}
+			err = Lint(ctx, mod)
 			validateError(t, ctx, expected, err, tc.name)
 		})
 	}

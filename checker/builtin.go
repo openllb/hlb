@@ -26,15 +26,13 @@ func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
 						Module:         builtin.Module,
 						Name:           fun.Name.String(),
 						FuncDeclByKind: make(map[parser.Kind]*parser.FuncDecl),
-						CallableByKind: make(map[parser.Kind]parser.Callable),
 					},
 				}
 			}
 
 			decl := obj.Node.(*parser.BuiltinDecl)
+			decl.Kinds = append(decl.Kinds, fun.Type.Kind)
 			decl.FuncDeclByKind[fun.Type.Kind] = fun
-			decl.CallableByKind[fun.Type.Kind] = builtin.Callables[fun.Type.Kind][fun.Name.Text]
-
 			scope.Insert(obj)
 		},
 	)

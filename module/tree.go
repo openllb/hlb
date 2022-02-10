@@ -20,12 +20,6 @@ func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long b
 		return nil, err
 	}
 
-	res, err := NewLocalResolved(mod)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Close()
-
 	var (
 		tree         = treeprint.New()
 		nodeByModule = make(map[*parser.Module]treeprint.Tree)
@@ -35,37 +29,22 @@ func NewTree(ctx context.Context, cln *client.Client, mod *parser.Module, long b
 	tree.SetValue(mod.Pos.Filename)
 	nodeByModule[mod] = tree
 
-	err = ResolveGraph(ctx, cln, resolver, res, mod, func(info VisitInfo) error {
-		var prefix string
+	err = ResolveGraph(ctx, cln, resolver, mod, func(info VisitInfo) error {
+		filename := info.Filename
 		if info.Digest != "" {
 			encoded := info.Digest.Encoded()
-			if !long && len(encoded) > 7 {
+			if len(encoded) > 7 {
 				encoded = encoded[:7]
 			}
-			prefix = fmt.Sprintf("%s:%s", info.Digest.Algorithm(), encoded)
-		}
-
-		var value string
-		switch info.Value.Kind() {
-		case parser.Filesystem:
-			value = filepath.Join(prefix, ModuleFilename)
-		case parser.String:
-			value, err = info.Value.String()
-			if err != nil {
-				return err
-			}
-
-			if prefix != "" {
-				value = filepath.Join(prefix, value)
-			}
+			prefix := fmt.Sprintf("%s:%s", info.Digest.Algorithm(), encoded)
+			filename = filepath.Join(prefix, filename)
 		}
 
 		mu.Lock()
 		node := nodeByModule[info.Parent]
-		inode := node.AddMetaBranch(info.ImportDecl.Name.Text, value)
+		inode := node.AddMetaBranch(info.ImportDecl.Name.Text, filename)
 		nodeByModule[info.Import] = inode
 		mu.Unlock()
-
 		return nil
 	})
 	return tree, err
