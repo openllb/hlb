@@ -20,38 +20,8 @@ import (
 // BuildKit which supports a subset of the exporters and special `moby`
 // exporter.
 func Client(ctx context.Context, addr string) (*client.Client, context.Context, error) {
-	var (
-		dockerCli *dockercommand.DockerCli
-		auth      imagetools.Auth
-		err       error
-	)
 	// Attempt to connect to a healthy docker engine.
-	for _, f := range []func() error{
-		func() error {
-			dockerCli, err = dockercommand.NewDockerCli()
-			return err
-		},
-		func() error {
-			return dockerCli.Initialize(flags.NewClientOptions())
-		},
-		func() error {
-			_, err = dockerCli.Client().ServerVersion(ctx)
-			return err
-		},
-		func() error {
-			imageopt, err := storeutil.GetImageConfig(dockerCli, nil)
-			if err != nil {
-				return err
-			}
-			auth = imageopt.Auth
-			return nil
-		},
-	} {
-		err = f()
-		if err != nil {
-			break
-		}
-	}
+	dockerCli, auth, err := NewDockerCli(ctx)
 
 	// If addr is empty, connect to BuildKit using connection helpers.
 	if addr != "" {
@@ -68,4 +38,29 @@ func Client(ctx context.Context, addr string) (*client.Client, context.Context, 
 		return dockerCli.Client().DialHijack(ctx, "/session", proto, meta)
 	}))
 	return cln, ctx, err
+}
+
+func NewDockerCli(ctx context.Context) (dockerCli *dockercommand.DockerCli, auth imagetools.Auth, err error) {
+	dockerCli, err = dockercommand.NewDockerCli()
+	if err != nil {
+		return
+	}
+
+	err = dockerCli.Initialize(flags.NewClientOptions())
+	if err != nil {
+		return
+	}
+
+	_, err = dockerCli.Client().ServerVersion(ctx)
+	if err != nil {
+		return
+	}
+
+	imageopt, err := storeutil.GetImageConfig(dockerCli, nil)
+	if err != nil {
+		return
+	}
+
+	auth = imageopt.Auth
+	return
 }
