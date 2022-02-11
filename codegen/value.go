@@ -55,8 +55,16 @@ func NewRegister(ctx context.Context) Register {
 }
 
 func (r *register) Set(iface interface{}) error {
+	// If there are no async queued up, fast path towards setting the register.
+	val, err := r.ctor(iface)
+	if r.last == nil {
+		if err == nil {
+			r.value = val
+		}
+		return err
+	}
 	return r.SetAsync(func(Value) (Value, error) {
-		return r.ctor(iface)
+		return val, err
 	})
 }
 
