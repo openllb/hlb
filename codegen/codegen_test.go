@@ -1159,7 +1159,11 @@ func TestCodeGenImport(t *testing.T) {
 		`
 		import other from "./other.hlb"
 
-		fs default(string bar) {
+		fs default() {
+			baz "hello"
+		}
+
+		fs baz(string bar) {
 			other.foo bar
 		}
 		`,
@@ -1172,11 +1176,30 @@ func TestCodeGenImport(t *testing.T) {
 		}},
 		nil,
 	}, {
+		"able to use imported function in arg",
+		`
+		import other from "./other.hlb"
+
+		fs default() {
+			image other.foo("alpine")
+		}
+		`,
+		[]testImport{{
+			"other.hlb",
+			`
+			export foo
+			string foo(string name) {
+				name
+			}
+			`,
+		}},
+		nil,
+	}, {
 		"able to use imported option",
 		`
 		import other from "./other.hlb"
 
-		fs default(string bar) {
+		fs default() {
 			image "busybox" with other.foo
 		}
 		`,
@@ -1193,7 +1216,7 @@ func TestCodeGenImport(t *testing.T) {
 		`
 		import other from "./other.hlb"
 
-		fs default(string bar) {
+		fs default() {
 			image "busybox" with option {
 				other.foo
 			}
@@ -1278,11 +1301,18 @@ func TestCodeGenImport(t *testing.T) {
 				}
 			}
 
-			var expected error
 			if tc.fn != nil {
-				expected = tc.fn(mod)
+				expected := tc.fn(mod)
+				validateError(t, ctx, expected, actual, tc.name)
+			} else {
+				cg, err := codegen.New(nil, nil)
+				require.NoError(t, err, tc.name)
+
+				ctx = codegen.WithSessionID(ctx, identity.NewID())
+				targets := []codegen.Target{{Name: "default"}}
+				_, err = cg.Generate(ctx, mod, targets)
+				validateError(t, ctx, nil, err, tc.name)
 			}
-			validateError(t, ctx, expected, actual, tc.name)
 		})
 	}
 }

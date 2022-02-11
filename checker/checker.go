@@ -273,12 +273,53 @@ func (c *checker) CheckReferences(mod *ast.Module, name string) error {
 				c.err(err)
 			}
 		},
+		func(block *ast.BlockStmt, callStmt *ast.CallStmt, callExpr *ast.CallExpr) {
+			err := c.checkNestedCallExpr(block.Scope, callStmt.Name, callStmt.Args, callStmt.Signature, callStmt.WithClause, callExpr, name)
+			if err != nil {
+				c.err(err)
+			}
+		},
+		func(block *ast.BlockStmt, parentCallExpr, callExpr *ast.CallExpr) {
+			err := c.checkNestedCallExpr(block.Scope, parentCallExpr.Name, parentCallExpr.Args(), parentCallExpr.Signature, nil, callExpr, name)
+			if err != nil {
+				c.err(err)
+			}
+		},
 	)
 	c.checkBinds(mod)
 	if len(c.errs) > 0 {
 		return &diagnostic.Error{Diagnostics: c.errs}
 	}
 	return nil
+}
+
+func (c *checker) checkNestedCallExpr(scope *ast.Scope, ie *ast.IdentExpr, args []*ast.Expr, signature []ast.Kind, with *ast.WithClause, call *ast.CallExpr, name string) error {
+	if call.Name.Ident.Text != name {
+		return nil
+	}
+	if len(args) != len(signature) {
+		return errdefs.WithInternalErrorf(call, "expected %d args but got %d", len(signature), len(args))
+	}
+
+	index := -1
+	for i, arg := range args {
+		if arg.CallExpr == call {
+			index = i
+			break
+		}
+	}
+
+	var kset *ast.KindSet
+	if index < 0 {
+		// If its not within args, check with clause.
+		if with == nil || with.Expr == nil || with.Expr.CallExpr != call || ie.Reference != nil {
+			return errdefs.WithInternalErrorf(call, "expected to find %q in %q", call.Name, args)
+		}
+		kset = ast.NewKindSet(ast.Kind("option::" + ie.Ident.Text))
+	} else {
+		kset = ast.NewKindSet(signature[index])
+	}
+	return c.checkCallExpr(scope, kset, call)
 }
 
 func (c *checker) err(err error) {
