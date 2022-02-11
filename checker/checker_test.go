@@ -10,13 +10,15 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
 	name  string
 	input string
-	fn    func(*parser.Module) error
+	fn    func(*ast.Module) error
 }
 
 func TestChecker_Check(t *testing.T) {
@@ -167,10 +169,10 @@ func TestChecker_Check(t *testing.T) {
 			image
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithNumArgs(
-				parser.Find(mod, "image"), 1, 0,
-				errdefs.Defined(parser.Find(builtin.Module, "image")),
+				ast.Find(mod, "image"), 1, 0,
+				errdefs.Defined(ast.Find(builtin.Module, "image")),
 			)
 		},
 	}, {
@@ -181,10 +183,10 @@ func TestChecker_Check(t *testing.T) {
 			image ref
 		}
 		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(mod, "duplicate"),
-				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+		func(mod *ast.Module) error {
+			return errdefs.WithDuplicates([]ast.Node{
+				ast.Find(mod, "duplicate"),
+				ast.Find(mod, "duplicate", ast.WithSkip(1)),
 			})
 		},
 	}, {
@@ -197,10 +199,10 @@ func TestChecker_Check(t *testing.T) {
 			}
 		}
 		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(mod, "duplicate"),
-				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+		func(mod *ast.Module) error {
+			return errdefs.WithDuplicates([]ast.Node{
+				ast.Find(mod, "duplicate"),
+				ast.Find(mod, "duplicate", ast.WithSkip(1)),
 			})
 		},
 	}, {
@@ -210,10 +212,10 @@ func TestChecker_Check(t *testing.T) {
 			run "echo Hello"
 		}
 		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(builtin.Module, "image"),
-				parser.Find(mod, "image"),
+		func(mod *ast.Module) error {
+			return errdefs.WithDuplicates([]ast.Node{
+				ast.Find(builtin.Module, "image"),
+				ast.Find(mod, "image"),
 			})
 		},
 	}, {
@@ -225,10 +227,10 @@ func TestChecker_Check(t *testing.T) {
 			}
 		}
 		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(builtin.Module, "image"),
-				parser.Find(mod, "image"),
+		func(mod *ast.Module) error {
+			return errdefs.WithDuplicates([]ast.Node{
+				ast.Find(builtin.Module, "image"),
+				ast.Find(mod, "image"),
 			})
 		},
 	}, {
@@ -243,10 +245,10 @@ func TestChecker_Check(t *testing.T) {
 			}
 		}
 		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithDuplicates([]parser.Node{
-				parser.Find(mod, "duplicate"),
-				parser.Find(mod, "duplicate", parser.WithSkip(1)),
+		func(mod *ast.Module) error {
+			return errdefs.WithDuplicates([]ast.Node{
+				ast.Find(mod, "duplicate"),
+				ast.Find(mod, "duplicate", ast.WithSkip(1)),
 			})
 		},
 	}, {
@@ -258,10 +260,10 @@ func TestChecker_Check(t *testing.T) {
 			foo
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithCallImport(
-				parser.Find(mod, "foo", parser.WithSkip(1)),
-				parser.Find(mod, "foo"),
+				ast.Find(mod, "foo", ast.WithSkip(1)),
+				ast.Find(mod, "foo"),
 			)
 		},
 	}, {
@@ -289,9 +291,9 @@ func TestChecker_Check(t *testing.T) {
 		`
 		export foo
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithUndefinedIdent(
-				parser.Find(mod, "foo"),
+				ast.Find(mod, "foo"),
 				nil,
 			)
 		},
@@ -303,10 +305,10 @@ func TestChecker_Check(t *testing.T) {
 			myFunction.build
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithNotImport(
-				parser.Find(mod, "myFunction.build").(*parser.IdentExpr),
-				parser.Find(mod, "myFunction"),
+				ast.Find(mod, "myFunction.build").(*ast.IdentExpr),
+				ast.Find(mod, "myFunction"),
 			)
 		},
 	}, {
@@ -331,12 +333,12 @@ func TestChecker_Check(t *testing.T) {
 			image "alpine"
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithWrongType(
-				parser.Find(mod, "image"),
-				[]parser.Kind{parser.Pipeline},
-				parser.Filesystem,
-				errdefs.Defined(parser.Find(builtin.Module, "image")),
+				ast.Find(mod, "image"),
+				[]ast.Kind{ast.Pipeline},
+				ast.Filesystem,
+				errdefs.Defined(ast.Find(builtin.Module, "image")),
 			)
 		},
 	}, {
@@ -350,8 +352,8 @@ func TestChecker_Check(t *testing.T) {
 			dockerPush "some/ref" as
 		}
 		`,
-		func(mod *parser.Module) error {
-			return errdefs.WithNoBindTarget(parser.Find(mod, "as"))
+		func(mod *ast.Module) error {
+			return errdefs.WithNoBindTarget(ast.Find(mod, "as"))
 		},
 	}, {
 		"no error when bind list is empty",
@@ -369,12 +371,12 @@ func TestChecker_Check(t *testing.T) {
 			imageID
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithWrongType(
-				parser.Find(mod, "imageID", parser.WithSkip(1)),
-				[]parser.Kind{parser.Filesystem},
-				parser.String,
-				errdefs.Defined(parser.Find(mod, "imageID")),
+				ast.Find(mod, "imageID", ast.WithSkip(1)),
+				[]ast.Kind{ast.Filesystem},
+				ast.String,
+				errdefs.Defined(ast.Find(mod, "imageID")),
 			)
 		},
 	}, {
@@ -385,12 +387,12 @@ func TestChecker_Check(t *testing.T) {
 			imageID
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithWrongType(
-				parser.Find(mod, "imageID", parser.WithSkip(1)),
-				[]parser.Kind{parser.Filesystem},
-				parser.String,
-				errdefs.Defined(parser.Find(mod, "imageID")),
+				ast.Find(mod, "imageID", ast.WithSkip(1)),
+				[]ast.Kind{ast.Filesystem},
+				ast.String,
+				errdefs.Defined(ast.Find(mod, "imageID")),
 			)
 		},
 	}, {
@@ -400,12 +402,12 @@ func TestChecker_Check(t *testing.T) {
 			run "cmd" as nothing
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithNoBindEffects(
-				parser.Find(mod, "run"),
-				parser.Find(mod, "as"),
+				ast.Find(mod, "run"),
+				ast.Find(mod, "as"),
 				errdefs.Defined(
-					parser.Find(builtin.Module, "run"),
+					ast.Find(builtin.Module, "run"),
 				),
 			)
 		},
@@ -416,10 +418,10 @@ func TestChecker_Check(t *testing.T) {
 			dockerPush "some/ref:latest" as (undefined foo)
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithUndefinedBindTarget(
-				parser.Find(mod, "dockerPush"),
-				parser.Find(mod, "undefined"),
+				ast.Find(mod, "dockerPush"),
+				ast.Find(mod, "undefined"),
 			)
 		},
 	}, {
@@ -429,10 +431,10 @@ func TestChecker_Check(t *testing.T) {
 			mount scratch "/out" as default
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithNoBindClosure(
-				parser.Find(mod, "as"),
-				parser.Find(mod, "option::run"),
+				ast.Find(mod, "as"),
+				ast.Find(mod, "option::run"),
 			)
 		},
 	}, {
@@ -448,10 +450,10 @@ func TestChecker_Check(t *testing.T) {
 			run with opts
 		}
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithNoBindClosure(
-				parser.Find(mod, "as"),
-				parser.Find(mod, "option::run"),
+				ast.Find(mod, "as"),
+				ast.Find(mod, "option::run"),
 			)
 		},
 	}, {
@@ -473,7 +475,7 @@ func TestChecker_Check(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(dedent.Dedent(tc.input))
 
-			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 

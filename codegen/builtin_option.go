@@ -23,6 +23,7 @@ import (
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/pkg/sockproxy"
 	"github.com/openllb/hlb/solver"
@@ -869,7 +870,7 @@ func (sp SourcePath) Call(ctx context.Context, cln *client.Client, val Value, op
 }
 
 type Cache struct {
-	parser.Node
+	ast.Node
 }
 
 func (c Cache) Call(ctx context.Context, cln *client.Client, val Value, opts Option, id, mode string) (Value, error) {

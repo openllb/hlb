@@ -16,6 +16,7 @@ import (
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"golang.org/x/sync/errgroup"
@@ -70,7 +71,7 @@ type vendorResolver struct {
 	modulePath string
 }
 
-func (r *vendorResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs codegen.Filesystem) (parser.Directory, error) {
+func (r *vendorResolver) Resolve(ctx context.Context, id *ast.ImportDecl, fs codegen.Filesystem) (ast.Directory, error) {
 	dir, err := resolveLocal(ctx, r.modulePath, fs)
 	if err != nil {
 		return dir, err
@@ -87,7 +88,7 @@ func (r *vendorResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs 
 	return dir, fmt.Errorf("missing module %q from vendor, run `hlb mod vendor --target %s %s` to vendor module", id.Name, id.Name, id.Pos.Filename)
 }
 
-func resolveLocal(ctx context.Context, modulePath string, fs codegen.Filesystem) (parser.Directory, error) {
+func resolveLocal(ctx context.Context, modulePath string, fs codegen.Filesystem) (ast.Directory, error) {
 	dgst, err := fs.Digest(ctx)
 	if err != nil {
 		return nil, err
@@ -102,7 +103,7 @@ type remoteResolver struct {
 	modulePath string
 }
 
-func (r *remoteResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs codegen.Filesystem) (parser.Directory, error) {
+func (r *remoteResolver) Resolve(ctx context.Context, id *ast.ImportDecl, fs codegen.Filesystem) (ast.Directory, error) {
 	dgst, err := fs.Digest(ctx)
 	if err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ type tidyResolver struct {
 	remote *remoteResolver
 }
 
-func (r *tidyResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs codegen.Filesystem) (parser.Directory, error) {
+func (r *tidyResolver) Resolve(ctx context.Context, id *ast.ImportDecl, fs codegen.Filesystem) (ast.Directory, error) {
 	dir, err := resolveLocal(ctx, r.remote.modulePath, fs)
 	if err != nil {
 		return dir, err
@@ -252,7 +253,7 @@ type targetResolver struct {
 	remote   *remoteResolver
 }
 
-func (r *targetResolver) Resolve(ctx context.Context, id *parser.ImportDecl, fs codegen.Filesystem) (parser.Directory, error) {
+func (r *targetResolver) Resolve(ctx context.Context, id *ast.ImportDecl, fs codegen.Filesystem) (ast.Directory, error) {
 	if id.Pos.Filename == r.filename {
 		matchTarget := true
 		if len(r.targets) > 0 {
@@ -298,9 +299,9 @@ func VendorPath(root string, dgst digest.Digest) string {
 type Visitor func(info VisitInfo) error
 
 type VisitInfo struct {
-	Parent     *parser.Module
-	Import     *parser.Module
-	ImportDecl *parser.ImportDecl
+	Parent     *ast.Module
+	Import     *ast.Module
+	ImportDecl *ast.ImportDecl
 	Filename   string
 	Digest     digest.Digest
 }
@@ -311,7 +312,7 @@ type resolveGraphInfo struct {
 }
 
 // ResolveGraph traverses the import graph of a given module.
-func ResolveGraph(ctx context.Context, cln *client.Client, resolver codegen.Resolver, mod *parser.Module, visitor Visitor) error {
+func ResolveGraph(ctx context.Context, cln *client.Client, resolver codegen.Resolver, mod *ast.Module, visitor Visitor) error {
 	cg, err := codegen.New(cln, resolver)
 	if err != nil {
 		return err
@@ -324,11 +325,11 @@ func ResolveGraph(ctx context.Context, cln *client.Client, resolver codegen.Reso
 	return resolveGraph(ctx, info, mod)
 }
 
-func resolveGraph(ctx context.Context, info *resolveGraphInfo, mod *parser.Module) error {
+func resolveGraph(ctx context.Context, info *resolveGraphInfo, mod *ast.Module) error {
 	g, ctx := errgroup.WithContext(ctx)
 
-	parser.Match(mod, parser.MatchOpts{},
-		func(id *parser.ImportDecl) {
+	ast.Match(mod, ast.MatchOpts{},
+		func(id *ast.ImportDecl) {
 			obj := mod.Scope.Lookup(id.Name.Text)
 			if obj == nil {
 				return

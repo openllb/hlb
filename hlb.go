@@ -12,11 +12,11 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/solver"
 )
 
-func Compile(ctx context.Context, cln *client.Client, mod *parser.Module, targets []codegen.Target, opts ...codegen.CodeGenOption) (solver.Request, error) {
+func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets []codegen.Target, opts ...codegen.CodeGenOption) (solver.Request, error) {
 	err := checker.SemanticPass(mod)
 	if err != nil {
 		return nil, err

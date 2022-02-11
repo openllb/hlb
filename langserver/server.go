@@ -21,6 +21,7 @@ import (
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	lsp "github.com/sourcegraph/go-lsp"
 )
 
@@ -191,12 +192,12 @@ func (ls *LangServer) publishSemanticHighlighting(ctx context.Context, td TextDo
 	return ls.server.Notify(ctx, "textDocument/semanticHighlighting", params)
 }
 
-func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.Module) {
-	parser.Match(mod, parser.MatchOpts{},
-		func(comment *parser.Comment) {
+func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *ast.Module) {
+	ast.Match(mod, ast.MatchOpts{},
+		func(comment *ast.Comment) {
 			highlightNode(lines, comment, Comment)
 		},
-		func(id *parser.ImportDecl) {
+		func(id *ast.ImportDecl) {
 			if id.Import != nil {
 				highlightNode(lines, id.Import, Keyword)
 			}
@@ -221,7 +222,7 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 				highlightExpr(lines, id.Expr)
 			}
 		},
-		func(ed *parser.ExportDecl) {
+		func(ed *ast.ExportDecl) {
 			if ed.Export != nil {
 				highlightNode(lines, ed.Export, Keyword)
 			}
@@ -229,7 +230,7 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 				highlightNode(lines, ed.Name, Variable)
 			}
 		},
-		func(fun *parser.FuncDecl) {
+		func(fun *ast.FuncDecl) {
 			if fun.Type != nil {
 				highlightNode(lines, fun.Type, Type)
 			}
@@ -271,9 +272,9 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *parser.M
 	)
 }
 
-func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.BlockStmt) {
-	parser.Match(block, parser.MatchOpts{},
-		func(call *parser.CallStmt) {
+func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *ast.BlockStmt) {
+	ast.Match(block, ast.MatchOpts{},
+		func(call *ast.CallStmt) {
 			if call.Name != nil {
 				highlightIdentExpr(lines, call.Name)
 			}
@@ -308,7 +309,7 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.
 			}
 
 		},
-		func(expr *parser.ExprStmt) {
+		func(expr *ast.ExprStmt) {
 			if expr.Expr != nil {
 				highlightExpr(lines, expr.Expr)
 			}
@@ -316,7 +317,7 @@ func highlightBlock(lines map[int]lsp.SemanticHighlightingTokens, block *parser.
 	)
 }
 
-func highlightExpr(lines map[int]lsp.SemanticHighlightingTokens, expr *parser.Expr) {
+func highlightExpr(lines map[int]lsp.SemanticHighlightingTokens, expr *ast.Expr) {
 	switch {
 	case expr.FuncLit != nil:
 		if expr.FuncLit.Type != nil {
@@ -366,7 +367,7 @@ func highlightExpr(lines map[int]lsp.SemanticHighlightingTokens, expr *parser.Ex
 	}
 }
 
-func highlightStringFragment(lines map[int]lsp.SemanticHighlightingTokens, f *parser.StringFragment) {
+func highlightStringFragment(lines map[int]lsp.SemanticHighlightingTokens, f *ast.StringFragment) {
 	switch {
 	case f.Escaped != nil:
 		highlightNode(lines, f, Comment)
@@ -377,7 +378,7 @@ func highlightStringFragment(lines map[int]lsp.SemanticHighlightingTokens, f *pa
 	}
 }
 
-func highlightHeredocFragment(lines map[int]lsp.SemanticHighlightingTokens, f *parser.HeredocFragment) {
+func highlightHeredocFragment(lines map[int]lsp.SemanticHighlightingTokens, f *ast.HeredocFragment) {
 	switch {
 	case f.Escaped != nil:
 		highlightNode(lines, f, Comment)
@@ -386,7 +387,7 @@ func highlightHeredocFragment(lines map[int]lsp.SemanticHighlightingTokens, f *p
 	}
 }
 
-func highlightIdentExpr(lines map[int]lsp.SemanticHighlightingTokens, ie *parser.IdentExpr) {
+func highlightIdentExpr(lines map[int]lsp.SemanticHighlightingTokens, ie *ast.IdentExpr) {
 	if ie.Reference != nil {
 		if ie.Ident != nil {
 			highlightNode(lines, ie.Ident, Module)
@@ -397,7 +398,7 @@ func highlightIdentExpr(lines map[int]lsp.SemanticHighlightingTokens, ie *parser
 	}
 }
 
-func highlightNode(lines map[int]lsp.SemanticHighlightingTokens, node parser.Node, s Scope) {
+func highlightNode(lines map[int]lsp.SemanticHighlightingTokens, node ast.Node, s Scope) {
 	line := node.Position().Line - 1
 	lines[line] = append(lines[line], lsp.SemanticHighlightingToken{
 		Character: uint32(node.Position().Column - 1),
@@ -525,16 +526,16 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 		pos = params.Position
 	)
 
-	parser.Match(td.Module,
-		parser.MatchOpts{
-			Filter: func(node parser.Node) bool {
+	ast.Match(td.Module,
+		ast.MatchOpts{
+			Filter: func(node ast.Node) bool {
 				return isPositionWithinNode(pos, node)
 			},
 		},
-		func(_ *parser.ExportDecl, ident *parser.Ident) {
+		func(_ *ast.ExportDecl, ident *ast.Ident) {
 			loc = newLocationFromIdent(td.Module.Scope, uri, ident.Text)
 		},
-		func(block *parser.BlockStmt, ie *parser.IdentExpr) {
+		func(block *ast.BlockStmt, ie *ast.IdentExpr) {
 			if isPositionWithinNode(pos, ie.Ident) {
 				loc = newLocationFromIdent(block.Scope, uri, ie.Ident.Text)
 				return
@@ -547,7 +548,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				return
 			}
 
-			id, ok := obj.Node.(*parser.ImportDecl)
+			id, ok := obj.Node.(*ast.ImportDecl)
 			if !ok {
 				return
 			}
@@ -600,7 +601,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 	return locs, nil
 }
 
-func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string) *lsp.Location {
+func newLocationFromIdent(scope *ast.Scope, uri lsp.DocumentURI, name string) *lsp.Location {
 	obj := scope.Lookup(name)
 	if obj == nil {
 		return nil
@@ -608,9 +609,9 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 
 	var loc *lsp.Location
 	switch n := obj.Node.(type) {
-	case *parser.FuncDecl:
+	case *ast.FuncDecl:
 		loc = newLocationFromNode(uri, n.Name)
-	case *parser.BindClause:
+	case *ast.BindClause:
 		if n.Ident != nil {
 			loc = newLocationFromNode(uri, n.Ident)
 		}
@@ -625,9 +626,9 @@ func newLocationFromIdent(scope *parser.Scope, uri lsp.DocumentURI, name string)
 				loc = newLocationFromNode(uri, n)
 			}
 		}
-	case *parser.ImportDecl:
+	case *ast.ImportDecl:
 		loc = newLocationFromNode(uri, n.Name)
-	case *parser.Field:
+	case *ast.Field:
 		loc = newLocationFromNode(uri, n.Name)
 	default:
 		log.Printf("%s unknown decl kind", parser.FormatPos(n.Position()))
@@ -650,14 +651,14 @@ func (ls *LangServer) textDocumentHoverHandler(ctx context.Context, params lsp.T
 
 	var h lsp.Hover
 
-	parser.Match(td.Module,
-		parser.MatchOpts{
+	ast.Match(td.Module,
+		ast.MatchOpts{
 			AllowDuplicates: true,
-			Filter: func(node parser.Node) bool {
+			Filter: func(node ast.Node) bool {
 				return isPositionWithinNode(pos, node)
 			},
 		},
-		func(block *parser.BlockStmt, ident *parser.Ident) {
+		func(block *ast.BlockStmt, ident *ast.Ident) {
 			lookupByKind, ok := builtin.Lookup.ByKind[block.Kind()]
 			if !ok {
 				return
@@ -705,7 +706,7 @@ func (ls *LangServer) textDocumentCompletionHandler(ctx context.Context, params 
 	return nil, nil
 }
 
-func isPositionWithinNode(pos lsp.Position, node parser.Node) bool {
+func isPositionWithinNode(pos lsp.Position, node ast.Node) bool {
 	if (pos.Line < node.Position().Line-1 || pos.Line > node.End().Line-1) ||
 		(pos.Line == node.Position().Line-1 && pos.Character < node.Position().Column-1) ||
 		(pos.Line == node.End().Line-1 && pos.Character >= node.End().Column-1) {
@@ -715,14 +716,14 @@ func isPositionWithinNode(pos lsp.Position, node parser.Node) bool {
 	return true
 }
 
-func newLocationFromNode(uri lsp.DocumentURI, node parser.Node) *lsp.Location {
+func newLocationFromNode(uri lsp.DocumentURI, node ast.Node) *lsp.Location {
 	return &lsp.Location{
 		URI:   uri,
 		Range: newRangeFromNode(node),
 	}
 }
 
-func newRangeFromNode(node parser.Node) lsp.Range {
+func newRangeFromNode(node ast.Node) lsp.Range {
 	return lsp.Range{
 		Start: lsp.Position{Line: node.Position().Line - 1, Character: node.Position().Column - 1},
 		End:   lsp.Position{Line: node.End().Line - 1, Character: node.End().Column - 1},
@@ -731,11 +732,11 @@ func newRangeFromNode(node parser.Node) lsp.Range {
 
 type TextDocument struct {
 	Identifier lsp.VersionedTextDocumentIdentifier
-	Module     *parser.Module
+	Module     *ast.Module
 	Err        error
 }
 
-func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, r io.Reader, dir parser.Directory) TextDocument {
+func NewTextDocument(ctx context.Context, uri lsp.DocumentURI, r io.Reader, dir ast.Directory) TextDocument {
 	td := TextDocument{
 		Identifier: lsp.VersionedTextDocumentIdentifier{
 			TextDocumentIdentifier: lsp.TextDocumentIdentifier{

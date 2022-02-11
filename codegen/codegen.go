@@ -14,6 +14,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 )
@@ -61,7 +62,7 @@ type Target struct {
 	Name string
 }
 
-func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []Target) (solver.Request, error) {
+func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Target) (solver.Request, error) {
 	var requests []solver.Request
 
 	for i, target := range targets {
@@ -78,7 +79,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 		}
 
 		// Build expression for target.
-		ie := parser.NewIdentExpr(target.Name)
+		ie := ast.NewIdentExpr(target.Name)
 		ie.Pos.Filename = "target"
 		ie.Pos.Line = i
 
@@ -99,7 +100,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *parser.Module, targets []T
 	return solver.Parallel(requests...), nil
 }
 
-func (cg *CodeGen) EmitExpr(ctx context.Context, scope *parser.Scope, expr *parser.Expr, args []Value, opts Option, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitExpr(ctx context.Context, scope *ast.Scope, expr *ast.Expr, args []Value, opts Option, b *ast.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, expr)
 
 	switch {
@@ -124,11 +125,11 @@ func (cg *CodeGen) EmitExpr(ctx context.Context, scope *parser.Scope, expr *pars
 	}
 }
 
-func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *parser.Scope, lit *parser.FuncLit, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitFuncLit(ctx context.Context, scope *ast.Scope, lit *ast.FuncLit, b *ast.Binding, ret Register) error {
 	return cg.EmitBlock(ctx, scope, lit.Body, b, ret)
 }
 
-func (cg *CodeGen) EmitBasicLit(ctx context.Context, scope *parser.Scope, lit *parser.BasicLit, ret Register) error {
+func (cg *CodeGen) EmitBasicLit(ctx context.Context, scope *ast.Scope, lit *ast.BasicLit, ret Register) error {
 	switch {
 	case lit.Decimal != nil:
 		return ret.Set(*lit.Decimal)
@@ -149,7 +150,7 @@ func (cg *CodeGen) EmitBasicLit(ctx context.Context, scope *parser.Scope, lit *p
 	}
 }
 
-func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *parser.Scope, str *parser.StringLit, ret Register) error {
+func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *ast.Scope, str *ast.StringLit, ret Register) error {
 	var pieces []string
 	for _, f := range str.Fragments {
 		switch {
@@ -184,7 +185,7 @@ func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *parser.Scope, str *
 	return ret.Set(strings.Join(pieces, ""))
 }
 
-func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *parser.Scope, heredoc *parser.Heredoc, ret Register) error {
+func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *ast.Scope, heredoc *ast.Heredoc, ret Register) error {
 	var pieces []string
 	for _, f := range heredoc.Fragments {
 		switch {
@@ -239,7 +240,7 @@ func emitHeredocPieces(start, terminate string, pieces []string, ret Register) e
 	}
 }
 
-func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, heredoc *parser.RawHeredoc, ret Register) error {
+func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *ast.Scope, heredoc *ast.RawHeredoc, ret Register) error {
 	var pieces []string
 	for _, f := range heredoc.Fragments {
 		switch {
@@ -254,7 +255,7 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *parser.Scope, here
 	return emitHeredocPieces(heredoc.Start, terminate, pieces, ret)
 }
 
-func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *parser.CallExpr, ret Register) error {
+func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *ast.Scope, call *ast.CallExpr, ret Register) error {
 	ctx = WithFrame(ctx, Frame{call.Name})
 
 	// Yield before executing call expression.
@@ -274,7 +275,7 @@ func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *parser.Scope, call *
 	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, nil, nil, ret)
 }
 
-func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *parser.IdentExpr, lookup *parser.Ident, args []Value, opts Option, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.IdentExpr, lookup *ast.Ident, args []Value, opts Option, b *ast.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, ie)
 
 	obj := scope.Lookup(lookup.Text)
@@ -283,26 +284,26 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	}
 
 	switch n := obj.Node.(type) {
-	case *parser.BuiltinDecl:
+	case *ast.BuiltinDecl:
 		return ret.SetAsync(func(v Value) (Value, error) {
 			return cg.EmitBuiltinDecl(ctx, scope, n, args, opts, b, v)
 		})
-	case *parser.FuncDecl:
+	case *ast.FuncDecl:
 		return cg.EmitFuncDecl(ctx, n, args, nil, ret)
-	case *parser.BindClause:
+	case *ast.BindClause:
 		return cg.EmitBinding(ctx, n.TargetBinding(lookup.Text), args, ret)
-	case *parser.ImportDecl:
-		imod, ok := obj.Data.(*parser.Module)
+	case *ast.ImportDecl:
+		imod, ok := obj.Data.(*ast.Module)
 		if !ok {
 			return errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected imported module to be resolved")
 		}
 		return cg.EmitIdentExpr(ctx, imod.Scope, ie, ie.Reference.Ident, args, opts, nil, ret)
-	case *parser.Field:
+	case *ast.Field:
 		val, err := NewValue(ctx, obj.Data)
 		if err != nil {
 			return err
 		}
-		if val.Kind() != parser.Option || ret.Value().Kind() != parser.Option {
+		if val.Kind() != ast.Option || ret.Value().Kind() != ast.Option {
 			return ret.Set(val)
 		} else {
 			retOpts, err := ret.Value().Option()
@@ -320,9 +321,9 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *parser.Scope, ie *p
 	}
 }
 
-func (cg *CodeGen) EmitImport(ctx context.Context, mod *parser.Module, id *parser.ImportDecl) (imod *parser.Module, filename string, err error) {
+func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.ImportDecl) (imod *ast.Module, filename string, err error) {
 	// Import expression can be string or fs.
-	ctx = WithReturnType(ctx, parser.None)
+	ctx = WithReturnType(ctx, ast.None)
 
 	ret := NewRegister(ctx)
 	err = cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
@@ -333,7 +334,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *parser.Module, id *parse
 
 	dir := mod.Directory
 	switch val.Kind() {
-	case parser.Filesystem:
+	case ast.Filesystem:
 		var fs Filesystem
 		fs, err = val.Filesystem()
 		if err != nil {
@@ -345,7 +346,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *parser.Module, id *parse
 		if err != nil {
 			return
 		}
-	case parser.String:
+	case ast.String:
 		filename, err = val.String()
 		if err != nil {
 			return
@@ -388,9 +389,9 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *parser.Module, id *parse
 	return
 }
 
-func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd *parser.BuiltinDecl, args []Value, opts Option, b *parser.Binding, v Value) (Value, error) {
+func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *ast.BuiltinDecl, args []Value, opts Option, b *ast.Binding, v Value) (Value, error) {
 	var callable interface{}
-	if ReturnType(ctx) != parser.None {
+	if ReturnType(ctx) != ast.None {
 		callable = Callables[ReturnType(ctx)][bd.Name]
 	} else {
 		for _, kind := range bd.Kinds {
@@ -467,7 +468,7 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *parser.Scope, bd 
 	return outs[0].Interface().(Value), nil
 }
 
-func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args []Value, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *ast.FuncDecl, args []Value, b *ast.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, fun.Name)
 
 	params := fun.Params.Fields()
@@ -479,13 +480,13 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", name, len(params), len(args))
 	}
 
-	scope := parser.NewScope(fun, fun.Scope)
+	scope := ast.NewScope(fun, fun.Scope)
 	for i, param := range params {
 		if param.Modifier != nil {
 			continue
 		}
 
-		scope.Insert(&parser.Object{
+		scope.Insert(&ast.Object{
 			Kind:  param.Kind(),
 			Ident: param.Name,
 			Node:  param,
@@ -502,24 +503,24 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *parser.FuncDecl, args 
 	return cg.EmitBlock(ctx, scope, fun.Body, b, ret)
 }
 
-func (cg *CodeGen) EmitBinding(ctx context.Context, b *parser.Binding, args []Value, ret Register) error {
+func (cg *CodeGen) EmitBinding(ctx context.Context, b *ast.Binding, args []Value, ret Register) error {
 	return cg.EmitFuncDecl(ctx, b.Bind.Closure, args, b, ret)
 }
 
-func (cg *CodeGen) lookupCall(ctx context.Context, scope *parser.Scope, lookup *parser.Ident) error {
+func (cg *CodeGen) lookupCall(ctx context.Context, scope *ast.Scope, lookup *ast.Ident) error {
 	obj := scope.Lookup(lookup.Text)
 	if obj == nil {
 		return errors.WithStack(errdefs.WithUndefinedIdent(lookup, nil))
 	}
 
 	switch n := obj.Node.(type) {
-	case *parser.ImportDecl:
-		_, ok := obj.Data.(*parser.Module)
+	case *ast.ImportDecl:
+		_, ok := obj.Data.(*ast.Module)
 		if ok {
 			break
 		}
 
-		mod := scope.Root().Node.(*parser.Module)
+		mod := scope.Root().Node.(*ast.Module)
 		imod, _, err := cg.EmitImport(ctx, mod, n)
 		if err != nil {
 			return err
@@ -535,7 +536,7 @@ func (cg *CodeGen) lookupCall(ctx context.Context, scope *parser.Scope, lookup *
 	return nil
 }
 
-func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *parser.BlockStmt, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.BlockStmt, b *ast.Binding, ret Register) error {
 	if block == nil {
 		return nil
 	}
@@ -570,7 +571,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *parser.Scope, block *pa
 	return nil
 }
 
-func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *parser.CallStmt, b *parser.Binding, ret Register) error {
+func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast.CallStmt, b *ast.Binding, ret Register) error {
 	ctx = WithFrame(ctx, Frame{call.Name})
 
 	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args...)
@@ -584,8 +585,8 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	var opts Option
 	if call.WithClause != nil {
 		// Provide a type hint to avoid ambgiuous lookups.
-		kinds := []parser.Kind{
-			parser.Kind(fmt.Sprintf("%s::%s", parser.Option, call.Name)),
+		kinds := []ast.Kind{
+			ast.Kind(fmt.Sprintf("%s::%s", ast.Option, call.Name)),
 		}
 
 		// WithClause provides option expressions access to the binding.
@@ -604,7 +605,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	if call.Breakpoint(ReturnType(ctx)) {
 		var command []string
 		for _, arg := range args {
-			if arg.Kind() != parser.String {
+			if arg.Kind() != ast.String {
 				return errors.New("breakpoint args must be strings")
 			}
 			argStr, err := arg.String()
@@ -623,7 +624,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 	}
 
 	// Pass the binding if this is the matching CallStmt.
-	var binding *parser.Binding
+	var binding *ast.Binding
 	if b != nil && call.BindClause == b.Bind {
 		binding = b
 	}
@@ -633,7 +634,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *parser.Scope, call *
 
 type breakpointCommand []string
 
-func (cg *CodeGen) Evaluate(ctx context.Context, scope *parser.Scope, b *parser.Binding, kinds []parser.Kind, exprs ...*parser.Expr) (values []Value, err error) {
+func (cg *CodeGen) Evaluate(ctx context.Context, scope *ast.Scope, b *ast.Binding, kinds []ast.Kind, exprs ...*ast.Expr) (values []Value, err error) {
 	if len(kinds) != len(exprs) {
 		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected %d kinds but got %d", len(exprs), len(kinds))
 	}

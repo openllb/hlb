@@ -2,7 +2,7 @@ package checker
 
 import (
 	"github.com/openllb/hlb/builtin"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 )
 
 // GlobalScope is a scope containing references to all builtins.
@@ -14,23 +14,23 @@ const (
 
 // NewBuiltinScope returns a new scope containing synthetic FuncDecl Objects for
 // builtins.
-func NewBuiltinScope(builtins builtin.BuiltinLookup) *parser.Scope {
-	scope := parser.NewScope(nil, nil)
-	parser.Match(builtin.Module, parser.MatchOpts{},
-		func(fun *parser.FuncDecl) {
+func NewBuiltinScope(builtins builtin.BuiltinLookup) *ast.Scope {
+	scope := ast.NewScope(nil, nil)
+	ast.Match(builtin.Module, ast.MatchOpts{},
+		func(fun *ast.FuncDecl) {
 			obj := scope.Lookup(fun.Name.Text)
 			if obj == nil {
-				obj = &parser.Object{
+				obj = &ast.Object{
 					Ident: fun.Name,
-					Node: &parser.BuiltinDecl{
+					Node: &ast.BuiltinDecl{
 						Module:         builtin.Module,
 						Name:           fun.Name.String(),
-						FuncDeclByKind: make(map[parser.Kind]*parser.FuncDecl),
+						FuncDeclByKind: make(map[ast.Kind]*ast.FuncDecl),
 					},
 				}
 			}
 
-			decl := obj.Node.(*parser.BuiltinDecl)
+			decl := obj.Node.(*ast.BuiltinDecl)
 			decl.Kinds = append(decl.Kinds, fun.Type.Kind)
 			decl.FuncDeclByKind[fun.Type.Kind] = fun
 			scope.Insert(obj)

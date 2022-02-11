@@ -12,8 +12,8 @@ import (
 	"github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/openllb/hlb/diagnostic"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
@@ -34,23 +34,23 @@ type (
 	dockerAPIKey      struct{}
 )
 
-func WithProgramCounter(ctx context.Context, node parser.Node) context.Context {
+func WithProgramCounter(ctx context.Context, node ast.Node) context.Context {
 	return context.WithValue(ctx, programCounterKey{}, node)
 }
 
-func ProgramCounter(ctx context.Context) parser.Node {
-	node, _ := ctx.Value(programCounterKey{}).(parser.Node)
+func ProgramCounter(ctx context.Context) ast.Node {
+	node, _ := ctx.Value(programCounterKey{}).(ast.Node)
 	return node
 }
 
-func WithReturnType(ctx context.Context, kind parser.Kind) context.Context {
+func WithReturnType(ctx context.Context, kind ast.Kind) context.Context {
 	return context.WithValue(ctx, returnTypeKey{}, kind)
 }
 
-func ReturnType(ctx context.Context) parser.Kind {
-	kind, ok := ctx.Value(returnTypeKey{}).(parser.Kind)
+func ReturnType(ctx context.Context) ast.Kind {
+	kind, ok := ctx.Value(returnTypeKey{}).(ast.Kind)
 	if !ok {
-		return parser.None
+		return ast.None
 	}
 	return kind
 }
@@ -63,24 +63,24 @@ func ModuleDir(ctx context.Context) string {
 	return filepath.Dir(node.Position().Filename)
 }
 
-func WithBinding(ctx context.Context, binding *parser.Binding) context.Context {
+func WithBinding(ctx context.Context, binding *ast.Binding) context.Context {
 	return context.WithValue(ctx, bindingKey{}, binding)
 }
 
-func Binding(ctx context.Context) *parser.Binding {
-	binding, ok := ctx.Value(bindingKey{}).(*parser.Binding)
+func Binding(ctx context.Context) *ast.Binding {
+	binding, ok := ctx.Value(bindingKey{}).(*ast.Binding)
 	if !ok {
-		return &parser.Binding{}
+		return &ast.Binding{}
 	}
 	return binding
 }
 
-func WithArg(ctx context.Context, n int, arg parser.Node) context.Context {
+func WithArg(ctx context.Context, n int, arg ast.Node) context.Context {
 	return context.WithValue(ctx, argKey{n}, arg)
 }
 
-func Arg(ctx context.Context, n int) parser.Node {
-	arg, _ := ctx.Value(argKey{n}).(parser.Node)
+func Arg(ctx context.Context, n int) ast.Node {
+	arg, _ := ctx.Value(argKey{n}).(ast.Node)
 	return arg
 }
 
@@ -121,7 +121,7 @@ func ImageResolver(ctx context.Context) llb.ImageMetaResolver {
 }
 
 type Frame struct {
-	parser.Node
+	ast.Node
 }
 
 func WithFrame(ctx context.Context, frame Frame) context.Context {
@@ -164,13 +164,13 @@ func WithCallbackErrgroup(ctx context.Context, g *errgroup.Group) solver.SolveOp
 
 func SourceMap(ctx context.Context) (opts []llb.ConstraintsOpt) {
 	var (
-		sources   = diagnostic.Sources(ctx)
+		files     = filebuffer.Buffers(ctx)
 		backtrace = Backtrace(ctx)
 	)
 
 	for i := len(backtrace) - 1; i >= 0; i-- {
 		node := backtrace[i].Node
-		fb := sources.Get(node.Position().Filename)
+		fb := files.Get(node.Position().Filename)
 		if fb == nil {
 			continue
 		}

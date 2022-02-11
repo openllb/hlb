@@ -22,6 +22,7 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
@@ -33,17 +34,17 @@ var (
 	ErrDebugExit = errors.Errorf("exiting debugger")
 )
 
-type Debugger func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Register, opts Option) error
+type Debugger func(ctx context.Context, scope *ast.Scope, node ast.Node, ret Register, opts Option) error
 
 func NewNoopDebugger() Debugger {
-	return func(ctx context.Context, _ *parser.Scope, _ parser.Node, _ Register, _ Option) error {
+	return func(ctx context.Context, _ *ast.Scope, _ ast.Node, _ Register, _ Option) error {
 		return nil
 	}
 }
 
 type snapshot struct {
-	scope *parser.Scope
-	node  parser.Node
+	scope *ast.Scope
+	node  ast.Node
 	val   Value
 	opts  Option
 }
@@ -57,8 +58,8 @@ func (s snapshot) fs() (Filesystem, error) {
 
 func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, promptReader *bufio.Reader) Debugger {
 	var (
-		fun               *parser.FuncDecl
-		next              *parser.FuncDecl
+		fun               *ast.FuncDecl
+		next              *ast.FuncDecl
 		history           []*snapshot
 		historyIndex      = -1
 		reverseStep       bool
@@ -69,7 +70,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 	var previousCommand string
 
-	return func(ctx context.Context, scope *parser.Scope, node parser.Node, ret Register, opts Option) error {
+	return func(ctx context.Context, scope *ast.Scope, node ast.Node, ret Register, opts Option) error {
 		// Store a snapshot of the current debug step so we can backtrack.
 		historyIndex++
 		history = append(history, &snapshot{scope, node, ret.Value(), opts})
@@ -79,14 +80,14 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 			// Keep track of whether we're in global scope or a lexical scope.
 			switch n := node.(type) {
-			case *parser.Module:
+			case *ast.Module:
 				staticBreakpoints = FindStaticBreakpoints(ctx, n)
 				breakpoints = staticBreakpoints
 
 				// Don't print source code on the first debug section.
 				showList = false
 			default:
-				fun = scope.Node.(*parser.FuncDecl)
+				fun = scope.Node.(*ast.FuncDecl)
 				if AtBreakpoint(node, fun, breakpoints, opts) {
 					cont = false
 				}
@@ -141,11 +142,11 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 					if len(args) == 1 {
 						switch n := s.node.(type) {
-						case *parser.FuncDecl:
+						case *ast.FuncDecl:
 							bp = &Breakpoint{
 								Func: n,
 							}
-						case *parser.CallStmt:
+						case *ast.CallStmt:
 							if n.Name.Ident.Text == "breakpoint" {
 								fmt.Fprintf(w, "%s cannot break at breakpoint\n", parser.FormatPos(n.Pos))
 								continue
@@ -263,7 +264,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 				case "funcs":
 					for _, obj := range s.scope.Defined() {
 						switch obj.Node.(type) {
-						case *parser.FuncDecl, *parser.BindClause:
+						case *ast.FuncDecl, *ast.BindClause:
 							fmt.Fprintln(w, obj.Ident.String())
 						}
 					}
@@ -399,7 +400,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 	}
 }
 
-func PrintList(ctx context.Context, w io.Writer, node parser.Node) {
+func PrintList(ctx context.Context, w io.Writer, node ast.Node) {
 	err := node.WithError(nil, node.Spanf(diagnostic.Primary, ""))
 	for _, span := range diagnostic.Spans(err) {
 		fmt.Fprintln(w, span.Pretty(ctx, diagnostic.WithNumContext(3)))
@@ -407,15 +408,15 @@ func PrintList(ctx context.Context, w io.Writer, node parser.Node) {
 }
 
 type Breakpoint struct {
-	Func *parser.FuncDecl
-	Call *parser.CallStmt
+	Func *ast.FuncDecl
+	Call *ast.CallStmt
 }
 
-func FindStaticBreakpoints(ctx context.Context, mod *parser.Module) []*Breakpoint {
+func FindStaticBreakpoints(ctx context.Context, mod *ast.Module) []*Breakpoint {
 	var breakpoints []*Breakpoint
 
-	parser.Match(mod, parser.MatchOpts{},
-		func(fun *parser.FuncDecl, call *parser.CallStmt) {
+	ast.Match(mod, ast.MatchOpts{},
+		func(fun *ast.FuncDecl, call *ast.CallStmt) {
 			if fun.Kind() == "option::run" {
 				return
 			}
@@ -433,7 +434,7 @@ func FindStaticBreakpoints(ctx context.Context, mod *parser.Module) []*Breakpoin
 	return breakpoints
 }
 
-func AtBreakpoint(node parser.Node, fun *parser.FuncDecl, breakpoints []*Breakpoint, opts Option) bool {
+func AtBreakpoint(node ast.Node, fun *ast.FuncDecl, breakpoints []*Breakpoint, opts Option) bool {
 	for _, opt := range opts {
 		if _, hasBreakpointCommand := opt.(breakpointCommand); hasBreakpointCommand {
 			return true

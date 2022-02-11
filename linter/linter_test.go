@@ -11,13 +11,15 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
 	name  string
 	input string
-	fn    func(*parser.Module) error
+	fn    func(*ast.Module) error
 }
 
 func TestLinter_Lint(t *testing.T) {
@@ -28,9 +30,9 @@ func TestLinter_Lint(t *testing.T) {
 		`
 		import foo "./foo.hlb"
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithDeprecated(
-				mod, parser.Find(mod, `"./foo.hlb"`).(*parser.StringLit),
+				mod, ast.Find(mod, `"./foo.hlb"`).(*ast.StringLit),
 				`import path without keyword "from" is deprecated`,
 			)
 		},
@@ -44,15 +46,15 @@ func TestLinter_Lint(t *testing.T) {
 		fs foo()
 		fs bar()
 		`,
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return &diagnostic.Error{
 				Diagnostics: []error{
 					errdefs.WithDeprecated(
-						mod, parser.Find(mod, "group"),
+						mod, ast.Find(mod, "group"),
 						"type `group` is deprecated, use `pipeline` instead",
 					),
 					errdefs.WithDeprecated(
-						mod, parser.Find(mod, "parallel"),
+						mod, ast.Find(mod, "parallel"),
 						"function `parallel` is deprecated, use `stage` instead",
 					),
 				},
@@ -63,7 +65,7 @@ func TestLinter_Lint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(dedent.Dedent(tc.input))
 
-			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 

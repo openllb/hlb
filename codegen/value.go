@@ -14,7 +14,7 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/xlab/treeprint"
@@ -100,7 +100,7 @@ func (r *register) Value() Value {
 }
 
 type Value interface {
-	Kind() parser.Kind
+	Kind() ast.Kind
 	Filesystem() (Filesystem, error)
 	String() (string, error)
 	Int() (int, error)
@@ -147,8 +147,8 @@ func validateState(st llb.State) error {
 
 type nilValue struct{}
 
-func (v *nilValue) Kind() parser.Kind {
-	return parser.None
+func (v *nilValue) Kind() ast.Kind {
+	return ast.None
 }
 
 func (v *nilValue) Filesystem() (Filesystem, error) {
@@ -179,8 +179,8 @@ type errorValue struct {
 	err error
 }
 
-func (v *errorValue) Kind() parser.Kind {
-	return parser.None
+func (v *errorValue) Kind() ast.Kind {
+	return ast.None
 }
 
 func (v *errorValue) Filesystem() (Filesystem, error) {
@@ -217,8 +217,8 @@ func ZeroValue(ctx context.Context) Value {
 	}
 }
 
-func (v *zeroValue) Kind() parser.Kind {
-	return parser.None
+func (v *zeroValue) Kind() ast.Kind {
+	return ast.None
 }
 
 func (v *zeroValue) Filesystem() (Filesystem, error) {
@@ -278,8 +278,8 @@ type fsValue struct {
 	fs Filesystem
 }
 
-func (v *fsValue) Kind() parser.Kind {
-	return parser.Filesystem
+func (v *fsValue) Kind() ast.Kind {
+	return ast.Filesystem
 }
 
 func (v *fsValue) Filesystem() (Filesystem, error) {
@@ -321,8 +321,8 @@ type stringValue struct {
 	str string
 }
 
-func (v *stringValue) Kind() parser.Kind {
-	return parser.String
+func (v *stringValue) Kind() ast.Kind {
+	return ast.String
 }
 
 func (v *stringValue) String() (string, error) {
@@ -346,8 +346,8 @@ type intValue struct {
 	i int
 }
 
-func (v *intValue) Kind() parser.Kind {
-	return parser.Int
+func (v *intValue) Kind() ast.Kind {
+	return ast.Int
 }
 
 func (v *intValue) Int() (int, error) {
@@ -367,8 +367,8 @@ type optValue struct {
 	opt Option
 }
 
-func (v *optValue) Kind() parser.Kind {
-	return parser.Option
+func (v *optValue) Kind() ast.Kind {
+	return ast.Option
 }
 
 func (v *optValue) Option() (Option, error) {
@@ -380,8 +380,8 @@ type reqValue struct {
 	req solver.Request
 }
 
-func (v *reqValue) Kind() parser.Kind {
-	return parser.Pipeline
+func (v *reqValue) Kind() ast.Kind {
+	return ast.Pipeline
 }
 
 func (v *reqValue) Request() (solver.Request, error) {

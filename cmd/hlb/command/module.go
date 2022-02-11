@@ -18,6 +18,8 @@ import (
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -138,7 +140,7 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 		err = errdefs.WithAbort(err, len(spans))
 	}()
 
-	ctx = diagnostic.WithSources(ctx, builtin.Sources())
+	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 	mod, err := parser.Parse(ctx, rc)
 	if err != nil {
 		return err
@@ -157,8 +159,8 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 	}
 
 	hasImports := false
-	parser.Match(mod, parser.MatchOpts{},
-		func(imp *parser.ImportDecl) {
+	ast.Match(mod, ast.MatchOpts{},
+		func(imp *ast.ImportDecl) {
 			hasImports = true
 		},
 	)
@@ -249,7 +251,7 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 		err = errdefs.WithAbort(err, len(spans))
 	}()
 
-	ctx = diagnostic.WithSources(ctx, builtin.Sources())
+	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 	mod, err := parser.Parse(ctx, rc)
 	if err != nil {
 		return err

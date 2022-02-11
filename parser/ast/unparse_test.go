@@ -1,7 +1,6 @@
-package parser
+package ast
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -659,9 +658,12 @@ func TestUnparse(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			file, err := Parse(context.Background(), strings.NewReader(cleanup(tc.input)))
+
+			mod := &Module{}
+			r := strings.NewReader(cleanup(tc.input))
+			err := Parser.Parse("", r, mod)
 			require.NoError(t, err)
-			require.Equal(t, cleanup(tc.expected), file.String())
+			require.Equal(t, cleanup(tc.expected), mod.String())
 		})
 	}
 }
