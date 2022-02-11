@@ -11,7 +11,7 @@ type Stage struct{}
 
 func (s Stage) Call(ctx context.Context, cln *client.Client, val Value, opts Option, requests ...solver.Request) (Value, error) {
 	if len(requests) == 0 {
-		return ZeroValue(ctx), nil
+		return val, nil
 	}
 
 	current, err := val.Request()

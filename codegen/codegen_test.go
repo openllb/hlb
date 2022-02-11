@@ -471,6 +471,18 @@ func TestCodeGen(t *testing.T) {
 			).Root())
 		},
 	}, {
+		"breakpoint",
+		[]string{"default"},
+		`
+		fs default() {
+			image "alpine"
+			breakpoint
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Image("alpine"))
+		},
+	}, {
 		"empty pipeline",
 		[]string{"default"},
 		`

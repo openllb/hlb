@@ -33,7 +33,7 @@ import (
 type Resolve struct{}
 
 func (ir Resolve) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
-	return ZeroValue(ctx), nil
+	return val, nil
 }
 
 type Checksum struct{}

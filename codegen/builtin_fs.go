@@ -430,7 +430,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, val Value, opts Optio
 type SetBreakpoint struct{}
 
 func (r SetBreakpoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, args ...string) (Value, error) {
-	return ZeroValue(ctx), nil
+	return val, nil
 }
 
 type Mkdir struct{}
