@@ -14,39 +14,39 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/filebuffer"
 )
 
 type BuiltinData struct {
 	Command     string
-	FuncsByKind map[parser.Kind][]ParsedFunc
+	FuncsByKind map[ast.Kind][]ParsedFunc
 	Reference   string
 }
 
 type ParsedFunc struct {
 	Name    string
-	Params  []*parser.Field
-	Effects []*parser.Field
+	Params  []*ast.Field
+	Effects []*ast.Field
 }
 
 func GenerateBuiltins(ctx context.Context, r io.Reader) ([]byte, error) {
-	sources := filebuffer.NewSources()
-	ctx = diagnostic.WithSources(ctx, sources)
+	files := filebuffer.NewBuffers()
+	ctx = filebuffer.WithBuffers(ctx, files)
 	mod, err := parser.Parse(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 
-	funcsByKind := make(map[parser.Kind][]ParsedFunc)
+	funcsByKind := make(map[ast.Kind][]ParsedFunc)
 	for _, decl := range mod.Decls {
 		fun := decl.Func
 		if fun == nil {
 			continue
 		}
 
-		var effects []*parser.Field
+		var effects []*ast.Field
 		if fun.Effects != nil && fun.Effects.Effects != nil {
 			effects = fun.Effects.Effects.Fields()
 		}
@@ -59,7 +59,7 @@ func GenerateBuiltins(ctx context.Context, r io.Reader) ([]byte, error) {
 		})
 	}
 
-	fb := sources.Get(mod.Pos.Filename)
+	fb := files.Get(mod.Pos.Filename)
 	data := BuiltinData{
 		Command:     fmt.Sprintf("builtingen %s", strings.Join(os.Args[1:], " ")),
 		FuncsByKind: funcsByKind,
@@ -83,16 +83,16 @@ func GenerateBuiltins(ctx context.Context, r io.Reader) ([]byte, error) {
 }
 
 var tmplFunctions = template.FuncMap{
-	"kind": func(kind parser.Kind) template.HTML {
+	"kind": func(kind ast.Kind) template.HTML {
 		switch kind {
-		case parser.String:
-			return template.HTML("parser.String")
-		case parser.Int:
-			return template.HTML("parser.Int")
-		case parser.Bool:
-			return template.HTML("parser.Bool")
-		case parser.Filesystem:
-			return template.HTML("parser.Filesystem")
+		case ast.String:
+			return template.HTML("ast.String")
+		case ast.Int:
+			return template.HTML("ast.Int")
+		case ast.Bool:
+			return template.HTML("ast.Bool")
+		case ast.Filesystem:
+			return template.HTML("ast.Filesystem")
 		default:
 			return template.HTML(strconv.Quote(string(kind)))
 		}
@@ -104,10 +104,10 @@ var referenceTmpl = template.Must(template.New("reference").Funcs(tmplFunctions)
 
 package builtin
 
-import "github.com/openllb/hlb/parser"
+import "github.com/openllb/hlb/parser/ast"
 
 type BuiltinLookup struct {
-	ByKind map[parser.Kind]LookupByKind
+	ByKind map[ast.Kind]LookupByKind
 }
 
 type LookupByKind struct {
@@ -115,22 +115,22 @@ type LookupByKind struct {
 }
 
 type FuncLookup struct {
-	Params []*parser.Field
-	Effects []*parser.Field
+	Params []*ast.Field
+	Effects []*ast.Field
 }
 
 var (
 	Lookup = BuiltinLookup{
-		ByKind: map[parser.Kind]LookupByKind{
+		ByKind: map[ast.Kind]LookupByKind{
 			{{range $kind, $funcs := .FuncsByKind}}{{kind $kind}}: {
 				Func: map[string]FuncLookup{
 					{{range $i, $func := $funcs}}"{{$func.Name}}": {
-						Params:  []*parser.Field{
-							{{range $i, $param := $func.Params}}parser.NewField({{kind $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Modifier}}true{{else}}false{{end}}),
+						Params:  []*ast.Field{
+							{{range $i, $param := $func.Params}}ast.NewField({{kind $param.Type.Kind}}, "{{$param.Name}}", {{if $param.Modifier}}true{{else}}false{{end}}),
 							{{end}}
 						},
-						Effects: []*parser.Field{
-							{{range $i, $effect := $func.Effects}}parser.NewField({{kind $effect.Type.Kind}}, "{{$effect.Name}}", false),
+						Effects: []*ast.Field{
+							{{range $i, $effect := $func.Effects}}ast.NewField({{kind $effect.Type.Kind}}, "{{$effect.Name}}", false),
 							{{end}}
 						},
 					},

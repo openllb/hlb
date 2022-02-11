@@ -2,6 +2,7 @@ package filebuffer
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -12,27 +13,41 @@ import (
 	"github.com/moby/buildkit/solver/pb"
 )
 
-type Sources struct {
+type buffersKey struct{}
+
+func WithBuffers(ctx context.Context, buffers *BufferLookup) context.Context {
+	return context.WithValue(ctx, buffersKey{}, buffers)
+}
+
+func Buffers(ctx context.Context) *BufferLookup {
+	buffers, ok := ctx.Value(buffersKey{}).(*BufferLookup)
+	if !ok {
+		return NewBuffers()
+	}
+	return buffers
+}
+
+type BufferLookup struct {
 	fbs map[string]*FileBuffer
 	mu  sync.Mutex
 }
 
-func NewSources() *Sources {
-	return &Sources{
+func NewBuffers() *BufferLookup {
+	return &BufferLookup{
 		fbs: make(map[string]*FileBuffer),
 	}
 }
 
-func (s *Sources) Get(filename string) *FileBuffer {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.fbs[filename]
+func (b *BufferLookup) Get(filename string) *FileBuffer {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.fbs[filename]
 }
 
-func (s *Sources) Set(filename string, fb *FileBuffer) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.fbs[filename] = fb
+func (b *BufferLookup) Set(filename string, fb *FileBuffer) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.fbs[filename] = fb
 }
 
 type FileBuffer struct {

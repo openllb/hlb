@@ -10,6 +10,7 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/logrusorgru/aurora"
+	"github.com/openllb/hlb/pkg/filebuffer"
 )
 
 type Type int
@@ -81,7 +82,7 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 	var (
 		info    PrettyInfo
 		reports []string
-		sources = Sources(ctx)
+		files   = filebuffer.Buffers(ctx)
 		color   = Color(ctx)
 	)
 	for _, opt := range opts {
@@ -92,7 +93,7 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 
 	filenames, spansByFilename := se.groupAnnnotations()
 	for _, filename := range filenames {
-		fb := sources.Get(filename)
+		fb := files.Get(filename)
 
 		// Sort spans in the same module by line number.
 		spans := spansByFilename[filename]
@@ -258,7 +259,7 @@ func (se *SpanError) Pretty(ctx context.Context, opts ...PrettyOption) string {
 func (se *SpanError) maxLn(ctx context.Context, numContext int) int {
 	maxLn := 0
 	for _, span := range se.Spans {
-		fb := Sources(ctx).Get(span.Start.Filename)
+		fb := filebuffer.Buffers(ctx).Get(span.Start.Filename)
 		line := span.Start.Line + numContext
 		if line > fb.Len() {
 			line = fb.Len()

@@ -9,6 +9,7 @@ import (
 
 	"github.com/openllb/doxygen-parser/doxygen"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 )
 
 // Documentation contains all the builtin functions defined for HLB.
@@ -126,7 +127,7 @@ func GenerateDocumentation(ctx context.Context, r io.Reader) (*Documentation, er
 			funcDoc.Doc = strings.TrimSpace(group.Doc)
 		}
 
-		if fun.Type.Kind.Primary() == parser.Option {
+		if fun.Type.Kind.Primary() == ast.Option {
 			subtype := string(fun.Type.Kind.Secondary())
 			optionsByFunc[subtype] = append(optionsByFunc[subtype], funcDoc)
 		}

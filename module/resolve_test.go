@@ -15,13 +15,15 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
 	name  string
 	input string
-	fn    func(mod *parser.Module, imods map[string]*parser.Module) error
+	fn    func(mod *ast.Module, imods map[string]*ast.Module) error
 }
 
 type testDirectory struct {
@@ -90,10 +92,10 @@ func TestResolveGraph(t *testing.T) {
 		`
 		import unknown from "unknown.hlb"
 		`,
-		func(mod *parser.Module, imods map[string]*parser.Module) error {
+		func(mod *ast.Module, imods map[string]*ast.Module) error {
 			return errdefs.WithImportPathNotExist(
 				os.ErrNotExist,
-				parser.Find(mod, `"unknown.hlb"`),
+				ast.Find(mod, `"unknown.hlb"`),
 				"unknown.hlb",
 			)
 		},
@@ -102,10 +104,10 @@ func TestResolveGraph(t *testing.T) {
 		`
 		import transitive from "transitive-deprecated-unknown.hlb"
 		`,
-		func(mod *parser.Module, imods map[string]*parser.Module) error {
+		func(mod *ast.Module, imods map[string]*ast.Module) error {
 			return errdefs.WithImportPathNotExist(
 				os.ErrNotExist,
-				parser.Find(imods["transitive"], `"unknown.hlb"`),
+				ast.Find(imods["transitive"], `"unknown.hlb"`),
 				"unknown.hlb",
 			)
 		},
@@ -114,7 +116,7 @@ func TestResolveGraph(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			in := strings.NewReader(dedent.Dedent(tc.input))
 
-			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 			mod.Directory = dir
@@ -125,7 +127,7 @@ func TestResolveGraph(t *testing.T) {
 			err = checker.Check(mod)
 			require.NoError(t, err)
 
-			imods := make(map[string]*parser.Module)
+			imods := make(map[string]*ast.Module)
 			err = ResolveGraph(ctx, nil, nil, mod, func(info VisitInfo) error {
 				imods[info.ImportDecl.Name.Text] = info.Import
 				return nil

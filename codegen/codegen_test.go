@@ -22,6 +22,8 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/stretchr/testify/require"
@@ -937,7 +939,7 @@ func TestCodeGen(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			mod, err := parser.Parse(ctx, strings.NewReader(dedent.Dedent(tc.hlb)))
 			require.NoError(t, err, tc.name)
 
@@ -1005,7 +1007,7 @@ func TestCodegenError(t *testing.T) {
 		name    string
 		targets []string
 		input   string
-		fn      func(*parser.Module) error
+		fn      func(*ast.Module) error
 	}
 
 	for _, tc := range []testCase{
@@ -1017,10 +1019,10 @@ func TestCodegenError(t *testing.T) {
 				downloadDockerTarball "image.tar" "#"
 			}
 			`,
-			func(mod *parser.Module) error {
+			func(mod *ast.Module) error {
 				return errdefs.WithInvalidImageRef(
 					errors.New("invalid reference format"),
-					parser.Find(mod, `"#"`),
+					ast.Find(mod, `"#"`),
 					"#",
 				)
 			},
@@ -1028,7 +1030,7 @@ func TestCodegenError(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			mod, err := parser.Parse(ctx, strings.NewReader(tc.input))
 			require.NoError(t, err, "unexpected parse error")
 
@@ -1069,7 +1071,7 @@ func TestCodeGenImport(t *testing.T) {
 		name    string
 		hlb     string
 		imports []testImport
-		fn      func(*parser.Module) error
+		fn      func(*ast.Module) error
 	}
 
 	for _, tc := range []testCase{{
@@ -1105,11 +1107,11 @@ func TestCodeGenImport(t *testing.T) {
 			fs foo()
 			`,
 		}},
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithUndefinedIdent(
-				parser.Find(mod, "bar"),
+				ast.Find(mod, "bar"),
 				nil,
-				errdefs.Imported(parser.Find(mod, "other")),
+				errdefs.Imported(ast.Find(mod, "other")),
 			)
 		},
 	}, {
@@ -1127,10 +1129,10 @@ func TestCodeGenImport(t *testing.T) {
 			fs foo()
 			`,
 		}},
-		func(mod *parser.Module) error {
+		func(mod *ast.Module) error {
 			return errdefs.WithCallUnexported(
-				parser.Find(mod, "foo"),
-				errdefs.Imported(parser.Find(mod, "other")),
+				ast.Find(mod, "foo"),
+				errdefs.Imported(ast.Find(mod, "other")),
 			)
 		},
 	}, {
@@ -1234,7 +1236,7 @@ func TestCodeGenImport(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := diagnostic.WithSources(context.Background(), builtin.Sources())
+			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			r := &parser.NamedReader{
 				Reader: strings.NewReader(dedent.Dedent(tc.hlb)),
 				Value:  "build.hlb",

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/openllb/hlb/diagnostic"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/pkg/errors"
 )
 
@@ -35,7 +35,7 @@ func WithAbort(err error, numErrs int) *ErrAbort {
 }
 
 type ErrModule struct {
-	Module *parser.Module
+	Module *ast.Module
 	Err    error
 }
 
@@ -47,28 +47,28 @@ func (e *ErrModule) Error() string {
 	return e.Err.Error()
 }
 
-func WithDeprecated(mod *parser.Module, node parser.Node, format string, a ...interface{}) error {
+func WithDeprecated(mod *ast.Module, node ast.Node, format string, a ...interface{}) error {
 	return node.WithError(
 		&ErrModule{mod, fmt.Errorf(format, a...)},
 		node.Spanf(diagnostic.Primary, format, a...),
 	)
 }
 
-func WithInternalErrorf(node parser.Node, format string, a ...interface{}) error {
+func WithInternalErrorf(node ast.Node, format string, a ...interface{}) error {
 	return node.WithError(
 		fmt.Errorf(format, a...),
 		node.Spanf(diagnostic.Primary, format, a...),
 	)
 }
 
-func WithInvalidCompileTarget(ident parser.Node) error {
+func WithInvalidCompileTarget(ident ast.Node) error {
 	return ident.WithError(
 		fmt.Errorf("invalid compile target %s", ident),
 		ident.Spanf(diagnostic.Primary, "cannot compile target"),
 	)
 }
 
-func WithWrongType(expr parser.Node, expected []parser.Kind, actual parser.Kind, opts ...diagnostic.Option) error {
+func WithWrongType(expr ast.Node, expected []ast.Kind, actual ast.Kind, opts ...diagnostic.Option) error {
 	opts = append(opts, expr.Spanf(
 		diagnostic.Primary,
 		"cannot use %s as %s", actual, OneOfKinds(expected),
@@ -79,7 +79,7 @@ func WithWrongType(expr parser.Node, expected []parser.Kind, actual parser.Kind,
 	)
 }
 
-func WithCallImport(ident parser.Node, decl parser.Node) error {
+func WithCallImport(ident ast.Node, decl ast.Node) error {
 	return ident.WithError(
 		fmt.Errorf("cannot call an imported module"),
 		ident.Spanf(diagnostic.Primary, "cannot use import directly"),
@@ -87,14 +87,14 @@ func WithCallImport(ident parser.Node, decl parser.Node) error {
 	)
 }
 
-func WithImportPathNotExist(err error, expr parser.Node, filename string) error {
+func WithImportPathNotExist(err error, expr ast.Node, filename string) error {
 	return expr.WithError(
 		err,
 		expr.Spanf(diagnostic.Primary, "no such file %q", filename),
 	)
 }
 
-func WithUndefinedIdent(ident parser.Node, suggested *parser.Object, opts ...diagnostic.Option) error {
+func WithUndefinedIdent(ident ast.Node, suggested *ast.Object, opts ...diagnostic.Option) error {
 	opts = append(opts, ident.Spanf(diagnostic.Primary, "undefined or not in scope"))
 	if suggested != nil {
 		opts = append(opts, suggested.Ident.Spanf(diagnostic.Secondary, "did you mean `%s`?", suggested.Ident))
@@ -105,7 +105,7 @@ func WithUndefinedIdent(ident parser.Node, suggested *parser.Object, opts ...dia
 	)
 }
 
-func WithNotImport(ie *parser.IdentExpr, decl parser.Node) error {
+func WithNotImport(ie *ast.IdentExpr, decl ast.Node) error {
 	return ie.Reference.WithError(
 		fmt.Errorf("cannot use dot notation with non-import"),
 		ie.Reference.Spanf(diagnostic.Primary, "`%s` is not an import", ie.Ident),
@@ -113,7 +113,7 @@ func WithNotImport(ie *parser.IdentExpr, decl parser.Node) error {
 	)
 }
 
-func WithCallUnexported(ref parser.Node, opts ...diagnostic.Option) error {
+func WithCallUnexported(ref ast.Node, opts ...diagnostic.Option) error {
 	opts = append(opts, ref.Spanf(
 		diagnostic.Primary,
 		"cannot call unexported function",
@@ -124,7 +124,7 @@ func WithCallUnexported(ref parser.Node, opts ...diagnostic.Option) error {
 	)
 }
 
-func WithNumArgs(callee parser.Node, expected, actual int, opts ...diagnostic.Option) error {
+func WithNumArgs(callee ast.Node, expected, actual int, opts ...diagnostic.Option) error {
 	opts = append(opts, callee.Spanf(
 		diagnostic.Primary,
 		"expected %d args, found %d", expected, actual,
@@ -135,7 +135,7 @@ func WithNumArgs(callee parser.Node, expected, actual int, opts ...diagnostic.Op
 	)
 }
 
-func WithDuplicates(dups []parser.Node) error {
+func WithDuplicates(dups []ast.Node) error {
 	if len(dups) == 0 {
 		return nil
 	}
@@ -157,14 +157,14 @@ func WithDuplicates(dups []parser.Node) error {
 	)
 }
 
-func WithNoBindTarget(as parser.Node) error {
+func WithNoBindTarget(as ast.Node) error {
 	return as.WithError(
 		fmt.Errorf("cannot bind, has no target"),
 		as.Spanf(diagnostic.Primary, "no bind target"),
 	)
 }
 
-func WithNoBindClosure(as, option parser.Node) error {
+func WithNoBindClosure(as, option ast.Node) error {
 	return as.WithError(
 		fmt.Errorf("cannot bind, no closure in option blocks"),
 		as.Spanf(diagnostic.Primary, "no closure for binding"),
@@ -172,7 +172,7 @@ func WithNoBindClosure(as, option parser.Node) error {
 	)
 }
 
-func WithNoBindEffects(callee, as parser.Node, opts ...diagnostic.Option) error {
+func WithNoBindEffects(callee, as ast.Node, opts ...diagnostic.Option) error {
 	opts = append(opts, as.Spanf(
 		diagnostic.Primary,
 		"`%s` has no effects to bind", callee,
@@ -183,21 +183,21 @@ func WithNoBindEffects(callee, as parser.Node, opts ...diagnostic.Option) error 
 	)
 }
 
-func WithUndefinedBindTarget(callee, target parser.Node) error {
+func WithUndefinedBindTarget(callee, target ast.Node) error {
 	return target.WithError(
 		fmt.Errorf("cannot bind, `%s` is an undefined effect of `%s`", target, callee),
 		target.Spanf(diagnostic.Primary, "undefined bind"),
 	)
 }
 
-func WithInvalidImageRef(err error, arg parser.Node, ref string) error {
+func WithInvalidImageRef(err error, arg ast.Node, ref string) error {
 	return arg.WithError(
 		errors.Wrapf(err, "failed to parse `%s`", ref),
 		arg.Spanf(diagnostic.Primary, "failed to parse `%s`\n%s", ref, err),
 	)
 }
 
-func WithInvalidNetworkMode(arg parser.Node, mode string, modes []string) error {
+func WithInvalidNetworkMode(arg ast.Node, mode string, modes []string) error {
 	suggestion := diagnostic.Suggestion(mode, modes)
 	if suggestion != "" {
 		suggestion = fmt.Sprintf("\ndid you mean `%s`?", suggestion)
@@ -208,7 +208,7 @@ func WithInvalidNetworkMode(arg parser.Node, mode string, modes []string) error 
 	)
 }
 
-func WithInvalidSecurityMode(arg parser.Node, mode string, modes []string) error {
+func WithInvalidSecurityMode(arg ast.Node, mode string, modes []string) error {
 	suggestion := diagnostic.Suggestion(mode, modes)
 	if suggestion != "" {
 		suggestion = fmt.Sprintf("\ndid you mean `%s`?", suggestion)
@@ -219,7 +219,7 @@ func WithInvalidSecurityMode(arg parser.Node, mode string, modes []string) error
 	)
 }
 
-func WithInvalidSharingMode(arg parser.Node, mode string, modes []string) error {
+func WithInvalidSharingMode(arg ast.Node, mode string, modes []string) error {
 	suggestion := diagnostic.Suggestion(mode, modes)
 	if suggestion != "" {
 		suggestion = fmt.Sprintf("\ndid you mean `%s`?", suggestion)
@@ -230,7 +230,7 @@ func WithInvalidSharingMode(arg parser.Node, mode string, modes []string) error 
 	)
 }
 
-func WithBindCacheMount(as, cache parser.Node) error {
+func WithBindCacheMount(as, cache ast.Node) error {
 	return as.WithError(
 		fmt.Errorf("cannot bind a cache mount"),
 		as.Spanf(diagnostic.Primary, "cannot bind a cache mount"),
@@ -238,29 +238,29 @@ func WithBindCacheMount(as, cache parser.Node) error {
 	)
 }
 
-func WithDockerEngineUnsupported(decl parser.Node) error {
+func WithDockerEngineUnsupported(decl ast.Node) error {
 	return decl.WithError(
 		fmt.Errorf("not supported by buildkit embedded in docker engine, use standalone buildkit"),
 		decl.Spanf(diagnostic.Primary, "not supported by docker engine"),
 	)
 }
 
-func OneOfKinds(kinds []parser.Kind) string {
+func OneOfKinds(kinds []ast.Kind) string {
 	if len(kinds) == 1 {
 		return fmt.Sprintf("type %s", kinds[0])
 	}
 	return fmt.Sprintf("one of types %s", kinds)
 }
 
-func Defined(node parser.Node) diagnostic.Option {
+func Defined(node ast.Node) diagnostic.Option {
 	return node.Spanf(diagnostic.Secondary, "defined here")
 }
 
-func Imported(node parser.Node) diagnostic.Option {
+func Imported(node ast.Node) diagnostic.Option {
 	return node.Spanf(diagnostic.Secondary, "imported here")
 }
 
-func DefinedMaybeImported(scope *parser.Scope, ie *parser.IdentExpr, decl parser.Node) []diagnostic.Option {
+func DefinedMaybeImported(scope *ast.Scope, ie *ast.IdentExpr, decl ast.Node) []diagnostic.Option {
 	opts := []diagnostic.Option{Defined(decl)}
 	if ie.Reference != nil {
 		obj := scope.Lookup(ie.Ident.Text)

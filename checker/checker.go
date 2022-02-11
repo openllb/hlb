@@ -11,12 +11,12 @@ import (
 
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 )
 
-func SemanticPass(mod *parser.Module) error {
+func SemanticPass(mod *ast.Module) error {
 	c := &checker{
-		dups: make(map[string][]parser.Node),
+		dups: make(map[string][]ast.Node),
 	}
 	return c.SemanticPass(mod)
 }
@@ -25,16 +25,16 @@ func SemanticPass(mod *parser.Module) error {
 //
 // References that refer to imported identifiers are checked with
 // CheckReferences after imports have been resolved.
-func Check(mod *parser.Module) error {
+func Check(mod *ast.Module) error {
 	return new(checker).Check(mod)
 }
 
 // CheckReferences checks for semantic errors for references. Imported modules
 // are assumed to be reachable through the given module.
-func CheckReferences(mod *parser.Module, name string) error {
+func CheckReferences(mod *ast.Module, name string) error {
 	c := &checker{
 		checkRefs: true,
-		dups:      make(map[string][]parser.Node),
+		dups:      make(map[string][]ast.Node),
 	}
 	return c.CheckReferences(mod, name)
 }
@@ -42,10 +42,10 @@ func CheckReferences(mod *parser.Module, name string) error {
 type checker struct {
 	checkRefs bool
 	errs      []error
-	dups      map[string][]parser.Node
+	dups      map[string][]ast.Node
 }
 
-func (c *checker) SemanticPass(mod *parser.Module) error {
+func (c *checker) SemanticPass(mod *ast.Module) error {
 	// Create a module-level scope.
 	//
 	// HLB is module-scoped, so HLBs in the same directory will have separate
@@ -53,35 +53,35 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 	//
 	// A module scope is a child of the global scope where builtin functions are
 	// defined.
-	mod.Scope = parser.NewScope(mod, GlobalScope)
+	mod.Scope = ast.NewScope(mod, GlobalScope)
 
 	// (1) Build lexical scopes and memoize semantic data into the CST.
-	parser.Match(mod, parser.MatchOpts{},
+	ast.Match(mod, ast.MatchOpts{},
 		// Register imports identifiers.
-		func(id *parser.ImportDecl) {
+		func(id *ast.ImportDecl) {
 			if id.Name != nil {
 				if id.Expr != nil {
 					c.registerDecl(mod.Scope, id.Name, id.Expr.Kind(), id)
 				} else if id.DeprecatedPath != nil {
-					c.registerDecl(mod.Scope, id.Name, parser.String, id)
+					c.registerDecl(mod.Scope, id.Name, ast.String, id)
 				}
 			}
 		},
 		// Register function identifiers and construct lexical scopes.
-		func(fun *parser.FuncDecl) {
+		func(fun *ast.FuncDecl) {
 			if fun.Name != nil {
 				c.registerDecl(mod.Scope, fun.Name, fun.Kind(), fun)
 			}
 
 			// Create a lexical scope for this function.
-			fun.Scope = parser.NewScope(fun, mod.Scope)
+			fun.Scope = ast.NewScope(fun, mod.Scope)
 
 			if fun.Params != nil {
 				// Create entries for call parameters to the function. Later at code
 				// generation time, functions are called by value so each argument's value
 				// will be inserted into their respective fields.
 				for _, param := range fun.Params.Fields() {
-					fun.Scope.Insert(&parser.Object{
+					fun.Scope.Insert(&ast.Object{
 						Kind:  param.Kind(),
 						Ident: param.Name,
 						Node:  param,
@@ -93,7 +93,7 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 			// side effect has a register that binded values can be written to.
 			if fun.Effects != nil && fun.Effects.Effects != nil {
 				for _, effect := range fun.Effects.Effects.Fields() {
-					fun.Scope.Insert(&parser.Object{
+					fun.Scope.Insert(&ast.Object{
 						Kind:  effect.Kind(),
 						Ident: effect.Name,
 						Node:  effect,
@@ -107,35 +107,35 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 				fun.Body.Type = fun.Type
 
 				// BindClause rule (1): Option blocks do not have a closure for bindings.
-				if fun.Type.Kind.Primary() != parser.Option {
+				if fun.Type.Kind.Primary() != ast.Option {
 					fun.Body.Closure = fun
 				}
 			}
 		},
 		// Function literals propagate its return type to its BlockStmt.
-		func(lit *parser.FuncLit) {
-			if lit.Type.Kind != parser.Option {
+		func(lit *ast.FuncLit) {
+			if lit.Type.Kind != ast.Option {
 				lit.Body.Type = lit.Type
 			}
 		},
 		// ImportDecl's BlockStmts have module-level scope.
-		func(_ *parser.ImportDecl, lit *parser.FuncLit) {
+		func(_ *ast.ImportDecl, lit *ast.FuncLit) {
 			lit.Body.Scope = mod.Scope
 		},
 		// FuncDecl's BlockStmts have function-level scope.
-		func(fun *parser.FuncDecl, lit *parser.FuncLit) {
+		func(fun *ast.FuncDecl, lit *ast.FuncLit) {
 			lit.Body.Scope = fun.Scope
 		},
 		// Function literals propagate its scope to its children.
-		func(parentLit *parser.FuncLit, lit *parser.FuncLit) {
+		func(parentLit *ast.FuncLit, lit *ast.FuncLit) {
 			lit.Body.Scope = parentLit.Body.Scope
 		},
 		// WithClause's function literals need to infer its secondary type from its
 		// parent call statement. For example, `run with option { ... }` has a
 		// `option` type function literal, but infers its type as `option::run`.
-		func(call *parser.CallStmt, with *parser.WithClause, lit *parser.FuncLit) {
-			if lit.Type.Kind == parser.Option {
-				lit.Type.Kind = parser.Kind(fmt.Sprintf("%s::%s", lit.Type.Kind, call.Name.Ident))
+		func(call *ast.CallStmt, with *ast.WithClause, lit *ast.FuncLit) {
+			if lit.Type.Kind == ast.Option {
+				lit.Type.Kind = ast.Kind(fmt.Sprintf("%s::%s", lit.Type.Kind, call.Name.Ident))
 			}
 			lit.Body.Type = lit.Type
 		},
@@ -146,7 +146,7 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 	c.checkBinds(mod)
 
 	if len(c.dups) > 0 {
-		var nodes []parser.Node
+		var nodes []ast.Node
 		for _, dups := range c.dups {
 			nodes = append(nodes, dups[0])
 		}
@@ -164,10 +164,10 @@ func (c *checker) SemanticPass(mod *parser.Module) error {
 	return nil
 }
 
-func (c *checker) checkBinds(mod *parser.Module) {
-	parser.Match(mod, parser.MatchOpts{},
+func (c *checker) checkBinds(mod *ast.Module) {
+	ast.Match(mod, ast.MatchOpts{},
 		// BindClause rule (2): `with` provides access to parent closure.
-		func(fun *parser.FuncDecl, _ *parser.WithClause, block *parser.BlockStmt) {
+		func(fun *ast.FuncDecl, _ *ast.WithClause, block *ast.BlockStmt) {
 			block.Closure = fun
 		},
 		// Register bind clauses in the parent function body.
@@ -175,7 +175,7 @@ func (c *checker) checkBinds(mod *parser.Module) {
 		// 1. Option blocks do not have a closure for bindings.
 		// 2. `with` provides access to parent closure.
 		// 3. Binds are only allowed with a closure.
-		func(block *parser.BlockStmt, call *parser.CallStmt, binds *parser.BindClause) {
+		func(block *ast.BlockStmt, call *ast.CallStmt, binds *ast.BindClause) {
 			// BindClause rule (3): Binds are only allowed with a closure.
 			if block.Closure == nil {
 				return
@@ -188,7 +188,7 @@ func (c *checker) checkBinds(mod *parser.Module) {
 			}
 		},
 		// Binds without closure should error.
-		func(block *parser.BlockStmt, binds *parser.BindClause) {
+		func(block *ast.BlockStmt, binds *ast.BindClause) {
 			if binds.Closure == nil {
 				c.err(errdefs.WithNoBindClosure(binds.As, block.Type))
 			}
@@ -196,18 +196,18 @@ func (c *checker) checkBinds(mod *parser.Module) {
 	)
 }
 
-func (c *checker) Check(mod *parser.Module) error {
+func (c *checker) Check(mod *ast.Module) error {
 	// Second pass over the CST.
 	// (2) Type checking and other semantic checks.
-	parser.Match(mod, parser.MatchOpts{},
-		func(id *parser.ImportDecl) {
-			kset := parser.NewKindSet(parser.String, parser.Filesystem)
+	ast.Match(mod, ast.MatchOpts{},
+		func(id *ast.ImportDecl) {
+			kset := ast.NewKindSet(ast.String, ast.Filesystem)
 			err := c.checkExpr(mod.Scope, kset, id.Expr)
 			if err != nil {
 				c.err(err)
 			}
 		},
-		func(ed *parser.ExportDecl) {
+		func(ed *ast.ExportDecl) {
 			if ed.Name == nil {
 				return
 			}
@@ -219,7 +219,7 @@ func (c *checker) Check(mod *parser.Module) error {
 				obj.Exported = true
 			}
 		},
-		func(fun *parser.FuncDecl) {
+		func(fun *ast.FuncDecl) {
 			if fun.Params != nil {
 				err := c.checkFieldList(fun.Params.Fields())
 				if err != nil {
@@ -251,23 +251,23 @@ func (c *checker) Check(mod *parser.Module) error {
 	return nil
 }
 
-func (c *checker) CheckReferences(mod *parser.Module, name string) error {
+func (c *checker) CheckReferences(mod *ast.Module, name string) error {
 	// Third pass over the CST.
 	// 3. After imports have resolved, semantic checks of imported identifiers.
-	parser.Match(mod, parser.MatchOpts{},
-		func(id *parser.ImportDecl) {
-			kset := parser.NewKindSet(parser.String, parser.Filesystem)
+	ast.Match(mod, ast.MatchOpts{},
+		func(id *ast.ImportDecl) {
+			kset := ast.NewKindSet(ast.String, ast.Filesystem)
 			err := c.checkExpr(mod.Scope, kset, id.Expr)
 			if err != nil {
 				c.err(err)
 			}
 		},
-		func(block *parser.BlockStmt, call *parser.CallStmt) {
+		func(block *ast.BlockStmt, call *ast.CallStmt) {
 			if call.Name.Ident.Text != name {
 				return
 			}
 
-			kset := parser.NewKindSet(block.Kind())
+			kset := ast.NewKindSet(block.Kind())
 			err := c.checkCallStmt(block.Scope, kset, call)
 			if err != nil {
 				c.err(err)
@@ -286,9 +286,9 @@ func (c *checker) err(err error) {
 }
 
 // checkFieldList checks for duplicate fields.
-func (c *checker) checkFieldList(fields []*parser.Field) error {
-	var dups []parser.Node
-	fieldSet := make(map[string]*parser.Field)
+func (c *checker) checkFieldList(fields []*ast.Field) error {
+	var dups []ast.Node
+	fieldSet := make(map[string]*ast.Field)
 	for _, field := range fields {
 		if field.Name == nil {
 			continue
@@ -308,9 +308,9 @@ func (c *checker) checkFieldList(fields []*parser.Field) error {
 	return errdefs.WithDuplicates(dups)
 }
 
-func (c *checker) checkBlock(block *parser.BlockStmt) error {
+func (c *checker) checkBlock(block *ast.BlockStmt) error {
 	for _, stmt := range block.Stmts() {
-		kset := parser.NewKindSet(block.Kind())
+		kset := ast.NewKindSet(block.Kind())
 
 		var err error
 		switch {
@@ -327,10 +327,10 @@ func (c *checker) checkBlock(block *parser.BlockStmt) error {
 	return nil
 }
 
-func (c *checker) checkType(node parser.Node, kset *parser.KindSet, actual parser.Kind, opts ...diagnostic.Option) error {
+func (c *checker) checkType(node ast.Node, kset *ast.KindSet, actual ast.Kind, opts ...diagnostic.Option) error {
 	if !kset.Has(actual) {
 		expected := kset.Kinds()
-		if expected[0] == parser.Option {
+		if expected[0] == ast.Option {
 			expected = expected[1:]
 		}
 		return errdefs.WithWrongType(node, expected, actual, opts...)
@@ -338,12 +338,12 @@ func (c *checker) checkType(node parser.Node, kset *parser.KindSet, actual parse
 	return nil
 }
 
-func (c *checker) checkCallStmt(scope *parser.Scope, kset *parser.KindSet, call *parser.CallStmt) error {
+func (c *checker) checkCallStmt(scope *ast.Scope, kset *ast.KindSet, call *ast.CallStmt) error {
 	signature, err := c.checkCall(scope, kset, call.Name, call.Args, call.WithClause)
 	if err != nil {
 		return err
 	}
-	var kinds []parser.Kind
+	var kinds []ast.Kind
 	for _, field := range signature {
 		kinds = append(kinds, field.Kind())
 	}
@@ -351,12 +351,12 @@ func (c *checker) checkCallStmt(scope *parser.Scope, kset *parser.KindSet, call 
 	return nil
 }
 
-func (c *checker) checkCallExpr(scope *parser.Scope, kset *parser.KindSet, call *parser.CallExpr) error {
+func (c *checker) checkCallExpr(scope *ast.Scope, kset *ast.KindSet, call *ast.CallExpr) error {
 	signature, err := c.checkCall(scope, kset, call.Name, call.Args(), nil)
 	if err != nil {
 		return err
 	}
-	var kinds []parser.Kind
+	var kinds []ast.Kind
 	for _, field := range signature {
 		kinds = append(kinds, field.Kind())
 	}
@@ -364,7 +364,7 @@ func (c *checker) checkCallExpr(scope *parser.Scope, kset *parser.KindSet, call 
 	return nil
 }
 
-func (c *checker) skip(ie *parser.IdentExpr) bool {
+func (c *checker) skip(ie *ast.IdentExpr) bool {
 	// If not checking references, skip if IdentExpr has a reference.
 	if !c.checkRefs {
 		return ie.Reference != nil
@@ -372,7 +372,7 @@ func (c *checker) skip(ie *parser.IdentExpr) bool {
 	return false
 }
 
-func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parser.IdentExpr, args []*parser.Expr, with *parser.WithClause) ([]*parser.Field, error) {
+func (c *checker) checkCall(scope *ast.Scope, kset *ast.KindSet, ie *ast.IdentExpr, args []*ast.Expr, with *ast.WithClause) ([]*ast.Field, error) {
 	decl, signature, err := c.checkIdentExpr(scope, kset, ie)
 	if err != nil {
 		return nil, err
@@ -395,7 +395,7 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 
 	for i, arg := range args {
 		kind := params[i].Type.Kind
-		err := c.checkExpr(scope, parser.NewKindSet(kind), arg)
+		err := c.checkExpr(scope, ast.NewKindSet(kind), arg)
 		if err != nil {
 			return nil, err
 		}
@@ -403,8 +403,8 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 
 	if with != nil {
 		// Inherit the secondary type from the calling function name.
-		kind := parser.Kind(fmt.Sprintf("%s::%s", parser.Option, ie.Ident))
-		err := c.checkExpr(scope, parser.NewKindSet(kind), with.Expr)
+		kind := ast.Kind(fmt.Sprintf("%s::%s", ast.Option, ie.Ident))
+		err := c.checkExpr(scope, ast.NewKindSet(kind), with.Expr)
 		if err != nil {
 			return nil, err
 		}
@@ -413,14 +413,14 @@ func (c *checker) checkCall(scope *parser.Scope, kset *parser.KindSet, ie *parse
 	return params, nil
 }
 
-func (c *checker) checkExpr(scope *parser.Scope, kset *parser.KindSet, expr *parser.Expr) error {
-	if kset.Has(parser.Pipeline) {
-		kset = parser.NewKindSet(append(
+func (c *checker) checkExpr(scope *ast.Scope, kset *ast.KindSet, expr *ast.Expr) error {
+	if kset.Has(ast.Pipeline) {
+		kset = ast.NewKindSet(append(
 			kset.Kinds(),
-			parser.String,
-			parser.Int,
-			parser.Bool,
-			parser.Filesystem,
+			ast.String,
+			ast.Int,
+			ast.Bool,
+			ast.Filesystem,
 		)...)
 	}
 	switch {
@@ -447,7 +447,7 @@ func (c *checker) checkExpr(scope *parser.Scope, kset *parser.KindSet, expr *par
 	return errdefs.WithInternalErrorf(expr, "invalid expr")
 }
 
-func (c *checker) checkFuncLit(kset *parser.KindSet, lit *parser.FuncLit) error {
+func (c *checker) checkFuncLit(kset *ast.KindSet, lit *ast.FuncLit) error {
 	err := c.checkType(lit.Type, kset, lit.Type.Kind)
 	if err != nil {
 		return err
@@ -455,11 +455,11 @@ func (c *checker) checkFuncLit(kset *parser.KindSet, lit *parser.FuncLit) error 
 	return c.checkBlock(lit.Body)
 }
 
-func (c *checker) checkBasicLit(scope *parser.Scope, kind parser.Kind, lit *parser.BasicLit) error {
+func (c *checker) checkBasicLit(scope *ast.Scope, kind ast.Kind, lit *ast.BasicLit) error {
 	switch kind {
-	case parser.String:
+	case ast.String:
 		if lit.Str == nil && lit.RawString == nil && lit.Heredoc == nil && lit.RawHeredoc == nil {
-			return errdefs.WithWrongType(lit, []parser.Kind{kind}, lit.Kind())
+			return errdefs.WithWrongType(lit, []ast.Kind{kind}, lit.Kind())
 		}
 		switch {
 		case lit.Str != nil:
@@ -469,22 +469,22 @@ func (c *checker) checkBasicLit(scope *parser.Scope, kind parser.Kind, lit *pars
 		case lit.RawHeredoc != nil:
 			return c.checkHeredocFragments(scope, lit.RawHeredoc.Fragments)
 		}
-	case parser.Int:
+	case ast.Int:
 		if lit.Decimal == nil && lit.Numeric == nil {
-			return errdefs.WithWrongType(lit, []parser.Kind{kind}, lit.Kind())
+			return errdefs.WithWrongType(lit, []ast.Kind{kind}, lit.Kind())
 		}
-	case parser.Bool:
+	case ast.Bool:
 		if lit.Bool == nil {
-			return errdefs.WithWrongType(lit, []parser.Kind{kind}, lit.Kind())
+			return errdefs.WithWrongType(lit, []ast.Kind{kind}, lit.Kind())
 		}
 	default:
-		return errdefs.WithWrongType(lit, []parser.Kind{kind}, lit.Kind())
+		return errdefs.WithWrongType(lit, []ast.Kind{kind}, lit.Kind())
 	}
 	return nil
 }
 
-func (c *checker) checkStringFragments(scope *parser.Scope, fragments []*parser.StringFragment) error {
-	kset := parser.NewKindSet(parser.String, parser.Int, parser.Bool)
+func (c *checker) checkStringFragments(scope *ast.Scope, fragments []*ast.StringFragment) error {
+	kset := ast.NewKindSet(ast.String, ast.Int, ast.Bool)
 	for _, f := range fragments {
 		if f.Interpolated == nil {
 			continue
@@ -497,8 +497,8 @@ func (c *checker) checkStringFragments(scope *parser.Scope, fragments []*parser.
 	return nil
 }
 
-func (c *checker) checkHeredocFragments(scope *parser.Scope, fragments []*parser.HeredocFragment) error {
-	kset := parser.NewKindSet(parser.String, parser.Int, parser.Bool)
+func (c *checker) checkHeredocFragments(scope *ast.Scope, fragments []*ast.HeredocFragment) error {
+	kset := ast.NewKindSet(ast.String, ast.Int, ast.Bool)
 	for _, f := range fragments {
 		if f.Interpolated == nil {
 			continue
@@ -511,11 +511,11 @@ func (c *checker) checkHeredocFragments(scope *parser.Scope, fragments []*parser
 	return nil
 }
 
-func (c *checker) checkIdentExpr(scope *parser.Scope, kset *parser.KindSet, ie *parser.IdentExpr) (ident *parser.Ident, signature []*parser.Field, err error) {
+func (c *checker) checkIdentExpr(scope *ast.Scope, kset *ast.KindSet, ie *ast.IdentExpr) (ident *ast.Ident, signature []*ast.Field, err error) {
 	return c.checkIdentExprHelper(scope, kset, ie, ie.Ident)
 }
 
-func (c *checker) checkIdentExprHelper(scope *parser.Scope, kset *parser.KindSet, ie *parser.IdentExpr, lookup *parser.Ident, opts ...diagnostic.Option) (ident *parser.Ident, signature []*parser.Field, err error) {
+func (c *checker) checkIdentExprHelper(scope *ast.Scope, kset *ast.KindSet, ie *ast.IdentExpr, lookup *ast.Ident, opts ...diagnostic.Option) (ident *ast.Ident, signature []*ast.Field, err error) {
 	obj := scope.Lookup(lookup.Text)
 	if obj == nil {
 		err = errdefs.WithUndefinedIdent(lookup, scope.Suggestion(lookup.Text, kset), opts...)
@@ -524,7 +524,7 @@ func (c *checker) checkIdentExprHelper(scope *parser.Scope, kset *parser.KindSet
 
 	if ie.Reference != nil {
 		if lookup == ie.Ident {
-			if _, ok := obj.Node.(*parser.ImportDecl); !ok {
+			if _, ok := obj.Node.(*ast.ImportDecl); !ok {
 				err = errdefs.WithNotImport(ie, obj.Ident)
 				return
 			}
@@ -539,34 +539,34 @@ func (c *checker) checkIdentExprHelper(scope *parser.Scope, kset *parser.KindSet
 	}
 
 	switch n := obj.Node.(type) {
-	case *parser.BuiltinDecl:
-		var fun *parser.FuncDecl
+	case *ast.BuiltinDecl:
+		var fun *ast.FuncDecl
 		fun, err = c.lookupBuiltin(ie.Ident, kset, n)
 		if err != nil {
 			return
 		}
 		opts = append(opts, errdefs.Defined(fun.Name))
 		return fun.Name, fun.Params.Fields(), c.checkType(lookup, kset, fun.Type.Kind, opts...)
-	case *parser.FuncDecl:
+	case *ast.FuncDecl:
 		opts = append(opts, errdefs.Defined(obj.Ident))
 		return obj.Ident, n.Params.Fields(), c.checkType(lookup, kset, n.Type.Kind, opts...)
-	case *parser.BindClause:
+	case *ast.BindClause:
 		typ := n.TargetBinding(lookup.Text).Field.Type
 		opts = append(opts, errdefs.Defined(obj.Ident))
 		return obj.Ident, n.Closure.Params.Fields(), c.checkType(lookup, kset, typ.Kind, opts...)
-	case *parser.ImportDecl:
+	case *ast.ImportDecl:
 		if ie.Reference == nil {
 			err = errdefs.WithCallImport(ie.Ident, n.Name)
 			return
 		}
-		imod, ok := obj.Data.(*parser.Module)
+		imod, ok := obj.Data.(*ast.Module)
 		if !ok {
 			err = errdefs.WithInternalErrorf(ie.Ident, "import scope is not set")
 			return
 		}
 		opts = append(opts, errdefs.Imported(obj.Ident))
 		return c.checkIdentExprHelper(imod.Scope, kset, ie, ie.Reference.Ident, opts...)
-	case *parser.Field:
+	case *ast.Field:
 		opts = append(opts, errdefs.Defined(obj.Ident))
 		return obj.Ident, nil, c.checkType(lookup, kset, n.Type.Kind, opts...)
 	default:
@@ -575,7 +575,7 @@ func (c *checker) checkIdentExprHelper(scope *parser.Scope, kset *parser.KindSet
 	}
 }
 
-func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, kind parser.Kind, node parser.Node) {
+func (c *checker) registerDecl(scope *ast.Scope, ident *ast.Ident, kind ast.Kind, node ast.Node) {
 	// Ensure that this identifier is not already defined in the module scope.
 	obj := scope.Lookup(ident.Text)
 	if obj != nil {
@@ -586,14 +586,14 @@ func (c *checker) registerDecl(scope *parser.Scope, ident *parser.Ident, kind pa
 		return
 	}
 
-	scope.Insert(&parser.Object{
+	scope.Insert(&ast.Object{
 		Kind:  kind,
 		Ident: ident,
 		Node:  node,
 	})
 }
 
-func (c *checker) registerBinds(scope *parser.Scope, kind parser.Kind, fun *parser.FuncDecl, call *parser.CallStmt, binds *parser.BindClause) error {
+func (c *checker) registerBinds(scope *ast.Scope, kind ast.Kind, fun *ast.FuncDecl, call *ast.CallStmt, binds *ast.BindClause) error {
 	// Bind to its lexical scope.
 	binds.Closure = fun
 	err := c.bindEffects(scope, kind, call)
@@ -614,7 +614,7 @@ func (c *checker) registerBinds(scope *parser.Scope, kind parser.Kind, fun *pars
 	return nil
 }
 
-func (c *checker) bindEffects(scope *parser.Scope, kind parser.Kind, call *parser.CallStmt) error {
+func (c *checker) bindEffects(scope *ast.Scope, kind ast.Kind, call *ast.CallStmt) error {
 	binds := call.BindClause
 	if binds == nil {
 		return nil
@@ -629,7 +629,7 @@ func (c *checker) bindEffects(scope *parser.Scope, kind parser.Kind, call *parse
 	}
 
 	var (
-		kset = parser.NewKindSet(kind)
+		kset = ast.NewKindSet(kind)
 		ie   = call.Name
 	)
 
@@ -638,7 +638,7 @@ func (c *checker) bindEffects(scope *parser.Scope, kind parser.Kind, call *parse
 		return err
 	}
 
-	bd, ok := scope.Lookup(ie.Ident.Text).Node.(*parser.BuiltinDecl)
+	bd, ok := scope.Lookup(ie.Ident.Text).Node.(*ast.BuiltinDecl)
 	if !ok {
 		return errdefs.WithNoBindEffects(
 			call.Name, binds.As,
@@ -666,7 +666,7 @@ func (c *checker) bindEffects(scope *parser.Scope, kind parser.Kind, call *parse
 	// Match each Bind to a Field on call's EffectsClause.
 	if binds.Binds != nil {
 		for _, b := range binds.Binds.Binds() {
-			var field *parser.Field
+			var field *ast.Field
 			for _, f := range binds.Effects.Fields() {
 				if f.Name.String() == b.Source.String() {
 					field = f
@@ -683,8 +683,8 @@ func (c *checker) bindEffects(scope *parser.Scope, kind parser.Kind, call *parse
 	return nil
 }
 
-func (c *checker) lookupBuiltin(node parser.Node, kset *parser.KindSet, bd *parser.BuiltinDecl) (*parser.FuncDecl, error) {
-	var fun *parser.FuncDecl
+func (c *checker) lookupBuiltin(node ast.Node, kset *ast.KindSet, bd *ast.BuiltinDecl) (*ast.FuncDecl, error) {
+	var fun *ast.FuncDecl
 	for _, kind := range kset.Kinds() {
 		fun = bd.FuncDecl(kind)
 		if fun != nil {
@@ -692,7 +692,7 @@ func (c *checker) lookupBuiltin(node parser.Node, kset *parser.KindSet, bd *pars
 		}
 	}
 	if fun == nil {
-		var kinds []parser.Kind
+		var kinds []ast.Kind
 		for kind := range bd.FuncDeclByKind {
 			kinds = append(kinds, kind)
 		}
@@ -710,19 +710,19 @@ func (c *checker) lookupBuiltin(node parser.Node, kset *parser.KindSet, bd *pars
 	return fun, nil
 }
 
-func extendSignatureWithVariadic(fields []*parser.Field, args []*parser.Expr) []*parser.Field {
+func extendSignatureWithVariadic(fields []*ast.Field, args []*ast.Expr) []*ast.Field {
 	if len(fields) == 0 {
 		return fields
 	}
 
-	params := make([]*parser.Field, len(fields))
+	params := make([]*ast.Field, len(fields))
 	copy(params, fields)
 
 	lastParam := params[len(params)-1]
 	if lastParam.Modifier != nil && lastParam.Modifier.Variadic != nil {
 		params = params[:len(params)-1]
 		for i := range args[len(params):] {
-			params = append(params, parser.NewField(
+			params = append(params, ast.NewField(
 				lastParam.Type.Kind,
 				fmt.Sprintf("%s[%d]", lastParam.Name, i),
 				false,

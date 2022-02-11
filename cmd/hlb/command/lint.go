@@ -14,6 +14,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -46,7 +47,7 @@ type LintInfo struct {
 }
 
 func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
-	ctx = diagnostic.WithSources(ctx, builtin.Sources())
+	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 	mod, err := parser.Parse(ctx, r)
 	if err != nil {
 		return err

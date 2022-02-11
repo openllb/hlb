@@ -5,7 +5,7 @@ import (
 
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 )
 
 type Linter struct {
@@ -14,7 +14,7 @@ type Linter struct {
 
 type LintOption func(*Linter)
 
-func Lint(ctx context.Context, mod *parser.Module, opts ...LintOption) error {
+func Lint(ctx context.Context, mod *ast.Module, opts ...LintOption) error {
 	l := Linter{}
 	for _, opt := range opts {
 		opt(&l)
@@ -26,32 +26,32 @@ func Lint(ctx context.Context, mod *parser.Module, opts ...LintOption) error {
 	return nil
 }
 
-func (l *Linter) Lint(ctx context.Context, mod *parser.Module) {
-	parser.Match(mod, parser.MatchOpts{},
-		func(id *parser.ImportDecl) {
+func (l *Linter) Lint(ctx context.Context, mod *ast.Module) {
+	ast.Match(mod, ast.MatchOpts{},
+		func(id *ast.ImportDecl) {
 			if id.DeprecatedPath != nil {
 				l.errs = append(l.errs, errdefs.WithDeprecated(
 					mod, id.DeprecatedPath,
 					`import path without keyword "from" is deprecated`,
 				))
-				id.From = &parser.From{Text: "from"}
-				id.Expr = &parser.Expr{
-					BasicLit: &parser.BasicLit{
+				id.From = &ast.From{Text: "from"}
+				id.Expr = &ast.Expr{
+					BasicLit: &ast.BasicLit{
 						Str: id.DeprecatedPath,
 					},
 				}
 			}
 		},
-		func(t *parser.Type) {
+		func(t *ast.Type) {
 			if string(t.Kind) == "group" {
 				l.errs = append(l.errs, errdefs.WithDeprecated(
 					mod, t,
 					"type `group` is deprecated, use `pipeline` instead",
 				))
-				t.Kind = parser.Pipeline
+				t.Kind = ast.Pipeline
 			}
 		},
-		func(call *parser.CallStmt) {
+		func(call *ast.CallStmt) {
 			if call.Name != nil && call.Name.Ident.Text == "parallel" {
 				l.errs = append(l.errs, errdefs.WithDeprecated(
 					mod, call.Name,

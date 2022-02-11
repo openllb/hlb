@@ -22,6 +22,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -209,7 +210,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	// store Progress in context in case we need to synchronize output later
 	ctx = codegen.WithProgress(ctx, p)
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-	ctx = diagnostic.WithSources(ctx, builtin.Sources())
+	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 
 	defer func() {
 		if err == nil {

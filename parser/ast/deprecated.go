@@ -1,4 +1,4 @@
-package parser
+package ast
 
 import (
 	"github.com/alecthomas/participle/lexer"

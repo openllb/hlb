@@ -5,12 +5,12 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 )
 
 var (
-	Callables = map[parser.Kind]map[string]interface{}{
-		parser.Filesystem: {
+	Callables = map[ast.Kind]map[string]interface{}{
+		ast.Filesystem: {
 			"scratch":               Scratch{},
 			"image":                 Image{},
 			"http":                  HTTP{},
@@ -41,7 +41,7 @@ var (
 			"downloadDockerTarball": DownloadDockerTarball{},
 			"breakpoint":            SetBreakpoint{},
 		},
-		parser.String: {
+		ast.String: {
 			"format":    Format{},
 			"template":  Template{},
 			"manifest":  Manifest{},
@@ -51,7 +51,7 @@ var (
 			"localEnv":  LocalEnv{},
 			"localRun":  LocalRun{},
 		},
-		parser.Pipeline: {
+		ast.Pipeline: {
 			"stage":    Stage{},
 			"parallel": Stage{},
 		},

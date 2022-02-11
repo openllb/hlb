@@ -2,10 +2,10 @@
 
 package builtin
 
-import "github.com/openllb/hlb/parser"
+import "github.com/openllb/hlb/parser/ast"
 
 type BuiltinLookup struct {
-	ByKind map[parser.Kind]LookupByKind
+	ByKind map[ast.Kind]LookupByKind
 }
 
 type LookupByKind struct {
@@ -13,678 +13,678 @@ type LookupByKind struct {
 }
 
 type FuncLookup struct {
-	Params  []*parser.Field
-	Effects []*parser.Field
+	Params  []*ast.Field
+	Effects []*ast.Field
 }
 
 var (
 	Lookup = BuiltinLookup{
-		ByKind: map[parser.Kind]LookupByKind{
-			parser.Filesystem: {
+		ByKind: map[ast.Kind]LookupByKind{
+			ast.Filesystem: {
 				Func: map[string]FuncLookup{
 					"scratch": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"image": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "ref", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "ref", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"http": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "url", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "url", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"git": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "remote", false),
-							parser.NewField(parser.String, "ref", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "remote", false),
+							ast.NewField(ast.String, "ref", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"local": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"frontend": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "source", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "source", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"shell": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "arg", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "arg", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"run": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "arg", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "arg", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"env": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "key", false),
-							parser.NewField(parser.String, "value", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "key", false),
+							ast.NewField(ast.String, "value", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"dir": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"user": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "name", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "name", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"mkdir": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
-							parser.NewField(parser.Int, "filemode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
+							ast.NewField(ast.Int, "filemode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"mkfile": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
-							parser.NewField(parser.Int, "filemode", false),
-							parser.NewField(parser.String, "content", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
+							ast.NewField(ast.Int, "filemode", false),
+							ast.NewField(ast.String, "content", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"rm": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"copy": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Filesystem, "input", false),
-							parser.NewField(parser.String, "src", false),
-							parser.NewField(parser.String, "dst", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Filesystem, "input", false),
+							ast.NewField(ast.String, "src", false),
+							ast.NewField(ast.String, "dst", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"merge": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Filesystem, "inputs", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.Filesystem, "inputs", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"diff": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Filesystem, "base", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Filesystem, "base", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"dockerPush": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "ref", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "ref", false),
 						},
-						Effects: []*parser.Field{
-							parser.NewField(parser.String, "digest", false),
+						Effects: []*ast.Field{
+							ast.NewField(ast.String, "digest", false),
 						},
 					},
 					"dockerLoad": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "ref", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "ref", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"download": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "localPath", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "localPath", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"downloadTarball": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "localPath", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "localPath", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"downloadOCITarball": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "localPath", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "localPath", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"downloadDockerTarball": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "localPath", false),
-							parser.NewField(parser.String, "ref", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "localPath", false),
+							ast.NewField(ast.String, "ref", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"entrypoint": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "args", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "args", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"cmd": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "args", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "args", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"label": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "key", false),
-							parser.NewField(parser.String, "value", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "key", false),
+							ast.NewField(ast.String, "value", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"expose": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "ports", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "ports", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"volumes": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "mountpoints", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "mountpoints", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"stopSignal": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "signal", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "signal", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"breakpoint": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "command", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "command", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::copy": {
 				Func: map[string]FuncLookup{
 					"followSymlinks": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"contentsOnly": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"unpack": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"createDestPath": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"allowWildcard": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"allowEmptyWildcard": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"chown": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "owner", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "owner", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"chmod": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "filemode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "filemode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"createdTime": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "created", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "created", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"includePatterns": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "pattern", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "pattern", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"excludePatterns": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "pattern", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "pattern", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::frontend": {
 				Func: map[string]FuncLookup{
 					"input": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "key", false),
-							parser.NewField(parser.Filesystem, "value", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "key", false),
+							ast.NewField(ast.Filesystem, "value", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"opt": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "key", false),
-							parser.NewField(parser.String, "value", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "key", false),
+							ast.NewField(ast.String, "value", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::git": {
 				Func: map[string]FuncLookup{
 					"keepGitDir": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::http": {
 				Func: map[string]FuncLookup{
 					"checksum": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "digest", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "digest", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"chmod": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "filemode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "filemode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"filename": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "name", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "name", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::image": {
 				Func: map[string]FuncLookup{
 					"resolve": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"platform": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "os", false),
-							parser.NewField(parser.String, "arch", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "os", false),
+							ast.NewField(ast.String, "arch", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::local": {
 				Func: map[string]FuncLookup{
 					"includePatterns": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "pattern", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "pattern", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"excludePatterns": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "pattern", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "pattern", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"followPaths": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::localRun": {
 				Func: map[string]FuncLookup{
 					"ignoreError": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"includeStderr": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"onlyStderr": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"shlex": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::manifest": {
 				Func: map[string]FuncLookup{
 					"platform": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "os", false),
-							parser.NewField(parser.String, "arch", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "os", false),
+							ast.NewField(ast.String, "arch", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::mkdir": {
 				Func: map[string]FuncLookup{
 					"createParents": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"chown": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "owner", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "owner", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"createdTime": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "created", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "created", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::mkfile": {
 				Func: map[string]FuncLookup{
 					"chown": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "owner", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "owner", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"createdTime": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "created", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "created", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::mount": {
 				Func: map[string]FuncLookup{
 					"readonly": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"tmpfs": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"sourcePath": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"cache": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "cacheid", false),
-							parser.NewField(parser.String, "sharingmode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "cacheid", false),
+							ast.NewField(ast.String, "sharingmode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::rm": {
 				Func: map[string]FuncLookup{
 					"allowNotFound": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"allowWildcard": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::run": {
 				Func: map[string]FuncLookup{
 					"readonlyRootfs": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"env": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "key", false),
-							parser.NewField(parser.String, "value", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "key", false),
+							ast.NewField(ast.String, "value", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"dir": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"user": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "name", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "name", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"ignoreCache": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"network": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "networkmode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "networkmode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"security": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "securitymode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "securitymode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"shlex": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"host": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "hostname", false),
-							parser.NewField(parser.String, "address", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "hostname", false),
+							ast.NewField(ast.String, "address", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"ssh": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"forward": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "src", false),
-							parser.NewField(parser.String, "dest", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "src", false),
+							ast.NewField(ast.String, "dest", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"secret": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "localPath", false),
-							parser.NewField(parser.String, "mountPoint", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "localPath", false),
+							ast.NewField(ast.String, "mountPoint", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"mount": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Filesystem, "input", false),
-							parser.NewField(parser.String, "mountPoint", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Filesystem, "input", false),
+							ast.NewField(ast.String, "mountPoint", false),
 						},
-						Effects: []*parser.Field{
-							parser.NewField(parser.Filesystem, "target", false),
+						Effects: []*ast.Field{
+							ast.NewField(ast.Filesystem, "target", false),
 						},
 					},
 					"breakpoint": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "command", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "command", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::secret": {
 				Func: map[string]FuncLookup{
 					"uid": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "id", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "id", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"gid": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "id", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "id", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"mode": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "filemode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "filemode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"includePatterns": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "pattern", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "pattern", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"excludePatterns": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "pattern", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "pattern", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::ssh": {
 				Func: map[string]FuncLookup{
 					"target": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "mountPoint", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "mountPoint", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"localPaths": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "path", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "path", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"uid": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "id", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "id", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"gid": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "id", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "id", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"mode": {
-						Params: []*parser.Field{
-							parser.NewField(parser.Int, "filemode", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "filemode", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"option::template": {
 				Func: map[string]FuncLookup{
 					"stringField": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "name", false),
-							parser.NewField(parser.String, "value", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "name", false),
+							ast.NewField(ast.String, "value", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
 			"pipeline": {
 				Func: map[string]FuncLookup{
 					"stage": {
-						Params: []*parser.Field{
-							parser.NewField("pipeline", "pipelines", true),
+						Params: []*ast.Field{
+							ast.NewField("pipeline", "pipelines", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},
-			parser.String: {
+			ast.String: {
 				Func: map[string]FuncLookup{
 					"format": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "formatString", false),
-							parser.NewField(parser.String, "values", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "formatString", false),
+							ast.NewField(ast.String, "values", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"localArch": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"localCwd": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"localEnv": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "key", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "key", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"localOs": {
-						Params:  []*parser.Field{},
-						Effects: []*parser.Field{},
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
 					},
 					"localRun": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "command", false),
-							parser.NewField(parser.String, "args", true),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "command", false),
+							ast.NewField(ast.String, "args", true),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 					"manifest": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "ref", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "ref", false),
 						},
-						Effects: []*parser.Field{
-							parser.NewField(parser.String, "digest", false),
-							parser.NewField(parser.String, "config", false),
-							parser.NewField(parser.String, "index", false),
+						Effects: []*ast.Field{
+							ast.NewField(ast.String, "digest", false),
+							ast.NewField(ast.String, "config", false),
+							ast.NewField(ast.String, "index", false),
 						},
 					},
 					"template": {
-						Params: []*parser.Field{
-							parser.NewField(parser.String, "text", false),
+						Params: []*ast.Field{
+							ast.NewField(ast.String, "text", false),
 						},
-						Effects: []*parser.Field{},
+						Effects: []*ast.Field{},
 					},
 				},
 			},

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moby/buildkit/solver/errdefs"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	perrors "github.com/pkg/errors"
 )
 
@@ -46,7 +47,7 @@ func Spans(err error) (spans []*SpanError) {
 func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 	srcs := errdefs.Sources(err)
 	for i, src := range srcs {
-		fb := Sources(ctx).Get(src.Info.Filename)
+		fb := filebuffer.Buffers(ctx).Get(src.Info.Filename)
 		if fb != nil {
 			var msg string
 			if i == len(srcs)-1 {

@@ -9,7 +9,7 @@ import (
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	digest "github.com/opencontainers/go-digest"
-	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"golang.org/x/sync/errgroup"
@@ -24,7 +24,7 @@ const (
 // Resolver resolves imports into a reader ready for parsing and checking.
 type Resolver interface {
 	// Resolve returns a reader for the HLB module and its compiled LLB.
-	Resolve(ctx context.Context, id *parser.ImportDecl, fs Filesystem) (parser.Directory, error)
+	Resolve(ctx context.Context, id *ast.ImportDecl, fs Filesystem) (ast.Directory, error)
 }
 
 func NewCachedImageResolver(cln *client.Client) llb.ImageMetaResolver {
