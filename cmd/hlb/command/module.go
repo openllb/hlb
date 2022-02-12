@@ -175,7 +175,6 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 		return err
 	}
 	defer p.Wait()
-	defer p.Release()
 
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
@@ -290,7 +289,6 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 		return err
 	}
 	defer p.Wait()
-	defer p.Release()
 
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	tree, err = module.NewTree(ctx, cln, mod, info.Long)

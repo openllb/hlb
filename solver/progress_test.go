@@ -67,7 +67,6 @@ func TestProgress(t *testing.T) {
 					require.NoError(t, err)
 				}
 
-				p.Release()
 				err = p.Wait()
 				require.NoError(t, err)
 

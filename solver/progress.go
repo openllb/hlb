@@ -50,8 +50,6 @@ func WithLogOutput(con Console, logOutput LogOutput) ProgressOption {
 type Progress interface {
 	MultiWriter() *MultiWriter
 
-	Release()
-
 	Wait() error
 
 	// Sync will ensure that all progress has been written.
@@ -95,7 +93,7 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 func (p *progressUI) Sync() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Release()
+	close(p.done)
 	err := p.waitNoLock()
 	if err != nil {
 		return err
@@ -120,11 +118,8 @@ func (p *progressUI) MultiWriter() *MultiWriter {
 	return p.mw
 }
 
-func (p *progressUI) Release() {
-	close(p.done)
-}
-
 func (p *progressUI) Wait() (err error) {
+	close(p.done)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.waitNoLock()

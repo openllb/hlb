@@ -256,7 +256,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	solveReq, err := hlb.Compile(ctx, cln, mod, targets, opts...)
 	if err != nil {
-		p.Release()
 		perr := p.Wait()
 		// Ignore early exits from the debugger.
 		if err == codegen.ErrDebugExit {
@@ -266,7 +265,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	}
 
 	if solveReq == nil || info.Tree {
-		p.Release()
 		err = p.Wait()
 		if err != nil {
 			return err
@@ -289,7 +287,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	}
 
 	defer p.Wait()
-	defer p.Release()
 	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
 }
 
