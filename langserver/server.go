@@ -230,15 +230,15 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *ast.Modu
 				highlightNode(lines, ed.Name, Variable)
 			}
 		},
-		func(fun *ast.FuncDecl) {
-			if fun.Type != nil {
-				highlightNode(lines, fun.Type, Type)
+		func(fd *ast.FuncDecl) {
+			if fd.Sig.Type != nil {
+				highlightNode(lines, fd.Sig.Type, Type)
 			}
-			if fun.Name != nil {
-				highlightNode(lines, fun.Name, Function)
+			if fd.Sig.Name != nil {
+				highlightNode(lines, fd.Sig.Name, Function)
 			}
-			if fun.Params != nil {
-				for _, field := range fun.Params.Fields() {
+			if fd.Sig.Params != nil {
+				for _, field := range fd.Sig.Params.Fields() {
 					if field.Modifier != nil {
 						if field.Modifier.Variadic != nil {
 							highlightNode(lines, field.Modifier.Variadic, Modifier)
@@ -252,11 +252,11 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *ast.Modu
 					}
 				}
 			}
-			if fun.Effects != nil {
-				if fun.Effects.Binds != nil {
-					highlightNode(lines, fun.Effects.Binds, Keyword)
+			if fd.Sig.Effects != nil {
+				if fd.Sig.Effects.Binds != nil {
+					highlightNode(lines, fd.Sig.Effects.Binds, Keyword)
 				}
-				for _, field := range fun.Effects.Effects.Fields() {
+				for _, field := range fd.Sig.Effects.Effects.Fields() {
 					if field.Type != nil {
 						highlightNode(lines, field.Type, Type)
 					}
@@ -265,8 +265,8 @@ func highlightModule(lines map[int]lsp.SemanticHighlightingTokens, mod *ast.Modu
 					}
 				}
 			}
-			if fun.Body != nil {
-				highlightBlock(lines, fun.Body)
+			if fd.Body != nil {
+				highlightBlock(lines, fd.Body)
 			}
 		},
 	)
@@ -610,7 +610,7 @@ func newLocationFromIdent(scope *ast.Scope, uri lsp.DocumentURI, name string) *l
 	var loc *lsp.Location
 	switch n := obj.Node.(type) {
 	case *ast.FuncDecl:
-		loc = newLocationFromNode(uri, n.Name)
+		loc = newLocationFromNode(uri, n.Sig.Name)
 	case *ast.BindClause:
 		if n.Ident != nil {
 			loc = newLocationFromNode(uri, n.Ident)

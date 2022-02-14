@@ -17,22 +17,22 @@ const (
 func NewBuiltinScope(builtins builtin.BuiltinLookup) *ast.Scope {
 	scope := ast.NewScope(nil, nil)
 	ast.Match(builtin.Module, ast.MatchOpts{},
-		func(fun *ast.FuncDecl) {
-			obj := scope.Lookup(fun.Name.Text)
+		func(fd *ast.FuncDecl) {
+			obj := scope.Lookup(fd.Sig.Name.Text)
 			if obj == nil {
 				obj = &ast.Object{
-					Ident: fun.Name,
+					Ident: fd.Sig.Name,
 					Node: &ast.BuiltinDecl{
 						Module:         builtin.Module,
-						Name:           fun.Name.String(),
+						Name:           fd.Sig.Name.String(),
 						FuncDeclByKind: make(map[ast.Kind]*ast.FuncDecl),
 					},
 				}
 			}
 
 			decl := obj.Node.(*ast.BuiltinDecl)
-			decl.Kinds = append(decl.Kinds, fun.Type.Kind)
-			decl.FuncDeclByKind[fun.Type.Kind] = fun
+			decl.Kinds = append(decl.Kinds, fd.Kind())
+			decl.FuncDeclByKind[fd.Kind()] = fd
 			scope.Insert(obj)
 		},
 	)

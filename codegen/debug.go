@@ -58,7 +58,7 @@ func (s snapshot) fs() (Filesystem, error) {
 
 func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, promptReader *bufio.Reader) Debugger {
 	var (
-		fun               *ast.FuncDecl
+		fd                *ast.FuncDecl
 		next              *ast.FuncDecl
 		history           []*snapshot
 		historyIndex      = -1
@@ -87,8 +87,8 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 				// Don't print source code on the first debug section.
 				showList = false
 			default:
-				fun = scope.Node.(*ast.FuncDecl)
-				if AtBreakpoint(node, fun, breakpoints, opts) {
+				fd = scope.Node.(*ast.FuncDecl)
+				if AtBreakpoint(node, fd, breakpoints, opts) {
 					cont = false
 				}
 			}
@@ -99,7 +99,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 			if next != nil {
 				// If next is not in the same function scope, skip over it.
-				if next != fun {
+				if next != fd {
 					return nil
 				}
 				next = nil
@@ -153,7 +153,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 							}
 
 							bp = &Breakpoint{
-								Func: fun,
+								Func: fd,
 								Call: n,
 							}
 						default:
@@ -174,8 +174,8 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 
 						msg := fmt.Sprintf("Breakpoint %d for %s%s %s",
 							i,
-							bp.Func.Name,
-							bp.Func.Params,
+							bp.Func.Sig.Name,
+							bp.Func.Sig.Params,
 							parser.FormatPos(pos))
 
 						if bp.Call != nil {
@@ -300,8 +300,8 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 						fmt.Fprintln(w, "Program has not started yet")
 					}
 				case "locals":
-					if fun != nil {
-						for _, arg := range fun.Params.Fields() {
+					if fd != nil {
+						for _, arg := range fd.Sig.Params.Fields() {
 							obj := s.scope.Lookup(arg.Name.Text)
 							if obj == nil {
 								fmt.Fprintln(w, "err:", errors.WithStack(errdefs.WithUndefinedIdent(arg, nil)))
@@ -311,7 +311,7 @@ func NewDebugger(c *client.Client, w io.Writer, inputSteerer *InputSteerer, prom
 						}
 					}
 				case "next", "n":
-					next = fun
+					next = fd
 					return nil
 				case "network":
 					fs, err := s.fs()
@@ -416,15 +416,15 @@ func FindStaticBreakpoints(ctx context.Context, mod *ast.Module) []*Breakpoint {
 	var breakpoints []*Breakpoint
 
 	ast.Match(mod, ast.MatchOpts{},
-		func(fun *ast.FuncDecl, call *ast.CallStmt) {
-			if fun.Kind() == "option::run" {
+		func(fd *ast.FuncDecl, call *ast.CallStmt) {
+			if fd.Kind() == "option::run" {
 				return
 			}
 			if !call.Breakpoint(ReturnType(ctx)) {
 				return
 			}
 			bp := &Breakpoint{
-				Func: fun,
+				Func: fd,
 				Call: call,
 			}
 			breakpoints = append(breakpoints, bp)
@@ -434,15 +434,15 @@ func FindStaticBreakpoints(ctx context.Context, mod *ast.Module) []*Breakpoint {
 	return breakpoints
 }
 
-func AtBreakpoint(node ast.Node, fun *ast.FuncDecl, breakpoints []*Breakpoint, opts Option) bool {
+func AtBreakpoint(node ast.Node, fd *ast.FuncDecl, breakpoints []*Breakpoint, opts Option) bool {
 	for _, opt := range opts {
 		if _, hasBreakpointCommand := opt.(breakpointCommand); hasBreakpointCommand {
 			return true
 		}
 	}
 	for _, bp := range breakpoints {
-		if node == fun.Name {
-			if bp.Call == nil && bp.Func == fun {
+		if node == fd.Sig.Name {
+			if bp.Call == nil && bp.Func == fd {
 				return true
 			}
 		} else if bp.Call != nil && bp.Call.Name == node {

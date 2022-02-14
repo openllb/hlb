@@ -147,22 +147,27 @@ func (e *Export) Unparse(opts ...UnparseOption) string {
 func (fd *FuncDecl) String() string { return fd.Unparse() }
 
 func (fd *FuncDecl) Unparse(opts ...UnparseOption) string {
-	params := ""
-	if fd.Params != nil {
-		params = fd.Params.Unparse(opts...)
-	}
-
-	effects := ""
-	if fd.Effects != nil {
-		effects = fmt.Sprintf(" %s", fd.Effects.Unparse(opts...))
-	}
-
 	body := ""
 	if fd.Body != nil {
 		body = fmt.Sprintf(" %s", fd.Body.Unparse(opts...))
 	}
+	return fd.Sig.Unparse(opts...) + body
+}
 
-	return fmt.Sprintf("%s %s%s%s%s", fd.Type.Unparse(opts...), fd.Name.Unparse(opts...), params, effects, body)
+func (fs *FuncSignature) String() string { return fs.Unparse() }
+
+func (fs *FuncSignature) Unparse(opts ...UnparseOption) string {
+	params := ""
+	if fs.Params != nil {
+		params = fs.Params.Unparse(opts...)
+	}
+
+	effects := ""
+	if fs.Effects != nil {
+		effects = fmt.Sprintf(" %s", fs.Effects.Unparse(opts...))
+	}
+
+	return fmt.Sprintf("%s %s%s%s", fs.Type.Unparse(opts...), fs.Name.Unparse(opts...), params, effects)
 }
 
 func (t *Type) String() string { return t.Unparse() }
