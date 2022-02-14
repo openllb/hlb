@@ -49,8 +49,8 @@ func GenerateDocumentation(ctx context.Context, r io.Reader) (*Documentation, er
 	)
 
 	for _, decl := range mod.Decls {
-		fun := decl.Func
-		if fun == nil {
+		fd := decl.Func
+		if fd == nil {
 			continue
 		}
 
@@ -61,9 +61,9 @@ func GenerateDocumentation(ctx context.Context, r io.Reader) (*Documentation, er
 			fields []Field
 		)
 
-		if fun.Doc != nil {
+		if fd.Doc != nil {
 			var commentBlock []string
-			for _, comment := range fun.Doc.List {
+			for _, comment := range fd.Doc.List {
 				text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "#"))
 				commentBlock = append(commentBlock, fmt.Sprintf("%s\n", text))
 			}
@@ -74,16 +74,16 @@ func GenerateDocumentation(ctx context.Context, r io.Reader) (*Documentation, er
 			}
 		}
 
-		if fun.Type != nil {
-			kind = fun.Type.String()
+		if fd.Sig.Type != nil {
+			kind = fd.Sig.Type.String()
 		}
 
-		if fun.Name != nil {
-			name = fun.Name.String()
+		if fd.Sig.Name != nil {
+			name = fd.Sig.Name.String()
 		}
 
-		if fun.Params != nil {
-			for _, param := range fun.Params.Fields() {
+		if fd.Sig.Params != nil {
+			for _, param := range fd.Sig.Params.Fields() {
 				var (
 					fieldType string
 					fieldName string
@@ -127,8 +127,8 @@ func GenerateDocumentation(ctx context.Context, r io.Reader) (*Documentation, er
 			funcDoc.Doc = strings.TrimSpace(group.Doc)
 		}
 
-		if fun.Type.Kind.Primary() == ast.Option {
-			subtype := string(fun.Type.Kind.Secondary())
+		if fd.Kind().Primary() == ast.Option {
+			subtype := string(fd.Sig.Type.Kind.Secondary())
 			optionsByFunc[subtype] = append(optionsByFunc[subtype], funcDoc)
 		}
 		funcsByKind[kind] = append(funcsByKind[kind], funcDoc)

@@ -41,20 +41,20 @@ func GenerateBuiltins(ctx context.Context, r io.Reader) ([]byte, error) {
 
 	funcsByKind := make(map[ast.Kind][]ParsedFunc)
 	for _, decl := range mod.Decls {
-		fun := decl.Func
-		if fun == nil {
+		fd := decl.Func
+		if fd == nil {
 			continue
 		}
 
 		var effects []*ast.Field
-		if fun.Effects != nil && fun.Effects.Effects != nil {
-			effects = fun.Effects.Effects.Fields()
+		if fd.Sig.Effects != nil && fd.Sig.Effects.Effects != nil {
+			effects = fd.Sig.Effects.Effects.Fields()
 		}
 
-		kind := fun.Type.Kind
+		kind := fd.Kind()
 		funcsByKind[kind] = append(funcsByKind[kind], ParsedFunc{
-			Name:    fun.Name.Text,
-			Params:  fun.Params.Fields(),
+			Name:    fd.Sig.Name.Text,
+			Params:  fd.Sig.Params.Fields(),
 			Effects: effects,
 		})
 	}

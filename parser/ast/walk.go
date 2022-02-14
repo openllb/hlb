@@ -80,6 +80,13 @@ func (w *walker) walk(node Node, v Visitor) {
 			w.walk(n.Name, v)
 		}
 	case *FuncDecl:
+		if n.Sig != nil {
+			w.walk(n.Sig, v)
+		}
+		if n.Body != nil {
+			w.walk(n.Body, v)
+		}
+	case *FuncSignature:
 		if n.Type != nil {
 			w.walk(n.Type, v)
 		}
@@ -91,9 +98,6 @@ func (w *walker) walk(node Node, v Visitor) {
 		}
 		if n.Effects != nil {
 			w.walk(n.Effects, v)
-		}
-		if n.Body != nil {
-			w.walk(n.Body, v)
 		}
 	case *FieldList:
 		w.walkFieldList(n.Stmts, v)

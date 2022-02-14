@@ -468,19 +468,19 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 	return outs[0].Interface().(Value), nil
 }
 
-func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *ast.FuncDecl, args []Value, b *ast.Binding, ret Register) error {
-	ctx = WithProgramCounter(ctx, fun.Name)
+func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Value, b *ast.Binding, ret Register) error {
+	ctx = WithProgramCounter(ctx, fd.Sig.Name)
 
-	params := fun.Params.Fields()
+	params := fd.Sig.Params.Fields()
 	if len(params) != len(args) {
-		name := fun.Name.Text
+		name := fd.Sig.Name.Text
 		if b != nil {
 			name = b.Name.Text
 		}
 		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", name, len(params), len(args))
 	}
 
-	scope := ast.NewScope(fun, fun.Scope)
+	scope := ast.NewScope(fd, fd.Scope)
 	for i, param := range params {
 		if param.Modifier != nil {
 			continue
@@ -495,12 +495,12 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fun *ast.FuncDecl, args []V
 	}
 
 	// Yield before executing a function.
-	err := cg.Debug(ctx, scope, fun.Name, ret, nil)
+	err := cg.Debug(ctx, scope, fd.Sig.Name, ret, nil)
 	if err != nil {
 		return err
 	}
 
-	return cg.EmitBlock(ctx, scope, fun.Body, b, ret)
+	return cg.EmitBlock(ctx, scope, fd.Body, b, ret)
 }
 
 func (cg *CodeGen) EmitBinding(ctx context.Context, b *ast.Binding, args []Value, ret Register) error {

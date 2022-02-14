@@ -68,20 +68,20 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 			}
 		},
 		// Register function identifiers and construct lexical scopes.
-		func(fun *ast.FuncDecl) {
-			if fun.Name != nil {
-				c.registerDecl(mod.Scope, fun.Name, fun.Kind(), fun)
+		func(fd *ast.FuncDecl) {
+			if fd.Sig.Name != nil {
+				c.registerDecl(mod.Scope, fd.Sig.Name, fd.Kind(), fd)
 			}
 
 			// Create a lexical scope for this function.
-			fun.Scope = ast.NewScope(fun, mod.Scope)
+			fd.Scope = ast.NewScope(fd, mod.Scope)
 
-			if fun.Params != nil {
+			if fd.Sig.Params != nil {
 				// Create entries for call parameters to the function. Later at code
 				// generation time, functions are called by value so each argument's value
 				// will be inserted into their respective fields.
-				for _, param := range fun.Params.Fields() {
-					fun.Scope.Insert(&ast.Object{
+				for _, param := range fd.Sig.Params.Fields() {
+					fd.Scope.Insert(&ast.Object{
 						Kind:  param.Kind(),
 						Ident: param.Name,
 						Node:  param,
@@ -91,9 +91,9 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 
 			// Create entries for additional return values from the function. Every
 			// side effect has a register that binded values can be written to.
-			if fun.Effects != nil && fun.Effects.Effects != nil {
-				for _, effect := range fun.Effects.Effects.Fields() {
-					fun.Scope.Insert(&ast.Object{
+			if fd.Sig.Effects != nil && fd.Sig.Effects.Effects != nil {
+				for _, effect := range fd.Sig.Effects.Effects.Fields() {
+					fd.Scope.Insert(&ast.Object{
 						Kind:  effect.Kind(),
 						Ident: effect.Name,
 						Node:  effect,
@@ -102,13 +102,13 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 			}
 
 			// Propagate scope and type into its BlockStmt.
-			if fun.Body != nil {
-				fun.Body.Scope = fun.Scope
-				fun.Body.Type = fun.Type
+			if fd.Body != nil {
+				fd.Body.Scope = fd.Scope
+				fd.Body.Type = fd.Sig.Type
 
 				// BindClause rule (1): Option blocks do not have a closure for bindings.
-				if fun.Type.Kind.Primary() != ast.Option {
-					fun.Body.Closure = fun
+				if fd.Sig.Type.Kind.Primary() != ast.Option {
+					fd.Body.Closure = fd
 				}
 			}
 		},
@@ -123,8 +123,8 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 			lit.Body.Scope = mod.Scope
 		},
 		// FuncDecl's BlockStmts have function-level scope.
-		func(fun *ast.FuncDecl, lit *ast.FuncLit) {
-			lit.Body.Scope = fun.Scope
+		func(fd *ast.FuncDecl, lit *ast.FuncLit) {
+			lit.Body.Scope = fd.Scope
 		},
 		// Function literals propagate its scope to its children.
 		func(parentLit *ast.FuncLit, lit *ast.FuncLit) {
@@ -167,8 +167,8 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 func (c *checker) checkBinds(mod *ast.Module) {
 	ast.Match(mod, ast.MatchOpts{},
 		// BindClause rule (2): `with` provides access to parent closure.
-		func(fun *ast.FuncDecl, _ *ast.WithClause, block *ast.BlockStmt) {
-			block.Closure = fun
+		func(fd *ast.FuncDecl, _ *ast.WithClause, block *ast.BlockStmt) {
+			block.Closure = fd
 		},
 		// Register bind clauses in the parent function body.
 		// There are 3 primary rules for binds listed below.
@@ -219,25 +219,25 @@ func (c *checker) Check(mod *ast.Module) error {
 				obj.Exported = true
 			}
 		},
-		func(fun *ast.FuncDecl) {
-			if fun.Params != nil {
-				err := c.checkFieldList(fun.Params.Fields())
+		func(fd *ast.FuncDecl) {
+			if fd.Sig.Params != nil {
+				err := c.checkFieldList(fd.Sig.Params.Fields())
 				if err != nil {
 					c.err(err)
 					return
 				}
 			}
 
-			if fun.Effects != nil && fun.Effects.Effects != nil {
-				err := c.checkFieldList(fun.Effects.Effects.Fields())
+			if fd.Sig.Effects != nil && fd.Sig.Effects.Effects != nil {
+				err := c.checkFieldList(fd.Sig.Effects.Effects.Fields())
 				if err != nil {
 					c.err(err)
 					return
 				}
 			}
 
-			if fun.Type != nil && fun.Body != nil {
-				err := c.checkBlock(fun.Body)
+			if fd.Sig.Type != nil && fd.Body != nil {
+				err := c.checkBlock(fd.Body)
 				if err != nil {
 					c.err(err)
 				}
@@ -581,20 +581,20 @@ func (c *checker) checkIdentExprHelper(scope *ast.Scope, kset *ast.KindSet, ie *
 
 	switch n := obj.Node.(type) {
 	case *ast.BuiltinDecl:
-		var fun *ast.FuncDecl
-		fun, err = c.lookupBuiltin(ie.Ident, kset, n)
+		var fd *ast.FuncDecl
+		fd, err = c.lookupBuiltin(ie.Ident, kset, n)
 		if err != nil {
 			return
 		}
-		opts = append(opts, errdefs.Defined(fun.Name))
-		return fun.Name, fun.Params.Fields(), c.checkType(lookup, kset, fun.Type.Kind, opts...)
+		opts = append(opts, errdefs.Defined(fd.Sig.Name))
+		return fd.Sig.Name, fd.Sig.Params.Fields(), c.checkType(lookup, kset, fd.Sig.Type.Kind, opts...)
 	case *ast.FuncDecl:
 		opts = append(opts, errdefs.Defined(obj.Ident))
-		return obj.Ident, n.Params.Fields(), c.checkType(lookup, kset, n.Type.Kind, opts...)
+		return obj.Ident, n.Sig.Params.Fields(), c.checkType(lookup, kset, n.Kind(), opts...)
 	case *ast.BindClause:
 		typ := n.TargetBinding(lookup.Text).Field.Type
 		opts = append(opts, errdefs.Defined(obj.Ident))
-		return obj.Ident, n.Closure.Params.Fields(), c.checkType(lookup, kset, typ.Kind, opts...)
+		return obj.Ident, n.Closure.Sig.Params.Fields(), c.checkType(lookup, kset, typ.Kind, opts...)
 	case *ast.ImportDecl:
 		if ie.Reference == nil {
 			err = errdefs.WithCallImport(ie.Ident, n.Name)
@@ -634,9 +634,9 @@ func (c *checker) registerDecl(scope *ast.Scope, ident *ast.Ident, kind ast.Kind
 	})
 }
 
-func (c *checker) registerBinds(scope *ast.Scope, kind ast.Kind, fun *ast.FuncDecl, call *ast.CallStmt, binds *ast.BindClause) error {
+func (c *checker) registerBinds(scope *ast.Scope, kind ast.Kind, fd *ast.FuncDecl, call *ast.CallStmt, binds *ast.BindClause) error {
 	// Bind to its lexical scope.
-	binds.Closure = fun
+	binds.Closure = fd
 	err := c.bindEffects(scope, kind, call)
 	if err != nil {
 		return err
@@ -687,14 +687,14 @@ func (c *checker) bindEffects(scope *ast.Scope, kind ast.Kind, call *ast.CallStm
 		)
 	}
 
-	fun, err := c.lookupBuiltin(ie, kset, bd)
+	fd, err := c.lookupBuiltin(ie, kset, bd)
 	if err != nil {
 		return err
 	}
 
-	if fun.Effects == nil ||
-		fun.Effects.Effects == nil ||
-		fun.Effects.Effects.NumFields() == 0 {
+	if fd.Sig.Effects == nil ||
+		fd.Sig.Effects.Effects == nil ||
+		fd.Sig.Effects.Effects.NumFields() == 0 {
 		return errdefs.WithNoBindEffects(
 			call.Name, binds.As,
 			errdefs.DefinedMaybeImported(scope, ie, decl)...,
@@ -702,7 +702,7 @@ func (c *checker) bindEffects(scope *ast.Scope, kind ast.Kind, call *ast.CallStm
 	}
 
 	// Bind its side effects.
-	binds.Effects = fun.Effects.Effects
+	binds.Effects = fd.Sig.Effects.Effects
 
 	// Match each Bind to a Field on call's EffectsClause.
 	if binds.Binds != nil {
@@ -725,14 +725,14 @@ func (c *checker) bindEffects(scope *ast.Scope, kind ast.Kind, call *ast.CallStm
 }
 
 func (c *checker) lookupBuiltin(node ast.Node, kset *ast.KindSet, bd *ast.BuiltinDecl) (*ast.FuncDecl, error) {
-	var fun *ast.FuncDecl
+	var fd *ast.FuncDecl
 	for _, kind := range kset.Kinds() {
-		fun = bd.FuncDecl(kind)
-		if fun != nil {
+		fd = bd.FuncDecl(kind)
+		if fd != nil {
 			break
 		}
 	}
-	if fun == nil {
+	if fd == nil {
 		var kinds []ast.Kind
 		for kind := range bd.FuncDeclByKind {
 			kinds = append(kinds, kind)
@@ -748,7 +748,7 @@ func (c *checker) lookupBuiltin(node ast.Node, kset *ast.KindSet, bd *ast.Builti
 		}
 		return nil, errdefs.WithInternalErrorf(node, "builtin has no func decls")
 	}
-	return fun, nil
+	return fd, nil
 }
 
 func extendSignatureWithVariadic(fields []*ast.Field, args []*ast.Expr) []*ast.Field {

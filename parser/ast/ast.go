@@ -252,32 +252,30 @@ func (bd *BuiltinDecl) FuncDecl(kind Kind) *FuncDecl {
 // FuncDecl represents a function declaration.
 type FuncDecl struct {
 	Mixin
-	Scope   *Scope
-	Doc     *CommentGroup
+	Scope *Scope
+	Doc   *CommentGroup
+	Sig   *FuncSignature `parser:"@@"`
+	Body  *BlockStmt     `parser:"@@?"`
+}
+
+func (fd *FuncDecl) Kind() Kind {
+	return fd.Sig.Kind()
+}
+
+// FuncSignature represents a function signature.
+type FuncSignature struct {
+	Mixin
 	Type    *Type          `parser:"@@"`
 	Name    *Ident         `parser:"@@"`
 	Params  *FieldList     `parser:"@@"`
 	Effects *EffectsClause `parser:"@@?"`
-	Body    *BlockStmt     `parser:"@@?"`
 }
 
-func (fd *FuncDecl) Kind() Kind {
-	if fd.Type == nil {
+func (fs *FuncSignature) Kind() Kind {
+	if fs.Type == nil {
 		return None
 	}
-	return fd.Type.Kind
-}
-
-func NewFuncDecl(kind Kind, name string, params []*Field, effects []*Field, stmts ...*Stmt) *Decl {
-	fun := &FuncDecl{
-		Type:    NewType(kind),
-		Name:    NewIdent(name),
-		Params:  NewFieldList(params...),
-		Body:    NewBlockStmt(stmts...),
-		Effects: NewEffectsClause(effects...),
-	}
-
-	return &Decl{Func: fun}
+	return fs.Type.Kind
 }
 
 // Type represents an object type.
