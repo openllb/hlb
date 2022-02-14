@@ -22,22 +22,20 @@ func Parse(ctx context.Context, r io.Reader) (*ast.Module, error) {
 	mod := &ast.Module{}
 	defer AssignDocStrings(mod)
 
-	files := filebuffer.Buffers(ctx)
-	if files != nil {
-		fb := filebuffer.New(name)
-		r = io.TeeReader(r, fb)
-		defer func() {
-			if mod.Pos.Filename != "" {
-				files.Set(mod.Pos.Filename, fb)
-			}
-		}()
-	}
+	fb := filebuffer.New(name)
+	r = io.TeeReader(r, fb)
+	defer func() {
+		if mod.Pos.Filename != "" {
+			filebuffer.Buffers(ctx).Set(mod.Pos.Filename, fb)
+		}
+	}()
 
 	err := ast.Parser.Parse(name, r, mod)
 	if err != nil {
 		return nil, err
 	}
 	mod.Directory = NewLocalDirectory(filepath.Dir(mod.Pos.Filename), "")
+	ast.Modules(ctx).Set(mod.Pos.Filename, mod)
 	return mod, nil
 }
 
