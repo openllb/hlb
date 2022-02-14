@@ -171,8 +171,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithNumArgs(
-				ast.Find(mod, "image"), 1, 0,
-				errdefs.Defined(ast.Find(builtin.Module, "image")),
+				ast.Search(mod, "image"), 1, 0,
+				errdefs.Defined(ast.Search(builtin.Module, "image")),
 			)
 		},
 	}, {
@@ -185,8 +185,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithDuplicates([]ast.Node{
-				ast.Find(mod, "duplicate"),
-				ast.Find(mod, "duplicate", ast.WithSkip(1)),
+				ast.Search(mod, "duplicate"),
+				ast.Search(mod, "duplicate", ast.WithSkip(1)),
 			})
 		},
 	}, {
@@ -201,8 +201,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithDuplicates([]ast.Node{
-				ast.Find(mod, "duplicate"),
-				ast.Find(mod, "duplicate", ast.WithSkip(1)),
+				ast.Search(mod, "duplicate"),
+				ast.Search(mod, "duplicate", ast.WithSkip(1)),
 			})
 		},
 	}, {
@@ -214,8 +214,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithDuplicates([]ast.Node{
-				ast.Find(builtin.Module, "image"),
-				ast.Find(mod, "image"),
+				ast.Search(builtin.Module, "image"),
+				ast.Search(mod, "image"),
 			})
 		},
 	}, {
@@ -229,8 +229,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithDuplicates([]ast.Node{
-				ast.Find(builtin.Module, "image"),
-				ast.Find(mod, "image"),
+				ast.Search(builtin.Module, "image"),
+				ast.Search(mod, "image"),
 			})
 		},
 	}, {
@@ -247,8 +247,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithDuplicates([]ast.Node{
-				ast.Find(mod, "duplicate"),
-				ast.Find(mod, "duplicate", ast.WithSkip(1)),
+				ast.Search(mod, "duplicate"),
+				ast.Search(mod, "duplicate", ast.WithSkip(1)),
 			})
 		},
 	}, {
@@ -262,8 +262,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithCallImport(
-				ast.Find(mod, "foo", ast.WithSkip(1)),
-				ast.Find(mod, "foo"),
+				ast.Search(mod, "foo", ast.WithSkip(1)),
+				ast.Search(mod, "foo"),
 			)
 		},
 	}, {
@@ -293,7 +293,7 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithUndefinedIdent(
-				ast.Find(mod, "foo"),
+				ast.Search(mod, "foo"),
 				nil,
 			)
 		},
@@ -307,8 +307,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithNotImport(
-				ast.Find(mod, "myFunction.build").(*ast.IdentExpr),
-				ast.Find(mod, "myFunction"),
+				ast.Search(mod, "myFunction.build").(*ast.IdentExpr),
+				ast.Search(mod, "myFunction"),
 			)
 		},
 	}, {
@@ -335,10 +335,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithWrongType(
-				ast.Find(mod, "image"),
+				ast.Search(mod, "image"),
 				[]ast.Kind{ast.Pipeline},
 				ast.Filesystem,
-				errdefs.Defined(ast.Find(builtin.Module, "image")),
+				errdefs.Defined(ast.Search(builtin.Module, "image")),
 			)
 		},
 	}, {
@@ -353,7 +353,7 @@ func TestChecker_Check(t *testing.T) {
 		}
 		`,
 		func(mod *ast.Module) error {
-			return errdefs.WithNoBindTarget(ast.Find(mod, "as"))
+			return errdefs.WithNoBindTarget(ast.Search(mod, "as"))
 		},
 	}, {
 		"no error when bind list is empty",
@@ -373,10 +373,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithWrongType(
-				ast.Find(mod, "imageID", ast.WithSkip(1)),
+				ast.Search(mod, "imageID", ast.WithSkip(1)),
 				[]ast.Kind{ast.Filesystem},
 				ast.String,
-				errdefs.Defined(ast.Find(mod, "imageID")),
+				errdefs.Defined(ast.Search(mod, "imageID")),
 			)
 		},
 	}, {
@@ -389,10 +389,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithWrongType(
-				ast.Find(mod, "imageID", ast.WithSkip(1)),
+				ast.Search(mod, "imageID", ast.WithSkip(1)),
 				[]ast.Kind{ast.Filesystem},
 				ast.String,
-				errdefs.Defined(ast.Find(mod, "imageID")),
+				errdefs.Defined(ast.Search(mod, "imageID")),
 			)
 		},
 	}, {
@@ -404,10 +404,10 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithNoBindEffects(
-				ast.Find(mod, "run"),
-				ast.Find(mod, "as"),
+				ast.Search(mod, "run"),
+				ast.Search(mod, "as"),
 				errdefs.Defined(
-					ast.Find(builtin.Module, "run"),
+					ast.Search(builtin.Module, "run"),
 				),
 			)
 		},
@@ -420,8 +420,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithUndefinedBindTarget(
-				ast.Find(mod, "dockerPush"),
-				ast.Find(mod, "undefined"),
+				ast.Search(mod, "dockerPush"),
+				ast.Search(mod, "undefined"),
 			)
 		},
 	}, {
@@ -433,8 +433,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithNoBindClosure(
-				ast.Find(mod, "as"),
-				ast.Find(mod, "option::run"),
+				ast.Search(mod, "as"),
+				ast.Search(mod, "option::run"),
 			)
 		},
 	}, {
@@ -452,8 +452,8 @@ func TestChecker_Check(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithNoBindClosure(
-				ast.Find(mod, "as"),
-				ast.Find(mod, "option::run"),
+				ast.Search(mod, "as"),
+				ast.Search(mod, "option::run"),
 			)
 		},
 	}, {
