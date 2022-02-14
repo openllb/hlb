@@ -32,7 +32,7 @@ func TestLinter_Lint(t *testing.T) {
 		`,
 		func(mod *ast.Module) error {
 			return errdefs.WithDeprecated(
-				mod, ast.Find(mod, `"./foo.hlb"`).(*ast.StringLit),
+				mod, ast.Search(mod, `"./foo.hlb"`).(*ast.StringLit),
 				`import path without keyword "from" is deprecated`,
 			)
 		},
@@ -50,11 +50,11 @@ func TestLinter_Lint(t *testing.T) {
 			return &diagnostic.Error{
 				Diagnostics: []error{
 					errdefs.WithDeprecated(
-						mod, ast.Find(mod, "group"),
+						mod, ast.Search(mod, "group"),
 						"type `group` is deprecated, use `pipeline` instead",
 					),
 					errdefs.WithDeprecated(
-						mod, ast.Find(mod, "parallel"),
+						mod, ast.Search(mod, "parallel"),
 						"function `parallel` is deprecated, use `stage` instead",
 					),
 				},

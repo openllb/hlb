@@ -1022,7 +1022,7 @@ func TestCodegenError(t *testing.T) {
 			func(mod *ast.Module) error {
 				return errdefs.WithInvalidImageRef(
 					errors.New("invalid reference format"),
-					ast.Find(mod, `"#"`),
+					ast.Search(mod, `"#"`),
 					"#",
 				)
 			},
@@ -1109,9 +1109,9 @@ func TestCodeGenImport(t *testing.T) {
 		}},
 		func(mod *ast.Module) error {
 			return errdefs.WithUndefinedIdent(
-				ast.Find(mod, "bar"),
+				ast.Search(mod, "bar"),
 				nil,
-				errdefs.Imported(ast.Find(mod, "other")),
+				errdefs.Imported(ast.Search(mod, "other")),
 			)
 		},
 	}, {
@@ -1131,8 +1131,8 @@ func TestCodeGenImport(t *testing.T) {
 		}},
 		func(mod *ast.Module) error {
 			return errdefs.WithCallUnexported(
-				ast.Find(mod, "foo"),
-				errdefs.Imported(ast.Find(mod, "other")),
+				ast.Search(mod, "foo"),
+				errdefs.Imported(ast.Search(mod, "other")),
 			)
 		},
 	}, {
