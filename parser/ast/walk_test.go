@@ -94,7 +94,19 @@ func TestFind(t *testing.T) {
 		`,
 		2, 0,
 		nil,
-		"2:2", "2:7", // image "alpine"
+		"2:2", "3:1", // image "alpine"
+	}, {
+		"no column match multiline",
+		`
+		fs default() {
+			image "alpine" with option {
+				resolve
+			}
+		}
+		`,
+		2, 0,
+		nil,
+		"2:2", "5:1", // image "alpine" with option { ... }
 	}, {
 		"column match node",
 		`
@@ -104,7 +116,7 @@ func TestFind(t *testing.T) {
 		`,
 		2, 3,
 		nil,
-		"2:2", "2:7", // image "alpine"
+		"2:2", "2:7", // image
 	}, {
 		"column match parent",
 		`
