@@ -392,27 +392,20 @@ func (f *finder) Visit(_ Introspector, n Node) Visitor {
 	if n == nil {
 		return nil
 	}
-	if f.column == 0 {
-		if (f.line >= n.Position().Line && f.line <= n.End().Line) &&
-			(f.match == nil || n.End().Column <= f.match.End().Column) {
-			if f.line == n.Position().Line && f.line == n.End().Line {
-				keep := true
-				if f.filter != nil {
-					keep = f.filter(n)
-				}
-				if keep {
-					f.match = n
-				}
-			}
+	if IsPositionWithinNode(n, f.line, f.column) {
+		if f.column == 0 && f.line != n.Position().Line {
 			return f
 		}
-	} else if IsPositionWithinNode(n, f.line, f.column) {
+
 		keep := true
 		if f.filter != nil {
 			keep = f.filter(n)
 		}
 		if keep {
 			f.match = n
+			if f.column == 0 {
+				return nil
+			}
 		}
 		return f
 	}
