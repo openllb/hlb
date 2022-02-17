@@ -60,8 +60,13 @@ func (s Scratch) Call(ctx context.Context, cln *client.Client, val Value, opts O
 type Image struct{}
 
 func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Option, ref string) (Value, error) {
+	fs, err := val.Filesystem()
+	if err != nil {
+		return nil, err
+	}
+
 	var imageOpts []llb.ImageOption
-	platform := DefaultPlatform(ctx)
+	platform := fs.Platform
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case llb.ImageOption:
@@ -94,30 +99,34 @@ func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 	if resolver != nil {
 		_, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
 		if err != nil {
-			return nil, err
+			return nil, Arg(ctx, 0).WithError(err)
 		}
 
 		st, err = st.WithImageConfig(config)
 		if err != nil {
-			return nil, err
+			return nil, Arg(ctx, 0).WithError(err)
 		}
 
 		err = json.Unmarshal(config, image)
 		if err != nil {
-			return nil, err
+			return nil, Arg(ctx, 0).WithError(err)
 		}
 	}
 
-	return NewValue(ctx, Filesystem{
-		State:    st,
-		Image:    image,
-		Platform: platform,
-	})
+	fs.State = st
+	fs.Image = image
+	fs.Platform = platform
+	return NewValue(ctx, fs)
 }
 
 type HTTP struct{}
 
 func (h HTTP) Call(ctx context.Context, cln *client.Client, val Value, opts Option, url string) (Value, error) {
+	fs, err := val.Filesystem()
+	if err != nil {
+		return nil, err
+	}
+
 	var httpOpts []llb.HTTPOption
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -129,12 +138,18 @@ func (h HTTP) Call(ctx context.Context, cln *client.Client, val Value, opts Opti
 		httpOpts = append(httpOpts, opt)
 	}
 
-	return NewValue(ctx, llb.HTTP(url, httpOpts...))
+	fs.State = llb.HTTP(url, httpOpts...)
+	return NewValue(ctx, fs)
 }
 
 type Git struct{}
 
 func (g Git) Call(ctx context.Context, cln *client.Client, val Value, opts Option, remote, ref string) (Value, error) {
+	fs, err := val.Filesystem()
+	if err != nil {
+		return nil, err
+	}
+
 	var gitOpts []llb.GitOption
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -146,13 +161,19 @@ func (g Git) Call(ctx context.Context, cln *client.Client, val Value, opts Optio
 		gitOpts = append(gitOpts, opt)
 	}
 
-	return NewValue(ctx, llb.Git(remote, ref, gitOpts...))
+	fs.State = llb.Git(remote, ref, gitOpts...)
+	return NewValue(ctx, fs)
 }
 
 type Local struct{}
 
 func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Option, localPath string) (Value, error) {
-	localPath, err := parser.ResolvePath(ModuleDir(ctx), localPath)
+	fs, err := val.Filesystem()
+	if err != nil {
+		return nil, err
+	}
+
+	localPath, err = parser.ResolvePath(ModuleDir(ctx), localPath)
 	if err != nil {
 		return nil, err
 	}
@@ -204,10 +225,7 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		localOpts = append(localOpts, llb.SessionID(sessionID))
 	}
 
-	fs := Filesystem{
-		State:    llb.Local(localPath, localOpts...),
-		Platform: DefaultPlatform(ctx),
-	}
+	fs.State = llb.Local(localPath, localOpts...)
 	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(id, filesync.SyncedDir{
 		Name: localPath,
 		Dir:  localDir,
@@ -224,6 +242,11 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 type Frontend struct{}
 
 func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts Option, source string) (Value, error) {
+	fs, err := val.Filesystem()
+	if err != nil {
+		return nil, err
+	}
+
 	named, err := reference.ParseNormalizedNamed(source)
 	if err != nil {
 		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 0), source)
@@ -263,11 +286,6 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts 
 	g.Go(func() error {
 		return s.Run(ctx, cln.Dialer())
 	})
-
-	fs, err := ZeroValue(ctx).Filesystem()
-	if err != nil {
-		return nil, err
-	}
 
 	g.Go(func() error {
 		var pw progress.Writer
@@ -429,7 +447,7 @@ func (r Run) Call(ctx context.Context, cln *client.Client, val Value, opts Optio
 
 type SetBreakpoint struct{}
 
-func (r SetBreakpoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, args ...string) (Value, error) {
+func (sb SetBreakpoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, args ...string) (Value, error) {
 	return val, nil
 }
 
@@ -711,7 +729,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, val Value, op
 	if dockerAPI.Moby {
 		// Return error only if dockerPush is using docker engine instead of buildkit.
 		if dockerAPI.Err != nil {
-			return nil, ProgramCounter(ctx).WithError(dockerAPI.Err)
+			return nil, dockerAPI.Err
 		}
 
 		exportFS.SolveOpts = append(exportFS.SolveOpts,
@@ -854,7 +872,7 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, val Value, op
 
 	dockerAPI := DockerAPI(ctx)
 	if dockerAPI.Err != nil {
-		return nil, ProgramCounter(ctx).WithError(dockerAPI.Err)
+		return nil, dockerAPI.Err
 	}
 
 	exportFS, err := val.Filesystem()

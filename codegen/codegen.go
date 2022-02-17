@@ -11,6 +11,7 @@ import (
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client"
 	"github.com/openllb/hlb/checker"
+	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
@@ -463,7 +464,13 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 
 	outs := c.Call(ins)
 	if !outs[1].IsNil() {
-		return nil, WithBacktraceError(ctx, outs[1].Interface().(error))
+		var se *diagnostic.SpanError
+		err := outs[1].Interface().(error)
+		if !errors.As(err, &se) {
+			err = ProgramCounter(ctx).WithError(err)
+		}
+
+		return nil, WithBacktraceError(ctx, err)
 	}
 	return outs[0].Interface().(Value), nil
 }
