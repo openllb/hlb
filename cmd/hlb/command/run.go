@@ -23,6 +23,7 @@ import (
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/filebuffer"
+	"github.com/openllb/hlb/pkg/steer"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -94,18 +95,18 @@ var runCommand = &cli.Command{
 			DefaultPlatform:  c.String("platform"),
 		}
 
-		var inputSteerer *codegen.InputSteerer
+		var inputSteerer *steer.InputSteerer
 		if c.Bool("debug") {
 			pr, pw := io.Pipe()
 			r := bufio.NewReader(pr)
-			inputSteerer = codegen.NewInputSteerer(os.Stdin, pw)
+			inputSteerer = steer.NewInputSteerer(os.Stdin, pw)
 
 			ri.Debugger = codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
 		}
 
 		if c.Bool("shell-on-error") {
 			if inputSteerer == nil {
-				inputSteerer = codegen.NewInputSteerer(os.Stdin)
+				inputSteerer = steer.NewInputSteerer(os.Stdin)
 			}
 
 			ri.SolveErrorHandler = func(ctx context.Context, c gateway.Client, err error) {
