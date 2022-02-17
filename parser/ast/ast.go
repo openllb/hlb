@@ -103,6 +103,11 @@ type Node interface {
 	Spanf(t diagnostic.Type, format string, a ...interface{}) diagnostic.Option
 }
 
+type StopNode interface {
+	Node
+	Subject() Node
+}
+
 type Mixin struct {
 	Pos    lexer.Position
 	EndPos lexer.Position
@@ -128,7 +133,7 @@ func (m Mixin) Spanf(t diagnostic.Type, format string, a ...interface{}) diagnos
 type Kind string
 
 const (
-	None       Kind = ""
+	None       Kind = "none"
 	String     Kind = "string"
 	Int        Kind = "int"
 	Bool       Kind = "bool"
@@ -276,6 +281,10 @@ func (fs *FuncSignature) Kind() Kind {
 		return None
 	}
 	return fs.Type.Kind
+}
+
+func (fs *FuncSignature) Subject() Node {
+	return fs.Name
 }
 
 // Type represents an object type.
@@ -459,10 +468,11 @@ func NewCallStmt(name string, args []*Expr, with *WithClause, binds *BindClause)
 	}
 }
 
-func (cs *CallStmt) Breakpoint(returnType Kind) bool {
-	if returnType == Kind(fmt.Sprintf("%s::%s", Option, "run")) {
-		return false
-	}
+func (cs *CallStmt) Subject() Node {
+	return cs.Name
+}
+
+func (cs *CallStmt) Breakpoint() bool {
 	if cs.Name == nil || cs.Name.Ident == nil {
 		return false
 	}
@@ -830,6 +840,17 @@ type CallExpr struct {
 	Signature []Kind
 	Name      *IdentExpr `parser:"@@"`
 	List      *ExprList  `parser:"@@?"`
+}
+
+func (ce *CallExpr) Subject() Node {
+	return ce.Name
+}
+
+func (ce *CallExpr) Breakpoint() bool {
+	if ce.Name == nil || ce.Name.Ident == nil {
+		return false
+	}
+	return ce.Name.Ident.Text == "breakpoint"
 }
 
 func (ce *CallExpr) Args() []*Expr {

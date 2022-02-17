@@ -53,7 +53,7 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 	//
 	// A module scope is a child of the global scope where builtin functions are
 	// defined.
-	mod.Scope = ast.NewScope(mod, GlobalScope)
+	mod.Scope = ast.NewScope(GlobalScope, ast.ModuleScope, mod)
 
 	// (1) Build lexical scopes and memoize semantic data into the CST.
 	ast.Match(mod, ast.MatchOpts{},
@@ -74,7 +74,7 @@ func (c *checker) SemanticPass(mod *ast.Module) error {
 			}
 
 			// Create a lexical scope for this function.
-			fd.Scope = ast.NewScope(fd, mod.Scope)
+			fd.Scope = ast.NewScope(mod.Scope, ast.FunctionScope, fd)
 
 			if fd.Sig.Params != nil {
 				// Create entries for call parameters to the function. Later at code
@@ -380,6 +380,9 @@ func (c *checker) checkType(node ast.Node, kset *ast.KindSet, actual ast.Kind, o
 }
 
 func (c *checker) checkCallStmt(scope *ast.Scope, kset *ast.KindSet, call *ast.CallStmt) error {
+	if call.Breakpoint() {
+		return nil
+	}
 	signature, err := c.checkCall(scope, kset, call.Name, call.Args, call.WithClause)
 	if err != nil {
 		return err
@@ -393,6 +396,9 @@ func (c *checker) checkCallStmt(scope *ast.Scope, kset *ast.KindSet, call *ast.C
 }
 
 func (c *checker) checkCallExpr(scope *ast.Scope, kset *ast.KindSet, call *ast.CallExpr) error {
+	if call.Breakpoint() {
+		return nil
+	}
 	signature, err := c.checkCall(scope, kset, call.Name, call.Args(), nil)
 	if err != nil {
 		return err

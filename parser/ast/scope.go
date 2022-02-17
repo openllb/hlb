@@ -1,26 +1,54 @@
 package ast
 
 import (
-	"sort"
-
 	"github.com/openllb/hlb/diagnostic"
+)
+
+type ScopeLevel string
+
+var (
+	BuiltinScope  ScopeLevel = "Builtins"
+	ModuleScope   ScopeLevel = "Module"
+	FunctionScope ScopeLevel = "Function"
+	BlockScope    ScopeLevel = "Block"
+	ArgsScope     ScopeLevel = "Arguments"
 )
 
 // Scope maintains the set of named language entities declared in the scope
 // and a link to the immediately surrounding (outer) scope.
 type Scope struct {
-	Node    Node
+	Node
+	Level   ScopeLevel
 	Outer   *Scope
 	Objects map[string]*Object
 }
 
 // NewScope creates a new scope linking to an outer scope.
-func NewScope(node Node, outer *Scope) *Scope {
+func NewScope(outer *Scope, level ScopeLevel, node Node) *Scope {
 	return &Scope{
 		Node:    node,
+		Level:   level,
 		Outer:   outer,
 		Objects: make(map[string]*Object),
 	}
+}
+
+func (s *Scope) Depth() int {
+	depth := 1
+	if s.Outer != nil {
+		depth += s.Outer.Depth()
+	}
+	return depth
+}
+
+func (s *Scope) ByLevel(level ScopeLevel) *Scope {
+	if s.Level == level {
+		return s
+	}
+	if s.Outer != nil {
+		return s.Outer.ByLevel(level)
+	}
+	return nil
 }
 
 // Lookup returns the object with the given name if it is
@@ -59,28 +87,11 @@ func (s *Scope) Insert(obj *Object) {
 	s.Objects[obj.Ident.Text] = obj
 }
 
-// Root returns the outer-most scope.
-func (s *Scope) Root() *Scope {
-	// Outer-most scope is the one right before a global scope of all the
-	// builtins, which doesn't have a node defined.
-	if s.Outer.Node == nil {
-		return s
-	}
-	return s.Outer.Root()
-}
-
-// Defined returns all objects with the given kind.
-func (s *Scope) Defined() []*Object {
+func (s *Scope) Locals() []*Object {
 	var objs []*Object
-	if s.Outer != nil {
-		objs = s.Outer.Defined()
-	}
 	for _, obj := range s.Objects {
 		objs = append(objs, obj)
 	}
-	sort.SliceStable(objs, func(i, j int) bool {
-		return objs[i].Ident.Text < objs[j].Ident.Text
-	})
 	return objs
 }
 

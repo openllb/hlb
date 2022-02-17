@@ -16,7 +16,7 @@ import (
 	"github.com/openllb/hlb/solver"
 )
 
-func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets []codegen.Target, opts ...codegen.CodeGenOption) (solver.Request, error) {
+func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets []codegen.Target) (solver.Request, error) {
 	err := checker.SemanticPass(mod)
 	if err != nil {
 		return nil, err
@@ -39,11 +39,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets [
 		return nil, err
 	}
 
-	cg, err := codegen.New(cln, resolver, opts...)
-	if err != nil {
-		return nil, err
-	}
-
+	cg := codegen.New(cln, resolver)
 	ctx = codegen.WithSessionID(ctx, identity.NewID())
 	return cg.Generate(ctx, mod, targets)
 }

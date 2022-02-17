@@ -21,51 +21,29 @@ import (
 )
 
 type CodeGen struct {
-	Debug          Debugger
-	cln            *client.Client
-	resolver       Resolver
-	extraSolveOpts []solver.SolveOption
+	cln      *client.Client
+	resolver Resolver
+	dbgr     *debugger
 }
 
-type CodeGenOption func(*CodeGen) error
-
-func WithDebugger(dbgr Debugger) CodeGenOption {
-	return func(i *CodeGen) error {
-		i.Debug = dbgr
-		return nil
-	}
-}
-
-func WithExtraSolveOpts(extraOpts []solver.SolveOption) CodeGenOption {
-	return func(i *CodeGen) error {
-		i.extraSolveOpts = append(i.extraSolveOpts, extraOpts...)
-		return nil
-	}
-}
-
-func New(cln *client.Client, resolver Resolver, opts ...CodeGenOption) (*CodeGen, error) {
-	cg := &CodeGen{
-		Debug:    NewNoopDebugger(),
+func New(cln *client.Client, resolver Resolver) *CodeGen {
+	return &CodeGen{
 		cln:      cln,
 		resolver: resolver,
 	}
-	for _, opt := range opts {
-		err := opt(cg)
-		if err != nil {
-			return cg, err
-		}
-	}
-
-	return cg, nil
 }
 
 type Target struct {
 	Name string
 }
 
-func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Target) (solver.Request, error) {
-	var requests []solver.Request
+func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Target) (result solver.Request, err error) {
+	if GetDebugger(ctx) != nil {
+		cg.dbgr = GetDebugger(ctx).(*debugger)
+		ctx = WithGlobalSolveOpts(ctx, solver.WithErrorHandler(cg.errorHandler))
+	}
 
+	var requests []solver.Request
 	for i, target := range targets {
 		_, ok := mod.Scope.Objects[target.Name]
 		if !ok {
@@ -74,9 +52,11 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Targ
 
 		// Yield before compiling anything.
 		ret := NewRegister(ctx)
-		err := cg.Debug(ctx, mod.Scope, mod, ret, nil)
-		if err != nil {
-			return nil, err
+		if cg.dbgr != nil {
+			err := cg.dbgr.yield(ctx, mod.Scope, mod, ret.Value(), nil, nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Build expression for target.
@@ -85,7 +65,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Targ
 		ie.Pos.Line = i
 
 		// Every target has a return register.
-		err = cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
+		err := cg.EmitIdentExpr(ctx, mod.Scope, ie, ie.Ident, nil, nil, nil, ret)
 		if err != nil {
 			return nil, err
 		}
@@ -111,6 +91,15 @@ func (cg *CodeGen) EmitExpr(ctx context.Context, scope *ast.Scope, expr *ast.Exp
 		return cg.EmitBasicLit(ctx, scope, expr.BasicLit, ret)
 	case expr.CallExpr != nil:
 		return ret.SetAsync(func(v Value) (Value, error) {
+			if expr.CallExpr.Breakpoint() {
+				var err error
+				if cg.dbgr != nil {
+					ctx = WithFrame(ctx, Frame{expr.CallExpr.Name})
+					err = cg.dbgr.yield(ctx, scope, expr.CallExpr, v, nil, nil)
+				}
+				return v, err
+			}
+
 			err := cg.lookupCall(ctx, scope, expr.CallExpr.Name.Ident)
 			if err != nil {
 				return nil, err
@@ -257,20 +246,22 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *ast.Scope, heredoc
 }
 
 func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *ast.Scope, call *ast.CallExpr, ret Register) error {
-	ctx = WithFrame(ctx, Frame{call.Name})
-
-	// Yield before executing call expression.
-	err := cg.Debug(ctx, scope, call.Name, ret, nil)
-	if err != nil {
-		return err
-	}
-
 	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args()...)
 	if err != nil {
 		return err
 	}
 	for i, arg := range call.Args() {
 		ctx = WithArg(ctx, i, arg)
+	}
+
+	ctx = WithFrame(ctx, Frame{call.Name})
+
+	// Yield before executing call expression.
+	if cg.dbgr != nil {
+		err := cg.dbgr.yield(ctx, scope, call, ret.Value(), nil, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, nil, nil, ret)
@@ -390,7 +381,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 	return
 }
 
-func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *ast.BuiltinDecl, args []Value, opts Option, b *ast.Binding, v Value) (Value, error) {
+func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *ast.BuiltinDecl, args []Value, opts Option, b *ast.Binding, val Value) (Value, error) {
 	var callable interface{}
 	if ReturnType(ctx) != ast.None {
 		callable = Callables[ReturnType(ctx)][bd.Name]
@@ -412,16 +403,12 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 		ctx = WithBinding(ctx, b)
 	}
 
-	for _, opt := range cg.extraSolveOpts {
-		opts = append(opts, opt)
-	}
-
 	var (
 		c   = reflect.ValueOf(callable).MethodByName("Call")
 		ins = []reflect.Value{
 			reflect.ValueOf(ctx),
 			reflect.ValueOf(cg.cln),
-			reflect.ValueOf(v),
+			reflect.ValueOf(val),
 			reflect.ValueOf(opts),
 		}
 	)
@@ -443,22 +430,22 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 			param = c.Type().In(i)
 			arg   = args[i-len(PrototypeIn)]
 		)
-		v, err := arg.Reflect(param)
+		rval, err := arg.Reflect(param)
 		if err != nil {
 			return nil, err
 		}
-		ins = append(ins, v)
+		ins = append(ins, rval)
 	}
 
 	// Reflect variadic arguments.
 	if c.Type().IsVariadic() {
 		for i := numIn - len(PrototypeIn); i < len(args); i++ {
 			param := c.Type().In(numIn).Elem()
-			v, err := args[i].Reflect(param)
+			rval, err := args[i].Reflect(param)
 			if err != nil {
 				return nil, err
 			}
-			ins = append(ins, v)
+			ins = append(ins, rval)
 		}
 	}
 
@@ -470,12 +457,23 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 			err = ProgramCounter(ctx).WithError(err)
 		}
 
-		return nil, WithBacktraceError(ctx, err)
+		err = WithBacktraceError(ctx, err)
+		if cg.dbgr != nil {
+			derr := cg.dbgr.yield(ctx, scope, ProgramCounter(ctx), val, nil, err)
+			if derr != nil {
+				return nil, derr
+			}
+		}
+		return nil, err
 	}
 	return outs[0].Interface().(Value), nil
 }
 
 func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Value, b *ast.Binding, ret Register) error {
+	if fd.Body == nil {
+		return nil
+	}
+
 	ctx = WithProgramCounter(ctx, fd.Sig.Name)
 
 	params := fd.Sig.Params.Fields()
@@ -487,7 +485,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Va
 		return errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", name, len(params), len(args))
 	}
 
-	scope := ast.NewScope(fd, fd.Scope)
+	scope := ast.NewScope(fd.Body.Scope, ast.ArgsScope, fd)
 	for i, param := range params {
 		if param.Modifier != nil {
 			continue
@@ -501,10 +499,14 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Va
 		})
 	}
 
-	// Yield before executing a function.
-	err := cg.Debug(ctx, scope, fd.Sig.Name, ret, nil)
-	if err != nil {
-		return err
+	if cg.dbgr != nil {
+		// The frame for the function signature is only kept for this yield so don't
+		// assign it to ctx. Once the debugger steps after the function signature, we
+		// don't want it as part of the backtrace.
+		err := cg.dbgr.yield(WithFrame(ctx, Frame{fd.Sig.Name}), scope, fd.Sig, ret.Value(), nil, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	return cg.EmitBlock(ctx, scope, fd.Body, b, ret)
@@ -527,7 +529,7 @@ func (cg *CodeGen) lookupCall(ctx context.Context, scope *ast.Scope, lookup *ast
 			break
 		}
 
-		mod := scope.Root().Node.(*ast.Module)
+		mod := scope.ByLevel(ast.ModuleScope).Node.(*ast.Module)
 		imod, _, err := cg.EmitImport(ctx, mod, n)
 		if err != nil {
 			return err
@@ -547,6 +549,7 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.B
 	if block == nil {
 		return nil
 	}
+	scope = ast.NewScope(scope, ast.BlockScope, block)
 
 	ctx = WithReturnType(ctx, block.Kind())
 	for _, stmt := range block.Stmts() {
@@ -555,6 +558,15 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.B
 		switch {
 		case stmt.Call != nil:
 			err = ret.SetAsync(func(v Value) (Value, error) {
+				if stmt.Call.Breakpoint() {
+					var err error
+					if cg.dbgr != nil {
+						ctx = WithFrame(ctx, Frame{stmt.Call.Name})
+						err = cg.dbgr.yield(ctx, scope, stmt.Call, v, nil, nil)
+					}
+					return v, err
+				}
+
 				err := cg.lookupCall(ctx, scope, stmt.Call.Name.Ident)
 				if err != nil {
 					return nil, err
@@ -579,8 +591,6 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.B
 }
 
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast.CallStmt, b *ast.Binding, ret Register) error {
-	ctx = WithFrame(ctx, Frame{call.Name})
-
 	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args...)
 	if err != nil {
 		return err
@@ -596,8 +606,15 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast
 			ast.Kind(fmt.Sprintf("%s::%s", ast.Option, call.Name)),
 		}
 
+		// If with clause is a call expr, still wrap the scope as if it was a single
+		// element option block.
+		escope := scope
+		if call.WithClause.Expr.CallExpr != nil {
+			escope = ast.NewScope(scope, ast.BlockScope, call.WithClause.Expr.CallExpr)
+		}
+
 		// WithClause provides option expressions access to the binding.
-		values, err := cg.Evaluate(ctx, scope, b, kinds, call.WithClause.Expr)
+		values, err := cg.Evaluate(ctx, escope, b, kinds, call.WithClause.Expr)
 		if err != nil {
 			return err
 		}
@@ -608,26 +625,14 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast
 		}
 	}
 
+	ctx = WithFrame(ctx, Frame{call.Name})
+
 	// Yield before executing the next call statement.
-	if call.Breakpoint(ReturnType(ctx)) {
-		var command []string
-		for _, arg := range args {
-			if arg.Kind() != ast.String {
-				return errors.New("breakpoint args must be strings")
-			}
-			argStr, err := arg.String()
-			if err != nil {
-				return err
-			}
-			command = append(command, argStr)
+	if cg.dbgr != nil {
+		err := cg.dbgr.yield(ctx, scope, call, ret.Value(), opts, nil)
+		if err != nil {
+			return err
 		}
-		if len(command) != 0 {
-			opts = append(opts, breakpointCommand(command))
-		}
-	}
-	err = cg.Debug(ctx, scope, call.Name, ret, opts)
-	if err != nil {
-		return err
 	}
 
 	// Pass the binding if this is the matching CallStmt.
@@ -638,8 +643,6 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast
 
 	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, opts, binding, ret)
 }
-
-type breakpointCommand []string
 
 func (cg *CodeGen) Evaluate(ctx context.Context, scope *ast.Scope, b *ast.Binding, kinds []ast.Kind, exprs ...*ast.Expr) (values []Value, err error) {
 	if len(kinds) != len(exprs) {

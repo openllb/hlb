@@ -205,12 +205,6 @@ var (
 						},
 						Effects: []*ast.Field{},
 					},
-					"breakpoint": {
-						Params: []*ast.Field{
-							ast.NewField(ast.String, "command", true),
-						},
-						Effects: []*ast.Field{},
-					},
 				},
 			},
 			"option::copy": {
@@ -538,12 +532,6 @@ var (
 						Effects: []*ast.Field{
 							ast.NewField(ast.Filesystem, "target", false),
 						},
-					},
-					"breakpoint": {
-						Params: []*ast.Field{
-							ast.NewField(ast.String, "command", true),
-						},
-						Effects: []*ast.Field{},
 					},
 				},
 			},
@@ -915,17 +903,6 @@ option::run secret(string localPath, string mountPoint)
 # @param target the output filesystem after run executes
 # @return an option to mount an additional filesystem.
 option::run mount(fs input, string mountPoint) binds (fs target)
-
-# Sets a debugger breakpoint just before the &#34;run&#34; command.
-#
-# @param command optional command to invoke for the debugger &#34;exec&#34; command,
-# followed by optional arguments
-# If no value is given, it will execute /bin/sh.
-# If exactly one value is given, the specified command will be invoked.
-# If more than one value is given, values after the first one are treated as
-# arguments for the command.
-# @return an option to set a breakpoint
-option::run breakpoint(variadic string command)
 
 # Sets the target directory to mount the SSH agent socket. By default, it is
 # mounted to &#34;/run/buildkit/ssh_agent.${N}&#34;, where N is the index of the 
@@ -1396,17 +1373,6 @@ option::template stringField(string name, string value)
 # @param pipelines the targets to run in parallel.
 # @return a pipeline that returns when all its targets have finished.
 pipeline stage(variadic pipeline pipelines)
-
-# Sets a static breakpoint in the debugger.
-#
-# @param command optional command to invoke for the debugger &#34;exec&#34; command at
-# this breakpoint, followed by optional arguments
-# If no value is given, it will execute /bin/sh.
-# If exactly one value is given, the specified command will be invoked.
-# If more than one value is given, values after the first one are treated as
-# arguments for the command.
-# @return the filesystem after the breakpoint
-fs breakpoint(variadic string command)
 
 `
 )

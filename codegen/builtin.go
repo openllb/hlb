@@ -39,7 +39,6 @@ var (
 			"downloadTarball":       DownloadTarball{},
 			"downloadOCITarball":    DownloadOCITarball{},
 			"downloadDockerTarball": DownloadDockerTarball{},
-			"breakpoint":            SetBreakpoint{},
 		},
 		ast.String: {
 			"format":    Format{},
@@ -90,7 +89,6 @@ var (
 			"forward":        Forward{},
 			"secret":         Secret{},
 			"mount":          Mount{},
-			"breakpoint":     RunBreakpoint{},
 		},
 		"option::ssh": {
 			"target":     MountTarget{},

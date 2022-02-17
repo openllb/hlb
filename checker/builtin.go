@@ -15,7 +15,7 @@ const (
 // NewBuiltinScope returns a new scope containing synthetic FuncDecl Objects for
 // builtins.
 func NewBuiltinScope(builtins builtin.BuiltinLookup) *ast.Scope {
-	scope := ast.NewScope(nil, nil)
+	scope := ast.NewScope(nil, ast.BuiltinScope, builtin.Module)
 	ast.Match(builtin.Module, ast.MatchOpts{},
 		func(fd *ast.FuncDecl) {
 			obj := scope.Lookup(fd.Sig.Name.Text)

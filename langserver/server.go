@@ -553,12 +553,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				return
 			}
 
-			cg, err := codegen.New(ls.cln, ls.resolver)
-			if err != nil {
-				log.Printf("failed to create codegen: %s", err)
-				return
-			}
-
+			cg := codegen.New(ls.cln, ls.resolver)
 			ctx = codegen.WithProgramCounter(ctx, id.Expr)
 			imod, filename, err := cg.EmitImport(ctx, td.Module, id)
 			if err != nil {

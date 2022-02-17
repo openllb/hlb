@@ -1,23 +1,21 @@
 package command
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/mattn/go-isatty"
 	"github.com/moby/buildkit/client"
-	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	solvererrdefs "github.com/moby/buildkit/solver/errdefs"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/codegen/debug"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
@@ -27,6 +25,7 @@ import (
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -47,10 +46,6 @@ var runCommand = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "attach a debugger",
-		},
-		&cli.BoolFlag{
-			Name:  "shell-on-error",
-			Usage: "execute an interactive shell in the build container when an error occurs",
 		},
 		&cli.BoolFlag{
 			Name:  "tree",
@@ -84,32 +79,42 @@ var runCommand = &cli.Command{
 		}
 
 		return Run(ctx, cln, rc, RunInfo{
-			Debug:           c.Bool("debug"),
-			ShellOnError:    c.Bool("shell-on-error"),
 			Tree:            c.Bool("tree"),
 			Targets:         c.StringSlice("target"),
 			LLB:             c.Bool("llb"),
 			Backtrace:       c.Bool("backtrace"),
 			LogOutput:       c.String("log-output"),
 			DefaultPlatform: c.String("platform"),
+			Debug:           c.Bool("debug"),
+			ControlDebugger: ControlDebuggerTUI(os.Stdin, os.Stdout, os.Stderr),
 		})
 	},
 }
 
+type ControlDebugger func(context.Context, codegen.Debugger) error
+
+func ControlDebuggerTUI(stdin io.Reader, stdout, stderr io.Writer) ControlDebugger {
+	return func(ctx context.Context, dbgr codegen.Debugger) error {
+		pr, pw := io.Pipe()
+		is := steer.NewInputSteerer(stdin, pw)
+		return debug.TUIFrontend(ctx, dbgr, is, pr, stdout, stderr)
+	}
+}
+
 type RunInfo struct {
-	Debug            bool
-	ShellOnError     bool
-	ShellOnErrorArgs []string
-	Tree             bool
-	Backtrace        bool
-	Targets          []string
-	LLB              bool
-	LogOutput        string
-	DefaultPlatform  string // format: osname/osarch
+	Tree            bool
+	Backtrace       bool
+	Targets         []string
+	LLB             bool
+	LogOutput       string
+	DefaultPlatform string // format: osname/osarch
 
 	Stdin  io.Reader
 	Stderr io.Writer
 	Stdout io.Writer
+
+	Debug           bool
+	ControlDebugger ControlDebugger
 
 	// override defaults sources as necessary
 	Environ []string
@@ -164,7 +169,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	// Always force plain output in debug mode so the prompts are displayed
 	// correctly
-	if info.Debug || info.ShellOnError {
+	if info.Debug {
 		info.LogOutput = "plain"
 	}
 
@@ -181,28 +186,17 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	if err != nil {
 		return err
 	}
+
 	// store Progress in context in case we need to synchronize output later
 	ctx = codegen.WithProgress(ctx, p)
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
 	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 
-	displayOnce := &sync.Once{}
 	defer func() {
 		if err == nil {
 			return
 		}
-		displayOnce.Do(func() {
-			DisplayError(ctx, info.Stderr, err, info.Backtrace)
-		})
-
-		numErrs := 1
-		backtrace := diagnostic.Backtrace(ctx, err)
-		if len(backtrace) == 0 {
-			// Handle diagnostic errors.
-			spans := diagnostic.Spans(err)
-			numErrs = len(spans)
-		}
-
+		numErrs := displayError(ctx, info.Stderr, err, info.Backtrace)
 		err = errdefs.WithAbort(err, numErrs)
 	}()
 
@@ -218,35 +212,26 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
 
-	var (
-		opts         []codegen.CodeGenOption
-		inputSteerer *steer.InputSteerer
-	)
+	g, ctx := errgroup.WithContext(ctx)
+
+	var dbgr codegen.Debugger
 	if info.Debug {
-		pr, pw := io.Pipe()
-		r := bufio.NewReader(pr)
-		inputSteerer = steer.NewInputSteerer(info.Stdin, pw)
+		dbgr = codegen.NewDebugger(cln)
+		ctx = codegen.WithDebugger(ctx, dbgr)
+		ctx = codegen.WithGlobalSolveOpts(ctx, solver.WithEvaluate)
 
-		debugger := codegen.NewDebugger(cln, os.Stderr, inputSteerer, r)
-		opts = append(opts, codegen.WithDebugger(debugger))
-	}
-
-	var solveOpts []solver.SolveOption
-	if info.ShellOnError {
-		if inputSteerer == nil {
-			inputSteerer = steer.NewInputSteerer(info.Stdin)
+		if info.ControlDebugger != nil {
+			g.Go(func() error {
+				return info.ControlDebugger(ctx, dbgr)
+			})
 		}
-
-		handler := errorHandler(inputSteerer, displayOnce, info.Stdout, info.Stderr, info.Backtrace, info.ShellOnErrorArgs...)
-		solveOpts = append(solveOpts, solver.WithEvaluate, solver.WithErrorHandler(handler))
-		opts = append(opts, codegen.WithExtraSolveOpts(solveOpts))
 	}
 
-	solveReq, err := hlb.Compile(ctx, cln, mod, targets, opts...)
+	solveReq, err := hlb.Compile(ctx, cln, mod, targets)
 	if err != nil {
 		perr := p.Wait()
 		// Ignore early exits from the debugger.
-		if err == codegen.ErrDebugExit {
+		if errors.Is(err, codegen.ErrDebugExit) {
 			return perr
 		}
 		return err
@@ -274,53 +259,19 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		return nil
 	}
 
-	defer p.Wait()
-	return solveReq.Solve(ctx, cln, p.MultiWriter(), solveOpts...)
-}
-
-func DisplayError(ctx context.Context, stderr io.Writer, err error, printBacktrace bool) {
-	// Handle backtrace.
-	backtrace := diagnostic.Backtrace(ctx, err)
-	if len(backtrace) > 0 {
-		color := diagnostic.Color(ctx)
-		fmt.Fprintf(stderr, color.Sprintf(
-			"%s: %s\n",
-			color.Bold(color.Red("error")),
-			color.Bold(diagnostic.Cause(err)),
-		))
-	}
-	for i, span := range backtrace {
-		if !printBacktrace && i != len(backtrace)-1 {
-			if i == 0 {
-				color := diagnostic.Color(ctx)
-				frame := "frame"
-				if len(backtrace) > 2 {
-					frame = "frames"
-				}
-				fmt.Fprintf(stderr, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(backtrace)-1, frame))
-			}
-			continue
+	g.Go(func() error {
+		defer p.Wait()
+		if dbgr != nil {
+			defer dbgr.Close()
 		}
+		return solveReq.Solve(ctx, cln, p.MultiWriter())
+	})
 
-		pretty := span.Pretty(ctx, diagnostic.WithNumContext(2))
-		lines := strings.Split(pretty, "\n")
-		for j, line := range lines {
-			if j == 0 {
-				lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
-			} else {
-				lines[j] = fmt.Sprintf("    %s", line)
-			}
-		}
-		fmt.Fprintf(stderr, "%s\n", strings.Join(lines, "\n"))
+	err = g.Wait()
+	if errors.Is(err, codegen.ErrDebugExit) {
+		return nil
 	}
-
-	if len(backtrace) == 0 {
-		// Handle diagnostic errors.
-		spans := diagnostic.Spans(err)
-		for _, span := range spans {
-			fmt.Fprintf(stderr, "%s\n", span.Pretty(ctx))
-		}
-	}
+	return err
 }
 
 func ModuleReadCloser(args []string) (io.ReadCloser, error) {
@@ -342,25 +293,16 @@ func ModuleReadCloser(args []string) (io.ReadCloser, error) {
 	return os.Open(args[0])
 }
 
-func errorHandler(inputSteerer *steer.InputSteerer, once *sync.Once, stdout, stderr io.Writer, backtrace bool, args ...string) solver.ErrorHandler {
-	return func(ctx context.Context, c gateway.Client, err error) {
-		var se *solvererrdefs.SolveError
-		if !errors.As(err, &se) {
-			return
-		}
-
-		once.Do(func() {
-			DisplayError(ctx, stderr, err, backtrace)
-		})
-
-		pr, pw := io.Pipe()
-		defer pw.Close()
-
-		inputSteerer.Push(pw)
-		defer inputSteerer.Pop()
-
-		if err := codegen.ExecWithSolveErr(ctx, c, se, pr, stdout, nil, args...); err != nil {
-			fmt.Fprintf(stderr, "failed to exec debug shell after error: %s\n", err)
-		}
+func displayError(ctx context.Context, w io.Writer, err error, printBacktrace bool) (numErrs int) {
+	spans := diagnostic.SourcesToSpans(ctx, solvererrdefs.Sources(err), err)
+	if len(spans) > 0 {
+		diagnostic.DisplayError(ctx, w, spans, err, printBacktrace)
+		return 1
 	}
+
+	// Handle diagnostic errors.
+	for _, span := range diagnostic.Spans(err) {
+		fmt.Fprintln(w, span.Pretty(ctx))
+	}
+	return len(spans)
 }

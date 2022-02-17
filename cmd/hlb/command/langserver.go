@@ -11,7 +11,7 @@ import (
 
 var langserverCommand = &cli.Command{
 	Name:  "langserver",
-	Usage: "run hlp lsp language server",
+	Usage: "run hlb language server over stdio",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:  "logfile",

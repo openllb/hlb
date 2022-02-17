@@ -135,11 +135,26 @@ func TestFind(t *testing.T) {
 		}
 		`,
 		1, 0,
-		func(n Node) bool {
-			_, ok := n.(*FuncSignature)
-			return ok
-		},
+		StopNodeFilter,
 		"1:1", "1:13", // fs default()
+	}, {
+		"",
+		`
+		fs default() {
+			breakpoint
+			image "alpine"
+			run "echo hello" with breakpoint
+			run "echo world" with option {
+				breakpoint
+				mount fs {
+					breakpoint
+				} "/in"
+			}
+		}
+		`,
+		5, 0,
+		StopNodeFilter,
+		"5:2", "11:1", // run "echo world" with option { ... }
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

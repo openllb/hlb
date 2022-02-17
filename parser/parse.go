@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func Parse(ctx context.Context, r io.Reader) (*ast.Module, error) {
+func Parse(ctx context.Context, r io.Reader, opts ...filebuffer.Option) (*ast.Module, error) {
 	name := lexer.NameOfReader(r)
 	if name == "" {
 		name = "<stdin>"
@@ -22,7 +22,7 @@ func Parse(ctx context.Context, r io.Reader) (*ast.Module, error) {
 	mod := &ast.Module{}
 	defer AssignDocStrings(mod)
 
-	fb := filebuffer.New(name)
+	fb := filebuffer.New(name, opts...)
 	r = io.TeeReader(r, fb)
 	defer func() {
 		if mod.Pos.Filename != "" {
