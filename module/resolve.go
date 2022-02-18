@@ -313,13 +313,8 @@ type resolveGraphInfo struct {
 
 // ResolveGraph traverses the import graph of a given module.
 func ResolveGraph(ctx context.Context, cln *client.Client, resolver codegen.Resolver, mod *ast.Module, visitor Visitor) error {
-	cg, err := codegen.New(cln, resolver)
-	if err != nil {
-		return err
-	}
-
 	info := &resolveGraphInfo{
-		cg:      cg,
+		cg:      codegen.New(cln, resolver),
 		visitor: visitor,
 	}
 	return resolveGraph(ctx, info, mod)

@@ -3,6 +3,8 @@ package diagnostic
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/moby/buildkit/solver/errdefs"
@@ -44,8 +46,47 @@ func Spans(err error) (spans []*SpanError) {
 	return
 }
 
-func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
-	srcs := errdefs.Sources(err)
+func DisplayError(ctx context.Context, w io.Writer, spans []*SpanError, err error, printBacktrace bool) {
+	if len(spans) == 0 {
+		return
+	}
+
+	color := Color(ctx)
+	if err != nil {
+		fmt.Fprintf(w, color.Sprintf(
+			"%s: %s\n",
+			color.Bold(color.Red("error")),
+			color.Bold(Cause(err)),
+		))
+	}
+
+	for i, span := range spans {
+		if !printBacktrace && i != len(spans)-1 {
+			if i == 0 {
+				color := Color(ctx)
+				frame := "frame"
+				if len(spans) > 2 {
+					frame = "frames"
+				}
+				fmt.Fprintf(w, color.Sprintf(color.Cyan(" ⫶ %d %s hidden ⫶\n"), len(spans)-1, frame))
+			}
+			continue
+		}
+
+		pretty := span.Pretty(ctx, WithNumContext(2))
+		lines := strings.Split(pretty, "\n")
+		for j, line := range lines {
+			if j == 0 {
+				lines[j] = fmt.Sprintf(" %d: %s", i+1, line)
+			} else {
+				lines[j] = fmt.Sprintf("    %s", line)
+			}
+		}
+		fmt.Fprintf(w, "%s\n", strings.Join(lines, "\n"))
+	}
+}
+
+func SourcesToSpans(ctx context.Context, srcs []*errdefs.Source, err error) (spans []*SpanError) {
 	for i, src := range srcs {
 		fb := filebuffer.Buffers(ctx).Get(src.Info.Filename)
 		if fb != nil {
@@ -71,8 +112,9 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 				msg = Cause(err)
 			}
 
-			start := fb.PositionFromProto(src.Ranges[0].Start)
-			end := fb.PositionFromProto(src.Ranges[0].End)
+			loc := src.Ranges[0]
+			start := fb.Position(int(loc.Start.Line), int(loc.Start.Character))
+			end := fb.Position(int(loc.End.Line), int(loc.End.Character))
 			se := WithError(nil, start, end, Spanf(Primary, start, end, msg))
 
 			var span *SpanError
@@ -85,5 +127,8 @@ func Backtrace(ctx context.Context, err error) (spans []*SpanError) {
 }
 
 func Cause(err error) string {
+	if err == nil {
+		return ""
+	}
 	return strings.TrimPrefix(perrors.Cause(err).Error(), "rpc error: code = Unknown desc = ")
 }

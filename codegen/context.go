@@ -12,6 +12,7 @@ import (
 	"github.com/moby/buildkit/solver/errdefs"
 	"github.com/moby/buildkit/solver/pb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/pkg/llbutil"
@@ -21,17 +22,19 @@ import (
 )
 
 type (
-	programCounterKey struct{}
-	returnTypeKey     struct{}
-	argKey            struct{ n int }
-	bindingKey        struct{}
-	sessionIDKey      struct{}
-	multiwriterKey    struct{}
-	imageResolverKey  struct{}
-	backtraceKey      struct{}
-	progressKey       struct{}
-	platformKey       struct{}
-	dockerAPIKey      struct{}
+	programCounterKey  struct{}
+	returnTypeKey      struct{}
+	argKey             struct{ n int }
+	bindingKey         struct{}
+	sessionIDKey       struct{}
+	multiwriterKey     struct{}
+	imageResolverKey   struct{}
+	backtraceKey       struct{}
+	progressKey        struct{}
+	platformKey        struct{}
+	dockerAPIKey       struct{}
+	debuggerKey        struct{}
+	globalSolveOptsKey struct{}
 )
 
 func WithProgramCounter(ctx context.Context, node ast.Node) context.Context {
@@ -129,14 +132,9 @@ func WithFrame(ctx context.Context, frame Frame) context.Context {
 	return context.WithValue(ctx, backtraceKey{}, frames)
 }
 
-func Backtrace(ctx context.Context) []Frame {
-	frames, _ := ctx.Value(backtraceKey{}).([]Frame)
-	return frames
-}
-
-func WithBacktraceError(ctx context.Context, err error) error {
-	for _, frame := range Backtrace(ctx) {
-		err = errdefs.WithSource(err, errdefs.Source{
+func FramesToSources(frames []Frame) (sources []*errdefs.Source) {
+	for _, frame := range frames {
+		sources = append(sources, &errdefs.Source{
 			Info: &pb.SourceInfo{
 				Filename: frame.Position().Filename,
 			},
@@ -146,7 +144,22 @@ func WithBacktraceError(ctx context.Context, err error) error {
 			}},
 		})
 	}
+	return
+}
 
+func FramesToSpans(ctx context.Context, frames []Frame) []*diagnostic.SpanError {
+	return diagnostic.SourcesToSpans(ctx, FramesToSources(frames), nil)
+}
+
+func Backtrace(ctx context.Context) []Frame {
+	frames, _ := ctx.Value(backtraceKey{}).([]Frame)
+	return frames
+}
+
+func WithBacktraceError(ctx context.Context, err error) error {
+	for _, source := range FramesToSources(Backtrace(ctx)) {
+		err = errdefs.WithSource(err, *source)
+	}
 	return errors.WithStack(err)
 }
 
@@ -179,7 +192,6 @@ func SourceMap(ctx context.Context) (opts []llb.ConstraintsOpt) {
 			End:   llbutil.PositionFromLexer(node.End()),
 		}}))
 	}
-
 	return
 }
 
@@ -220,4 +232,22 @@ func DockerAPI(ctx context.Context) DockerAPIClient {
 		}
 	}
 	return d
+}
+
+func WithDebugger(ctx context.Context, dbgr Debugger) context.Context {
+	return context.WithValue(ctx, debuggerKey{}, dbgr)
+}
+
+func GetDebugger(ctx context.Context) Debugger {
+	dbgr, _ := ctx.Value(debuggerKey{}).(Debugger)
+	return dbgr
+}
+
+func WithGlobalSolveOpts(ctx context.Context, opts ...solver.SolveOption) context.Context {
+	return context.WithValue(ctx, globalSolveOptsKey{}, append(GlobalSolveOpts(ctx), opts...))
+}
+
+func GlobalSolveOpts(ctx context.Context) []solver.SolveOption {
+	opts, _ := ctx.Value(globalSolveOptsKey{}).([]solver.SolveOption)
+	return opts
 }

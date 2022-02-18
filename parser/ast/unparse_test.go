@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -16,7 +15,7 @@ type testCase struct {
 }
 
 func cleanup(value string) string {
-	return fmt.Sprintf("%s\n", strings.TrimSpace(dedent.Dedent(value)))
+	return strings.TrimSpace(dedent.Dedent(value)) + "\n"
 }
 
 func TestUnparse(t *testing.T) {

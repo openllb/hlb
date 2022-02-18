@@ -10,7 +10,6 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/solver/pb"
 )
 
 type buffersKey struct{}
@@ -51,31 +50,45 @@ func (b *BufferLookup) Set(filename string, fb *FileBuffer) {
 }
 
 type FileBuffer struct {
-	filename  string
-	buf       bytes.Buffer
-	offset    int
-	offsets   []int
-	sourceMap *llb.SourceMap
-	mu        sync.Mutex
+	filename string
+	buf      bytes.Buffer
+	offset   int
+	offsets  []int
+	mu       sync.Mutex
+	onDisk   bool
 }
 
-func New(filename string) *FileBuffer {
-	return &FileBuffer{
-		filename: filename,
+type Option func(*FileBuffer)
+
+func WithEphemeral() Option {
+	return func(fb *FileBuffer) {
+		fb.onDisk = false
 	}
+}
+
+func New(filename string, opts ...Option) *FileBuffer {
+	fb := &FileBuffer{
+		filename: filename,
+		onDisk:   true,
+	}
+	for _, opt := range opts {
+		opt(fb)
+	}
+	return fb
 }
 
 func (fb *FileBuffer) Filename() string {
 	return fb.filename
 }
 
+func (fb *FileBuffer) OnDisk() bool {
+	return fb.onDisk
+}
+
 func (fb *FileBuffer) SourceMap() *llb.SourceMap {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
-	if fb.sourceMap == nil {
-		fb.sourceMap = llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
-	}
-	return fb.sourceMap
+	return llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
 }
 
 func (fb *FileBuffer) Len() int {
@@ -101,8 +114,7 @@ func (fb *FileBuffer) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (fb *FileBuffer) PositionFromProto(pos pb.Position) lexer.Position {
-	line, column := int(pos.Line), int(pos.Character)
+func (fb *FileBuffer) Position(line, column int) lexer.Position {
 	var offset int
 	if line-2 < 0 {
 		offset = column - 1

@@ -424,6 +424,12 @@ func Find(root Node, line, column int, filter func(Node) bool) Node {
 	return f.match
 }
 
+// StopNodeFilter returns true if Node n is a StopNode.
+func StopNodeFilter(n Node) bool {
+	_, ok := n.(StopNode)
+	return ok
+}
+
 // IsPositionWithinNode returns true if a line column is within a node's position.
 func IsPositionWithinNode(node Node, line, column int) bool {
 	return IsIntersect(node.Position(), node.End(), line, column)

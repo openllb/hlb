@@ -975,9 +975,7 @@ func TestCodeGen(t *testing.T) {
 				targets = append(targets, codegen.Target{Name: target})
 			}
 
-			cg, err := codegen.New(nil, nil)
-			require.NoError(t, err, tc.name)
-
+			cg := codegen.New(nil, nil)
 			ctx = codegen.WithSessionID(ctx, identity.NewID())
 			request, err := cg.Generate(ctx, mod, targets)
 			require.NoError(t, err, tc.name)
@@ -1045,9 +1043,7 @@ func TestCodegenError(t *testing.T) {
 				targets = append(targets, codegen.Target{Name: target})
 			}
 
-			cg, err := codegen.New(nil, nil)
-			require.NoError(t, err, tc.name)
-
+			cg := codegen.New(nil, nil)
 			ctx = codegen.WithSessionID(ctx, identity.NewID())
 			_, err = cg.Generate(ctx, mod, targets)
 			var expected error
@@ -1305,12 +1301,8 @@ func TestCodeGenImport(t *testing.T) {
 				expected := tc.fn(mod)
 				validateError(t, ctx, expected, actual, tc.name)
 			} else {
-				cg, err := codegen.New(nil, nil)
-				require.NoError(t, err, tc.name)
-
-				ctx = codegen.WithSessionID(ctx, identity.NewID())
-				targets := []codegen.Target{{Name: "default"}}
-				_, err = cg.Generate(ctx, mod, targets)
+				cg := codegen.New(nil, nil)
+				_, err = cg.Generate(ctx, mod, []codegen.Target{{Name: "default"}})
 				validateError(t, ctx, nil, err, tc.name)
 			}
 		})

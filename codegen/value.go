@@ -114,6 +114,7 @@ func NewValue(ctx context.Context, iface interface{}) (Value, error) {
 	case Value:
 		return v, nil
 	case Filesystem:
+		v.SolveOpts = append(v.SolveOpts, GlobalSolveOpts(ctx)...)
 		return &fsValue{&nilValue{}, v}, validateState(v.State)
 	case llb.State:
 		zero := ZeroValue(ctx)

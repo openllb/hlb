@@ -440,17 +440,6 @@ func (ru RunUser) Call(ctx context.Context, cln *client.Client, val Value, opts 
 	return NewValue(ctx, append(retOpts, llbutil.WithUser(name)))
 }
 
-type RunBreakpoint struct{}
-
-func (rb RunBreakpoint) Call(ctx context.Context, cln *client.Client, val Value, opts Option, command ...string) (Value, error) {
-	retOpts, err := val.Option()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewValue(ctx, append(retOpts, breakpointCommand(command)))
-}
-
 type IgnoreCache struct{}
 
 func (ig IgnoreCache) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {

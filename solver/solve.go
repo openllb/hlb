@@ -21,7 +21,6 @@ type SolveCallback func(ctx context.Context, resp *client.SolveResponse) error
 
 type SolveInfo struct {
 	Evaluate              bool
-	ErrorHandler          func(context.Context, gateway.Client, error)
 	OutputMoby            bool
 	OutputDockerRef       string
 	OutputPushImage       string
@@ -30,6 +29,7 @@ type SolveInfo struct {
 	OutputLocalOCITarball bool
 	Callbacks             []SolveCallback `json:"-"`
 	ImageSpec             *ImageSpec
+	ErrorHandler          ErrorHandler
 	Entitlements          []entitlements.Entitlement
 }
 
@@ -125,7 +125,9 @@ func WithEvaluate(info *SolveInfo) error {
 	return nil
 }
 
-func WithErrorHandler(errorHandler func(context.Context, gateway.Client, error)) SolveOption {
+type ErrorHandler func(context.Context, gateway.Client, error) error
+
+func WithErrorHandler(errorHandler ErrorHandler) SolveOption {
 	return func(info *SolveInfo) error {
 		info.ErrorHandler = errorHandler
 		return nil
@@ -148,7 +150,7 @@ func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		})
 		if err != nil {
 			if info.ErrorHandler != nil {
-				info.ErrorHandler(ctx, c, err)
+				return nil, info.ErrorHandler(ctx, c, err)
 			}
 			return nil, err
 		}
