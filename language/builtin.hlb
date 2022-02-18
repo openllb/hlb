@@ -3,6 +3,14 @@
 # @return a scratch filesystem.
 fs scratch()
 
+# Caches an input fs by its vertex digest.
+# If the image exists then use that image instead of executing input.
+#
+# @param input a filesystem to cache by vertex digest.
+# @param ref a docker registry reference.
+# @return a filesystem of input from either building or image.
+fs cache(fs input, string ref)
+
 # An OCI image's filesystem.
 #
 # @param ref a docker registry reference. if not fully qualified, it will be 

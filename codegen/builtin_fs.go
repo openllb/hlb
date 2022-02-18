@@ -328,6 +328,74 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts 
 	return NewValue(ctx, fs)
 }
 
+type Cache struct{}
+
+func (c Cache) Call(ctx context.Context, cln *client.Client, val Value, opts Option, input Filesystem, ref string) (Value, error) {
+	inputDgst, err := input.Digest(ctx)
+	if err != nil {
+		return nil, Arg(ctx, 1).WithError(err)
+	}
+	named, err := reference.ParseNormalizedNamed(ref)
+	if err != nil {
+		return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 1), ref)
+	}
+	namedTagged, err := reference.WithTag(named, inputDgst.Encoded())
+	if err != nil {
+		return nil, Arg(ctx, 1).WithError(err)
+	}
+	ref = namedTagged.String()
+
+	resolver := ImageResolver(ctx)
+	if resolver != nil {
+		resolveOpt := llb.ResolveImageConfigOpt{
+			Platform: &input.Platform,
+		}
+
+		dgst, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
+		if err == nil {
+			var imageOpts []llb.ImageOption
+			imageOpts = append(imageOpts, llb.Platform(input.Platform))
+			for _, opt := range SourceMap(ctx) {
+				imageOpts = append(imageOpts, opt)
+			}
+
+			canonical, err := reference.WithDigest(named, dgst)
+			if err != nil {
+				return nil, errdefs.WithInvalidImageRef(err, Arg(ctx, 1), ref)
+			}
+
+			cacheVal, err := NewValue(ctx, llb.Image(canonical.String()))
+			if err != nil {
+				return nil, Arg(ctx, 1).WithError(err)
+			}
+
+			input, err = cacheVal.Filesystem()
+			if err != nil {
+				return nil, Arg(ctx, 1).WithError(err)
+			}
+
+			input.State, err = input.State.WithImageConfig(config)
+			if err != nil {
+				return nil, Arg(ctx, 1).WithError(err)
+			}
+
+			input.Image = &solver.ImageSpec{}
+			err = json.Unmarshal(config, input.Image)
+			if err != nil {
+				return nil, Arg(ctx, 1).WithError(err)
+			}
+		} else { // not found
+			inputVal, err := NewValue(ctx, input)
+			if err != nil {
+				return nil, Arg(ctx, 0).WithError(err)
+			}
+			return (DockerPush{}).Call(ctx, cln, inputVal, opts, ref)
+		}
+	}
+
+	return NewValue(ctx, input)
+}
+
 type Env struct{}
 
 func (e Env) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key, value string) (Value, error) {

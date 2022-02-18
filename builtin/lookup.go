@@ -26,6 +26,13 @@ var (
 						Params:  []*ast.Field{},
 						Effects: []*ast.Field{},
 					},
+					"cache": {
+						Params: []*ast.Field{
+							ast.NewField(ast.Filesystem, "input", false),
+							ast.NewField(ast.String, "ref", false),
+						},
+						Effects: []*ast.Field{},
+					},
 					"image": {
 						Params: []*ast.Field{
 							ast.NewField(ast.String, "ref", false),
@@ -691,6 +698,14 @@ var (
 #
 # @return a scratch filesystem.
 fs scratch()
+
+# Caches an input fs by its vertex digest.
+# If the image exists then use that image instead of executing input.
+#
+# @param input a filesystem to cache by vertex digest.
+# @param ref a docker registry reference.
+# @return a filesystem of input from either building or image.
+fs cache(fs input, string ref)
 
 # An OCI image&#39;s filesystem.
 #

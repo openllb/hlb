@@ -693,10 +693,10 @@ func (m Mount) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		return nil, err
 	}
 
-	var cache *Cache
+	var cache *MountCache
 	for _, opt := range opts {
 		var ok bool
-		cache, ok = opt.(*Cache)
+		cache, ok = opt.(*MountCache)
 		if ok {
 			break
 		}
@@ -858,11 +858,11 @@ func (sp SourcePath) Call(ctx context.Context, cln *client.Client, val Value, op
 	return NewValue(ctx, append(retOpts, llbutil.WithSourcePath(path)))
 }
 
-type Cache struct {
+type MountCache struct {
 	ast.Node
 }
 
-func (c Cache) Call(ctx context.Context, cln *client.Client, val Value, opts Option, id, mode string) (Value, error) {
+func (mc MountCache) Call(ctx context.Context, cln *client.Client, val Value, opts Option, id, mode string) (Value, error) {
 	retOpts, err := val.Option()
 	if err != nil {
 		return nil, err
@@ -880,7 +880,7 @@ func (c Cache) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		return nil, errdefs.WithInvalidSharingMode(Arg(ctx, 1), mode, []string{"shared", "private", "locked"})
 	}
 
-	retOpts = append(retOpts, &Cache{ProgramCounter(ctx)}, llbutil.WithPersistentCacheDir(id, sharing))
+	retOpts = append(retOpts, &MountCache{ProgramCounter(ctx)}, llbutil.WithPersistentCacheDir(id, sharing))
 	return NewValue(ctx, retOpts)
 }
 
