@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containerd/containerd/platforms"
+	"github.com/containerd/containerd/remotes/docker"
 	"github.com/docker/buildx/util/imagetools"
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/distribution/reference"
@@ -28,6 +30,7 @@ import (
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/pkg/llbutil"
+	"github.com/openllb/hlb/pkg/stargzutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 	fstypes "github.com/tonistiigi/fsutil/types"
@@ -77,9 +80,6 @@ func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 	}
 	imageOpts = append(imageOpts, llb.Platform(platform))
 
-	resolveOpt := llb.ResolveImageConfigOpt{
-		Platform: &platform,
-	}
 	for _, opt := range SourceMap(ctx) {
 		imageOpts = append(imageOpts, opt)
 	}
@@ -91,13 +91,24 @@ func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 	ref = reference.TagNameOnly(named).String()
 
 	var (
-		st       = llb.Image(ref, imageOpts...)
-		image    = &solver.ImageSpec{}
-		resolver = ImageResolver(ctx)
+		st         = llb.Image(ref, imageOpts...)
+		image      = &solver.ImageSpec{}
+		resolver   = ImageResolver(ctx)
+		resolveOpt = llb.ResolveImageConfigOpt{
+			Platform: &platform,
+			// For some reason, llb.ResolveModeDefault defaults to
+			// llb.ResolveModeForcePull on BuildKit but it defaults to
+			// llb.ResolveModePreferLocal on docker engine, so we just set our own.
+			ResolveMode: llb.ResolveModeForcePull.String(),
+		}
 	)
-
 	if resolver != nil {
-		_, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
+		dgst, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
+		if err != nil {
+			return nil, Arg(ctx, 0).WithError(err)
+		}
+
+		image.Canonical, err = reference.WithDigest(named, dgst)
 		if err != nil {
 			return nil, Arg(ctx, 0).WithError(err)
 		}
@@ -718,11 +729,32 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, val Value, op
 			return nil
 		}),
 	)
+
+	stargz := false
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case solver.SolveOption:
 			exportFS.SolveOpts = append(exportFS.SolveOpts, o)
+		case *Stargz:
+			stargz = true
 		}
+	}
+
+	if stargz {
+		// Regular layers are also allowed in stargz images. By default, base layers
+		// that weren't pulled (lazy) are not converted to stargz. However, we want
+		// the default behaviour to ensure the final layers to be all stargz so that
+		// its more predictable. Future work could allow advanced users to choose to
+		// keep mixed layers.
+		forceCompression := false
+		if exportFS.Image.Canonical != nil {
+			resolver := docker.NewResolver(docker.ResolverOptions{})
+			forceCompression, err = stargzutil.HasNonStargzLayer(ctx, resolver, platforms.Only(exportFS.Platform), exportFS.Image.Canonical.String())
+			if err != nil {
+				return nil, err
+			}
+		}
+		exportFS.SolveOpts = append(exportFS.SolveOpts, solver.WithStargz(forceCompression))
 	}
 
 	dockerAPI := DockerAPI(ctx)

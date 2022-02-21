@@ -159,8 +159,15 @@
 
 	#!hlb
 	fs default() {
-		dockerPush "ref"
+		dockerPush "ref" with option {
+			stargz
+		}
 	}
+
+
+#### <span class='hlb-type'>option::dockerPush</span> <span class='hlb-name'>stargz</span>()
+
+
 
 
 
