@@ -274,13 +274,13 @@ func (c *checker) CheckReferences(mod *ast.Module, name string) error {
 			}
 		},
 		func(block *ast.BlockStmt, callStmt *ast.CallStmt, callExpr *ast.CallExpr) {
-			err := c.checkNestedCallExpr(block.Scope, callStmt.Name, callStmt.Args, callStmt.Signature, callStmt.WithClause, callExpr, name)
+			err := c.checkNestedCallExpr(block.Scope, callStmt.Name, callStmt.Args, callStmt.Sig, callStmt.WithClause, callExpr, name)
 			if err != nil {
 				c.err(err)
 			}
 		},
 		func(block *ast.BlockStmt, parentCallExpr, callExpr *ast.CallExpr) {
-			err := c.checkNestedCallExpr(block.Scope, parentCallExpr.Name, parentCallExpr.Args(), parentCallExpr.Signature, nil, callExpr, name)
+			err := c.checkNestedCallExpr(block.Scope, parentCallExpr.Name, parentCallExpr.Arguments(), parentCallExpr.Sig, nil, callExpr, name)
 			if err != nil {
 				c.err(err)
 			}
@@ -391,7 +391,7 @@ func (c *checker) checkCallStmt(scope *ast.Scope, kset *ast.KindSet, call *ast.C
 	for _, field := range signature {
 		kinds = append(kinds, field.Kind())
 	}
-	call.Signature = kinds
+	call.Sig = kinds
 	return nil
 }
 
@@ -399,7 +399,7 @@ func (c *checker) checkCallExpr(scope *ast.Scope, kset *ast.KindSet, call *ast.C
 	if call.Breakpoint() {
 		return nil
 	}
-	signature, err := c.checkCall(scope, kset, call.Name, call.Args(), nil)
+	signature, err := c.checkCall(scope, kset, call.Name, call.Arguments(), nil)
 	if err != nil {
 		return err
 	}
@@ -407,7 +407,7 @@ func (c *checker) checkCallExpr(scope *ast.Scope, kset *ast.KindSet, call *ast.C
 	for _, field := range signature {
 		kinds = append(kinds, field.Kind())
 	}
-	call.Signature = kinds
+	call.Sig = kinds
 	return nil
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/util/flightcontrol"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
@@ -24,6 +25,7 @@ type CodeGen struct {
 	cln      *client.Client
 	resolver Resolver
 	dbgr     *debugger
+	g        flightcontrol.Group
 }
 
 func New(cln *client.Client, resolver Resolver) *CodeGen {
@@ -81,7 +83,7 @@ func (cg *CodeGen) Generate(ctx context.Context, mod *ast.Module, targets []Targ
 	return solver.Parallel(requests...), nil
 }
 
-func (cg *CodeGen) EmitExpr(ctx context.Context, scope *ast.Scope, expr *ast.Expr, args []Value, opts Option, b *ast.Binding, ret Register) error {
+func (cg *CodeGen) EmitExpr(ctx context.Context, scope *ast.Scope, expr *ast.Expr, opts Option, b *ast.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, expr)
 
 	switch {
@@ -90,26 +92,27 @@ func (cg *CodeGen) EmitExpr(ctx context.Context, scope *ast.Scope, expr *ast.Exp
 	case expr.BasicLit != nil:
 		return cg.EmitBasicLit(ctx, scope, expr.BasicLit, ret)
 	case expr.CallExpr != nil:
-		return ret.SetAsync(func(v Value) (Value, error) {
+		ret.SetAsync(func(val Value) (Value, error) {
 			if expr.CallExpr.Breakpoint() {
 				var err error
 				if cg.dbgr != nil {
 					ctx = WithFrame(ctx, Frame{expr.CallExpr.Name})
-					err = cg.dbgr.yield(ctx, scope, expr.CallExpr, v, nil, nil)
+					err = cg.dbgr.yield(ctx, scope, expr.CallExpr, val, nil, nil)
 				}
-				return v, err
+				return val, err
 			}
 
-			err := cg.lookupCall(ctx, scope, expr.CallExpr.Name.Ident)
+			err := cg.lookupCall(ctx, scope, expr.CallExpr.Ident())
 			if err != nil {
 				return nil, err
 			}
 
 			ret := NewRegister(ctx)
-			ret.Set(v)
+			ret.Set(val)
 			err = cg.EmitCallExpr(ctx, scope, expr.CallExpr, ret)
 			return ret.Value(), err
 		})
+		return nil
 	default:
 		return errdefs.WithInternalErrorf(expr, "invalid expr")
 	}
@@ -157,7 +160,7 @@ func (cg *CodeGen) EmitStringLit(ctx context.Context, scope *ast.Scope, str *ast
 			}
 		case f.Interpolated != nil:
 			exprRet := NewRegister(ctx)
-			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, nil, exprRet)
+			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, exprRet)
 			if err != nil {
 				return err
 			}
@@ -190,7 +193,7 @@ func (cg *CodeGen) EmitHeredoc(ctx context.Context, scope *ast.Scope, heredoc *a
 			}
 		case f.Interpolated != nil:
 			exprRet := NewRegister(ctx)
-			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, nil, exprRet)
+			err := cg.EmitExpr(ctx, scope, f.Interpolated.Expr, nil, nil, exprRet)
 			if err != nil {
 				return err
 			}
@@ -246,17 +249,14 @@ func (cg *CodeGen) EmitRawHeredoc(ctx context.Context, scope *ast.Scope, heredoc
 }
 
 func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *ast.Scope, call *ast.CallExpr, ret Register) error {
-	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args()...)
-	if err != nil {
-		return err
-	}
-	for i, arg := range call.Args() {
+	// Evaluate args first.
+	args := cg.Evaluate(ctx, scope, call, nil)
+	for i, arg := range call.Arguments() {
 		ctx = WithArg(ctx, i, arg)
 	}
 
-	ctx = WithFrame(ctx, Frame{call.Name})
-
 	// Yield before executing call expression.
+	ctx = WithFrame(ctx, Frame{call.Name})
 	if cg.dbgr != nil {
 		err := cg.dbgr.yield(ctx, scope, call, ret.Value(), nil, nil)
 		if err != nil {
@@ -267,7 +267,7 @@ func (cg *CodeGen) EmitCallExpr(ctx context.Context, scope *ast.Scope, call *ast
 	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, nil, nil, ret)
 }
 
-func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.IdentExpr, lookup *ast.Ident, args []Value, opts Option, b *ast.Binding, ret Register) error {
+func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.IdentExpr, lookup *ast.Ident, args []Register, opts Register, b *ast.Binding, ret Register) error {
 	ctx = WithProgramCounter(ctx, ie)
 
 	obj := scope.Lookup(lookup.Text)
@@ -277,9 +277,10 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.
 
 	switch n := obj.Node.(type) {
 	case *ast.BuiltinDecl:
-		return ret.SetAsync(func(v Value) (Value, error) {
-			return cg.EmitBuiltinDecl(ctx, scope, n, args, opts, b, v)
+		ret.SetAsync(func(val Value) (Value, error) {
+			return cg.EmitBuiltinDecl(ctx, scope, n, args, opts, b, val)
 		})
+		return nil
 	case *ast.FuncDecl:
 		return cg.EmitFuncDecl(ctx, n, args, nil, ret)
 	case *ast.BindClause:
@@ -291,23 +292,27 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.
 		}
 		return cg.EmitIdentExpr(ctx, imod.Scope, ie, ie.Reference.Ident, args, opts, nil, ret)
 	case *ast.Field:
-		val, err := NewValue(ctx, obj.Data)
-		if err != nil {
-			return err
+		dret, ok := obj.Data.(Register)
+		if !ok {
+			return errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected register on field")
 		}
-		if val.Kind() != ast.Option || ret.Value().Kind() != ast.Option {
-			return ret.Set(val)
-		} else {
-			retOpts, err := ret.Value().Option()
-			if err != nil {
-				return err
+		dval := dret.Value()
+
+		ret.SetAsync(func(val Value) (Value, error) {
+			if dval.Kind() != ast.Option || val.Kind() != ast.Option {
+				return dval, nil
 			}
-			valOpts, err := val.Option()
+			retOpts, err := val.Option()
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return ret.Set(append(retOpts, valOpts...))
-		}
+			valOpts, err := dval.Option()
+			if err != nil {
+				return nil, err
+			}
+			return NewValue(ctx, append(retOpts, valOpts...))
+		})
+		return nil
 	default:
 		return errdefs.WithInternalErrorf(n, "invalid resolved object")
 	}
@@ -318,7 +323,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 	ctx = WithReturnType(ctx, ast.None)
 
 	ret := NewRegister(ctx)
-	err = cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, nil, ret)
+	err = cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, ret)
 	if err != nil {
 		return
 	}
@@ -381,7 +386,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 	return
 }
 
-func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *ast.BuiltinDecl, args []Value, opts Option, b *ast.Binding, val Value) (Value, error) {
+func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *ast.BuiltinDecl, args []Register, opts Register, b *ast.Binding, val Value) (Value, error) {
 	var callable interface{}
 	if ReturnType(ctx) != ast.None {
 		callable = Callables[ReturnType(ctx)][bd.Name]
@@ -403,13 +408,23 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 		ctx = WithBinding(ctx, b)
 	}
 
+	// Get value of options register.
+	var opt Option
+	if opts != nil {
+		var err error
+		opt, err = opts.Value().Option()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var (
 		c   = reflect.ValueOf(callable).MethodByName("Call")
 		ins = []reflect.Value{
 			reflect.ValueOf(ctx),
 			reflect.ValueOf(cg.cln),
 			reflect.ValueOf(val),
-			reflect.ValueOf(opts),
+			reflect.ValueOf(opt),
 		}
 	)
 
@@ -424,13 +439,19 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "`%s` expected %d args, got %d", bd, expected, len(args))
 	}
 
+	// Get value of args registers.
+	vals := make([]Value, len(args))
+	for i, arg := range args {
+		vals[i] = arg.Value()
+	}
+
 	// Reflect regular arguments.
 	for i := len(PrototypeIn); i < numIn; i++ {
 		var (
 			param = c.Type().In(i)
-			arg   = args[i-len(PrototypeIn)]
+			val   = vals[i-len(PrototypeIn)]
 		)
-		rval, err := arg.Reflect(param)
+		rval, err := val.Reflect(param)
 		if err != nil {
 			return nil, err
 		}
@@ -439,9 +460,9 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 
 	// Reflect variadic arguments.
 	if c.Type().IsVariadic() {
-		for i := numIn - len(PrototypeIn); i < len(args); i++ {
+		for i := numIn - len(PrototypeIn); i < len(vals); i++ {
 			param := c.Type().In(numIn).Elem()
-			rval, err := args[i].Reflect(param)
+			rval, err := vals[i].Reflect(param)
 			if err != nil {
 				return nil, err
 			}
@@ -469,7 +490,7 @@ func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *as
 	return outs[0].Interface().(Value), nil
 }
 
-func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Value, b *ast.Binding, ret Register) error {
+func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Register, b *ast.Binding, ret Register) error {
 	if fd.Body == nil {
 		return nil
 	}
@@ -512,7 +533,7 @@ func (cg *CodeGen) EmitFuncDecl(ctx context.Context, fd *ast.FuncDecl, args []Va
 	return cg.EmitBlock(ctx, scope, fd.Body, b, ret)
 }
 
-func (cg *CodeGen) EmitBinding(ctx context.Context, b *ast.Binding, args []Value, ret Register) error {
+func (cg *CodeGen) EmitBinding(ctx context.Context, b *ast.Binding, args []Register, ret Register) error {
 	return cg.EmitFuncDecl(ctx, b.Bind.Closure, args, b, ret)
 }
 
@@ -524,19 +545,26 @@ func (cg *CodeGen) lookupCall(ctx context.Context, scope *ast.Scope, lookup *ast
 
 	switch n := obj.Node.(type) {
 	case *ast.ImportDecl:
-		_, ok := obj.Data.(*ast.Module)
-		if ok {
-			break
-		}
+		// De-duplicate import resolution using a flightcontrol group key'ed by the
+		// import decl's filename + line + column position, which is unique per
+		// import. FS de-duplication should be handled by codegen cache.
+		key := parser.FormatPos(n.Pos)
+		_, err := cg.g.Do(ctx, key, func(ctx context.Context) (interface{}, error) {
+			_, ok := obj.Data.(*ast.Module)
+			if ok {
+				return nil, nil
+			}
 
-		mod := scope.ByLevel(ast.ModuleScope).Node.(*ast.Module)
-		imod, _, err := cg.EmitImport(ctx, mod, n)
-		if err != nil {
-			return err
-		}
-		obj.Data = imod
+			mod := scope.ByLevel(ast.ModuleScope).Node.(*ast.Module)
+			imod, _, err := cg.EmitImport(ctx, mod, n)
+			if err != nil {
+				return nil, err
+			}
+			obj.Data = imod
 
-		err = checker.CheckReferences(mod, n.Name.Text)
+			err = checker.CheckReferences(mod, n.Name.Text)
+			return nil, err
+		})
 		if err != nil {
 			return err
 		}
@@ -557,28 +585,28 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.B
 		var err error
 		switch {
 		case stmt.Call != nil:
-			err = ret.SetAsync(func(v Value) (Value, error) {
+			ret.SetAsync(func(val Value) (Value, error) {
 				if stmt.Call.Breakpoint() {
 					var err error
 					if cg.dbgr != nil {
 						ctx = WithFrame(ctx, Frame{stmt.Call.Name})
-						err = cg.dbgr.yield(ctx, scope, stmt.Call, v, nil, nil)
+						err = cg.dbgr.yield(ctx, scope, stmt.Call, val, nil, nil)
 					}
-					return v, err
+					return val, err
 				}
 
-				err := cg.lookupCall(ctx, scope, stmt.Call.Name.Ident)
+				err := cg.lookupCall(ctx, scope, stmt.Call.Ident())
 				if err != nil {
 					return nil, err
 				}
 
 				ret := NewRegister(ctx)
-				ret.Set(v)
+				ret.Set(val)
 				err = cg.EmitCallStmt(ctx, scope, stmt.Call, b, ret)
 				return ret.Value(), err
 			})
 		case stmt.Expr != nil:
-			err = cg.EmitExpr(ctx, scope, stmt.Expr.Expr, nil, nil, b, ret)
+			err = cg.EmitExpr(ctx, scope, stmt.Expr.Expr, nil, b, ret)
 		default:
 			return errdefs.WithInternalErrorf(stmt, "invalid stmt")
 		}
@@ -591,45 +619,42 @@ func (cg *CodeGen) EmitBlock(ctx context.Context, scope *ast.Scope, block *ast.B
 }
 
 func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast.CallStmt, b *ast.Binding, ret Register) error {
-	args, err := cg.Evaluate(ctx, scope, nil, call.Signature, call.Args...)
-	if err != nil {
-		return err
+	// Evaluate with block first.
+	opts := NewRegister(ctx)
+	if call.WithClause != nil {
+		scope, expr := scope, call.WithClause.Expr
+		opts.SetAsync(func(Value) (Value, error) {
+			// If with clause is a call expr, still wrap the scope as if it was a single
+			// element option block.
+			if expr.CallExpr != nil {
+				scope = ast.NewScope(scope, ast.BlockScope, expr.CallExpr)
+			}
+
+			ctx := WithProgramCounter(ctx, expr)
+			ctx = WithReturnType(ctx, ast.Kind(fmt.Sprintf("%s::%s", ast.Option, call.Name)))
+
+			// WithClause provides option expressions access to the binding.
+			ret := NewRegister(ctx)
+			err := cg.EmitExpr(ctx, scope, expr, nil, b, ret)
+			return ret.Value(), err
+		})
 	}
-	for i, arg := range call.Args {
+
+	// Evaluate args second.
+	args := cg.Evaluate(ctx, scope, call, b)
+	for i, arg := range call.Arguments() {
 		ctx = WithArg(ctx, i, arg)
 	}
 
-	var opts Option
-	if call.WithClause != nil {
-		// Provide a type hint to avoid ambgiuous lookups.
-		kinds := []ast.Kind{
-			ast.Kind(fmt.Sprintf("%s::%s", ast.Option, call.Name)),
-		}
-
-		// If with clause is a call expr, still wrap the scope as if it was a single
-		// element option block.
-		escope := scope
-		if call.WithClause.Expr.CallExpr != nil {
-			escope = ast.NewScope(scope, ast.BlockScope, call.WithClause.Expr.CallExpr)
-		}
-
-		// WithClause provides option expressions access to the binding.
-		values, err := cg.Evaluate(ctx, escope, b, kinds, call.WithClause.Expr)
-		if err != nil {
-			return err
-		}
-
-		opts, err = values[0].Option()
-		if err != nil {
-			return err
-		}
-	}
-
-	ctx = WithFrame(ctx, Frame{call.Name})
-
 	// Yield before executing the next call statement.
+	ctx = WithFrame(ctx, Frame{call.Name})
 	if cg.dbgr != nil {
-		err := cg.dbgr.yield(ctx, scope, call, ret.Value(), opts, nil)
+		opt, err := opts.Value().Option()
+		if err != nil {
+			return err
+		}
+
+		err = cg.dbgr.yield(ctx, scope, call, ret.Value(), opt, nil)
 		if err != nil {
 			return err
 		}
@@ -644,21 +669,26 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast
 	return cg.EmitIdentExpr(ctx, scope, call.Name, call.Name.Ident, args, opts, binding, ret)
 }
 
-func (cg *CodeGen) Evaluate(ctx context.Context, scope *ast.Scope, b *ast.Binding, kinds []ast.Kind, exprs ...*ast.Expr) (values []Value, err error) {
-	if len(kinds) != len(exprs) {
-		return nil, errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected %d kinds but got %d", len(exprs), len(kinds))
-	}
-	for i, expr := range exprs {
-		ctx = WithProgramCounter(ctx, expr)
-		ctx = WithReturnType(ctx, kinds[i])
-
-		// Evaluated expressions write to a new return register.
+func (cg *CodeGen) Evaluate(ctx context.Context, scope *ast.Scope, call ast.CallNode, b *ast.Binding) []Register {
+	var rets []Register
+	for i, arg := range call.Arguments() {
+		i, arg := i, arg
 		ret := NewRegister(ctx)
-		err = cg.EmitExpr(ctx, scope, expr, nil, nil, b, ret)
-		if err != nil {
-			return
-		}
-		values = append(values, ret.Value())
+		ret.SetAsync(func(_ Value) (Value, error) {
+			err := cg.lookupCall(ctx, scope, call.Ident())
+			if err != nil {
+				return nil, err
+			}
+
+			ctx := WithProgramCounter(ctx, arg)
+			ctx = WithReturnType(ctx, call.Signature()[i])
+
+			ret := NewRegister(ctx)
+			err = cg.EmitExpr(ctx, scope, arg, nil, b, ret)
+			return ret.Value(), err
+		})
+
+		rets = append(rets, ret)
 	}
-	return
+	return rets
 }
