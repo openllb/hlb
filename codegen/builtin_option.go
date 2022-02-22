@@ -897,3 +897,19 @@ func (p Platform) Call(ctx context.Context, cln *client.Client, val Value, opts 
 		Architecture: arch,
 	}))
 }
+
+type Stargz struct{}
+
+func (s Stargz) Call(ctx context.Context, cln *client.Client, val Value, opts Option) (Value, error) {
+	dockerAPI := DockerAPI(ctx)
+	if dockerAPI.Moby {
+		return nil, errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
+	}
+
+	retOpts, err := val.Option()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewValue(ctx, append(retOpts, &Stargz{}))
+}

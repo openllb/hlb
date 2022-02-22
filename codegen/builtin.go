@@ -148,6 +148,9 @@ var (
 		"option::manifest": {
 			"platform": Platform{},
 		},
+		"option::dockerPush": {
+			"stargz": Stargz{},
+		},
 	}
 )
 

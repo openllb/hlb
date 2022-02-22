@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/docker/buildx/util/progress"
+	"github.com/docker/distribution/reference"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
@@ -20,17 +21,19 @@ type SolveOption func(*SolveInfo) error
 type SolveCallback func(ctx context.Context, resp *client.SolveResponse) error
 
 type SolveInfo struct {
-	Evaluate              bool
-	OutputMoby            bool
-	OutputDockerRef       string
-	OutputPushImage       string
-	OutputLocal           string
-	OutputLocalTarball    bool
-	OutputLocalOCITarball bool
-	Callbacks             []SolveCallback `json:"-"`
-	ImageSpec             *ImageSpec
-	ErrorHandler          ErrorHandler
-	Entitlements          []entitlements.Entitlement
+	Evaluate               bool
+	OutputMoby             bool
+	OutputDockerRef        string
+	OutputPushImage        string
+	OutputLocal            string
+	OutputLocalTarball     bool
+	OutputLocalOCITarball  bool
+	OutputStargz           bool
+	OutputForceCompression bool
+	Callbacks              []SolveCallback `json:"-"`
+	ImageSpec              *ImageSpec
+	ErrorHandler           ErrorHandler
+	Entitlements           []entitlements.Entitlement
 }
 
 // ImageSpec is HLB's wrapper for the OCI specs image, allowing for backward
@@ -39,6 +42,10 @@ type ImageSpec struct {
 	specs.Image
 
 	ContainerConfig ContainerConfig `json:"container_config,omitempty"`
+
+	// Canonical is the fully qualified reference of the image with name and
+	// digest.
+	Canonical reference.Canonical `json:"-"`
 }
 
 // ContainerConfig is the schema1-compatible configuration of the container
@@ -134,6 +141,14 @@ func WithErrorHandler(errorHandler ErrorHandler) SolveOption {
 	}
 }
 
+func WithStargz(forceCompression bool) SolveOption {
+	return func(info *SolveInfo) error {
+		info.OutputStargz = true
+		info.OutputForceCompression = forceCompression
+		return nil
+	}
+}
+
 func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progress.Writer, def *llb.Definition, opts ...SolveOption) error {
 	info := &SolveInfo{}
 	for _, opt := range opts {
@@ -205,6 +220,13 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		}
 		if info.OutputMoby {
 			entry.Type = "moby"
+		}
+		if info.OutputStargz {
+			entry.Attrs["compression"] = "estargz"
+			entry.Attrs["oci-mediatypes"] = "true"
+		}
+		if info.OutputForceCompression {
+			entry.Attrs["force-compression"] = "true"
 		}
 		solveOpt.Exports = append(solveOpt.Exports, entry)
 	}

@@ -265,6 +265,14 @@ var (
 					},
 				},
 			},
+			"option::dockerPush": {
+				Func: map[string]FuncLookup{
+					"stargz": {
+						Params:  []*ast.Field{},
+						Effects: []*ast.Field{},
+					},
+				},
+			},
 			"option::frontend": {
 				Func: map[string]FuncLookup{
 					"input": {
@@ -1184,6 +1192,16 @@ fs diff(fs base)
 # expanded the same as the docker CLI.
 # @return an option to push the filesystem to a registry.
 fs dockerPush(string ref) binds (string digest)
+
+# Compress the image as a eStargz image before pushing.
+#
+# eStargz is a lazily pullable image format. It is compatible to OCI/Docker
+# images so it can be pushed to standard container registries and runnable on
+# eStargz-agnostic runtimes like Docker.
+# See: https://github.com/containerd/stargz-snapshotter
+#
+# @return an option to compress image as eStargz before pushing.
+option::dockerPush stargz()
 
 # Loads the filesystem as a Docker image to the docker client found in your
 # environment.
