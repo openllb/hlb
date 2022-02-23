@@ -189,8 +189,7 @@ type remoteDirectory struct {
 }
 
 func (r *remoteDirectory) Path() string {
-	// TODO: cache imports in home dir
-	return ""
+	return r.root
 }
 
 func (r *remoteDirectory) Digest() digest.Digest {
@@ -356,6 +355,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, mod *ast.Module) 
 					}
 				}
 
+				ctx = codegen.WithImportPath(ctx, imod.Directory.Path())
 				return resolveGraph(ctx, info, imod)
 			})
 		},

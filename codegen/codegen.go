@@ -10,7 +10,6 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/util/flightcontrol"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
@@ -19,13 +18,14 @@ import (
 	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/singleflight"
 )
 
 type CodeGen struct {
 	cln      *client.Client
 	resolver Resolver
 	dbgr     *debugger
-	g        flightcontrol.Group
+	g        singleflight.Group
 }
 
 func New(cln *client.Client, resolver Resolver) *CodeGen {
@@ -290,6 +290,7 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.
 		if !ok {
 			return errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected imported module to be resolved")
 		}
+		ctx = WithImportPath(ctx, imod.Directory.Path())
 		return cg.EmitIdentExpr(ctx, imod.Scope, ie, ie.Reference.Ident, args, opts, nil, ret)
 	case *ast.Field:
 		dret, ok := obj.Data.(Register)
@@ -345,6 +346,11 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 		}
 	case ast.String:
 		filename, err = val.String()
+		if err != nil {
+			return
+		}
+
+		filename, err = parser.ResolvePath(ModuleDir(ctx), filename)
 		if err != nil {
 			return
 		}
@@ -549,7 +555,7 @@ func (cg *CodeGen) lookupCall(ctx context.Context, scope *ast.Scope, lookup *ast
 		// import decl's filename + line + column position, which is unique per
 		// import. FS de-duplication should be handled by codegen cache.
 		key := parser.FormatPos(n.Pos)
-		_, err := cg.g.Do(ctx, key, func(ctx context.Context) (interface{}, error) {
+		_, err, _ := cg.g.Do(key, func() (interface{}, error) {
 			_, ok := obj.Data.(*ast.Module)
 			if ok {
 				return nil, nil

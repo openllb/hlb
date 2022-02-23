@@ -30,6 +30,10 @@ import (
 	"github.com/xlab/treeprint"
 )
 
+func cleanup(value string) string {
+	return strings.TrimSpace(dedent.Dedent(value)) + "\n"
+}
+
 func Expect(t *testing.T, st llb.State, opts ...solver.SolveOption) solver.Request {
 	def, err := st.Marshal(context.Background(), llb.LinuxAmd64)
 	require.NoError(t, err)
@@ -1053,33 +1057,35 @@ func TestCodegenError(t *testing.T) {
 			validateError(t, ctx, expected, err, tc.name)
 		})
 	}
+
+}
+
+type testFile struct {
+	filename string
+	content  string
 }
 
 func TestCodeGenImport(t *testing.T) {
 	t.Parallel()
 
-	type testImport struct {
-		filename string
-		content  string
-	}
-
 	type testCase struct {
-		name    string
-		hlb     string
-		imports []testImport
-		fn      func(*ast.Module) error
+		name  string
+		files []testFile
+		fn    func(*ast.Module) error
 	}
 
 	for _, tc := range []testCase{{
 		"can call defined reference",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			other.foo
-		}
-		`,
-		[]testImport{{
+			fs default() {
+				other.foo
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1089,14 +1095,16 @@ func TestCodeGenImport(t *testing.T) {
 		nil,
 	}, {
 		"cannot call undefined reference",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			other.bar
-		}
-		`,
-		[]testImport{{
+			fs default() {
+				other.bar
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1112,14 +1120,16 @@ func TestCodeGenImport(t *testing.T) {
 		},
 	}, {
 		"unable to call unexported function",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			other.foo
-		}
-		`,
-		[]testImport{{
+			fs default() {
+				other.foo
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			fs foo()
@@ -1133,16 +1143,18 @@ func TestCodeGenImport(t *testing.T) {
 		},
 	}, {
 		"able to use valid reference as mount input",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			run "xyz" with option {
-				mount other.foo "/in"
+			fs default() {
+				run "xyz" with option {
+					mount other.foo "/in"
+				}
 			}
-		}
-		`,
-		[]testImport{{
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1152,18 +1164,20 @@ func TestCodeGenImport(t *testing.T) {
 		nil,
 	}, {
 		"able to use pass function field as argument to reference",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			baz "hello"
-		}
+			fs default() {
+				baz "hello"
+			}
 
-		fs baz(string bar) {
-			other.foo bar
-		}
-		`,
-		[]testImport{{
+			fs baz(string bar) {
+				other.foo bar
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1173,14 +1187,16 @@ func TestCodeGenImport(t *testing.T) {
 		nil,
 	}, {
 		"able to use imported function in arg",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			image other.foo("alpine")
-		}
-		`,
-		[]testImport{{
+			fs default() {
+				image other.foo("alpine")
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1192,14 +1208,16 @@ func TestCodeGenImport(t *testing.T) {
 		nil,
 	}, {
 		"able to use imported option",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			image "busybox" with other.foo
-		}
-		`,
-		[]testImport{{
+			fs default() {
+				image "busybox" with other.foo
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1209,16 +1227,18 @@ func TestCodeGenImport(t *testing.T) {
 		nil,
 	}, {
 		"able to append option",
-		`
-		import other from "./other.hlb"
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
 
-		fs default() {
-			image "busybox" with option {
-				other.foo
+			fs default() {
+				image "busybox" with option {
+					other.foo
+				}
 			}
-		}
-		`,
-		[]testImport{{
+			`,
+		}, {
 			"other.hlb",
 			`
 			export foo
@@ -1228,15 +1248,17 @@ func TestCodeGenImport(t *testing.T) {
 		nil,
 	}, {
 		"able to import within import",
-		`
-		import other from "./other.hlb"
-		import other2 from other.wrap("./other2.hlb")
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./other.hlb"
+			import other2 from other.wrap("./other2.hlb")
 
-		fs default() {
-			other2.build
-		}
-		`,
-		[]testImport{{
+			fs default() {
+				other2.build
+			}
+			`,
+		}, {
 			"other.hlb",
 			`
 			export wrap
@@ -1252,61 +1274,99 @@ func TestCodeGenImport(t *testing.T) {
 			`,
 		}},
 		nil,
+	}, {
+		"imports respect module dir",
+		[]testFile{{
+			"build.hlb",
+			`
+			import other from "./sub/other.hlb"
+
+			fs default() {
+				other.build
+			}
+			`,
+		}, {
+			"./sub/other.hlb",
+			`
+			import other2 from "../other2.hlb"
+			export build
+			fs build() {
+				other2.build
+			}
+			`,
+		}, {
+			"other2.hlb",
+			`
+			export build
+			fs build()
+			`,
+		}},
+		nil,
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
-			r := &parser.NamedReader{
-				Reader: strings.NewReader(dedent.Dedent(tc.hlb)),
-				Value:  "build.hlb",
-			}
-			mod, err := parser.Parse(ctx, r)
-			require.NoError(t, err, tc.name)
-
-			err = checker.SemanticPass(mod)
-			require.NoError(t, err, tc.name)
-
-			err = checker.Check(mod)
-			require.NoError(t, err, tc.name)
-
-			var actual error
-			for _, imp := range tc.imports {
-				name := strings.TrimSuffix(imp.filename, ".hlb")
-				obj := mod.Scope.Lookup(name)
-				if obj == nil {
-					t.Fatalf(`%q should be imported by the test module`, name)
-				}
-
-				ir := &parser.NamedReader{
-					Reader: strings.NewReader(dedent.Dedent(imp.content)),
-					Value:  imp.filename,
-				}
-				imod, err := parser.Parse(ctx, ir)
-				require.NoError(t, err, tc.name)
-
-				err = checker.SemanticPass(imod)
-				require.NoError(t, err, tc.name)
-
-				err = checker.Check(imod)
-				require.NoError(t, err, tc.name)
-
-				obj.Data = imod
-				err = checker.CheckReferences(mod, name)
-				if err != nil {
-					actual = err
-				}
-			}
-
+			mod, actual := parseTestFile(t, ctx, tc.files, tc.files[0])
 			if tc.fn != nil {
 				expected := tc.fn(mod)
 				validateError(t, ctx, expected, actual, tc.name)
 			} else {
 				cg := codegen.New(nil, nil)
-				_, err = cg.Generate(ctx, mod, []codegen.Target{{Name: "default"}})
+				_, err := cg.Generate(ctx, mod, []codegen.Target{{Name: "default"}})
 				validateError(t, ctx, nil, err, tc.name)
 			}
 		})
 	}
+}
+
+func parseTestFile(t *testing.T, ctx context.Context, files []testFile, f testFile) (*ast.Module, error) {
+	r := &parser.NamedReader{
+		Reader: strings.NewReader(cleanup(f.content)),
+		Value:  f.filename,
+	}
+
+	mod, err := parser.Parse(ctx, r)
+	require.NoError(t, err)
+
+	err = checker.SemanticPass(mod)
+	require.NoError(t, err)
+
+	err = checker.Check(mod)
+	require.NoError(t, err)
+
+	var actual error
+	ast.Match(mod, ast.MatchOpts{},
+		func(id *ast.ImportDecl) {
+			obj := mod.Scope.Lookup(id.Name.Text)
+			require.NotNil(t, obj)
+
+			var (
+				ifile testFile
+				found bool
+			)
+			for _, f := range files {
+				if strings.Contains(f.filename, id.Name.Text) {
+					ifile = f
+					found = true
+					break
+				}
+			}
+			require.True(t, found)
+
+			obj.Data, err = parseTestFile(t, ctx, files, ifile)
+			if err != nil {
+				actual = err
+				return
+			}
+
+			err = checker.CheckReferences(mod, id.Name.Text)
+			if err != nil {
+				actual = err
+			}
+		},
+	)
+
+	return mod, actual
 }
 
 func validateError(t *testing.T, ctx context.Context, expected, actual error, name string) {
