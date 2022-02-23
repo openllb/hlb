@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"path/filepath"
 
 	"github.com/alecthomas/participle/lexer"
 	"github.com/openllb/hlb/parser/ast"
@@ -34,7 +33,7 @@ func Parse(ctx context.Context, r io.Reader, opts ...filebuffer.Option) (*ast.Mo
 	if err != nil {
 		return nil, err
 	}
-	mod.Directory = NewLocalDirectory(filepath.Dir(mod.Pos.Filename), "")
+	mod.Directory = NewLocalDirectory(".", "")
 	ast.Modules(ctx).Set(mod.Pos.Filename, mod)
 	return mod, nil
 }
