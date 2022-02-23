@@ -8,20 +8,19 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/openllb/hlb/builtin"
+	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
-	"github.com/openllb/hlb/parser"
-	"github.com/openllb/hlb/pkg/filebuffer"
 	cli "github.com/urfave/cli/v2"
 )
 
 var lintCommand = &cli.Command{
 	Name:      "lint",
 	Usage:     "lints a hlb module",
-	ArgsUsage: "<*.hlb>",
+	ArgsUsage: "<uri>",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "fix",
@@ -29,26 +28,38 @@ var lintCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		rc, err := ModuleReadCloser(c.Args().Slice())
+		uri, err := GetURI(c)
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
 
-		return Lint(Context(), rc, LintInfo{
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		if err != nil {
+			return err
+		}
+		ctx = hlb.WithDefaultContext(ctx, cln)
+
+		return Lint(ctx, cln, uri, LintInfo{
 			Fix: c.Bool("fix"),
 		})
-
 	},
 }
 
 type LintInfo struct {
-	Fix bool
+	Fix    bool
+	Stdin  io.Reader
+	Stderr io.Writer
 }
 
-func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
-	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
-	mod, err := parser.Parse(ctx, r)
+func Lint(ctx context.Context, cln *client.Client, uri string, info LintInfo) error {
+	if info.Stdin == nil {
+		info.Stdin = os.Stdin
+	}
+	if info.Stderr == nil {
+		info.Stderr = os.Stderr
+	}
+
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}
@@ -63,7 +74,7 @@ func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
 			if !info.Fix {
-				fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+				fmt.Fprintln(info.Stderr, span.Pretty(ctx))
 				continue
 			}
 
@@ -86,7 +97,7 @@ func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
 		}
 
 		color := diagnostic.Color(ctx)
-		fmt.Fprint(os.Stderr, color.Sprintf(
+		fmt.Fprint(info.Stderr, color.Sprintf(
 			color.Bold("\nRun %s to automatically fix lint errors.\n"),
 			color.Green(fmt.Sprintf("`hlb lint --fix %s`", mod.Pos.Filename)),
 		))

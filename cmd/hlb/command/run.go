@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 
@@ -13,14 +14,13 @@ import (
 	solvererrdefs "github.com/moby/buildkit/solver/errdefs"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/codegen/debug"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
-	"github.com/openllb/hlb/pkg/filebuffer"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/steer"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
@@ -35,7 +35,7 @@ var (
 var runCommand = &cli.Command{
 	Name:      "run",
 	Usage:     "compiles and runs a hlb program",
-	ArgsUsage: "<*.hlb>",
+	ArgsUsage: "<uri>",
 	Flags: []cli.Flag{
 		&cli.StringSliceFlag{
 			Name:    "target",
@@ -67,18 +67,18 @@ var runCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		rc, err := ModuleReadCloser(c.Args().Slice())
+		uri, err := GetURI(c)
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
 
 		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
 		if err != nil {
 			return err
 		}
+		ctx = hlb.WithDefaultContext(ctx, cln)
 
-		return Run(ctx, cln, rc, RunInfo{
+		return Run(ctx, cln, uri, RunInfo{
 			Tree:            c.Bool("tree"),
 			Targets:         c.StringSlice("target"),
 			LLB:             c.Bool("llb"),
@@ -89,6 +89,17 @@ var runCommand = &cli.Command{
 			ControlDebugger: ControlDebuggerTUI(os.Stdin, os.Stdout, os.Stderr),
 		})
 	},
+}
+
+func GetURI(c *cli.Context) (uri string, err error) {
+	uri = DefaultHLBFilename
+	if c.NArg() > 1 {
+		_ = cli.ShowCommandHelp(c, c.Command.Name)
+		err = fmt.Errorf("requires at most 1 arg but got %d", c.NArg())
+	} else if c.NArg() == 1 {
+		uri = c.Args().First()
+	}
+	return
 }
 
 type ControlDebugger func(context.Context, codegen.Debugger) error
@@ -123,7 +134,7 @@ type RunInfo struct {
 	Arch    string
 }
 
-func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo) (err error) {
+func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err error) {
 	if len(info.Targets) == 0 {
 		info.Targets = []string{"default"}
 	}
@@ -169,7 +180,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 
 	// Always force plain output in debug mode so the prompts are displayed
 	// correctly
-	if info.Debug {
+	if info.Debug || uri == "-" {
 		info.LogOutput = "plain"
 	}
 
@@ -190,7 +201,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	// store Progress in context in case we need to synchronize output later
 	ctx = codegen.WithProgress(ctx, p)
 	ctx = codegen.WithMultiWriter(ctx, p.MultiWriter())
-	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
 
 	defer func() {
 		if err == nil {
@@ -200,7 +210,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		err = errdefs.WithAbort(err, numErrs)
 	}()
 
-	mod, err := parser.Parse(ctx, rc)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}
@@ -209,8 +219,6 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	for _, target := range info.Targets {
 		targets = append(targets, codegen.Target{Name: target})
 	}
-
-	ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
 
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -227,7 +235,7 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 		}
 	}
 
-	solveReq, err := hlb.Compile(ctx, cln, mod, targets)
+	solveReq, err := hlb.Compile(ctx, cln, info.Stderr, mod, targets)
 	if err != nil {
 		perr := p.Wait()
 		// Ignore early exits from the debugger.
@@ -274,23 +282,30 @@ func Run(ctx context.Context, cln *client.Client, rc io.ReadCloser, info RunInfo
 	return err
 }
 
-func ModuleReadCloser(args []string) (io.ReadCloser, error) {
-	if len(args) == 0 {
-		return os.Open(DefaultHLBFilename)
-	} else if args[0] == "-" {
-		fi, err := os.Stdin.Stat()
+func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, uri string) (*ast.Module, error) {
+	if uri == "-" {
+		return parser.Parse(ctx, &parser.NamedReader{
+			Reader: stdin,
+			Value:  "<stdin>",
+		})
+	}
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	switch u.Scheme {
+	case "":
+		f, err := os.Open(uri)
 		if err != nil {
 			return nil, err
 		}
-
-		if fi.Mode()&os.ModeNamedPipe == 0 {
-			return nil, fmt.Errorf("must provide path to hlb module or pipe to stdin")
-		}
-
-		return os.Stdin, nil
+		defer f.Close()
+		return parser.Parse(ctx, f)
+	default:
+		return nil, fmt.Errorf("%q is not a valid module uri scheme", u.Scheme)
 	}
-
-	return os.Open(args[0])
 }
 
 func displayError(ctx context.Context, w io.Writer, err error, printBacktrace bool) (numErrs int) {

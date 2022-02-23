@@ -10,7 +10,6 @@ import (
 
 	"github.com/moby/buildkit/client"
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/diagnostic"
@@ -19,7 +18,6 @@ import (
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/parser/ast"
-	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -39,7 +37,7 @@ var moduleCommand = &cli.Command{
 var moduleVendorCommand = &cli.Command{
 	Name:      "vendor",
 	Usage:     "vendor a copy of imported modules",
-	ArgsUsage: "<*.hlb | module digest>",
+	ArgsUsage: "<uri|digest>",
 	Flags: []cli.Flag{
 		&cli.StringSliceFlag{
 			Name:    "target",
@@ -48,16 +46,20 @@ var moduleVendorCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		uri, err := GetURI(c)
 		if err != nil {
 			return err
 		}
 
-		return Vendor(ctx, cln, VendorInfo{
-			Args:      c.Args().Slice(),
-			Targets:   c.StringSlice("target"),
-			Tidy:      false,
-			ErrOutput: os.Stderr,
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		if err != nil {
+			return err
+		}
+		ctx = hlb.WithDefaultContext(ctx, cln)
+
+		return Vendor(ctx, cln, uri, VendorInfo{
+			Targets: c.StringSlice("target"),
+			Tidy:    false,
 		})
 	},
 }
@@ -65,17 +67,21 @@ var moduleVendorCommand = &cli.Command{
 var moduleTidyCommand = &cli.Command{
 	Name:      "tidy",
 	Usage:     "add missing and remove unused modules",
-	ArgsUsage: "<*.hlb>",
+	ArgsUsage: "<uri>",
 	Action: func(c *cli.Context) error {
-		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		uri, err := GetURI(c)
 		if err != nil {
 			return err
 		}
 
-		return Vendor(ctx, cln, VendorInfo{
-			Args:      c.Args().Slice(),
-			Tidy:      true,
-			ErrOutput: os.Stderr,
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		if err != nil {
+			return err
+		}
+		ctx = hlb.WithDefaultContext(ctx, cln)
+
+		return Vendor(ctx, cln, uri, VendorInfo{
+			Tidy: true,
 		})
 	},
 }
@@ -83,7 +89,7 @@ var moduleTidyCommand = &cli.Command{
 var moduleTreeCommand = &cli.Command{
 	Name:      "tree",
 	Usage:     "print the tree of imported modules",
-	ArgsUsage: "<*.hlb>",
+	ArgsUsage: "<uri>",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "long",
@@ -91,39 +97,36 @@ var moduleTreeCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		uri, err := GetURI(c)
 		if err != nil {
 			return err
 		}
 
-		return Tree(ctx, cln, TreeInfo{
-			Args:      c.Args().Slice(),
-			Long:      c.Bool("long"),
-			ErrOutput: os.Stderr,
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
+		if err != nil {
+			return err
+		}
+		ctx = hlb.WithDefaultContext(ctx, cln)
+
+		return Tree(ctx, cln, uri, TreeInfo{
+			Long: c.Bool("long"),
 		})
 	},
 }
 
 type VendorInfo struct {
-	Args      []string
-	Targets   []string
-	Tidy      bool
-	ErrOutput io.Writer
+	Targets []string
+	Tidy    bool
+	Stdin   io.Reader
+	Stderr  io.Writer
 }
 
-func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error) {
-	rc, err := ModuleReadCloser(info.Args)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-
-		rc, err = findVendoredModule(err, info.Args[0])
-		if err != nil {
-			return err
-		}
-	} else {
-		defer rc.Close()
+func Vendor(ctx context.Context, cln *client.Client, uri string, info VendorInfo) (err error) {
+	if info.Stdin == nil {
+		info.Stdin = os.Stdin
+	}
+	if info.Stderr == nil {
+		info.Stderr = os.Stderr
 	}
 
 	defer func() {
@@ -134,16 +137,21 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 		// Handle diagnostic errors.
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
-			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+			fmt.Fprintln(info.Stderr, span.Pretty(ctx))
 		}
 
 		err = errdefs.WithAbort(err, len(spans))
 	}()
 
-	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
-	mod, err := parser.Parse(ctx, rc)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
-		return err
+		if !os.IsNotExist(err) {
+			return err
+		}
+		mod, err = parseVendoredModule(ctx, uri, err)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = checker.SemanticPass(mod)
@@ -180,12 +188,11 @@ func Vendor(ctx context.Context, cln *client.Client, info VendorInfo) (err error
 	return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
 }
 
-func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
+func parseVendoredModule(ctx context.Context, name string, errNotExist error) (*ast.Module, error) {
 	exist, err := module.ModulesPathExist()
 	if err != nil {
 		return nil, err
 	}
-
 	if !exist {
 		return nil, errNotExist
 	}
@@ -220,21 +227,28 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("ambiguous hlb module, specify more digest characters.")
 	}
 
-	return os.Open(filepath.Join(matchedModules[0], codegen.ModuleFilename))
+	f, err := os.Open(filepath.Join(matchedModules[0], codegen.ModuleFilename))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return parser.Parse(ctx, f)
 }
 
 type TreeInfo struct {
-	Args      []string
-	Long      bool
-	ErrOutput io.Writer
+	Long   bool
+	Stdin  io.Reader
+	Stderr io.Writer
 }
 
-func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
-	rc, err := ModuleReadCloser(info.Args)
-	if err != nil {
-		return err
+func Tree(ctx context.Context, cln *client.Client, uri string, info TreeInfo) (err error) {
+	if info.Stdin == nil {
+		info.Stdin = os.Stdin
 	}
-	defer rc.Close()
+	if info.Stderr == nil {
+		info.Stderr = os.Stderr
+	}
 
 	defer func() {
 		if err == nil {
@@ -244,14 +258,13 @@ func Tree(ctx context.Context, cln *client.Client, info TreeInfo) (err error) {
 		// Handle diagnostic errors.
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
-			fmt.Fprintf(info.ErrOutput, "%s\n", span.Pretty(ctx))
+			fmt.Fprintln(info.Stderr, span.Pretty(ctx))
 		}
 
 		err = errdefs.WithAbort(err, len(spans))
 	}()
 
-	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
-	mod, err := parser.Parse(ctx, rc)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}

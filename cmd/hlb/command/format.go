@@ -47,13 +47,13 @@ type FormatInfo struct {
 }
 
 func Format(ctx context.Context, rs []io.Reader, info FormatInfo) error {
-	modules, err := parser.ParseMultiple(ctx, rs)
+	mods, err := parser.ParseMultiple(ctx, rs)
 	if err != nil {
 		return err
 	}
 
 	if info.Write {
-		for i, mod := range modules {
+		for i, mod := range mods {
 			filename := lexer.NameOfReader(rs[i])
 			if filename == "" {
 				return fmt.Errorf("Unable to write, file name unavailable")
@@ -69,7 +69,7 @@ func Format(ctx context.Context, rs []io.Reader, info FormatInfo) error {
 			}
 		}
 	} else {
-		for _, mod := range modules {
+		for _, mod := range mods {
 			fmt.Printf("%s", mod)
 		}
 	}

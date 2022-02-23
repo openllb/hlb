@@ -3,20 +3,33 @@ package hlb
 import (
 	"context"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/identity"
+	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/module"
 	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/solver"
 )
 
-func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets []codegen.Target) (solver.Request, error) {
+// WithDefaultContext adds common context values to the context.
+func WithDefaultContext(ctx context.Context, cln *client.Client) context.Context {
+	ctx = ast.WithModules(ctx, ast.NewModules())
+	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
+	if cln != nil {
+		ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
+	}
+	return ctx
+}
+
+// Compile compiles targets in a module and returns a solver.Request.
+func Compile(ctx context.Context, cln *client.Client, w io.Writer, mod *ast.Module, targets []codegen.Target) (solver.Request, error) {
 	err := checker.SemanticPass(mod)
 	if err != nil {
 		return nil, err
@@ -25,7 +38,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets [
 	err = linter.Lint(ctx, mod)
 	if err != nil {
 		for _, span := range diagnostic.Spans(err) {
-			fmt.Fprintln(os.Stderr, span.Pretty(ctx))
+			fmt.Fprintln(w, span.Pretty(ctx))
 		}
 	}
 
