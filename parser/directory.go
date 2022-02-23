@@ -14,6 +14,9 @@ type localDirectory struct {
 	dgst digest.Digest
 }
 
+// NewLocalDirectory returns an ast.Directory representing a directory on the
+// local system. It is also used to abstract the difference between reading
+// remote modules that has been vendored.
 func NewLocalDirectory(root string, dgst digest.Digest) ast.Directory {
 	return &localDirectory{root, dgst}
 }

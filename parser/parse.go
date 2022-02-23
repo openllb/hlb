@@ -12,16 +12,16 @@ import (
 )
 
 func Parse(ctx context.Context, r io.Reader, opts ...filebuffer.Option) (*ast.Module, error) {
+	mod := &ast.Module{}
+	defer AssignDocStrings(mod)
+
 	name := lexer.NameOfReader(r)
 	if name == "" {
 		name = "<stdin>"
 	}
-	r = &NewlinedReader{Reader: r}
-
-	mod := &ast.Module{}
-	defer AssignDocStrings(mod)
-
 	fb := filebuffer.New(name, opts...)
+
+	r = &NewlinedReader{Reader: r}
 	r = io.TeeReader(r, fb)
 	defer func() {
 		if mod.Pos.Filename != "" {

@@ -1,23 +1,19 @@
 package module
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
-	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/parser/ast"
-	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"golang.org/x/sync/errgroup"
 )
@@ -120,106 +116,8 @@ func (r *remoteResolver) Resolve(ctx context.Context, id *ast.ImportDecl, fs cod
 		pw = mw.WithPrefix(fmt.Sprintf("import %s", id.Name), true)
 	}
 
-	// Block constructing remoteDirectory until the graph is solved and assigned to
-	// ref.
-	resolved := make(chan struct{})
-
-	// Block solver.Build from exiting until remoteDirectory is closed.
-	// This ensures that cache keys and results from the build are not garbage
-	// collected.
-	closed := make(chan struct{})
-
-	s, err := llbutil.NewSession(ctx, fs.SessionOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	g, ctx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		return s.Run(ctx, r.cln.Dialer())
-	})
-
-	var ref gateway.Reference
-	g.Go(func() error {
-		return solver.Build(ctx, r.cln, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
-			dir, err := c.Solve(ctx, gateway.SolveRequest{
-				Definition: def.ToPB(),
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			ref, err = dir.SingleRef()
-			if err != nil {
-				return nil, err
-			}
-
-			close(resolved)
-			<-closed
-
-			return gateway.NewResult(), nil
-		}, fs.SolveOpts...)
-	})
-
-	select {
-	case <-ctx.Done():
-		return nil, g.Wait()
-	case <-resolved:
-	}
-
-	// If ref is nil, then an error has occurred when solving, clean up and
-	// return.
-	if ref == nil {
-		close(closed)
-		return nil, g.Wait()
-	}
-
 	root := fmt.Sprintf("%s#%s", id.Pos.Filename, id.Name)
-	return &remoteDirectory{root, dgst, ref, g, ctx, closed}, nil
-}
-
-type remoteDirectory struct {
-	root   string
-	dgst   digest.Digest
-	ref    gateway.Reference
-	g      *errgroup.Group
-	ctx    context.Context
-	closed chan struct{}
-}
-
-func (r *remoteDirectory) Path() string {
-	return r.root
-}
-
-func (r *remoteDirectory) Digest() digest.Digest {
-	return r.dgst
-}
-
-func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
-	_, err := r.ref.StatFile(r.ctx, gateway.StatRequest{
-		Path: filename,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := r.ref.ReadFile(r.ctx, gateway.ReadRequest{
-		Filename: filename,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &parser.NamedReader{
-		Reader: bytes.NewReader(data),
-		Value:  filepath.Join(r.root, filename),
-	}, nil
-}
-
-func (r *remoteDirectory) Close() error {
-	close(r.closed)
-	return r.g.Wait()
+	return solver.NewRemoteDirectory(ctx, r.cln, pw, def, root, dgst, fs.SolveOpts, fs.SessionOpts)
 }
 
 type tidyResolver struct {

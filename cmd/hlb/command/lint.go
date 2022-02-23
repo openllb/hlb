@@ -8,20 +8,19 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/openllb/hlb/builtin"
+	"github.com/moby/buildkit/client"
+	"github.com/openllb/hlb"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/linter"
-	"github.com/openllb/hlb/parser"
-	"github.com/openllb/hlb/pkg/filebuffer"
 	cli "github.com/urfave/cli/v2"
 )
 
 var lintCommand = &cli.Command{
 	Name:      "lint",
 	Usage:     "lints a hlb module",
-	ArgsUsage: "<*.hlb>",
+	ArgsUsage: "<uri>",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
 			Name:  "fix",
@@ -29,26 +28,36 @@ var lintCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		rc, err := ModuleReadCloser(c.Args().Slice())
+		uri := DefaultHLBFilename
+		if c.NArg() > 1 {
+			return fmt.Errorf("expected at most 1 arg but got %d", c.NArg())
+		} else if c.NArg() == 1 {
+			uri = c.Args().First()
+		}
+
+		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
+		ctx = hlb.WithDefaultContext(ctx, cln)
 
-		return Lint(Context(), rc, LintInfo{
+		return Lint(ctx, cln, uri, LintInfo{
 			Fix: c.Bool("fix"),
 		})
-
 	},
 }
 
 type LintInfo struct {
-	Fix bool
+	Fix   bool
+	Stdin io.Reader
 }
 
-func Lint(ctx context.Context, r io.Reader, info LintInfo) error {
-	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
-	mod, err := parser.Parse(ctx, r)
+func Lint(ctx context.Context, cln *client.Client, uri string, info LintInfo) error {
+	if info.Stdin == nil {
+		info.Stdin = os.Stdin
+	}
+
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}
