@@ -485,7 +485,7 @@ func handleList(w io.Writer, s *codegen.State, stop ast.StopNode, args []string)
 			diagnostic.DisplayError(s.Ctx, w, spans, s.Err, true)
 		} else {
 			for _, span := range diagnostic.Spans(s.Err) {
-				fmt.Fprintf(w, "%s\n", span.Pretty(s.Ctx))
+				fmt.Fprintln(w, span.Pretty(s.Ctx))
 			}
 		}
 		return nil

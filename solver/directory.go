@@ -22,10 +22,6 @@ import (
 // the build session is running, the build only exits when the ast.Directory is
 // closed.
 func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Writer, def *llb.Definition, root string, dgst digest.Digest, solveOpts []SolveOption, sessionOpts []llbutil.SessionOption) (ast.Directory, error) {
-	// Block constructing remoteDirectory until the graph is solved and assigned to
-	// ref.
-	resolved := make(chan struct{})
-
 	s, err := llbutil.NewSession(ctx, sessionOpts...)
 	if err != nil {
 		return nil, err
@@ -41,6 +37,10 @@ func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Wri
 	g.Go(func() error {
 		return s.Run(ctx, cln.Dialer())
 	})
+
+	// Block constructing remoteDirectory until the graph is solved and assigned to
+	// ref.
+	resolved := make(chan struct{})
 
 	var ref gateway.Reference
 	g.Go(func() error {
@@ -68,15 +68,16 @@ func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Wri
 		cancel()
 		return nil, g.Wait()
 	case <-resolved:
-		// If ref is nil, then an error has occurred when solving, clean up and
-		// return.
-		if ref == nil {
-			cancel()
-			return nil, g.Wait()
-		}
 	}
 
-	return &remoteDirectory{root, dgst, ref, g, ctx, cancel}, nil
+	return &remoteDirectory{
+		root:   root,
+		dgst:   dgst,
+		ref:    ref,
+		g:      g,
+		ctx:    ctx,
+		cancel: cancel,
+	}, nil
 }
 
 type remoteDirectory struct {

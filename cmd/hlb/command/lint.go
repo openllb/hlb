@@ -28,11 +28,9 @@ var lintCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		uri := DefaultHLBFilename
-		if c.NArg() > 1 {
-			return fmt.Errorf("expected at most 1 arg but got %d", c.NArg())
-		} else if c.NArg() == 1 {
-			uri = c.Args().First()
+		uri, err := GetURI(c)
+		if err != nil {
+			return err
 		}
 
 		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
@@ -48,13 +46,17 @@ var lintCommand = &cli.Command{
 }
 
 type LintInfo struct {
-	Fix   bool
-	Stdin io.Reader
+	Fix    bool
+	Stdin  io.Reader
+	Stderr io.Writer
 }
 
 func Lint(ctx context.Context, cln *client.Client, uri string, info LintInfo) error {
 	if info.Stdin == nil {
 		info.Stdin = os.Stdin
+	}
+	if info.Stderr == nil {
+		info.Stderr = os.Stderr
 	}
 
 	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
@@ -72,7 +74,7 @@ func Lint(ctx context.Context, cln *client.Client, uri string, info LintInfo) er
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
 			if !info.Fix {
-				fmt.Fprintf(os.Stderr, "%s\n", span.Pretty(ctx))
+				fmt.Fprintln(info.Stderr, span.Pretty(ctx))
 				continue
 			}
 
@@ -95,7 +97,7 @@ func Lint(ctx context.Context, cln *client.Client, uri string, info LintInfo) er
 		}
 
 		color := diagnostic.Color(ctx)
-		fmt.Fprint(os.Stderr, color.Sprintf(
+		fmt.Fprint(info.Stderr, color.Sprintf(
 			color.Bold("\nRun %s to automatically fix lint errors.\n"),
 			color.Green(fmt.Sprintf("`hlb lint --fix %s`", mod.Pos.Filename)),
 		))

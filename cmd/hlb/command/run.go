@@ -67,11 +67,9 @@ var runCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		uri := DefaultHLBFilename
-		if c.NArg() > 1 {
-			return fmt.Errorf("expected at most 1 arg but got %d", c.NArg())
-		} else if c.NArg() == 1 {
-			uri = c.Args().First()
+		uri, err := GetURI(c)
+		if err != nil {
+			return err
 		}
 
 		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
@@ -91,6 +89,17 @@ var runCommand = &cli.Command{
 			ControlDebugger: ControlDebuggerTUI(os.Stdin, os.Stdout, os.Stderr),
 		})
 	},
+}
+
+func GetURI(c *cli.Context) (uri string, err error) {
+	uri = DefaultHLBFilename
+	if c.NArg() > 1 {
+		_ = cli.ShowCommandHelp(c, c.Command.Name)
+		err = fmt.Errorf("requires at most 1 arg but got %d", c.NArg())
+	} else if c.NArg() == 1 {
+		uri = c.Args().First()
+	}
+	return
 }
 
 type ControlDebugger func(context.Context, codegen.Debugger) error
@@ -226,7 +235,7 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 		}
 	}
 
-	solveReq, err := hlb.Compile(ctx, cln, mod, targets)
+	solveReq, err := hlb.Compile(ctx, cln, info.Stderr, mod, targets)
 	if err != nil {
 		perr := p.Wait()
 		// Ignore early exits from the debugger.
@@ -305,6 +314,7 @@ func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, ur
 		if err != nil {
 			return nil, err
 		}
+		defer f.Close()
 		return parser.Parse(ctx, f)
 	default:
 		return nil, fmt.Errorf("%q is not a valid module uri scheme", u.Scheme)

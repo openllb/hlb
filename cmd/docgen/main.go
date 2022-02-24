@@ -18,7 +18,7 @@ func main() {
 
 	err := run(os.Args[1], os.Args[2])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "docgen: %s", err)
+		fmt.Fprintf(os.Stderr, "docgen: %s\n", err)
 		os.Exit(1)
 	}
 }

@@ -46,11 +46,9 @@ var moduleVendorCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		uri := DefaultHLBFilename
-		if c.NArg() > 1 {
-			return fmt.Errorf("expected at most 1 arg but got %d", c.NArg())
-		} else if c.NArg() == 1 {
-			uri = c.Args().First()
+		uri, err := GetURI(c)
+		if err != nil {
+			return err
 		}
 
 		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
@@ -71,11 +69,9 @@ var moduleTidyCommand = &cli.Command{
 	Usage:     "add missing and remove unused modules",
 	ArgsUsage: "<uri>",
 	Action: func(c *cli.Context) error {
-		uri := DefaultHLBFilename
-		if c.NArg() > 1 {
-			return fmt.Errorf("expected at most 1 arg but got %d", c.NArg())
-		} else if c.NArg() == 1 {
-			uri = c.Args().First()
+		uri, err := GetURI(c)
+		if err != nil {
+			return err
 		}
 
 		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
@@ -101,11 +97,9 @@ var moduleTreeCommand = &cli.Command{
 		},
 	},
 	Action: func(c *cli.Context) error {
-		uri := DefaultHLBFilename
-		if c.NArg() > 1 {
-			return fmt.Errorf("expected at most 1 arg but got %d", c.NArg())
-		} else if c.NArg() == 1 {
-			uri = c.Args().First()
+		uri, err := GetURI(c)
+		if err != nil {
+			return err
 		}
 
 		cln, ctx, err := hlb.Client(Context(), c.String("addr"))
@@ -143,7 +137,7 @@ func Vendor(ctx context.Context, cln *client.Client, uri string, info VendorInfo
 		// Handle diagnostic errors.
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
-			fmt.Fprintf(info.Stderr, "%s\n", span.Pretty(ctx))
+			fmt.Fprintln(info.Stderr, span.Pretty(ctx))
 		}
 
 		err = errdefs.WithAbort(err, len(spans))
@@ -154,14 +148,7 @@ func Vendor(ctx context.Context, cln *client.Client, uri string, info VendorInfo
 		if !os.IsNotExist(err) {
 			return err
 		}
-
-		rc, err := findVendoredModule(err, uri)
-		if err != nil {
-			return err
-		}
-		defer rc.Close()
-
-		mod, err = parser.Parse(ctx, rc)
+		mod, err = parseVendoredModule(ctx, uri, err)
 		if err != nil {
 			return err
 		}
@@ -201,12 +188,11 @@ func Vendor(ctx context.Context, cln *client.Client, uri string, info VendorInfo
 	return module.Vendor(ctx, cln, mod, info.Targets, info.Tidy)
 }
 
-func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
+func parseVendoredModule(ctx context.Context, name string, errNotExist error) (*ast.Module, error) {
 	exist, err := module.ModulesPathExist()
 	if err != nil {
 		return nil, err
 	}
-
 	if !exist {
 		return nil, errNotExist
 	}
@@ -241,7 +227,13 @@ func findVendoredModule(errNotExist error, name string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("ambiguous hlb module, specify more digest characters.")
 	}
 
-	return os.Open(filepath.Join(matchedModules[0], codegen.ModuleFilename))
+	f, err := os.Open(filepath.Join(matchedModules[0], codegen.ModuleFilename))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return parser.Parse(ctx, f)
 }
 
 type TreeInfo struct {
@@ -266,7 +258,7 @@ func Tree(ctx context.Context, cln *client.Client, uri string, info TreeInfo) (e
 		// Handle diagnostic errors.
 		spans := diagnostic.Spans(err)
 		for _, span := range spans {
-			fmt.Fprintf(info.Stderr, "%s\n", span.Pretty(ctx))
+			fmt.Fprintln(info.Stderr, span.Pretty(ctx))
 		}
 
 		err = errdefs.WithAbort(err, len(spans))

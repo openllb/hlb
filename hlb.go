@@ -3,7 +3,7 @@ package hlb
 import (
 	"context"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/identity"
@@ -29,7 +29,7 @@ func WithDefaultContext(ctx context.Context, cln *client.Client) context.Context
 }
 
 // Compile compiles targets in a module and returns a solver.Request.
-func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets []codegen.Target) (solver.Request, error) {
+func Compile(ctx context.Context, cln *client.Client, w io.Writer, mod *ast.Module, targets []codegen.Target) (solver.Request, error) {
 	err := checker.SemanticPass(mod)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func Compile(ctx context.Context, cln *client.Client, mod *ast.Module, targets [
 	err = linter.Lint(ctx, mod)
 	if err != nil {
 		for _, span := range diagnostic.Spans(err) {
-			fmt.Fprintln(os.Stderr, span.Pretty(ctx))
+			fmt.Fprintln(w, span.Pretty(ctx))
 		}
 	}
 
