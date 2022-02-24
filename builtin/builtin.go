@@ -25,6 +25,8 @@ func init() {
 
 func initSources() (err error) {
 	ctx := filebuffer.WithBuffers(context.Background(), filebuffer.NewBuffers())
+	ctx = ast.WithModules(ctx, ast.NewModules())
+
 	Module, err = parser.Parse(ctx, &parser.NamedReader{
 		Reader: strings.NewReader(Reference),
 		Value:  "<builtin>",
@@ -40,4 +42,10 @@ func Buffers() *filebuffer.BufferLookup {
 	buffers := filebuffer.NewBuffers()
 	buffers.Set(FileBuffer.Filename(), FileBuffer)
 	return buffers
+}
+
+func Modules() *ast.ModuleLookup {
+	modules := ast.NewModules()
+	modules.Set(Module.Pos.Filename, Module)
+	return modules
 }

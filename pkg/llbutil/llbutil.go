@@ -210,23 +210,31 @@ func (ct AllowEmptyWildcard) SetCopyOption(ci *llb.CopyInfo) {
 	ci.AllowEmptyWildcard = (bool)(ct)
 }
 
-type CopyIncludePatterns []string
+type IncludePatterns []string
 
-func WithIncludePatterns(includePatterns []string) CopyIncludePatterns {
-	return CopyIncludePatterns(includePatterns)
+func WithIncludePatterns(includePatterns []string) IncludePatterns {
+	return IncludePatterns(includePatterns)
 }
 
-func (ip CopyIncludePatterns) SetCopyOption(ci *llb.CopyInfo) {
+func (ip IncludePatterns) SetLocalOption(li *llb.LocalInfo) {
+	llb.IncludePatterns(ip).SetLocalOption(li)
+}
+
+func (ip IncludePatterns) SetCopyOption(ci *llb.CopyInfo) {
 	ci.IncludePatterns = append(ci.IncludePatterns, ip...)
 }
 
-type CopyExcludePatterns []string
+type ExcludePatterns []string
 
-func WithExcludePatterns(excludePatterns []string) CopyExcludePatterns {
-	return CopyExcludePatterns(excludePatterns)
+func WithExcludePatterns(excludePatterns []string) ExcludePatterns {
+	return ExcludePatterns(excludePatterns)
 }
 
-func (ep CopyExcludePatterns) SetCopyOption(ci *llb.CopyInfo) {
+func (ep ExcludePatterns) SetLocalOption(li *llb.LocalInfo) {
+	llb.ExcludePatterns(ep).SetLocalOption(li)
+}
+
+func (ep ExcludePatterns) SetCopyOption(ci *llb.CopyInfo) {
 	ci.ExcludePatterns = append(ci.ExcludePatterns, ep...)
 }
 

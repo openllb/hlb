@@ -89,7 +89,7 @@ func (ip IncludePatterns) Call(ctx context.Context, cln *client.Client, val Valu
 		return nil, err
 	}
 
-	return NewValue(ctx, append(retOpts, llb.IncludePatterns(patterns)))
+	return NewValue(ctx, append(retOpts, llbutil.WithIncludePatterns(patterns)))
 }
 
 type ExcludePatterns struct{}
@@ -100,7 +100,7 @@ func (ep ExcludePatterns) Call(ctx context.Context, cln *client.Client, val Valu
 		return nil, err
 	}
 
-	return NewValue(ctx, append(retOpts, llb.ExcludePatterns(patterns)))
+	return NewValue(ctx, append(retOpts, llbutil.WithExcludePatterns(patterns)))
 }
 
 type FollowPaths struct{}
@@ -642,10 +642,10 @@ func (s Secret) Call(ctx context.Context, cln *client.Client, val Value, opts Op
 		switch o := opt.(type) {
 		case llb.SecretOption:
 			secretOpts = append(secretOpts, o)
-		case *SecretIncludePatterns:
-			includePatterns = append(includePatterns, o.Patterns...)
-		case *SecretExcludePatterns:
-			excludePatterns = append(excludePatterns, o.Patterns...)
+		case llbutil.IncludePatterns:
+			includePatterns = append(includePatterns, []string(o)...)
+		case llbutil.ExcludePatterns:
+			excludePatterns = append(excludePatterns, []string(o)...)
 		}
 	}
 
@@ -775,54 +775,6 @@ func (lp LocalPaths) Call(ctx context.Context, cln *client.Client, val Value, op
 	}
 
 	return NewValue(ctx, retOpts)
-}
-
-type SecretIncludePatterns struct {
-	Patterns []string
-}
-
-func (iip SecretIncludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
-	retOpts, err := val.Option()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewValue(ctx, append(retOpts, &SecretIncludePatterns{patterns}))
-}
-
-type SecretExcludePatterns struct {
-	Patterns []string
-}
-
-func (sep SecretExcludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
-	retOpts, err := val.Option()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewValue(ctx, append(retOpts, &SecretExcludePatterns{patterns}))
-}
-
-type CopyIncludePatterns struct{}
-
-func (iip CopyIncludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
-	retOpts, err := val.Option()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewValue(ctx, append(retOpts, llbutil.WithIncludePatterns(patterns)))
-}
-
-type CopyExcludePatterns struct{}
-
-func (sep CopyExcludePatterns) Call(ctx context.Context, cln *client.Client, val Value, opts Option, patterns ...string) (Value, error) {
-	retOpts, err := val.Option()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewValue(ctx, append(retOpts, llbutil.WithExcludePatterns(patterns)))
 }
 
 type Readonly struct{}

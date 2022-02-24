@@ -547,7 +547,7 @@ type procedure func(*testing.T, Debugger, *ast.Module)
 func controlDebugger(t *testing.T, d Debugger, input string, p procedure) {
 	ctx := WithDebugger(context.Background(), d)
 	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
-	ctx = ast.WithModules(ctx, ast.NewModules())
+	ctx = ast.WithModules(ctx, builtin.Modules())
 
 	done := make(chan struct{})
 	go func() {

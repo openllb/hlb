@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -173,6 +174,8 @@ type Directory interface {
 	Digest() digest.Digest
 
 	Open(filename string) (io.ReadCloser, error)
+
+	Stat(filename string) (os.FileInfo, error)
 
 	Close() error
 }

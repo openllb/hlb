@@ -9,14 +9,6 @@ import (
 	"github.com/tonistiigi/fsutil"
 )
 
-type IncludePatterns struct {
-	Patterns []string
-}
-
-type ExcludePatterns struct {
-	Patterns []string
-}
-
 func FilterLocalFiles(localPath string, includePatterns, excludePatterns []string) (localPaths []string, err error) {
 	var fi os.FileInfo
 	fi, err = os.Stat(localPath)

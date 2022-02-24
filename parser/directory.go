@@ -36,4 +36,11 @@ func (r *localDirectory) Open(filename string) (io.ReadCloser, error) {
 	return os.Open(filepath.Join(r.root, filename))
 }
 
+func (r *localDirectory) Stat(filename string) (os.FileInfo, error) {
+	if filepath.IsAbs(filename) {
+		return os.Stat(filename)
+	}
+	return os.Stat(filepath.Join(r.root, filename))
+}
+
 func (r *localDirectory) Close() error { return nil }

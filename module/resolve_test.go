@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -44,6 +45,10 @@ func (r *testDirectory) Open(filename string) (io.ReadCloser, error) {
 		return nil, os.ErrNotExist
 	}
 	return ioutil.NopCloser(strings.NewReader(fixture)), nil
+}
+
+func (r *testDirectory) Stat(filename string) (os.FileInfo, error) {
+	return nil, fmt.Errorf("unimplemented")
 }
 
 func (r *testDirectory) Close() error {
@@ -114,9 +119,10 @@ func TestResolveGraph(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			in := strings.NewReader(dedent.Dedent(tc.input))
-
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
+			ctx = ast.WithModules(ctx, builtin.Modules())
+
+			in := strings.NewReader(dedent.Dedent(tc.input))
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 			mod.Directory = dir

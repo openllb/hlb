@@ -60,6 +60,11 @@ func ReturnType(ctx context.Context) ast.Kind {
 	return kind
 }
 
+func Module(ctx context.Context) *ast.Module {
+	node := ProgramCounter(ctx)
+	return ast.Modules(ctx).Get(node.Position().Filename)
+}
+
 func ModuleDir(ctx context.Context) string {
 	node := ProgramCounter(ctx)
 	if node == nil {

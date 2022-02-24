@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/docker/buildx/util/progress"
@@ -116,6 +117,16 @@ func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
 		Reader: bytes.NewReader(data),
 		Value:  filepath.Join(r.root, filename),
 	}, nil
+}
+
+func (r *remoteDirectory) Stat(filename string) (os.FileInfo, error) {
+	stat, err := r.ref.StatFile(r.ctx, gateway.StatRequest{
+		Path: filename,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &llbutil.FileInfo{stat}, nil
 }
 
 func (r *remoteDirectory) Close() error {

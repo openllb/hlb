@@ -168,7 +168,8 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		return nil, err
 	}
 
-	fi, err := os.Stat(localPath)
+	dir := Module(ctx).Directory
+	fi, err := dir.Stat(localPath)
 	if err != nil {
 		return nil, Arg(ctx, 0).WithError(err)
 	}
@@ -521,16 +522,16 @@ func (m Copy) Call(ctx context.Context, cln *client.Client, val Value, opts Opti
 		return nil, err
 	}
 
-	var info = &llb.CopyInfo{}
+	var copyOpts []llb.CopyOption
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case llb.CopyOption:
-			o.SetCopyOption(info)
+			copyOpts = append(copyOpts, o)
 		}
 	}
 
 	fs.State = fs.State.File(
-		llb.Copy(input.State, src, dest, info),
+		llb.Copy(input.State, src, dest, copyOpts...),
 		SourceMap(ctx)...,
 	)
 	fs.SolveOpts = append(fs.SolveOpts, input.SolveOpts...)
