@@ -16,6 +16,7 @@ import (
 	"github.com/openllb/hlb/linter"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
@@ -295,7 +296,6 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.
 		if !ok {
 			return errdefs.WithInternalErrorf(ProgramCounter(ctx), "expected imported module to be resolved")
 		}
-		ctx = WithImportPath(ctx, imod.Directory.Path())
 		return cg.EmitIdentExpr(ctx, imod.Scope, ie, ie.Reference.Ident, args, opts, nil, ret)
 	case *ast.Field:
 		dret, ok := obj.Data.(Register)
@@ -335,7 +335,10 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 	}
 	val := ret.Value()
 
-	dir := mod.Directory
+	var (
+		dir    = mod.Directory
+		fbOpts []filebuffer.Option
+	)
 	switch val.Kind() {
 	case ast.Filesystem:
 		var fs Filesystem
@@ -349,6 +352,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 		if err != nil {
 			return
 		}
+		fbOpts = append(fbOpts, filebuffer.WithEphemeral())
 	case ast.String:
 		filename, err = val.String()
 		if err != nil {
@@ -379,7 +383,7 @@ func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.Impo
 	}
 	defer rc.Close()
 
-	imod, err = parser.Parse(ctx, rc)
+	imod, err = parser.Parse(ctx, rc, fbOpts...)
 	if err != nil {
 		return
 	}

@@ -103,17 +103,6 @@ func (ep ExcludePatterns) Call(ctx context.Context, cln *client.Client, val Valu
 	return NewValue(ctx, append(retOpts, llbutil.WithExcludePatterns(patterns)))
 }
 
-type FollowPaths struct{}
-
-func (fp FollowPaths) Call(ctx context.Context, cln *client.Client, val Value, opts Option, paths ...string) (Value, error) {
-	retOpts, err := val.Option()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewValue(ctx, append(retOpts, llb.FollowPaths(paths)))
-}
-
 type FrontendInput struct{}
 
 func (fi FrontendInput) Call(ctx context.Context, cln *client.Client, val Value, opts Option, key string, input Filesystem) (Value, error) {

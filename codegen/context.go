@@ -33,7 +33,6 @@ type (
 	backtraceKey       struct{}
 	progressKey        struct{}
 	platformKey        struct{}
-	importPathKey      struct{}
 	dockerAPIKey       struct{}
 	debuggerKey        struct{}
 	globalSolveOptsKey struct{}
@@ -70,7 +69,13 @@ func ModuleDir(ctx context.Context) string {
 	if node == nil {
 		return ""
 	}
-	return filepath.Dir(strings.TrimPrefix(node.Position().Filename, ImportPath(ctx)))
+
+	filename := node.Position().Filename
+	mod := Module(ctx)
+	if mod != nil && mod.Directory != nil {
+		filename = strings.TrimPrefix(filename, mod.Directory.Path())
+	}
+	return filepath.Dir(filename)
 }
 
 func WithBinding(ctx context.Context, binding *ast.Binding) context.Context {
@@ -222,15 +227,6 @@ func DefaultPlatform(ctx context.Context) specs.Platform {
 		return specs.Platform{OS: "linux", Architecture: runtime.GOARCH}
 	}
 	return platform
-}
-
-func WithImportPath(ctx context.Context, path string) context.Context {
-	return context.WithValue(ctx, importPathKey{}, path)
-}
-
-func ImportPath(ctx context.Context) string {
-	path, _ := ctx.Value(importPathKey{}).(string)
-	return path
 }
 
 type DockerAPIClient struct {

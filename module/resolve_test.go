@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/lithammer/dedent"
+	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
@@ -37,6 +38,10 @@ func (r *testDirectory) Path() string {
 
 func (r *testDirectory) Digest() digest.Digest {
 	return ""
+}
+
+func (r *testDirectory) Definition() *llb.Definition {
+	return nil
 }
 
 func (r *testDirectory) Open(filename string) (io.ReadCloser, error) {

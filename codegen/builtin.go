@@ -69,7 +69,6 @@ var (
 		"option::local": {
 			"includePatterns": IncludePatterns{},
 			"excludePatterns": ExcludePatterns{},
-			"followPaths":     FollowPaths{},
 		},
 		"option::frontend": {
 			"input": FrontendInput{},

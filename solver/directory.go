@@ -74,6 +74,7 @@ func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Wri
 	return &remoteDirectory{
 		root:   root,
 		dgst:   dgst,
+		def:    def,
 		ref:    ref,
 		g:      g,
 		ctx:    ctx,
@@ -84,6 +85,7 @@ func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Wri
 type remoteDirectory struct {
 	root   string
 	dgst   digest.Digest
+	def    *llb.Definition
 	ref    gateway.Reference
 	g      *errgroup.Group
 	ctx    context.Context
@@ -96,6 +98,10 @@ func (r *remoteDirectory) Path() string {
 
 func (r *remoteDirectory) Digest() digest.Digest {
 	return r.dgst
+}
+
+func (r *remoteDirectory) Definition() *llb.Definition {
+	return r.def
 }
 
 func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {

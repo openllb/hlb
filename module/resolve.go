@@ -253,7 +253,6 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, mod *ast.Module) 
 					}
 				}
 
-				ctx = codegen.WithImportPath(ctx, imod.Directory.Path())
 				return resolveGraph(ctx, info, imod)
 			})
 		},
