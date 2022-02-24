@@ -180,7 +180,7 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 
 	// Always force plain output in debug mode so the prompts are displayed
 	// correctly
-	if info.Debug {
+	if info.Debug || uri == "-" {
 		info.LogOutput = "plain"
 	}
 
@@ -284,19 +284,6 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 
 func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, uri string) (*ast.Module, error) {
 	if uri == "-" {
-		// Validate the stdin is piping into hlb.
-		f, ok := stdin.(interface{ Stat() (os.FileInfo, error) })
-		if !ok {
-			return nil, fmt.Errorf("not a valid stdin")
-		}
-		fi, err := f.Stat()
-		if err != nil {
-			return nil, fmt.Errorf("not a valid stdin: %w", err)
-		}
-		if fi.Mode()&os.ModeNamedPipe == 0 {
-			return nil, fmt.Errorf("not a valid stdin")
-		}
-
 		return parser.Parse(ctx, &parser.NamedReader{
 			Reader: stdin,
 			Value:  "<stdin>",
