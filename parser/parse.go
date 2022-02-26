@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/filebuffer"
 	"golang.org/x/sync/errgroup"

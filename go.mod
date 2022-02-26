@@ -3,7 +3,8 @@ module github.com/openllb/hlb
 go 1.16
 
 require (
-	github.com/alecthomas/participle v1.0.0-alpha2
+	github.com/alecthomas/participle v1.0.0-alpha1.0.20201031050245-4435aeea334f
+	github.com/alecthomas/participle/v2 v2.0.0-alpha7.0.20211230082035-5a357f57e525
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/containerd/console v1.0.3
 	github.com/containerd/containerd v1.6.0-beta.3
