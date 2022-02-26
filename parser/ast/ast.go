@@ -6,28 +6,27 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/participle"
-	"github.com/alecthomas/participle/lexer"
-	"github.com/alecthomas/participle/lexer/stateful"
+	participle "github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/diagnostic"
 )
 
 var (
 	// Lexer lexes HLB into tokens for the parser.
-	Lexer = lexer.Must(stateful.New(stateful.Rules{
+	Lexer = lexer.MustStateful(lexer.Rules{
 		"Root": {
 			{"Keyword", `\b(import|export|with|as)\b`, nil},
 			{"Numeric", `\b(0(b|B|o|O|x|X)[a-fA-F0-9]+)\b`, nil},
 			{"Decimal", `\b(0|[1-9][0-9]*)\b`, nil},
 			{"Bool", `\b(true|false)\b`, nil},
-			{"String", `"`, stateful.Push("String")},
-			{"RawString", "`", stateful.Push("RawString")},
-			{"Heredoc", `<<[-~]?(\w+)\b`, stateful.Push("Heredoc")},
-			{"RawHeredoc", "<<[-~]?`(\\w+)`", stateful.Push("RawHeredoc")},
-			{"Block", `{`, stateful.Push("Block")},
-			{"Paren", `\(`, stateful.Push("Paren")},
-			{"Ident", `[\w:]+`, stateful.Push("Reference")},
+			{"String", `"`, lexer.Push("String")},
+			{"RawString", "`", lexer.Push("RawString")},
+			{"Heredoc", `<<[-~]?(\w+)\b`, lexer.Push("Heredoc")},
+			{"RawHeredoc", "<<[-~]?`(\\w+)`", lexer.Push("RawHeredoc")},
+			{"Block", `{`, lexer.Push("Block")},
+			{"Paren", `\(`, lexer.Push("Paren")},
+			{"Ident", `[\w:]+`, lexer.Push("Reference")},
 			{"Operator", `;`, nil},
 			{"Newline", `\n`, nil},
 			{"Comment", `#[^\n]*\n`, nil},
@@ -36,44 +35,44 @@ var (
 		"Reference": {
 			{"Dot", `\.`, nil},
 			{"Ident", `[\w:]+`, nil},
-			stateful.Return(),
+			lexer.Return(),
 		},
 		"String": {
-			{"StringEnd", `"`, stateful.Pop()},
+			{"StringEnd", `"`, lexer.Pop()},
 			{"Escaped", `\\.`, nil},
-			{"Interpolated", `\${`, stateful.Push("Interpolated")},
+			{"Interpolated", `\${`, lexer.Push("Interpolated")},
 			{"Char", `\$|[^"$\\]+`, nil},
 		},
 		"RawString": {
-			{"RawStringEnd", "`", stateful.Pop()},
+			{"RawStringEnd", "`", lexer.Pop()},
 			{"RawChar", "[^`]+", nil},
 		},
 		"Heredoc": {
-			{"HeredocEnd", `\b\1\b`, stateful.Pop()},
+			{"HeredocEnd", `\b\1\b`, lexer.Pop()},
 			{"Spaces", `\s+`, nil},
 			{"Escaped", `\\.`, nil},
-			{"Interpolated", `\${`, stateful.Push("Interpolated")},
+			{"Interpolated", `\${`, lexer.Push("Interpolated")},
 			{"Text", `\$|[^\s$]+`, nil},
 		},
 		"RawHeredoc": {
-			{"RawHeredocEnd", `\b\1\b`, stateful.Pop()},
+			{"RawHeredocEnd", `\b\1\b`, lexer.Pop()},
 			{"Spaces", `\s+`, nil},
 			{"RawText", `[^\s]+`, nil},
 		},
 		"Interpolated": {
-			{"BlockEnd", `}`, stateful.Pop()},
-			stateful.Include("Root"),
+			{"BlockEnd", `}`, lexer.Pop()},
+			lexer.Include("Root"),
 		},
 		"Block": {
-			{"BlockEnd", `}`, stateful.Pop()},
-			stateful.Include("Root"),
+			{"BlockEnd", `}`, lexer.Pop()},
+			lexer.Include("Root"),
 		},
 		"Paren": {
-			{"ParenEnd", `\)`, stateful.Pop()},
+			{"ParenEnd", `\)`, lexer.Pop()},
 			{"Delimit", `,`, nil},
-			stateful.Include("Root"),
+			lexer.Include("Root"),
 		},
-	}))
+	})
 
 	// Parser parses HLB into a concrete syntax tree rooted from a Module.
 	Parser = participle.MustBuild(

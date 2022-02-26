@@ -1,7 +1,7 @@
 package llbutil
 
 import (
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/moby/buildkit/solver/pb"
 )
 

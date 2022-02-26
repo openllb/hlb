@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/openllb/hlb/parser"
 	cli "github.com/urfave/cli/v2"
 )

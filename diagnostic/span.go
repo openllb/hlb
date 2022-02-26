@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/logrusorgru/aurora"
 	"github.com/openllb/hlb/pkg/filebuffer"
 )

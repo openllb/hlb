@@ -3,7 +3,7 @@ package ast
 import (
 	"strings"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 )
 
 // A Visitor's Visit method is invoked for each node encountered by Walk.

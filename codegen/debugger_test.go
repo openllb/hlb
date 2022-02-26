@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alecthomas/participle/lexer"
+	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/lithammer/dedent"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
