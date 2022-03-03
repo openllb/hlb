@@ -11,7 +11,7 @@ require (
 	github.com/creack/pty v1.1.11
 	github.com/docker/buildx v0.7.1-0.20220207185201-60a025b22768
 	github.com/docker/cli v20.10.11+incompatible
-	github.com/docker/distribution v2.7.1+incompatible
+	github.com/docker/distribution v2.8.0+incompatible
 	github.com/docker/docker v20.10.7+incompatible
 	github.com/fvbommel/sortorder v1.0.2 // indirect
 	github.com/google/go-dap v0.6.0
