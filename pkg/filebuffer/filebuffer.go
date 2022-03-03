@@ -49,6 +49,19 @@ func (b *BufferLookup) Set(filename string, fb *FileBuffer) {
 	b.fbs[filename] = fb
 }
 
+func (b *BufferLookup) All() []*FileBuffer {
+	var filenames []string
+	for filename := range b.fbs {
+		filenames = append(filenames, filename)
+	}
+	sort.Strings(filenames)
+	var fbs []*FileBuffer
+	for _, filename := range filenames {
+		fbs = append(fbs, b.Get(filename))
+	}
+	return fbs
+}
+
 type FileBuffer struct {
 	filename string
 	buf      bytes.Buffer

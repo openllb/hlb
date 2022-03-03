@@ -137,7 +137,12 @@ func TUIFrontend(ctx context.Context, dbgr codegen.Debugger, is *steer.InputStee
 			}
 			goto prompt
 		case "breakpoints", "bp":
-			for _, bp := range dbgr.Breakpoints() {
+			bps, err := dbgr.Breakpoints()
+			if err != nil {
+				printError(stderr, s, err)
+				goto prompt
+			}
+			for _, bp := range bps {
 				bp.Print(s.Ctx, stdout, false)
 			}
 			goto prompt
@@ -332,7 +337,10 @@ func handleClear(w io.Writer, s *codegen.State, dbgr codegen.Debugger, args []st
 		return err
 	}
 
-	bps := dbgr.Breakpoints()
+	bps, err := dbgr.Breakpoints()
+	if err != nil {
+		return err
+	}
 	if i > len(bps) {
 		return fmt.Errorf("no breakpoint with id %d", i)
 	}
@@ -354,7 +362,11 @@ func handleClear(w io.Writer, s *codegen.State, dbgr codegen.Debugger, args []st
 }
 
 func handleClearAll(w io.Writer, s *codegen.State, dbgr codegen.Debugger) error {
-	for _, bp := range dbgr.Breakpoints() {
+	bps, err := dbgr.Breakpoints()
+	if err != nil {
+		return err
+	}
+	for _, bp := range bps {
 		if bp.SourceDefined {
 			continue
 		}

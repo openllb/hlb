@@ -22,6 +22,7 @@ import (
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/steer"
+	"github.com/openllb/hlb/rpc/dapserver"
 	"github.com/openllb/hlb/solver"
 	cli "github.com/urfave/cli/v2"
 	"github.com/xlab/treeprint"
@@ -46,6 +47,10 @@ var runCommand = &cli.Command{
 		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "attach a debugger",
+		},
+		&cli.BoolFlag{
+			Name:  "dap",
+			Usage: "set debugger fronted to DAP over stdio",
 		},
 		&cli.BoolFlag{
 			Name:  "tree",
@@ -78,6 +83,11 @@ var runCommand = &cli.Command{
 		}
 		ctx = hlb.WithDefaultContext(ctx, cln)
 
+		var controlDebugger ControlDebugger
+		if c.Bool("debug") && !c.Bool("dap") {
+			controlDebugger = ControlDebuggerTUI(os.Stdin, os.Stdout, os.Stderr)
+		}
+
 		return Run(ctx, cln, uri, RunInfo{
 			Tree:            c.Bool("tree"),
 			Targets:         c.StringSlice("target"),
@@ -86,7 +96,8 @@ var runCommand = &cli.Command{
 			LogOutput:       c.String("log-output"),
 			DefaultPlatform: c.String("platform"),
 			Debug:           c.Bool("debug"),
-			ControlDebugger: ControlDebuggerTUI(os.Stdin, os.Stdout, os.Stderr),
+			DAP:             c.Bool("dap"),
+			ControlDebugger: controlDebugger,
 		})
 	},
 }
@@ -113,6 +124,7 @@ func ControlDebuggerTUI(stdin io.Reader, stdout, stderr io.Writer) ControlDebugg
 }
 
 type RunInfo struct {
+	DAP             bool
 	Tree            bool
 	Backtrace       bool
 	Targets         []string
@@ -179,9 +191,20 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 	}
 
 	// Always force plain output in debug mode so the prompts are displayed
-	// correctly
-	if info.Debug || uri == "-" {
+	// correctly.
+	if info.Debug || info.DAP || uri == "-" {
 		info.LogOutput = "plain"
+	}
+
+	var (
+		dapReader *io.PipeReader
+		dapWriter *io.PipeWriter
+	)
+	if info.DAP {
+		dapReader, dapWriter = io.Pipe()
+		defer dapReader.Close()
+		defer dapWriter.Close()
+		info.Stderr = dapWriter
 	}
 
 	switch info.LogOutput {
@@ -234,6 +257,12 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 			})
 		}
 	}
+	if info.DAP {
+		g.Go(func() error {
+			s := dapserver.New(dbgr)
+			return s.Listen(ctx, dapReader, info.Stdin, info.Stdout)
+		})
+	}
 
 	solveReq, err := hlb.Compile(ctx, cln, info.Stderr, mod, targets)
 	if err != nil {
@@ -271,6 +300,9 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 		defer p.Wait()
 		if dbgr != nil {
 			defer dbgr.Close()
+		}
+		if dapWriter != nil {
+			defer dapWriter.Close()
 		}
 		return solveReq.Solve(ctx, cln, p.MultiWriter())
 	})

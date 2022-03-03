@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/openllb/hlb"
-	"github.com/openllb/hlb/langserver"
+	"github.com/openllb/hlb/rpc/langserver"
 	cli "github.com/urfave/cli/v2"
 )
 
