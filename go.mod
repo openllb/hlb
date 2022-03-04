@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/participle/v2 v2.0.0-alpha7.0.20211230082035-5a357f57e525
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/containerd/console v1.0.3
-	github.com/containerd/containerd v1.6.0
+	github.com/containerd/containerd v1.6.1
 	github.com/creachadair/jrpc2 v0.26.1
 	github.com/creack/pty v1.1.11
 	github.com/docker/buildx v0.7.1-0.20220225164752-dab3fe71bd3c
@@ -19,7 +19,6 @@ require (
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.12
-	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.10.0-rc1.0.20220225165212-6fa5a92c61da
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2-0.20211117181255-693428a734f5
