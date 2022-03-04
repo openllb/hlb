@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
@@ -229,7 +230,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, mod *ast.Module) 
 
 			g.Go(func() error {
 				ctx = codegen.WithProgramCounter(ctx, id.Expr)
-				imod, filename, err := info.cg.EmitImport(ctx, mod, id)
+				imod, err := info.cg.EmitImport(ctx, mod, id)
 				if err != nil {
 					return err
 				}
@@ -241,6 +242,7 @@ func resolveGraph(ctx context.Context, info *resolveGraphInfo, mod *ast.Module) 
 				}
 
 				if info.visitor != nil {
+					filename := strings.TrimPrefix(imod.Pos.Filename, imod.Directory.Path())
 					err = info.visitor(VisitInfo{
 						Parent:     mod,
 						Import:     imod,

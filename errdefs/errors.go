@@ -239,8 +239,12 @@ func WithBindCacheMount(as, cache ast.Node) error {
 }
 
 func WithDockerEngineUnsupported(decl ast.Node) error {
+	err := fmt.Errorf("not supported by buildkit embedded in docker engine, use standalone buildkit")
+	if decl == nil {
+		return err
+	}
 	return decl.WithError(
-		fmt.Errorf("not supported by buildkit embedded in docker engine, use standalone buildkit"),
+		err,
 		decl.Spanf(diagnostic.Primary, "not supported by docker engine"),
 	)
 }

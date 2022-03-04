@@ -18,6 +18,8 @@ import (
 	"github.com/openllb/hlb/diagnostic"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
+	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/steer"
 	"github.com/openllb/hlb/rpc/dapserver"
 	"github.com/openllb/hlb/solver"
@@ -96,7 +98,7 @@ var runCommand = &cli.Command{
 }
 
 func GetURI(c *cli.Context) (uri string, err error) {
-	uri = hlb.DefaultFilename
+	uri = codegen.DefaultFilename
 	if c.NArg() > 1 {
 		_ = cli.ShowCommandHelp(c, c.Command.Name)
 		err = fmt.Errorf("requires at most 1 arg but got %d", c.NArg())
@@ -104,6 +106,17 @@ func GetURI(c *cli.Context) (uri string, err error) {
 		uri = c.Args().First()
 	}
 	return
+}
+
+func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, uri string) (*ast.Module, error) {
+	if uri == "-" {
+		return parser.Parse(ctx, &parser.NamedReader{
+			Reader: stdin,
+			Value:  "<stdin>",
+		})
+	}
+	dir := parser.NewLocalDirectory(".", "")
+	return codegen.ParseModuleURI(ctx, cln, dir, uri)
 }
 
 type ControlDebugger func(context.Context, codegen.Debugger) error
@@ -226,7 +239,7 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 		err = errdefs.WithAbort(err, numErrs)
 	}()
 
-	mod, err := hlb.ParseModuleURI(ctx, cln, info.Stdin, uri)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}

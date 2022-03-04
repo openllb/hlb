@@ -324,81 +324,72 @@ func (cg *CodeGen) EmitIdentExpr(ctx context.Context, scope *ast.Scope, ie *ast.
 	}
 }
 
-func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.ImportDecl) (imod *ast.Module, filename string, err error) {
+func (cg *CodeGen) EmitImport(ctx context.Context, mod *ast.Module, id *ast.ImportDecl) (*ast.Module, error) {
 	// Import expression can be string or fs.
 	ctx = WithReturnType(ctx, ast.None)
 
 	ret := NewRegister(ctx)
-	err = cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, ret)
+	err := cg.EmitExpr(ctx, mod.Scope, id.Expr, nil, nil, ret)
 	if err != nil {
-		return
+		return nil, err
 	}
 	val := ret.Value()
 
-	var (
-		dir    = mod.Directory
-		fbOpts []filebuffer.Option
-	)
+	var imod *ast.Module
 	switch val.Kind() {
 	case ast.Filesystem:
-		var fs Filesystem
-		fs, err = val.Filesystem()
+		fs, err := val.Filesystem()
 		if err != nil {
-			return
+			return nil, err
 		}
 
-		filename = ModuleFilename
-		dir, err = cg.resolver.Resolve(ctx, id, fs)
+		filename := ModuleFilename
+		dir, err := cg.resolver.Resolve(ctx, id, fs)
 		if err != nil {
-			return
+			return nil, err
 		}
-		fbOpts = append(fbOpts, filebuffer.WithEphemeral())
+
+		rc, err := dir.Open(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		imod, err = parser.Parse(ctx, rc, filebuffer.WithEphemeral())
+		if err != nil {
+			return nil, err
+		}
+		imod.Directory = dir
+		imod.URI = "fs://" + dir.Path()
 	case ast.String:
-		filename, err = val.String()
+		uri, err := val.String()
 		if err != nil {
-			return
+			return nil, err
 		}
 
-		filename, err = parser.ResolvePath(ModuleDir(ctx), filename)
+		imod, err = ParseModuleURI(ctx, cg.cln, mod.Directory, uri)
 		if err != nil {
-			return
+			if !errdefs.IsNotExist(err) {
+				return nil, err
+			}
+			if id.DeprecatedPath != nil {
+				return nil, errdefs.WithImportPathNotExist(err, id.DeprecatedPath, uri)
+			}
+			if id.Expr.FuncLit != nil {
+				return nil, errdefs.WithImportPathNotExist(err, id.Expr.FuncLit.Type, uri)
+			}
+			return nil, errdefs.WithImportPathNotExist(err, id.Expr, uri)
 		}
 	}
-
-	rc, err := dir.Open(filename)
-	if err != nil {
-		if !errdefs.IsNotExist(err) {
-			return
-		}
-		if id.DeprecatedPath != nil {
-			err = errdefs.WithImportPathNotExist(err, id.DeprecatedPath, filename)
-			return
-		}
-		if id.Expr.FuncLit != nil {
-			err = errdefs.WithImportPathNotExist(err, id.Expr.FuncLit.Type, filename)
-			return
-		}
-		err = errdefs.WithImportPathNotExist(err, id.Expr, filename)
-		return
-	}
-	defer rc.Close()
-
-	imod, err = parser.Parse(ctx, rc, fbOpts...)
-	if err != nil {
-		return
-	}
-	imod.Directory = dir
 
 	err = checker.SemanticPass(imod)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	// Drop errors from linting.
 	_ = linter.Lint(ctx, imod)
 
-	err = checker.Check(imod)
-	return
+	return imod, checker.Check(imod)
 }
 
 func (cg *CodeGen) EmitBuiltinDecl(ctx context.Context, scope *ast.Scope, bd *ast.BuiltinDecl, args []Register, opts Register, b *ast.Binding, val Value) (Value, error) {
@@ -571,7 +562,7 @@ func (cg *CodeGen) lookupCall(ctx context.Context, scope *ast.Scope, lookup *ast
 			}
 
 			mod := scope.ByLevel(ast.ModuleScope).Node.(*ast.Module)
-			imod, _, err := cg.EmitImport(ctx, mod, n)
+			imod, err := cg.EmitImport(ctx, mod, n)
 			if err != nil {
 				return nil, err
 			}

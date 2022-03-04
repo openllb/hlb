@@ -1,10 +1,9 @@
-package hlb
+package codegen
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/url"
 	"os"
@@ -13,7 +12,7 @@ import (
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/openllb/hlb/codegen"
+	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/parser/ast"
@@ -34,14 +33,7 @@ var (
 
 // ParseModuleURI returns an ast.Module based on the URI provided. The module
 // may live on the local filesystem or remote depending on the scheme.
-func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, uri string) (*ast.Module, error) {
-	if uri == "-" {
-		return parser.Parse(ctx, &parser.NamedReader{
-			Reader: stdin,
-			Value:  "<stdin>",
-		})
-	}
-
+func ParseModuleURI(ctx context.Context, cln *client.Client, dir ast.Directory, uri string) (*ast.Module, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
@@ -49,46 +41,69 @@ func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, ur
 
 	switch u.Scheme {
 	case "", "file":
-		f, err := os.Open(u.Host + u.Path)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		return parser.Parse(ctx, f)
+		return parseModuleFileURI(ctx, cln, dir, u)
 	case "git", "git+https", "git+ssh":
-		return parseModuleGitURI(ctx, cln, u.Scheme, uri)
+		return parseModuleGitURI(ctx, cln, uri)
 	default:
 		return nil, fmt.Errorf("%q is not a valid module uri scheme", u.Scheme)
 	}
 }
 
-func parseModuleGitURI(ctx context.Context, cln *client.Client, scheme, uri string) (*ast.Module, error) {
+func parseModuleFileURI(ctx context.Context, cln *client.Client, dir ast.Directory, u *url.URL) (*ast.Module, error) {
+	filename, err := parser.ResolvePath(ModuleDir(ctx), u.Host+u.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	rc, err := dir.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	mod, err := parser.Parse(ctx, rc)
+	if err != nil {
+		return nil, err
+	}
+	mod.Directory = dir
+
+	if u.Scheme == "" {
+		u.Scheme = "file"
+	}
+	mod.URI = u.String()
+	return mod, nil
+}
+
+func parseModuleGitURI(ctx context.Context, cln *client.Client, uri string) (*ast.Module, error) {
 	u, err := gitscheme.Parse(uri)
 	if err != nil {
 		return nil, err
 	}
+	dockerAPI := DockerAPI(ctx)
+	if dockerAPI.Moby {
+		return nil, errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
+	}
+
 	if u.Filename == "" {
 		u.Filename = DefaultFilename
 	}
-
-	user := u.User
-	if user == "" {
-		user = "git"
+	if u.User == "" {
+		u.User = "git"
 	}
 
 	ssh := false
 	sockPath := local.Env(ctx, "SSH_AUTH_SOCK")
-	switch scheme {
+	switch u.Scheme {
 	case "git+https": // explicit https
 	case "git+ssh": // explicit ssh
-		err = testSSHAgent(sockPath, u.Host, user)
+		err = testSSHAgent(sockPath, u.Host, u.User)
 		if err != nil {
 			return nil, err
 		}
 		ssh = true
 	case "git": // auto
 		if sockPath != "" {
-			err = testSSHAgent(sockPath, u.Host, user)
+			err = testSSHAgent(sockPath, u.Host, u.User)
 			if err == nil {
 				ssh = true
 			}
@@ -107,7 +122,7 @@ func parseModuleGitURI(ctx context.Context, cln *client.Client, scheme, uri stri
 		remote = "https://" + root
 	} else {
 		// Use ssh protocol.
-		root = user + "@" + u.Host + u.Path
+		root = u.User + "@" + u.Host + u.Path
 		remote = "ssh://" + root
 
 		// Forward ssh agent.
@@ -132,14 +147,19 @@ func parseModuleGitURI(ctx context.Context, cln *client.Client, scheme, uri stri
 	if err != nil {
 		return nil, err
 	}
+	fs := Filesystem{State: st}
+	dgst, err := fs.Digest(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	var pw progress.Writer
-	mw := codegen.MultiWriter(ctx)
+	mw := MultiWriter(ctx)
 	if mw != nil {
 		pw = mw.WithPrefix("module "+uri, true)
 	}
 
-	dir, err := solver.NewRemoteDirectory(ctx, cln, pw, def, root, "", nil, sessionOpts)
+	dir, err := solver.NewRemoteDirectory(ctx, cln, pw, def, root, dgst, nil, sessionOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +175,7 @@ func parseModuleGitURI(ctx context.Context, cln *client.Client, scheme, uri stri
 		return nil, err
 	}
 	mod.Directory = dir
+	mod.URI = uri
 	return mod, nil
 }
 
