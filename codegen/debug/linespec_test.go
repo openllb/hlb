@@ -204,7 +204,7 @@ func TestParseLinespec(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
-			ctx = ast.WithModules(ctx, ast.NewModules())
+			ctx = ast.WithModules(ctx, builtin.Modules())
 			for filename, content := range tc.files {
 				r := &parser.NamedReader{
 					Reader: strings.NewReader(cleanup(content)),

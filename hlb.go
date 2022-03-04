@@ -20,8 +20,8 @@ import (
 
 // WithDefaultContext adds common context values to the context.
 func WithDefaultContext(ctx context.Context, cln *client.Client) context.Context {
-	ctx = ast.WithModules(ctx, ast.NewModules())
 	ctx = filebuffer.WithBuffers(ctx, builtin.Buffers())
+	ctx = ast.WithModules(ctx, builtin.Modules())
 	if cln != nil {
 		ctx = codegen.WithImageResolver(ctx, codegen.NewCachedImageResolver(cln))
 	}

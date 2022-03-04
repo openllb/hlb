@@ -168,7 +168,8 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		return nil, err
 	}
 
-	fi, err := os.Stat(localPath)
+	dir := Module(ctx).Directory
+	fi, err := dir.Stat(localPath)
 	if err != nil {
 		return nil, Arg(ctx, 0).WithError(err)
 	}
@@ -191,7 +192,36 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 
 		// When localPath is a filename instead of a directory, include and exclude
 		// patterns should be ignored.
-		localOpts = append(localOpts, llb.IncludePatterns([]string{filename}), llb.ExcludePatterns([]string{}))
+		localOpts = append(localOpts,
+			llbutil.IncludePatterns([]string{filename}),
+			llbutil.ExcludePatterns([]string{}),
+		)
+	}
+
+	if dir.Definition() != nil {
+		copyOpts := []llb.CopyOption{
+			llbutil.WithCopyDirContentsOnly(true),
+		}
+		for _, opt := range localOpts {
+			switch o := opt.(type) {
+			case llb.CopyOption:
+				copyOpts = append(copyOpts, o)
+			}
+		}
+
+		defop, err := llb.NewDefinitionOp(dir.Definition().ToPB())
+		if err != nil {
+			return nil, err
+		}
+
+		fs := Filesystem{
+			State: llb.Scratch().File(
+				llb.Copy(llb.NewState(defop), localPath, "/", copyOpts...),
+				SourceMap(ctx)...,
+			),
+			Platform: DefaultPlatform(ctx),
+		}
+		return NewValue(ctx, fs)
 	}
 
 	absPath := localPath
@@ -521,16 +551,16 @@ func (m Copy) Call(ctx context.Context, cln *client.Client, val Value, opts Opti
 		return nil, err
 	}
 
-	var info = &llb.CopyInfo{}
+	var copyOpts []llb.CopyOption
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case llb.CopyOption:
-			o.SetCopyOption(info)
+			copyOpts = append(copyOpts, o)
 		}
 	}
 
 	fs.State = fs.State.File(
-		llb.Copy(input.State, src, dest, info),
+		llb.Copy(input.State, src, dest, copyOpts...),
 		SourceMap(ctx)...,
 	)
 	fs.SolveOpts = append(fs.SolveOpts, input.SolveOpts...)

@@ -350,12 +350,6 @@ var (
 						},
 						Effects: []*ast.Field{},
 					},
-					"followPaths": {
-						Params: []*ast.Field{
-							ast.NewField(ast.String, "path", true),
-						},
-						Effects: []*ast.Field{},
-					},
 				},
 			},
 			"option::localRun": {
@@ -768,12 +762,6 @@ option::local includePatterns(variadic string pattern)
 # @param pattern a list of patterns for files that should not be synced.
 # @return an option to sync files that don&#39;t match any pattern.
 option::local excludePatterns(variadic string pattern)
-
-# Sync the targets of symlinks if path is to a symlink.
-#
-# @param path a list of paths to files that may be symlinks.
-# @return an option to sync the targets of symlinks.
-option::local followPaths(variadic string path)
 
 # Generates a filesystem using an external frontend.
 #

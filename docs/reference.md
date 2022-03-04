@@ -428,7 +428,6 @@
 	fs default() {
 		local "path" with option {
 			excludePatterns "pattern"
-			followPaths "path"
 			includePatterns "pattern"
 		}
 	}
@@ -437,13 +436,6 @@
 #### <span class='hlb-type'>option::local</span> <span class='hlb-name'>excludePatterns</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>pattern</span>"
-	
-
-
-
-#### <span class='hlb-type'>option::local</span> <span class='hlb-name'>followPaths</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>)
-
-!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>path</span>"
 	
 
 

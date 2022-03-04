@@ -473,9 +473,10 @@ func TestChecker_Check(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			in := strings.NewReader(dedent.Dedent(tc.input))
-
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
+			ctx = ast.WithModules(ctx, builtin.Modules())
+
+			in := strings.NewReader(dedent.Dedent(tc.input))
 			mod, err := parser.Parse(ctx, in)
 			require.NoError(t, err)
 

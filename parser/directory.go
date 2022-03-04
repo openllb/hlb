@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser/ast"
 )
@@ -29,11 +30,22 @@ func (r *localDirectory) Digest() digest.Digest {
 	return r.dgst
 }
 
+func (r *localDirectory) Definition() *llb.Definition {
+	return nil
+}
+
 func (r *localDirectory) Open(filename string) (io.ReadCloser, error) {
 	if filepath.IsAbs(filename) {
 		return os.Open(filename)
 	}
 	return os.Open(filepath.Join(r.root, filename))
+}
+
+func (r *localDirectory) Stat(filename string) (os.FileInfo, error) {
+	if filepath.IsAbs(filename) {
+		return os.Stat(filename)
+	}
+	return os.Stat(filepath.Join(r.root, filename))
 }
 
 func (r *localDirectory) Close() error { return nil }

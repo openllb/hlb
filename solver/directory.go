@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/docker/buildx/util/progress"
@@ -73,6 +74,7 @@ func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Wri
 	return &remoteDirectory{
 		root:   root,
 		dgst:   dgst,
+		def:    def,
 		ref:    ref,
 		g:      g,
 		ctx:    ctx,
@@ -83,6 +85,7 @@ func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Wri
 type remoteDirectory struct {
 	root   string
 	dgst   digest.Digest
+	def    *llb.Definition
 	ref    gateway.Reference
 	g      *errgroup.Group
 	ctx    context.Context
@@ -95,6 +98,10 @@ func (r *remoteDirectory) Path() string {
 
 func (r *remoteDirectory) Digest() digest.Digest {
 	return r.dgst
+}
+
+func (r *remoteDirectory) Definition() *llb.Definition {
+	return r.def
 }
 
 func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
@@ -116,6 +123,16 @@ func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
 		Reader: bytes.NewReader(data),
 		Value:  filepath.Join(r.root, filename),
 	}, nil
+}
+
+func (r *remoteDirectory) Stat(filename string) (os.FileInfo, error) {
+	stat, err := r.ref.StatFile(r.ctx, gateway.StatRequest{
+		Path: filename,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &llbutil.FileInfo{stat}, nil
 }
 
 func (r *remoteDirectory) Close() error {

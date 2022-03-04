@@ -944,6 +944,8 @@ func TestCodeGen(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
+			ctx = ast.WithModules(ctx, builtin.Modules())
+
 			mod, err := parser.Parse(ctx, strings.NewReader(dedent.Dedent(tc.hlb)))
 			require.NoError(t, err, tc.name)
 
@@ -1033,6 +1035,8 @@ func TestCodegenError(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
+			ctx = ast.WithModules(ctx, builtin.Modules())
+
 			mod, err := parser.Parse(ctx, strings.NewReader(tc.input))
 			require.NoError(t, err, "unexpected parse error")
 
@@ -1306,6 +1310,8 @@ func TestCodeGenImport(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
+			ctx = ast.WithModules(ctx, builtin.Modules())
+
 			mod, actual := parseTestFile(t, ctx, tc.files, tc.files[0])
 			if tc.fn != nil {
 				expected := tc.fn(mod)

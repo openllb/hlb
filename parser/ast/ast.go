@@ -3,11 +3,13 @@ package ast
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
 	participle "github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer"
+	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/diagnostic"
 )
@@ -172,7 +174,11 @@ type Directory interface {
 
 	Digest() digest.Digest
 
+	Definition() *llb.Definition
+
 	Open(filename string) (io.ReadCloser, error)
+
+	Stat(filename string) (os.FileInfo, error)
 
 	Close() error
 }

@@ -69,7 +69,6 @@ var (
 		"option::local": {
 			"includePatterns": IncludePatterns{},
 			"excludePatterns": ExcludePatterns{},
-			"followPaths":     FollowPaths{},
 		},
 		"option::frontend": {
 			"input": FrontendInput{},
@@ -101,8 +100,8 @@ var (
 			"uid":             UID{},
 			"gid":             GID{},
 			"mode":            UtilChmod{},
-			"includePatterns": SecretIncludePatterns{},
-			"excludePatterns": SecretExcludePatterns{},
+			"includePatterns": IncludePatterns{},
+			"excludePatterns": ExcludePatterns{},
 		},
 		"option::mount": {
 			"readonly":   Readonly{},
@@ -133,8 +132,8 @@ var (
 			"chown":              UtilChown{},
 			"chmod":              UtilChmod{},
 			"createdTime":        UtilCreatedTime{},
-			"includePatterns":    CopyIncludePatterns{},
-			"excludePatterns":    CopyExcludePatterns{},
+			"includePatterns":    IncludePatterns{},
+			"excludePatterns":    ExcludePatterns{},
 		},
 		"option::localRun": {
 			"ignoreError":   IgnoreError{},
