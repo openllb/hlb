@@ -143,7 +143,7 @@ func Vendor(ctx context.Context, cln *client.Client, uri string, info VendorInfo
 		err = errdefs.WithAbort(err, len(spans))
 	}()
 
-	mod, err := hlb.ParseModuleURI(ctx, cln, info.Stdin, uri)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
@@ -264,7 +264,7 @@ func Tree(ctx context.Context, cln *client.Client, uri string, info TreeInfo) (e
 		err = errdefs.WithAbort(err, len(spans))
 	}()
 
-	mod, err := hlb.ParseModuleURI(ctx, cln, info.Stdin, uri)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}

@@ -193,6 +193,7 @@ type Module struct {
 	Mixin
 	Scope     *Scope
 	Directory Directory
+	URI       string
 	Doc       *CommentGroup
 	Decls     []*Decl `parser:"@@*"`
 }

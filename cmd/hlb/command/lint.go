@@ -59,7 +59,7 @@ func Lint(ctx context.Context, cln *client.Client, uri string, info LintInfo) er
 		info.Stderr = os.Stderr
 	}
 
-	mod, err := hlb.ParseModuleURI(ctx, cln, info.Stdin, uri)
+	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
 	if err != nil {
 		return err
 	}

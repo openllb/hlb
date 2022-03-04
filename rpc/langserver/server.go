@@ -511,7 +511,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 	}()
 
 	uri := params.TextDocument.URI
-	log.Printf("text document definition %q", uri)
+	log.Printf("text document definition [%d:%d] %q", params.Position.Line, params.Position.Character, uri)
 
 	ls.tmu.RLock()
 	td, ok := ls.tds[uri]
@@ -555,7 +555,7 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 
 			cg := codegen.New(ls.cln, ls.resolver)
 			ctx = codegen.WithProgramCounter(ctx, id.Expr)
-			imod, filename, err := cg.EmitImport(ctx, td.Module, id)
+			imod, err := cg.EmitImport(ctx, td.Module, id)
 			if err != nil {
 				log.Printf("failed to emit import: %s", err)
 				return
@@ -568,8 +568,28 @@ func (ls *LangServer) textDocumentDefinitionHandler(ctx context.Context, params 
 				return
 			}
 
+			// TODO: LSP does not have protocols for virtual workspaces, it is only
+			// supported in vscode extensions as `TextDocumentContentProvider`:
+			// https://code.visualstudio.com/api/extension-guides/virtual-documents
+			//
+			// In the future LSP may have support, but for now other LSP like JDT adds
+			// an extension like `java/classFileContents` to use with
+			// `TextDocumentContentProvider`. For HLB, the extension could be
+			// `hlb/moduleFileContents`.
+			if !strings.HasPrefix(imod.URI, "file://") {
+				log.Printf("virtual workspaces not supported: %s", imod.URI)
+				return
+			}
+
+			filename := strings.TrimPrefix(imod.URI, "file://")
+			filename, err = filepath.Abs(filename)
+			if err != nil {
+				log.Printf("failed to get absolute path: %s", err)
+				return
+			}
+
 			ls.tmu.Lock()
-			importUri := lsp.DocumentURI(fmt.Sprintf("file://%s", filepath.Join(imod.Directory.Path(), filename)))
+			importUri := lsp.DocumentURI("file://" + filename)
 			_, ok = ls.tds[importUri]
 			if !ok {
 				rc, err := imod.Directory.Open(filename)
@@ -702,7 +722,7 @@ func (ls *LangServer) textDocumentCompletionHandler(ctx context.Context, params 
 }
 
 func isPositionWithinNode(pos lsp.Position, node ast.Node) bool {
-	return ast.IsPositionWithinNode(node, pos.Line-1, pos.Character-1)
+	return ast.IsPositionWithinNode(node, pos.Line+1, pos.Character+1)
 }
 
 func newLocationFromNode(uri lsp.DocumentURI, node ast.Node) *lsp.Location {
