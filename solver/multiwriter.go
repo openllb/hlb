@@ -72,6 +72,14 @@ func (p *prefixed) Write(v *client.SolveStatus) {
 	p.mw.w.Write(filtered)
 }
 
+func (p *prefixed) ValidateLogSource(dgst digest.Digest, v interface{}) bool {
+	return p.mw.w.ValidateLogSource(dgst, v)
+}
+
+func (p *prefixed) ClearLogSource(v interface{}) {
+	p.mw.w.ClearLogSource(v)
+}
+
 func addPrefix(pfx, name string) string {
 	if strings.HasPrefix(name, "[") {
 		return "[" + pfx + " " + name[1:]

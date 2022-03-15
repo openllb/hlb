@@ -9,6 +9,7 @@ import (
 	"github.com/containerd/console"
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
@@ -185,6 +186,14 @@ func (spp *syncProgressPrinter) Write(s *client.SolveStatus) {
 	default:
 		spp.p.Write(s)
 	}
+}
+
+func (spp *syncProgressPrinter) ValidateLogSource(dgst digest.Digest, v interface{}) bool {
+	return spp.p.ValidateLogSource(dgst, v)
+}
+
+func (spp *syncProgressPrinter) ClearLogSource(v interface{}) {
+	spp.p.ClearLogSource(v)
 }
 
 func (spp *syncProgressPrinter) wait() error {
