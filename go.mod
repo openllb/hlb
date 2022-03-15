@@ -9,7 +9,7 @@ require (
 	github.com/containerd/containerd v1.6.1
 	github.com/creachadair/jrpc2 v0.26.1
 	github.com/creack/pty v1.1.11
-	github.com/docker/buildx v0.7.1-0.20220225164752-dab3fe71bd3c
+	github.com/docker/buildx v0.8.1-0.20220315021307-3adca1c17db9
 	github.com/docker/cli v20.10.12+incompatible
 	github.com/docker/distribution v2.8.0+incompatible
 	github.com/docker/docker v20.10.7+incompatible
@@ -19,7 +19,7 @@ require (
 	github.com/lithammer/dedent v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20191116043053-66b7ad493a23
 	github.com/mattn/go-isatty v0.0.12
-	github.com/moby/buildkit v0.10.0-rc1.0.20220225165212-6fa5a92c61da
+	github.com/moby/buildkit v0.10.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2-0.20211117181255-693428a734f5
 	github.com/openllb/doxygen-parser v0.0.0-20201031162929-e0b5cceb2d0c
@@ -37,7 +37,7 @@ require (
 )
 
 replace (
-	github.com/docker/cli => github.com/docker/cli v20.10.3-0.20210702143511-f782d1355eff+incompatible
+	github.com/docker/cli => github.com/docker/cli v20.10.3-0.20220226190722-8667ccd1124c+incompatible
 	github.com/docker/docker => github.com/docker/docker v20.10.3-0.20220121014307-40bb9831756f+incompatible
 	github.com/sourcegraph/go-lsp => github.com/radeksimko/go-lsp v0.0.0-20200223162147-9f2c54f29c9f
 )
