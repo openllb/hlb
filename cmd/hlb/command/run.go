@@ -20,6 +20,7 @@ import (
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
 	"github.com/openllb/hlb/parser/ast"
+	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/pkg/steer"
 	"github.com/openllb/hlb/rpc/dapserver"
 	"github.com/openllb/hlb/solver"
@@ -146,6 +147,7 @@ type RunInfo struct {
 	ControlDebugger ControlDebugger
 
 	// override defaults sources as necessary
+	Reader  io.Reader
 	Environ []string
 	Cwd     string
 	Os      string
@@ -239,7 +241,12 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 		err = errdefs.WithAbort(err, numErrs)
 	}()
 
-	mod, err := ParseModuleURI(ctx, cln, info.Stdin, uri)
+	var mod *ast.Module
+	if info.Reader == nil {
+		mod, err = ParseModuleURI(ctx, cln, info.Stdin, uri)
+	} else {
+		mod, err = parser.Parse(ctx, info.Reader, filebuffer.WithEphemeral())
+	}
 	if err != nil {
 		return err
 	}
