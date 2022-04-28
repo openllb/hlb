@@ -10,24 +10,28 @@ import (
 
 type fixedReader struct {
 	io.Reader
+	byteClock chan struct{}
 }
 
 func (fr *fixedReader) Read(p []byte) (n int, err error) {
 	b := make([]byte, 1)
 	n, err = fr.Reader.Read(b)
 	copy(p, b)
+	<-fr.byteClock
 	return
 }
 
 func TestInputSteerer(t *testing.T) {
 	r := &fixedReader{
-		Reader: strings.NewReader("abc"),
+		Reader:    strings.NewReader("abc"),
+		byteClock: make(chan (struct{}), 1),
 	}
 
 	pr, pw := io.Pipe()
 	is := NewInputSteerer(r, pw)
 
 	p := make([]byte, 1)
+	r.byteClock <- struct{}{}
 	n, err := pr.Read(p)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
@@ -42,12 +46,14 @@ func TestInputSteerer(t *testing.T) {
 	go func() {
 		defer close(done)
 		p = make([]byte, 1)
+		r.byteClock <- struct{}{}
 		n, err = pr.Read(p)
 		require.NoError(t, err)
 		require.Equal(t, 1, n)
 	}()
 
 	p2 := make([]byte, 1)
+	r.byteClock <- struct{}{}
 	n, err = pr2.Read(p2)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
