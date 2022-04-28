@@ -16,7 +16,10 @@ import (
 	"github.com/openllb/hlb/parser/ast"
 	"github.com/openllb/hlb/pkg/filebuffer"
 	"github.com/openllb/hlb/solver"
+	"golang.org/x/sync/semaphore"
 )
+
+const defaultMaxConcurrency = 10
 
 // WithDefaultContext adds common context values to the context.
 func WithDefaultContext(ctx context.Context, cln *client.Client) context.Context {
@@ -54,5 +57,8 @@ func Compile(ctx context.Context, cln *client.Client, w io.Writer, mod *ast.Modu
 
 	cg := codegen.New(cln, resolver)
 	ctx = codegen.WithSessionID(ctx, identity.NewID())
+	if codegen.ConcurrencyLimiter(ctx) == nil {
+		ctx = codegen.WithConcurrencyLimiter(ctx, semaphore.NewWeighted(defaultMaxConcurrency))
+	}
 	return cg.Generate(ctx, mod, targets)
 }
