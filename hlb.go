@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const defaultMaxConcurrency = 10
+const defaultMaxConcurrency = 20
 
 // WithDefaultContext adds common context values to the context.
 func WithDefaultContext(ctx context.Context, cln *client.Client) context.Context {
