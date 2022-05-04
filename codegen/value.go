@@ -18,7 +18,6 @@ import (
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/xlab/treeprint"
-	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -41,18 +40,16 @@ type Register interface {
 }
 
 type register struct {
-	debug   bool
-	limiter *semaphore.Weighted
-	value   Value
-	last    Value
-	ctor    func(iface interface{}) (Value, error)
+	debug bool
+	value Value
+	last  Value
+	ctor  func(iface interface{}) (Value, error)
 }
 
 func NewRegister(ctx context.Context) Register {
 	return &register{
-		debug:   GetDebugger(ctx) != nil,
-		limiter: ConcurrencyLimiter(ctx),
-		value:   ZeroValue(ctx),
+		debug: GetDebugger(ctx) != nil,
+		value: ZeroValue(ctx),
 		ctor: func(iface interface{}) (Value, error) {
 			return NewValue(ctx, iface)
 		},
@@ -82,15 +79,10 @@ func (r *register) SetAsync(f func(Value) (Value, error)) {
 		prev = r.last
 	}
 
-	valCh := make(chan Value, 1)
+	valCh := make(chan Value)
 	r.last = &lazyValue{valCh: valCh}
 
 	go func() {
-		if r.limiter != nil {
-			r.limiter.Acquire(context.Background(), 1)
-			defer r.limiter.Release(1)
-		}
-
 		next, err := f(prev)
 		if err != nil {
 			next = &errorValue{err}

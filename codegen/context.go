@@ -20,24 +20,22 @@ import (
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 type (
-	programCounterKey     struct{}
-	returnTypeKey         struct{}
-	argKey                struct{ n int }
-	bindingKey            struct{}
-	sessionIDKey          struct{}
-	multiwriterKey        struct{}
-	imageResolverKey      struct{}
-	backtraceKey          struct{}
-	progressKey           struct{}
-	platformKey           struct{}
-	dockerAPIKey          struct{}
-	debuggerKey           struct{}
-	globalSolveOptsKey    struct{}
-	concurrencyLimiterKey struct{}
+	programCounterKey  struct{}
+	returnTypeKey      struct{}
+	argKey             struct{ n int }
+	bindingKey         struct{}
+	sessionIDKey       struct{}
+	multiwriterKey     struct{}
+	imageResolverKey   struct{}
+	backtraceKey       struct{}
+	progressKey        struct{}
+	platformKey        struct{}
+	dockerAPIKey       struct{}
+	debuggerKey        struct{}
+	globalSolveOptsKey struct{}
 )
 
 func WithProgramCounter(ctx context.Context, node ast.Node) context.Context {
@@ -274,13 +272,4 @@ func WithGlobalSolveOpts(ctx context.Context, opts ...solver.SolveOption) contex
 func GlobalSolveOpts(ctx context.Context) []solver.SolveOption {
 	opts, _ := ctx.Value(globalSolveOptsKey{}).([]solver.SolveOption)
 	return opts
-}
-
-func WithConcurrencyLimiter(ctx context.Context, limiter *semaphore.Weighted) context.Context {
-	return context.WithValue(ctx, concurrencyLimiterKey{}, limiter)
-}
-
-func ConcurrencyLimiter(ctx context.Context) *semaphore.Weighted {
-	limiter, _ := ctx.Value(concurrencyLimiterKey{}).(*semaphore.Weighted)
-	return limiter
 }

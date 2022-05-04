@@ -57,8 +57,8 @@ func Compile(ctx context.Context, cln *client.Client, w io.Writer, mod *ast.Modu
 
 	cg := codegen.New(cln, resolver)
 	ctx = codegen.WithSessionID(ctx, identity.NewID())
-	if codegen.ConcurrencyLimiter(ctx) == nil {
-		ctx = codegen.WithConcurrencyLimiter(ctx, semaphore.NewWeighted(defaultMaxConcurrency))
+	if solver.ConcurrencyLimiter(ctx) == nil {
+		ctx = solver.WithConcurrencyLimiter(ctx, semaphore.NewWeighted(defaultMaxConcurrency))
 	}
 	return cg.Generate(ctx, mod, targets)
 }
