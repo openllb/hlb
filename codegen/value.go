@@ -48,7 +48,14 @@ type register struct {
 
 func NewRegister(ctx context.Context) Register {
 	return &register{
-		debug: GetDebugger(ctx) != nil,
+		// Temporarily disable async sets.
+		// TODO: Revert this once async register behavior is stable.
+		// Currently, it seems to cause complexity explosions with
+		// thousands of goroutines, lots of memory use, and major
+		// contention on the concurrency limit with some complex graphs.
+		//debug: GetDebugger(ctx) != nil,
+		debug: true,
+
 		value: ZeroValue(ctx),
 		ctor: func(iface interface{}) (Value, error) {
 			return NewValue(ctx, iface)
