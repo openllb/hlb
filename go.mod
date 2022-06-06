@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/participle/v2 v2.0.0-alpha7.0.20211230082035-5a357f57e525
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/containerd/console v1.0.3
-	github.com/containerd/containerd v1.6.1
+	github.com/containerd/containerd v1.6.6
 	github.com/creachadair/jrpc2 v0.26.1
 	github.com/creack/pty v1.1.11
 	github.com/docker/buildx v0.8.1-0.20220315021307-3adca1c17db9
@@ -21,7 +21,7 @@ require (
 	github.com/mattn/go-isatty v0.0.12
 	github.com/moby/buildkit v0.10.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.0.2-0.20211117181255-693428a734f5
+	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
 	github.com/openllb/doxygen-parser v0.0.0-20201031162929-e0b5cceb2d0c
 	github.com/pkg/errors v0.9.1
 	github.com/sourcegraph/go-lsp v0.0.0-20200117082640-b19bb38222e2
@@ -32,7 +32,7 @@ require (
 	github.com/xlab/treeprint v1.0.0
 	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158
+	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
 	google.golang.org/grpc v1.44.0
 )
 
