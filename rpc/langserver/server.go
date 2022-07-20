@@ -361,7 +361,7 @@ func highlightExpr(lines map[int]lsp.SemanticHighlightingTokens, expr *ast.Expr)
 		if call.Name != nil {
 			highlightIdentExpr(lines, call.Name)
 		}
-		for _, arg := range call.Arguments() {
+		for _, arg := range call.Args() {
 			highlightExpr(lines, arg)
 		}
 	}

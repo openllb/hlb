@@ -109,13 +109,6 @@ type StopNode interface {
 	Subject() Node
 }
 
-type CallNode interface {
-	Node
-	Ident() *Ident
-	Signature() []Kind
-	Arguments() []*Expr
-}
-
 type Mixin struct {
 	Pos    lexer.Position
 	EndPos lexer.Position
@@ -462,7 +455,7 @@ type Stmt struct {
 type CallStmt struct {
 	Mixin
 	Doc        *CommentGroup
-	Sig        []Kind
+	Signature  []Kind
 	Name       *IdentExpr  `parser:"@@"`
 	Args       []*Expr     `parser:"@@*"`
 	WithClause *WithClause `parser:"@@?"`
@@ -481,30 +474,15 @@ func NewCallStmt(name string, args []*Expr, with *WithClause, binds *BindClause)
 	}
 }
 
+func (cs *CallStmt) Subject() Node {
+	return cs.Name
+}
+
 func (cs *CallStmt) Breakpoint() bool {
 	if cs.Name == nil || cs.Name.Ident == nil {
 		return false
 	}
 	return cs.Name.Ident.Text == "breakpoint"
-}
-
-func (cs *CallStmt) Subject() Node {
-	return cs.Name
-}
-
-func (cs *CallStmt) Ident() *Ident {
-	if cs.Name == nil {
-		return nil
-	}
-	return cs.Name.Ident
-}
-
-func (cs *CallStmt) Signature() []Kind {
-	return cs.Sig
-}
-
-func (cs *CallStmt) Arguments() []*Expr {
-	return cs.Args
 }
 
 // WithClause represents optional arguments for a CallStmt.
@@ -865,9 +843,13 @@ func NewBoolExpr(v bool) *Expr {
 // expression.
 type CallExpr struct {
 	Mixin
-	Sig  []Kind
-	Name *IdentExpr `parser:"@@"`
-	List *ExprList  `parser:"@@?"`
+	Signature []Kind
+	Name      *IdentExpr `parser:"@@"`
+	List      *ExprList  `parser:"@@?"`
+}
+
+func (ce *CallExpr) Subject() Node {
+	return ce.Name
 }
 
 func (ce *CallExpr) Breakpoint() bool {
@@ -877,22 +859,7 @@ func (ce *CallExpr) Breakpoint() bool {
 	return ce.Name.Ident.Text == "breakpoint"
 }
 
-func (ce *CallExpr) Subject() Node {
-	return ce.Name
-}
-
-func (ce *CallExpr) Ident() *Ident {
-	if ce.Name == nil {
-		return nil
-	}
-	return ce.Name.Ident
-}
-
-func (ce *CallExpr) Signature() []Kind {
-	return ce.Sig
-}
-
-func (ce *CallExpr) Arguments() []*Expr {
+func (ce *CallExpr) Args() []*Expr {
 	var args []*Expr
 	if ce.List != nil {
 		for _, field := range ce.List.Fields {

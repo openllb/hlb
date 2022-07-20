@@ -36,19 +36,17 @@ type Option []interface{}
 type Register interface {
 	Value() Value
 	Set(interface{}) error
-	SetAsync(func(Value) (Value, error))
+	SetAsync(func(Value) (Value, error)) error
 }
 
 type register struct {
-	debug bool
 	value Value
-	last  Value
+	last  chan Value
 	ctor  func(iface interface{}) (Value, error)
 }
 
 func NewRegister(ctx context.Context) Register {
 	return &register{
-		debug: GetDebugger(ctx) != nil,
 		value: ZeroValue(ctx),
 		ctor: func(iface interface{}) (Value, error) {
 			return NewValue(ctx, iface)
@@ -65,39 +63,37 @@ func (r *register) Set(iface interface{}) error {
 		}
 		return err
 	}
-	r.SetAsync(func(Value) (Value, error) {
+	return r.SetAsync(func(Value) (Value, error) {
 		return val, err
 	})
-	return nil
 }
 
-func (r *register) SetAsync(f func(Value) (Value, error)) {
-	var prev Value
+func (r *register) SetAsync(f func(Value) (Value, error)) error {
+	var prev chan Value
 	if r.last == nil {
-		prev = r.value
+		prev = make(chan Value, 1)
+		prev <- r.value
 	} else {
 		prev = r.last
 	}
 
-	valCh := make(chan Value)
-	r.last = &lazyValue{valCh: valCh}
+	ret := make(chan Value)
+	r.last = ret
 
 	go func() {
-		next, err := f(prev)
+		next, err := f(<-prev)
 		if err != nil {
 			next = &errorValue{err}
 		}
-		valCh <- next
+		ret <- next
 	}()
 
-	if r.debug {
-		r.last.(*lazyValue).wait()
-	}
+	return nil
 }
 
 func (r *register) Value() Value {
 	if r.last != nil {
-		r.value = r.last
+		r.value = <-r.last
 		r.last = nil
 	}
 	return r.value
@@ -210,53 +206,6 @@ func (v *errorValue) Request() (solver.Request, error) {
 
 func (v *errorValue) Reflect(t reflect.Type) (reflect.Value, error) {
 	return reflect.Value{}, v.err
-}
-
-type lazyValue struct {
-	valCh chan Value
-	val   Value
-}
-
-func (v *lazyValue) wait() {
-	val, ok := <-v.valCh
-	if ok {
-		v.val = val
-		close(v.valCh)
-	}
-}
-
-func (v *lazyValue) Kind() ast.Kind {
-	v.wait()
-	return v.val.Kind()
-}
-
-func (v *lazyValue) Filesystem() (Filesystem, error) {
-	v.wait()
-	return v.val.Filesystem()
-}
-
-func (v *lazyValue) Int() (int, error) {
-	v.wait()
-	return v.val.Int()
-}
-
-func (v *lazyValue) String() (string, error) {
-	v.wait()
-	return v.val.String()
-}
-
-func (v *lazyValue) Option() (Option, error) {
-	v.wait()
-	return v.val.Option()
-}
-
-func (v *lazyValue) Request() (solver.Request, error) {
-	v.wait()
-	return v.val.Request()
-}
-
-func (v *lazyValue) Reflect(t reflect.Type) (reflect.Value, error) {
-	return ReflectTo(v, t)
 }
 
 type zeroValue struct {
@@ -445,7 +394,6 @@ func (v *reqValue) Reflect(t reflect.Type) (reflect.Value, error) {
 }
 
 var (
-	rValue      = reflect.TypeOf((*Value)(nil)).Elem()
 	rFilesystem = reflect.TypeOf(Filesystem{})
 	rString     = reflect.TypeOf("")
 	rInt        = reflect.TypeOf(0)
@@ -465,8 +413,6 @@ func ReflectTo(v Value, t reflect.Type) (reflect.Value, error) {
 	)
 
 	switch t {
-	case rValue:
-		iface = v
 	case rFilesystem:
 		iface, err = v.Filesystem()
 	case rString:
