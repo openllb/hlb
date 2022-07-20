@@ -252,9 +252,7 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 
 	limiter := ConcurrencyLimiter(ctx)
 	if limiter != nil {
-		if err := limiter.Acquire(ctx, 1); err != nil {
-			return err
-		}
+		limiter.Acquire(ctx, 1)
 	}
 
 	var (
