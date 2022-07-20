@@ -250,11 +250,6 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		})
 	}
 
-	limiter := ConcurrencyLimiter(ctx)
-	if limiter != nil {
-		limiter.Acquire(ctx, 1)
-	}
-
 	var (
 		statusCh     chan *client.SolveStatus
 		progressDone chan struct{}
@@ -268,14 +263,8 @@ func Build(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		}()
 	}
 
-	if err := func() error {
-		if limiter != nil {
-			defer limiter.Release(1)
-		}
-		var err error
-		resp, err = c.Build(ctx, solveOpt, "", f, statusCh)
-		return err
-	}(); err != nil {
+	resp, err := c.Build(ctx, solveOpt, "", f, statusCh)
+	if err != nil {
 		return err
 	}
 
