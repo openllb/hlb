@@ -63,12 +63,13 @@ func (b *BufferLookup) All() []*FileBuffer {
 }
 
 type FileBuffer struct {
-	filename string
-	buf      bytes.Buffer
-	offset   int
-	offsets  []int
-	mu       sync.Mutex
-	onDisk   bool
+	filename  string
+	buf       bytes.Buffer
+	offset    int
+	offsets   []int
+	mu        sync.Mutex
+	onDisk    bool
+	sourceMap *llb.SourceMap
 }
 
 type Option func(*FileBuffer)
@@ -101,7 +102,13 @@ func (fb *FileBuffer) OnDisk() bool {
 func (fb *FileBuffer) SourceMap() *llb.SourceMap {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
-	return llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
+	if fb.sourceMap == nil {
+		// This caching is important - BuildKit dedups SourceMaps based
+		// on pointer address, so returning a fresh SourceMap each time
+		// would blow up the size of the solve request.
+		fb.sourceMap = llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
+	}
+	return fb.sourceMap
 }
 
 func (fb *FileBuffer) Len() int {
@@ -113,6 +120,11 @@ func (fb *FileBuffer) Bytes() []byte {
 }
 
 func (fb *FileBuffer) Write(p []byte) (n int, err error) {
+	fb.mu.Lock()
+	defer fb.mu.Unlock()
+
+	fb.sourceMap = nil
+
 	n, err = fb.buf.Write(p)
 
 	start := 0
