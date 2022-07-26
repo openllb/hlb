@@ -3,6 +3,7 @@ package solver
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,77 +20,29 @@ import (
 )
 
 // NewRemoteDirectory returns an ast.Directory representing a directory backed
-// by a BuildKit gateway reference. Since gateway references only live while
-// the build session is running, the build only exits when the ast.Directory is
-// closed.
+// by a BuildKit gateway reference.
 func NewRemoteDirectory(ctx context.Context, cln *client.Client, pw progress.Writer, def *llb.Definition, root string, dgst digest.Digest, solveOpts []SolveOption, sessionOpts []llbutil.SessionOption) (ast.Directory, error) {
-	s, err := llbutil.NewSession(ctx, sessionOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	g, ctx := errgroup.WithContext(ctx)
-
-	// ctx.Done keeps Build from exiting until remoteDirectory is closed.
-	// This ensures that cache keys and results from the build are not garbage
-	// collected while its still in use.
-	ctx, cancel := context.WithCancel(ctx)
-
-	g.Go(func() error {
-		return s.Run(ctx, cln.Dialer())
-	})
-
-	// Block constructing remoteDirectory until the graph is solved and assigned to
-	// ref.
-	resolved := make(chan struct{})
-
-	var ref gateway.Reference
-	g.Go(func() error {
-		return Build(ctx, cln, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
-			dir, err := c.Solve(ctx, gateway.SolveRequest{
-				Definition: def.ToPB(),
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			ref, err = dir.SingleRef()
-			if err != nil {
-				return nil, err
-			}
-
-			close(resolved)
-			<-ctx.Done()
-			return gateway.NewResult(), nil
-		}, solveOpts...)
-	})
-
-	select {
-	case <-ctx.Done():
-		cancel()
-		return nil, g.Wait()
-	case <-resolved:
-	}
-
 	return &remoteDirectory{
-		root:   root,
-		dgst:   dgst,
-		def:    def,
-		ref:    ref,
-		g:      g,
-		ctx:    ctx,
-		cancel: cancel,
+		root:        root,
+		dgst:        dgst,
+		def:         def,
+		cln:         cln,
+		pw:          pw,
+		solveOpts:   solveOpts,
+		sessionOpts: sessionOpts,
+		ctx:         ctx,
 	}, nil
 }
 
 type remoteDirectory struct {
-	root   string
-	dgst   digest.Digest
-	def    *llb.Definition
-	ref    gateway.Reference
-	g      *errgroup.Group
-	ctx    context.Context
-	cancel context.CancelFunc
+	root        string
+	dgst        digest.Digest
+	def         *llb.Definition
+	cln         *client.Client
+	pw          progress.Writer
+	solveOpts   []SolveOption
+	sessionOpts []llbutil.SessionOption
+	ctx         context.Context
 }
 
 func (r *remoteDirectory) Path() string {
@@ -105,17 +58,49 @@ func (r *remoteDirectory) Definition() *llb.Definition {
 }
 
 func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
-	_, err := r.ref.StatFile(r.ctx, gateway.StatRequest{
-		Path: filename,
-	})
+	s, err := llbutil.NewSession(r.ctx, r.sessionOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := r.ref.ReadFile(r.ctx, gateway.ReadRequest{
-		Filename: filename,
+	g, ctx := errgroup.WithContext(r.ctx)
+
+	g.Go(func() error {
+		return s.Run(ctx, r.cln.Dialer())
 	})
-	if err != nil {
+
+	var data []byte
+	g.Go(func() error {
+		return Build(ctx, r.cln, s, r.pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+			dir, err := c.Solve(ctx, gateway.SolveRequest{
+				Definition: r.def.ToPB(),
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			ref, err := dir.SingleRef()
+			if err != nil {
+				return nil, err
+			}
+			_, err = ref.StatFile(r.ctx, gateway.StatRequest{
+				Path: filename,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			data, err = ref.ReadFile(r.ctx, gateway.ReadRequest{
+				Filename: filename,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return gateway.NewResult(), nil
+		}, r.solveOpts...)
+	})
+
+	if err = g.Wait(); err != nil {
 		return nil, err
 	}
 
@@ -125,17 +110,8 @@ func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
 	}, nil
 }
 
+// Stat is not called for remoteDirectory anywhere in the codebase, so
+// here to satisfy the ast.Directory interface.
 func (r *remoteDirectory) Stat(filename string) (os.FileInfo, error) {
-	stat, err := r.ref.StatFile(r.ctx, gateway.StatRequest{
-		Path: filename,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &llbutil.FileInfo{stat}, nil
-}
-
-func (r *remoteDirectory) Close() error {
-	r.cancel()
-	return r.g.Wait()
+	return nil, fmt.Errorf("stat on remote directory is unimplemented")
 }

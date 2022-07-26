@@ -56,10 +56,6 @@ func (r *testDirectory) Stat(filename string) (os.FileInfo, error) {
 	return nil, fmt.Errorf("unimplemented")
 }
 
-func (r *testDirectory) Close() error {
-	return nil
-}
-
 func TestResolveGraph(t *testing.T) {
 	t.Parallel()
 
