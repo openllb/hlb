@@ -158,14 +158,16 @@ func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		}
 	}
 
-	return Build(ctx, c, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
+	var errHandlerErr error
+	err := Build(ctx, c, s, pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 		res, err := c.Solve(ctx, gateway.SolveRequest{
 			Definition: def.ToPB(),
 			Evaluate:   info.Evaluate,
 		})
 		if err != nil {
 			if info.ErrorHandler != nil {
-				return nil, info.ErrorHandler(ctx, c, err)
+				errHandlerErr = info.ErrorHandler(ctx, c, err)
+				return nil, errHandlerErr
 			}
 			return nil, err
 		}
@@ -180,6 +182,14 @@ func Solve(ctx context.Context, c *client.Client, s *session.Session, pw progres
 		}
 		return res, nil
 	}, opts...)
+
+	if errHandlerErr != nil {
+		// `ErrorHandler` is invoked in a separate goroutine from the main `Solve` buildkit request.
+		// Prefer `errHandlerErr` here to preserve the sentinel error. Otherwise such context is lost
+		// in the gRPC call in the main `Solve` request.
+		return errHandlerErr
+	}
+	return err
 }
 
 func Build(ctx context.Context, c *client.Client, s *session.Session, pw progress.Writer, f gateway.BuildFunc, opts ...SolveOption) error {
