@@ -47,5 +47,3 @@ func (r *localDirectory) Stat(filename string) (os.FileInfo, error) {
 	}
 	return os.Stat(filepath.Join(r.root, filename))
 }
-
-func (r *localDirectory) Close() error { return nil }

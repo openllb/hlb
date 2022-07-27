@@ -179,8 +179,6 @@ type Directory interface {
 	Open(filename string) (io.ReadCloser, error)
 
 	Stat(filename string) (os.FileInfo, error)
-
-	Close() error
 }
 
 // Module represents a HLB source file. HLB is file-scoped, so every file
