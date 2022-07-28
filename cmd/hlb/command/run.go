@@ -237,7 +237,7 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 		if err == nil {
 			return
 		}
-		numErrs := displayError(ctx, info.Stderr, err, info.Backtrace)
+		numErrs := DisplayError(ctx, info.Stderr, err, info.Backtrace)
 		err = errdefs.WithAbort(err, numErrs)
 	}()
 
@@ -327,7 +327,7 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 	return err
 }
 
-func displayError(ctx context.Context, w io.Writer, err error, printBacktrace bool) (numErrs int) {
+func DisplayError(ctx context.Context, w io.Writer, err error, printBacktrace bool) (numErrs int) {
 	spans := diagnostic.SourcesToSpans(ctx, solvererrdefs.Sources(err), err)
 	if len(spans) > 0 {
 		diagnostic.DisplayError(ctx, w, spans, err, printBacktrace)
