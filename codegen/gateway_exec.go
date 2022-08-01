@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, opts Option, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
+func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, opts Option, stdin io.Reader, stdout, stderr io.Writer, extraEnv []string, args ...string) error {
 	var (
 		securityMode pb.SecurityMode
 		netMode      pb.NetMode
@@ -33,8 +33,9 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, opts Opt
 		cwd = fs.Image.Config.WorkingDir
 	}
 
-	env := make([]string, len(fs.Image.Config.Env))
+	env := make([]string, len(fs.Image.Config.Env), len(fs.Image.Config.Env)+len(extraEnv))
 	copy(env, fs.Image.Config.Env)
+	env = append(env, extraEnv...)
 
 	user := fs.Image.Config.User
 
@@ -244,7 +245,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, opts Opt
 	return g.Wait()
 }
 
-func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.SolveError, stdin io.ReadCloser, stdout, stderr io.Writer, args ...string) error {
+func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.SolveError, stdin io.ReadCloser, stdout, stderr io.Writer, extraEnv []string, args ...string) error {
 	op := se.Op
 	solveExec, ok := op.Op.(*pb.Op_Exec)
 	if !ok {
@@ -284,11 +285,15 @@ func ExecWithSolveErr(ctx context.Context, c gateway.Client, se *solvererrdefs.S
 		return err
 	}
 
+	env := make([]string, len(exec.Meta.Env), len(exec.Meta.Env)+len(extraEnv))
+	copy(env, exec.Meta.Env)
+	env = append(env, extraEnv...)
+
 	startReq := gateway.StartRequest{
 		Args:         args,
 		Cwd:          exec.Meta.Cwd,
 		User:         exec.Meta.User,
-		Env:          exec.Meta.Env,
+		Env:          env,
 		Tty:          true,
 		Stdin:        io.NopCloser(stdin),
 		Stdout:       NopWriteCloser(stdout),

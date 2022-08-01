@@ -573,5 +573,5 @@ func handleExec(ctx context.Context, d codegen.Debugger, is *steer.InputSteerer,
 		color.Bold(strings.Join(args, " ")),
 	))
 
-	return d.Exec(ctx, pr, stdout, stderr, args...)
+	return d.Exec(ctx, pr, stdout, stderr, nil, args...)
 }

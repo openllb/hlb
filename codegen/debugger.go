@@ -59,7 +59,7 @@ type Debugger interface {
 	Terminate() error
 
 	// Exec starts a process in the current debugging state.
-	Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr io.Writer, args ...string) error
+	Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr io.Writer, extraEnv []string, args ...string) error
 }
 
 // DebugMode is a mode of the debugger that affects control flow.
@@ -238,7 +238,7 @@ func (d *debugger) Terminate() error {
 	return nil
 }
 
-func (d *debugger) Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr io.Writer, args ...string) error {
+func (d *debugger) Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr io.Writer, extraEnv []string, args ...string) error {
 	s, err := d.GetState()
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func (d *debugger) Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr
 			cancel()
 		}()
 
-		return ExecWithSolveErr(ctx, ge.Client, se, stdin, stdout, stderr, args...)
+		return ExecWithSolveErr(ctx, ge.Client, se, stdin, stdout, stderr, extraEnv, args...)
 	}
 
 	fs, err := s.Value.Filesystem()
@@ -266,7 +266,7 @@ func (d *debugger) Exec(ctx context.Context, stdin io.ReadCloser, stdout, stderr
 		return err
 	}
 
-	return ExecWithFS(ctx, d.cln, fs, s.Options, stdin, stdout, stderr, args...)
+	return ExecWithFS(ctx, d.cln, fs, s.Options, stdin, stdout, stderr, extraEnv, args...)
 }
 
 func (d *debugger) sendControl(control DebugMode, direction Direction) {
