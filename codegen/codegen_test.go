@@ -442,7 +442,7 @@ func TestCodeGen(t *testing.T) {
 		}
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
-			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0644, []byte(os.Getenv("HOME")))))
+			return Expect(t, llb.Scratch().File(llb.Mkfile("home", 0o644, []byte(os.Getenv("HOME")))))
 		},
 	}, {
 		"scratch mounts without func lit",
@@ -593,7 +593,7 @@ func TestCodeGen(t *testing.T) {
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return solver.Parallel(
 				Expect(t, llb.Image("alpine")),
-				Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0644, []byte("hello world")))),
+				Expect(t, llb.Scratch().File(llb.Mkfile("foo", 0o644, []byte("hello world")))),
 			)
 		},
 	}, {
@@ -662,7 +662,7 @@ func TestCodeGen(t *testing.T) {
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(
-				llb.Mkfile("foo", 0644, []byte("Hello world")),
+				llb.Mkfile("foo", 0o644, []byte("Hello world")),
 			))
 		},
 	}, {
@@ -675,7 +675,7 @@ func TestCodeGen(t *testing.T) {
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(
-				llb.Mkfile("foo", 0644, []byte("Escape ${PATH} Escape \" Escape \n Escape \\")),
+				llb.Mkfile("foo", 0o644, []byte("Escape ${PATH} Escape \" Escape \n Escape \\")),
 			))
 		},
 	}, {
@@ -693,7 +693,7 @@ func TestCodeGen(t *testing.T) {
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(
-				llb.Mkfile("foo", 0644, []byte(`Escape ${PATH} Don't escape \" Don't escape \n Don't escape \\`)),
+				llb.Mkfile("foo", 0o644, []byte(`Escape ${PATH} Don't escape \" Don't escape \n Don't escape \\`)),
 			))
 		},
 	}, {
@@ -746,15 +746,15 @@ func TestCodeGen(t *testing.T) {
 					LocalState(ctx, t, ".").File(
 						// this Mkdir is made implicitly due to /foo/secret
 						// secret over readonly FS
-						llb.Mkdir("secret", 0755, llb.WithParents(true)),
+						llb.Mkdir("secret", 0o755, llb.WithParents(true)),
 					).File(
 						// this Mkfile is made implicitly due to /foo/secret
 						// secret over readonly FS
-						llb.Mkfile("secret/codegen_test.go", 0644, []byte{}),
+						llb.Mkfile("secret/codegen_test.go", 0o644, []byte{}),
 					).File(
 						// this Mkdir is made implicitly due to /foo/bar
 						// mount over readonly FS
-						llb.Mkdir("bar", 0755, llb.WithParents(true)),
+						llb.Mkdir("bar", 0o755, llb.WithParents(true)),
 					),
 					llb.Readonly,
 				),
@@ -818,17 +818,17 @@ func TestCodeGen(t *testing.T) {
 		`, "",
 		func(ctx context.Context, t *testing.T) solver.Request {
 			return Expect(t, llb.Scratch().File(
-				llb.Mkfile("just-stdout", os.FileMode(0644), []byte("stdout")),
+				llb.Mkfile("just-stdout", os.FileMode(0o644), []byte("stdout")),
 			).File(
-				llb.Mkfile("just-stderr", os.FileMode(0644), []byte("stderr")),
+				llb.Mkfile("just-stderr", os.FileMode(0o644), []byte("stderr")),
 			).File(
-				llb.Mkfile("stdio", os.FileMode(0644), []byte("stdout\nstderr")),
+				llb.Mkfile("stdio", os.FileMode(0o644), []byte("stdout\nstderr")),
 			).File(
-				llb.Mkfile("goterror", os.FileMode(0644), []byte("stdout")),
+				llb.Mkfile("goterror", os.FileMode(0o644), []byte("stdout")),
 			).File(
-				llb.Mkfile("noshlex", os.FileMode(0644), []byte(os.Getenv("HOME"))),
+				llb.Mkfile("noshlex", os.FileMode(0o644), []byte(os.Getenv("HOME"))),
 			).File(
-				llb.Mkfile("shlex", os.FileMode(0644), []byte("$HOME")),
+				llb.Mkfile("shlex", os.FileMode(0o644), []byte("$HOME")),
 			))
 		},
 	}, {
@@ -945,6 +945,11 @@ func TestCodeGen(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := filebuffer.WithBuffers(context.Background(), builtin.Buffers())
 			ctx = ast.WithModules(ctx, builtin.Modules())
+			// make tests consistent even if running on non amd64 platform
+			ctx = codegen.WithDefaultPlatform(ctx, specs.Platform{
+				OS:           "linux",
+				Architecture: "amd64",
+			})
 
 			mod, err := parser.Parse(ctx, strings.NewReader(dedent.Dedent(tc.hlb)))
 			require.NoError(t, err, tc.name)
@@ -1061,7 +1066,6 @@ func TestCodegenError(t *testing.T) {
 			validateError(t, ctx, expected, err, tc.name)
 		})
 	}
-
 }
 
 type testFile struct {
