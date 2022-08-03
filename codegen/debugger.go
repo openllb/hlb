@@ -320,6 +320,10 @@ func (d *debugger) yield(ctx context.Context, scope *ast.Scope, node ast.Node, v
 
 		err = req.Solve(ctx, d.cln, MultiWriter(ctx))
 		if err != nil {
+			// If debugger has an error, continue to exit.
+			if d.err != nil {
+				return d.err
+			}
 			yieldErr = ProgramCounter(ctx).WithError(err)
 		}
 	}
