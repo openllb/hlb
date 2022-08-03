@@ -76,6 +76,7 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 	})
 
 	g.Go(func() error {
+		defer s.Close()
 		var pw progress.Writer
 
 		mw := MultiWriter(ctx)

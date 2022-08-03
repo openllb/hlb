@@ -33,6 +33,7 @@ import (
 	"github.com/openllb/hlb/pkg/stargzutil"
 	"github.com/openllb/hlb/solver"
 	"github.com/pkg/errors"
+	"github.com/tonistiigi/fsutil"
 	fstypes "github.com/tonistiigi/fsutil/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -252,10 +253,10 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(id, filesync.SyncedDir{
 		Name: localPath,
 		Dir:  localDir,
-		Map: func(_ string, st *fstypes.Stat) bool {
+		Map: func(_ string, st *fstypes.Stat) fsutil.MapResult {
 			st.Uid = 0
 			st.Gid = 0
-			return true
+			return fsutil.MapResultKeep
 		},
 	}))
 
@@ -311,6 +312,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts 
 	})
 
 	g.Go(func() error {
+		defer s.Close()
 		var pw progress.Writer
 
 		mw := MultiWriter(ctx)
@@ -1057,7 +1059,7 @@ func (dt DownloadTarball) Call(ctx context.Context, cln *client.Client, val Valu
 		return nil, err
 	}
 
-	err = os.MkdirAll(filepath.Dir(localPath), 0755)
+	err = os.MkdirAll(filepath.Dir(localPath), 0o755)
 	if err != nil {
 		return nil, err
 	}
@@ -1121,7 +1123,7 @@ func (dot DownloadOCITarball) Call(ctx context.Context, cln *client.Client, val 
 		return nil, errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
 	}
 
-	err = os.MkdirAll(filepath.Dir(localPath), 0755)
+	err = os.MkdirAll(filepath.Dir(localPath), 0o755)
 	if err != nil {
 		return nil, err
 	}
@@ -1191,7 +1193,7 @@ func (dot DownloadDockerTarball) Call(ctx context.Context, cln *client.Client, v
 		return nil, errdefs.WithDockerEngineUnsupported(ProgramCounter(ctx))
 	}
 
-	err = os.MkdirAll(filepath.Dir(localPath), 0755)
+	err = os.MkdirAll(filepath.Dir(localPath), 0o755)
 	if err != nil {
 		return nil, err
 	}
