@@ -71,6 +71,7 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *Multi
 	})
 
 	g.Go(func() error {
+		defer s.Close()
 		return Solve(ctx, cln, s, pw, r.params.Def, append(r.params.SolveOpts, opts...)...)
 	})
 

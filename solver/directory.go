@@ -71,6 +71,7 @@ func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
 
 	var data []byte
 	g.Go(func() error {
+		defer s.Close()
 		return Build(ctx, r.cln, s, r.pw, func(ctx context.Context, c gateway.Client) (*gateway.Result, error) {
 			dir, err := c.Solve(ctx, gateway.SolveRequest{
 				Definition: r.def.ToPB(),

@@ -88,6 +88,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, opts Opt
 	})
 
 	g.Go(func() error {
+		defer s.Close()
 		var pw progress.Writer
 		mw := MultiWriter(ctx)
 		if mw != nil {

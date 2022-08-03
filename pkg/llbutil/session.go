@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/docker/cli/cli/config"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/session/filesync"
@@ -63,7 +64,8 @@ func NewSession(ctx context.Context, opts ...SessionOption) (*session.Session, e
 	}
 
 	// By default, forward docker authentication through the session.
-	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(os.Stderr)}
+	dockerConfig := config.LoadDefaultConfigFile(os.Stderr)
+	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(dockerConfig)}
 
 	// Attach local directory the session can write to.
 	if si.SyncTargetDir != nil {
