@@ -17,9 +17,15 @@ type MultiWriter struct {
 	claimedVerticesMu  sync.Mutex
 }
 
-func NewMultiWriter(pw progress.Writer) *MultiWriter {
+func NewMultiWriter(pw progress.Writer, prefix ...string) *MultiWriter {
 	if pw == nil {
 		return nil
+	}
+
+	for _, p := range prefix {
+		if p != "" {
+			pw = progress.WithPrefix(pw, p, true)
+		}
 	}
 
 	return &MultiWriter{
