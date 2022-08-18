@@ -137,6 +137,7 @@ type RunInfo struct {
 	Targets         []string
 	LLB             bool
 	LogOutput       string
+	LogPrefixes     []string
 	DefaultPlatform string // format: osname/osarch
 
 	Stdin  io.Reader
@@ -183,10 +184,20 @@ func Run(ctx context.Context, cln *client.Client, uri string, info RunInfo) (err
 		ctx = codegen.WithDefaultPlatform(ctx, specs.Platform{OS: platformParts[0], Architecture: platformParts[1]})
 	}
 
-	var (
-		progressOpts []solver.ProgressOption
-		con          solver.Console
-	)
+	var progressOpts []solver.ProgressOption
+	var logPrefixes []string
+	for _, pfx := range info.LogPrefixes {
+		if pfx != "" {
+			logPrefixes = append(logPrefixes, pfx)
+		}
+	}
+	if len(logPrefixes) == 0 && info.DefaultPlatform != "" {
+		// Use the default platform as the log prefix by default.
+		logPrefixes = append(logPrefixes, info.DefaultPlatform)
+	}
+	progressOpts = append(progressOpts, solver.WithLogPrefix(logPrefixes...))
+
+	var con solver.Console
 	if info.LogOutput == "" || info.LogOutput == "auto" {
 		// Assume plain output, will upgrade if we detect tty.
 		info.LogOutput = "plain"

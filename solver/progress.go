@@ -32,6 +32,7 @@ type progressInfo struct {
 	writer    io.Writer
 	console   Console
 	logOutput logOutput
+	prefixes  []string
 }
 
 type logOutput int
@@ -53,6 +54,13 @@ func WithLogOutputTTY(con Console) ProgressOption {
 	return func(info *progressInfo) error {
 		info.console = con
 		info.logOutput = logOutputTTY
+		return nil
+	}
+}
+
+func WithLogPrefix(pfx ...string) ProgressOption {
+	return func(info *progressInfo) error {
+		info.prefixes = append(info.prefixes, pfx...)
 		return nil
 	}
 }
@@ -91,7 +99,7 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 	p := &progressUI{
 		origCtx: ctx,
 		spp:     spp,
-		mw:      NewMultiWriter(spp),
+		mw:      NewMultiWriter(spp, info.prefixes...),
 		done:    make(chan struct{}),
 	}
 	p.g, p.ctx = errgroup.WithContext(p.origCtx)
