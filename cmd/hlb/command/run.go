@@ -116,7 +116,7 @@ func ParseModuleURI(ctx context.Context, cln *client.Client, stdin io.Reader, ur
 			Value:  "<stdin>",
 		})
 	}
-	dir := parser.NewLocalDirectory(".", "")
+	dir := parser.NewLocalDirectory("", "")
 	return codegen.ParseModuleURI(ctx, cln, dir, uri)
 }
 
