@@ -33,7 +33,7 @@ func Parse(ctx context.Context, r io.Reader, opts ...filebuffer.Option) (*ast.Mo
 	if err != nil {
 		return nil, err
 	}
-	mod.Directory = NewLocalDirectory(".", "")
+	mod.Directory = NewLocalDirectory("", "")
 	ast.Modules(ctx).Set(mod.Pos.Filename, mod)
 	return mod, nil
 }
