@@ -17,6 +17,7 @@ var (
 			"git":                   Git{},
 			"local":                 Local{},
 			"frontend":              Frontend{},
+			"cache": Cache{},
 			"run":                   Run{},
 			"env":                   Env{},
 			"dir":                   Dir{},
@@ -107,7 +108,7 @@ var (
 			"readonly":   Readonly{},
 			"tmpfs":      Tmpfs{},
 			"sourcePath": SourcePath{},
-			"cache":      Cache{},
+			"cache":      MountCache{},
 		},
 		"option::mkdir": {
 			"createParents": CreateParents{},

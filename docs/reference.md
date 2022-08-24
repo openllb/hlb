@@ -1,4 +1,20 @@
 ## <span class='hlb-type'>fs</span> functions
+### <span class='hlb-type'>fs</span> <span class='hlb-name'>cache</span>(<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>, <span class='hlb-type'>string</span> <span class='hlb-variable'>ref</span>)
+
+!!! info "<span class='hlb-type'>fs</span> <span class='hlb-variable'>input</span>"
+	
+!!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>ref</span>"
+	
+
+
+
+	#!hlb
+	fs default() {
+		cache scratch "ref"
+	}
+
+
+
 ### <span class='hlb-type'>fs</span> <span class='hlb-name'>cmd</span>(<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>)
 
 !!! info "<span class='hlb-type'>string</span> <span class='hlb-variable'>args</span>"
