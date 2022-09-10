@@ -56,6 +56,7 @@ func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb
 
 	opts = append([]llb.LocalOption{
 		llb.SharedKeyHint(id),
+		llb.LocalUniqueID(id),
 	}, opts...)
 
 	return llb.Local(localPath, opts...)

@@ -119,10 +119,6 @@ func NewSession(ctx context.Context, opts ...SessionOption) (*session.Session, e
 	// between `llb.SharedKeyHint` and a session's shared key atm. If anything
 	// needs to start leveraging the session's shared key in the future, we
 	// should probably use the codegen.Session(ctx) session id.
-	//
-	// For now, locals also have `llb.LocalUniqueID` that introduces a random
-	// unique ID if a session isn't provided, so regardless of session shared key
-	// being provided or not, we still need to use `llb.SharedKeyHint`.
 	s, err := session.NewSession(ctx, "hlb", "")
 	if err != nil {
 		return s, err
