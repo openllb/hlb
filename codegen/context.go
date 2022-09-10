@@ -27,7 +27,6 @@ type (
 	returnTypeKey      struct{}
 	argKey             struct{ n int }
 	bindingKey         struct{}
-	sessionIDKey       struct{}
 	multiwriterKey     struct{}
 	imageResolverKey   struct{}
 	backtraceKey       struct{}
@@ -97,15 +96,6 @@ func WithArg(ctx context.Context, n int, arg ast.Node) context.Context {
 func Arg(ctx context.Context, n int) ast.Node {
 	arg, _ := ctx.Value(argKey{n}).(ast.Node)
 	return arg
-}
-
-func WithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, sessionIDKey{}, sessionID)
-}
-
-func SessionID(ctx context.Context) string {
-	sessionID, _ := ctx.Value(sessionIDKey{}).(string)
-	return sessionID
 }
 
 func WithMultiWriter(ctx context.Context, mw *solver.MultiWriter) context.Context {

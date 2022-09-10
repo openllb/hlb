@@ -11,7 +11,6 @@ import (
 
 	"github.com/lithammer/dedent"
 	"github.com/moby/buildkit/client/llb"
-	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/buildkit/util/entitlements"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -58,11 +57,6 @@ func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb
 	opts = append([]llb.LocalOption{
 		llb.SharedKeyHint(id),
 	}, opts...)
-
-	sessionID := codegen.SessionID(ctx)
-	if sessionID != "" {
-		opts = append(opts, llb.SessionID(sessionID))
-	}
 
 	return llb.Local(localPath, opts...)
 }
@@ -987,7 +981,6 @@ func TestCodeGen(t *testing.T) {
 			}
 
 			cg := codegen.New(nil, nil)
-			ctx = codegen.WithSessionID(ctx, identity.NewID())
 			request, err := cg.Generate(ctx, mod, targets)
 			require.NoError(t, err, tc.name)
 
@@ -1057,7 +1050,6 @@ func TestCodegenError(t *testing.T) {
 			}
 
 			cg := codegen.New(nil, nil)
-			ctx = codegen.WithSessionID(ctx, identity.NewID())
 			_, err = cg.Generate(ctx, mod, targets)
 			var expected error
 			if tc.fn != nil {
