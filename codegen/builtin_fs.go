@@ -300,7 +300,6 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts 
 		return nil, err
 	}
 
-	ctx = solver.WithSessionID(ctx, s.ID())
 	g, ctx := errgroup.WithContext(ctx)
 
 	fs, err := ZeroValue(ctx).Filesystem()
