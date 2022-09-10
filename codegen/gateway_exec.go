@@ -80,6 +80,7 @@ func ExecWithFS(ctx context.Context, cln *client.Client, fs Filesystem, opts Opt
 	if err != nil {
 		return err
 	}
+	ctx = solver.WithSessionID(ctx, s.ID())
 
 	g, ctx := errgroup.WithContext(ctx)
 

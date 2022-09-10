@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/identity"
 	"github.com/openllb/hlb/builtin"
 	"github.com/openllb/hlb/checker"
 	"github.com/openllb/hlb/codegen"
@@ -56,7 +55,6 @@ func Compile(ctx context.Context, cln *client.Client, w io.Writer, mod *ast.Modu
 	}
 
 	cg := codegen.New(cln, resolver)
-	ctx = codegen.WithSessionID(ctx, identity.NewID())
 	if solver.ConcurrencyLimiter(ctx) == nil {
 		ctx = solver.WithConcurrencyLimiter(ctx, semaphore.NewWeighted(defaultMaxConcurrency))
 	}

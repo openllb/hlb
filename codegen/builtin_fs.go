@@ -241,7 +241,7 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 	}
 	localOpts = append(localOpts, llb.SharedKeyHint(id))
 
-	sessionID := SessionID(ctx)
+	sessionID := solver.SessionID(ctx)
 	if sessionID != "" {
 		localOpts = append(localOpts, llb.SessionID(sessionID))
 	}
@@ -300,6 +300,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts 
 		return nil, err
 	}
 
+	ctx = solver.WithSessionID(ctx, s.ID())
 	g, ctx := errgroup.WithContext(ctx)
 
 	fs, err := ZeroValue(ctx).Filesystem()

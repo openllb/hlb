@@ -59,7 +59,7 @@ func LocalState(ctx context.Context, t *testing.T, localPath string, opts ...llb
 		llb.SharedKeyHint(id),
 	}, opts...)
 
-	sessionID := codegen.SessionID(ctx)
+	sessionID := solver.SessionID(ctx)
 	if sessionID != "" {
 		opts = append(opts, llb.SessionID(sessionID))
 	}
@@ -987,7 +987,7 @@ func TestCodeGen(t *testing.T) {
 			}
 
 			cg := codegen.New(nil, nil)
-			ctx = codegen.WithSessionID(ctx, identity.NewID())
+			ctx = solver.WithSessionID(ctx, identity.NewID())
 			request, err := cg.Generate(ctx, mod, targets)
 			require.NoError(t, err, tc.name)
 
@@ -1057,7 +1057,7 @@ func TestCodegenError(t *testing.T) {
 			}
 
 			cg := codegen.New(nil, nil)
-			ctx = codegen.WithSessionID(ctx, identity.NewID())
+			ctx = solver.WithSessionID(ctx, identity.NewID())
 			_, err = cg.Generate(ctx, mod, targets)
 			var expected error
 			if tc.fn != nil {

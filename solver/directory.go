@@ -62,8 +62,8 @@ func (r *remoteDirectory) Open(filename string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	g, ctx := errgroup.WithContext(r.ctx)
+	ctx := WithSessionID(r.ctx, s.ID())
+	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		return s.Run(ctx, r.cln.Dialer())

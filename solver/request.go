@@ -63,6 +63,7 @@ func (r *singleRequest) Solve(ctx context.Context, cln *client.Client, mw *Multi
 	if err != nil {
 		return err
 	}
+	ctx = WithSessionID(ctx, s.ID())
 
 	g, ctx := errgroup.WithContext(ctx)
 

@@ -68,6 +68,7 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 	if err != nil {
 		return
 	}
+	ctx = solver.WithSessionID(ctx, s.ID())
 
 	g, ctx := errgroup.WithContext(ctx)
 
