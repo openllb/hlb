@@ -239,12 +239,10 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 	if err != nil {
 		return nil, err
 	}
-	localOpts = append(localOpts, llb.SharedKeyHint(id))
-
-	sessionID := SessionID(ctx)
-	if sessionID != "" {
-		localOpts = append(localOpts, llb.SessionID(sessionID))
-	}
+	localOpts = append(localOpts,
+		llb.SharedKeyHint(id),
+		llb.LocalUniqueID(id),
+	)
 
 	fs := Filesystem{
 		State:    llb.Local(localPath, localOpts...),
@@ -338,6 +336,7 @@ func (f Frontend) Call(ctx context.Context, cln *client.Client, val Value, opts 
 				if err != nil {
 					return
 				}
+				fs.SessionOpts = sessionOpts
 			}
 
 			imageSpec, ok := res.Metadata[llbutil.KeyContainerImageConfig]
