@@ -2,6 +2,7 @@ package imageutil
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/containerd/containerd/content"
@@ -10,7 +11,10 @@ import (
 	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/docker/cli/cli/config"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/session/auth"
+	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/util/contentutil"
 	"github.com/moby/buildkit/util/imageutil"
 	"github.com/opencontainers/go-digest"
@@ -40,12 +44,28 @@ func WithDefaultPlatform(p specs.Platform) ResolverOpt {
 	}
 }
 
+// RegistryCreds is a Credentials function to pass into NewResolver. It uses the
+// registry auth settings configured in the local Docker config file.
+func RegistryCreds(host string) (string, string, error) {
+	dockerConfig := config.LoadDefaultConfigFile(os.Stderr)
+	authProvider := authprovider.NewDockerAuthProvider(dockerConfig)
+	authServer, ok := authProvider.(auth.AuthServer)
+	if !ok {
+		return "", "", errors.New("NewDockerAuthProvider did not return an AuthServer")
+	}
+	credsResp, err := authServer.Credentials(context.Background(), &auth.CredentialsRequest{Host: host})
+	if err != nil {
+		return "", "", err
+	}
+	return credsResp.Username, credsResp.Secret, nil
+}
+
 // NewBufferedImageResolver returns a resolver that exposes its content so that the consumers can read manifests
 // and other descriptors from the fetched index.
 func NewBufferedImageResolver(with ...ResolverOpt) *BufferedImageResolver {
 	ir := &BufferedImageResolver{
 		Buffer:          contentutil.NewBuffer(),
-		resolver:        docker.NewResolver(docker.ResolverOptions{}),
+		resolver:        docker.NewResolver(docker.ResolverOptions{Credentials: RegistryCreds}),
 		defaultPlatform: specs.Platform{OS: "linux", Architecture: "amd64"},
 	}
 	for _, o := range with {
