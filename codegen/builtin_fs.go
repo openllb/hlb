@@ -29,6 +29,7 @@ import (
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
 	"github.com/openllb/hlb/parser"
+	"github.com/openllb/hlb/pkg/imageutil"
 	"github.com/openllb/hlb/pkg/llbutil"
 	"github.com/openllb/hlb/pkg/stargzutil"
 	"github.com/openllb/hlb/solver"
@@ -761,7 +762,7 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, val Value, op
 		// keep mixed layers.
 		forceCompression := false
 		if exportFS.Image.Canonical != nil {
-			resolver := docker.NewResolver(docker.ResolverOptions{})
+			resolver := docker.NewResolver(docker.ResolverOptions{Credentials: imageutil.RegistryCreds})
 			forceCompression, err = stargzutil.HasNonStargzLayer(ctx, resolver, platforms.Only(exportFS.Platform), exportFS.Image.Canonical.String())
 			if err != nil {
 				return nil, err
