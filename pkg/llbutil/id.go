@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
@@ -15,7 +18,7 @@ import (
 // the same content doesn't get transported multiple times when referenced
 // repeatedly.
 func LocalID(ctx context.Context, absPath string, opts ...llb.LocalOption) (string, error) {
-	uniqID, err := LocalUniqueID(absPath)
+	uniqID, err := localUniqueID(absPath)
 	if err != nil {
 		return "", err
 	}
@@ -34,13 +37,31 @@ func LocalID(ctx context.Context, absPath string, opts ...llb.LocalOption) (stri
 	return digest.FromBytes(def.Def[len(def.Def)-1]).String(), nil
 }
 
-// LocalUniqueID returns a consistent string that is unique per host + cwd
-func LocalUniqueID(cwd string) (string, error) {
+// localUniqueID returns a consistent string that is unique per host + dir +
+// last modified time.
+//
+// If there is already a solve in progress using the same local dir, we want to
+// deduplicate the "local" if the directory hasn't changed, but if there has
+// been a change, we must not identify the "local" as a duplicate. Thus, we
+// incorporate the last modified timestamp into the result.
+func localUniqueID(dir string) (string, error) {
 	mac, err := FirstUpInterface()
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("cwd:%s,mac:%s", cwd, mac), nil
+
+	var lastModified time.Time
+	err = filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+		if lastModified.IsZero() || info.ModTime().After(lastModified) {
+			lastModified = info.ModTime()
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("dir:%s,mac:%s,modified:%s", dir, mac, lastModified.Format(time.RFC3339Nano)), nil
 }
 
 // FirstUpInterface returns the mac address for the first "UP" network
