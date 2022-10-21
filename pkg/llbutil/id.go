@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ func LocalID(ctx context.Context, absPath string, opts ...llb.LocalOption) (stri
 // deduplicate the "local" if the directory hasn't changed, but if there has
 // been a change, we must not identify the "local" as a duplicate. Thus, we
 // incorporate the last modified timestamp into the result.
-func localUniqueID(dir string, opts ...llb.LocalOption) (string, error) {
+func localUniqueID(localPath string, opts ...llb.LocalOption) (string, error) {
 	mac, err := FirstUpInterface()
 	if err != nil {
 		return "", err
@@ -74,18 +75,25 @@ func localUniqueID(dir string, opts ...llb.LocalOption) (string, error) {
 		}
 	}
 
-	var lastModified time.Time
-	err = fsutil.Walk(context.Background(), dir, &walkOpts, func(path string, info fs.FileInfo, err error) error {
-		if lastModified.IsZero() || info.ModTime().After(lastModified) {
-			lastModified = info.ModTime()
-		}
-		return nil
-	})
+	fi, err := os.Stat(localPath)
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("dir:%s,mac:%s,modified:%s", dir, mac, lastModified.Format(time.RFC3339Nano)), nil
+	lastModified := fi.ModTime()
+	if fi.IsDir() {
+		err := fsutil.Walk(context.Background(), localPath, &walkOpts, func(path string, info fs.FileInfo, err error) error {
+			if info.ModTime().After(lastModified) {
+				lastModified = info.ModTime()
+			}
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return fmt.Sprintf("path:%s,mac:%s,modified:%s", localPath, mac, lastModified.Format(time.RFC3339Nano)), nil
 }
 
 // FirstUpInterface returns the mac address for the first "UP" network
