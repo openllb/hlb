@@ -2,23 +2,25 @@ package llbutil
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/moby/buildkit/client/llb"
 	digest "github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
+	"github.com/tonistiigi/fsutil"
 )
 
 // LocalID returns a consistent hash for this local (path + options) so that
 // the same content doesn't get transported multiple times when referenced
 // repeatedly.
 func LocalID(ctx context.Context, absPath string, opts ...llb.LocalOption) (string, error) {
-	uniqID, err := localUniqueID(absPath)
+	uniqID, err := localUniqueID(absPath, opts...)
 	if err != nil {
 		return "", err
 	}
@@ -44,14 +46,36 @@ func LocalID(ctx context.Context, absPath string, opts ...llb.LocalOption) (stri
 // deduplicate the "local" if the directory hasn't changed, but if there has
 // been a change, we must not identify the "local" as a duplicate. Thus, we
 // incorporate the last modified timestamp into the result.
-func localUniqueID(dir string) (string, error) {
+func localUniqueID(dir string, opts ...llb.LocalOption) (string, error) {
 	mac, err := FirstUpInterface()
 	if err != nil {
 		return "", err
 	}
 
+	var localInfo llb.LocalInfo
+	for _, opt := range opts {
+		opt.SetLocalOption(&localInfo)
+	}
+
+	var walkOpts fsutil.WalkOpt
+	if localInfo.IncludePatterns != "" {
+		if err := json.Unmarshal([]byte(localInfo.IncludePatterns), &walkOpts.IncludePatterns); err != nil {
+			return "", errors.Wrap(err, "failed to unmarshal IncludePatterns for localUniqueID")
+		}
+	}
+	if localInfo.ExcludePatterns != "" {
+		if err := json.Unmarshal([]byte(localInfo.ExcludePatterns), &walkOpts.ExcludePatterns); err != nil {
+			return "", errors.Wrap(err, "failed to unmarshal ExcludePatterns for localUniqueID")
+		}
+	}
+	if localInfo.FollowPaths != "" {
+		if err := json.Unmarshal([]byte(localInfo.FollowPaths), &walkOpts.FollowPaths); err != nil {
+			return "", errors.Wrap(err, "failed to unmarshal FollowPaths for localUniqueID")
+		}
+	}
+
 	var lastModified time.Time
-	err = filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
+	err = fsutil.Walk(context.Background(), dir, &walkOpts, func(path string, info fs.FileInfo, err error) error {
 		if lastModified.IsZero() || info.ModTime().After(lastModified) {
 			lastModified = info.ModTime()
 		}
