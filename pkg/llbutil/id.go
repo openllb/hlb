@@ -53,28 +53,6 @@ func localUniqueID(localPath string, opts ...llb.LocalOption) (string, error) {
 		return "", err
 	}
 
-	var localInfo llb.LocalInfo
-	for _, opt := range opts {
-		opt.SetLocalOption(&localInfo)
-	}
-
-	var walkOpts fsutil.WalkOpt
-	if localInfo.IncludePatterns != "" {
-		if err := json.Unmarshal([]byte(localInfo.IncludePatterns), &walkOpts.IncludePatterns); err != nil {
-			return "", errors.Wrap(err, "failed to unmarshal IncludePatterns for localUniqueID")
-		}
-	}
-	if localInfo.ExcludePatterns != "" {
-		if err := json.Unmarshal([]byte(localInfo.ExcludePatterns), &walkOpts.ExcludePatterns); err != nil {
-			return "", errors.Wrap(err, "failed to unmarshal ExcludePatterns for localUniqueID")
-		}
-	}
-	if localInfo.FollowPaths != "" {
-		if err := json.Unmarshal([]byte(localInfo.FollowPaths), &walkOpts.FollowPaths); err != nil {
-			return "", errors.Wrap(err, "failed to unmarshal FollowPaths for localUniqueID")
-		}
-	}
-
 	fi, err := os.Stat(localPath)
 	if err != nil {
 		return "", err
@@ -82,6 +60,28 @@ func localUniqueID(localPath string, opts ...llb.LocalOption) (string, error) {
 
 	lastModified := fi.ModTime()
 	if fi.IsDir() {
+		var localInfo llb.LocalInfo
+		for _, opt := range opts {
+			opt.SetLocalOption(&localInfo)
+		}
+
+		var walkOpts fsutil.WalkOpt
+		if localInfo.IncludePatterns != "" {
+			if err := json.Unmarshal([]byte(localInfo.IncludePatterns), &walkOpts.IncludePatterns); err != nil {
+				return "", errors.Wrap(err, "failed to unmarshal IncludePatterns for localUniqueID")
+			}
+		}
+		if localInfo.ExcludePatterns != "" {
+			if err := json.Unmarshal([]byte(localInfo.ExcludePatterns), &walkOpts.ExcludePatterns); err != nil {
+				return "", errors.Wrap(err, "failed to unmarshal ExcludePatterns for localUniqueID")
+			}
+		}
+		if localInfo.FollowPaths != "" {
+			if err := json.Unmarshal([]byte(localInfo.FollowPaths), &walkOpts.FollowPaths); err != nil {
+				return "", errors.Wrap(err, "failed to unmarshal FollowPaths for localUniqueID")
+			}
+		}
+
 		err := fsutil.Walk(context.Background(), localPath, &walkOpts, func(path string, info fs.FileInfo, err error) error {
 			if info.ModTime().After(lastModified) {
 				lastModified = info.ModTime()
