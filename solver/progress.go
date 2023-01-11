@@ -173,10 +173,7 @@ func newSyncProgressPrinter(w io.Writer, out console.File, mode string) (*syncPr
 		out:  out,
 		mode: mode,
 	}
-	if err := spp.reset(); err != nil {
-		return nil, err
-	}
-	return spp, nil
+	return spp, spp.reset()
 }
 
 func (spp *syncProgressPrinter) reset() error {
