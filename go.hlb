@@ -45,7 +45,7 @@ fs lint(fs src) {
 	env "PATH" "/usr/bin:/bin:/usr/local/go/bin"
 	dir "/go/src/hlb"
 	run "go get" with cacheMounts(src)
-	run "/usr/bin/golangci-lint run" with cacheMounts(src)
+	run "/usr/bin/golangci-lint run --timeout 10m" with cacheMounts(src)
 }
 
 option::run cacheMounts(fs src) {
