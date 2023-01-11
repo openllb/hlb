@@ -31,7 +31,7 @@ pipeline crossBinaries(fs src, string package, string verPackage) {
 		stringField "goVersion" "1.19.3"
 		stringField "goBuildFlags" "-ldflags \"-X ${verPackage}.Version=$(${versionCmd})\""
 	} option::run {
-		env "CGO_ENABLED" "1"
+		env "CGO_ENABLED" "0"
 	}
 }
 
