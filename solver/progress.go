@@ -95,7 +95,10 @@ func NewProgress(ctx context.Context, opts ...ProgressOption) (Progress, error) 
 		return nil, errors.Errorf("unknown log output %q", info.logOutput)
 	}
 
-	spp := newSyncProgressPrinter(info.writer, info.console, mode)
+	spp, err := newSyncProgressPrinter(info.writer, info.console, mode)
+	if err != nil {
+		return nil, err
+	}
 	p := &progressUI{
 		origCtx: ctx,
 		spp:     spp,
@@ -164,17 +167,19 @@ type syncProgressPrinter struct {
 
 var _ progress.Writer = (*syncProgressPrinter)(nil)
 
-func newSyncProgressPrinter(w io.Writer, out console.File, mode string) *syncProgressPrinter {
+func newSyncProgressPrinter(w io.Writer, out console.File, mode string) (*syncProgressPrinter, error) {
 	spp := &syncProgressPrinter{
 		w:    w,
 		out:  out,
 		mode: mode,
 	}
-	spp.reset()
-	return spp
+	if err := spp.reset(); err != nil {
+		return nil, err
+	}
+	return spp, nil
 }
 
-func (spp *syncProgressPrinter) reset() {
+func (spp *syncProgressPrinter) reset() error {
 	// Not using shared context to not disrupt display on errors, and allow
 	// graceful exit and report error.
 	pctx, cancel := context.WithCancel(context.Background())
@@ -182,7 +187,9 @@ func (spp *syncProgressPrinter) reset() {
 	defer spp.mu.Unlock()
 	spp.cancel = cancel
 	spp.done = make(chan struct{})
-	spp.p = progress.NewPrinter(pctx, spp.w, spp.out, spp.mode)
+	var err error
+	spp.p, err = progress.NewPrinter(pctx, spp.w, spp.out, spp.mode)
+	return err
 }
 
 func (spp *syncProgressPrinter) Write(s *client.SolveStatus) {
