@@ -914,10 +914,11 @@ func (s *Session) onDisassembleRequest(req *dap.DisassembleRequest) error {
 
 // CancelRequest: The 'cancel' request is used by the frontend in two
 // situations:
-// - to indicate that it is no longer interested in the result produced by a
-//   specific request issued earlier
-// - to cancel a progress sequence. Clients should only call this request if
-//   the capability 'supportsCancelRequest' is true.
+//   - to indicate that it is no longer interested in the result produced by a
+//     specific request issued earlier
+//   - to cancel a progress sequence. Clients should only call this request if
+//     the capability 'supportsCancelRequest' is true.
+//
 // This request has a hint characteristic: a debug adapter can only be expected
 // to make a 'best effort' in honouring this request but there are no
 // guarantees.

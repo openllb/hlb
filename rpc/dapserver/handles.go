@@ -21,11 +21,6 @@ func newHandlesMap() *handlesMap {
 	}
 }
 
-func (hs *handlesMap) reset() {
-	hs.nextHandle = startHandle
-	hs.handleToVal = make(map[int]interface{})
-}
-
 func (hs *handlesMap) create(alias string, value interface{}) int {
 	next := hs.nextHandle
 	hs.nextHandle++
@@ -37,14 +32,6 @@ func (hs *handlesMap) create(alias string, value interface{}) int {
 func (hs *handlesMap) get(handle int) (interface{}, bool) {
 	v, ok := hs.handleToVal[handle]
 	return v, ok
-}
-
-func (hs *handlesMap) getByAlias(alias string) (interface{}, bool) {
-	handle, ok := hs.lookupHandle(alias)
-	if !ok {
-		return nil, false
-	}
-	return hs.get(handle)
 }
 
 func (hs *handlesMap) lookupHandle(alias string) (int, bool) {
