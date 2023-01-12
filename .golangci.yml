@@ -2,18 +2,16 @@ linters:
   enable-all: false
   disable-all: true
   enable:
-    - deadcode
     - depguard
     - gofmt
     - goimports
     - gosimple
     - ineffassign
     - misspell
-    - scopelint
-    - structcheck
+    - exportloopref
     - typecheck
     - unconvert
-    - varcheck
+    - unused
 
 issues:
   exclude-use-default: false

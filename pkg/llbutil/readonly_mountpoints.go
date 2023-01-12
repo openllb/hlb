@@ -14,19 +14,19 @@ import (
 //
 // For example if we have this code:
 //
-// ```hlb
-// run "make" with option {
-// 	dir "/src"
-//	mount fs {
-//		local "."
-//	} "/src" with readonly
-//		mount scratch "/src/output" as buildOutput
-//		# ^^^^^ FAIL cannot create `output` directory for mount on readonly fs
-//		secret "./secret/foo.pem" "/src/secret/foo.pem"
-//		# ^^^^^ FAIL cannot create `./secret/foo.pm` for secret on readonly fs
+//	```hlb
+//	run "make" with option {
+//		dir "/src"
+//		mount fs {
+//			local "."
+//		} "/src" with readonly
+//			mount scratch "/src/output" as buildOutput
+//			# ^^^^^ FAIL cannot create `output` directory for mount on readonly fs
+//			secret "./secret/foo.pem" "/src/secret/foo.pem"
+//			# ^^^^^ FAIL cannot create `./secret/foo.pm` for secret on readonly fs
+//		}
 //	}
-// }
-// ```
+//	```
 //
 // When containerd tries to mount /src/output on top of the /src mountpoint it
 // will fail because /src is mounted as readonly.  The work around for this is
@@ -36,17 +36,19 @@ import (
 // It can be done with HLB like:
 //
 // ```hlb
-// run "make" with option {
-// 	dir "/src"
-//	mount fs {
-//		local "."
-//		mkdir "output" 0o755 # <-- this is added to ensure mountpoint exists
-//		mkdir "secret" 0o755            # <-- added so the secret can be mounted
-//		mkfile "secret/foo.pm" 0o644 "" # <-- added so the secret can be mounted
-//	} "/src" with readonly
-//		mount scratch "/src/output" as buildOutput
+//
+//	run "make" with option {
+//		dir "/src"
+//		mount fs {
+//			local "."
+//			mkdir "output" 0o755 # <-- this is added to ensure mountpoint exists
+//			mkdir "secret" 0o755            # <-- added so the secret can be mounted
+//			mkfile "secret/foo.pm" 0o644 "" # <-- added so the secret can be mounted
+//		} "/src" with readonly
+//			mount scratch "/src/output" as buildOutput
+//		}
 //	}
-// }
+//
 // ```
 //
 // So this function is effectively automatically adding the `mkdir` and `mkfile`

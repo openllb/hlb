@@ -249,9 +249,8 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		State:    llb.Local(localPath, localOpts...),
 		Platform: DefaultPlatform(ctx),
 	}
-	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(id, filesync.SyncedDir{
-		Name: localPath,
-		Dir:  localDir,
+	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(localPath, filesync.SyncedDir{
+		Dir: localDir,
 		Map: func(_ string, st *fstypes.Stat) fsutil.MapResult {
 			st.Uid = 0
 			st.Gid = 0

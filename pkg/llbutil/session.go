@@ -16,7 +16,7 @@ import (
 type SessionInfo struct {
 	SyncTargetDir   *string
 	SyncTarget      func(map[string]string) (io.WriteCloser, error)
-	SyncedDirByID   map[string]filesync.SyncedDir
+	SyncedDirs      filesync.StaticDirSource
 	FileSourceByID  map[string]secretsprovider.Source
 	AgentConfigByID map[string]sockproxy.AgentConfig
 }
@@ -35,9 +35,9 @@ func WithSyncTarget(f func(map[string]string) (io.WriteCloser, error)) SessionOp
 	}
 }
 
-func WithSyncedDir(id string, dir filesync.SyncedDir) SessionOption {
+func WithSyncedDir(name string, dir filesync.SyncedDir) SessionOption {
 	return func(si *SessionInfo) {
-		si.SyncedDirByID[id] = dir
+		si.SyncedDirs[name] = dir
 	}
 }
 
@@ -55,7 +55,7 @@ func WithAgentConfig(id string, cfg sockproxy.AgentConfig) SessionOption {
 
 func NewSession(ctx context.Context, opts ...SessionOption) (*session.Session, error) {
 	si := SessionInfo{
-		SyncedDirByID:   make(map[string]filesync.SyncedDir),
+		SyncedDirs:      make(filesync.StaticDirSource),
 		FileSourceByID:  make(map[string]secretsprovider.Source),
 		AgentConfigByID: make(map[string]sockproxy.AgentConfig),
 	}
@@ -78,12 +78,8 @@ func NewSession(ctx context.Context, opts ...SessionOption) (*session.Session, e
 	}
 
 	// Attach local directory providers to the session.
-	var syncedDirs []filesync.SyncedDir
-	for _, dir := range si.SyncedDirByID {
-		syncedDirs = append(syncedDirs, dir)
-	}
-	if len(syncedDirs) > 0 {
-		attachables = append(attachables, filesync.NewFSSyncProvider(syncedDirs))
+	if len(si.SyncedDirs) > 0 {
+		attachables = append(attachables, filesync.NewFSSyncProvider(si.SyncedDirs))
 	}
 
 	// Attach ssh forwarding providers to the session.

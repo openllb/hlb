@@ -46,13 +46,14 @@ type matcher struct {
 // second time.
 //
 // For example, you can invoke Match to find CallStmts inside FuncLits:
-// ```go
-// Match(root, MatchOpts{},
-// 	func(lit *FuncLit, call *CallStmt) {
-// 		fmt.Println(lit.Pos, call.Pos)
-// 	},
-// )
-// ```
+//
+//	```go
+//	Match(root, MatchOpts{},
+//		func(lit *FuncLit, call *CallStmt) {
+//			fmt.Println(lit.Pos, call.Pos)
+//		},
+//	)
+//	```
 func Match(root Node, opts MatchOpts, funs ...interface{}) {
 	m := &matcher{
 		opts:    opts,
