@@ -506,7 +506,7 @@ func (s SSH) Call(ctx context.Context, cln *client.Client, val Value, opts Optio
 	}
 
 	var (
-		sshOpts    = []llb.SSHOption{llbutil.WithChmod(0600)}
+		sshOpts    = []llb.SSHOption{llbutil.WithChmod(0o600)}
 		localPaths []string
 	)
 	for _, opt := range opts {
@@ -599,13 +599,24 @@ func (f Forward) Call(ctx context.Context, cln *client.Client, val Value, opts O
 		})
 	}
 
+	sshOpts := []llb.SSHOption{
+		llbutil.WithID(id),
+		llbutil.WithChmod(0o600),
+	}
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case llb.SSHOption:
+			sshOpts = append(sshOpts, o)
+		}
+	}
+
 	retOpts = append(retOpts, llbutil.WithAgentConfig(id, sockproxy.AgentConfig{
 		ID:    id,
 		SSH:   false,
 		Paths: []string{localPath},
 	}))
 
-	return NewValue(ctx, append(retOpts, llbutil.WithSSHSocket(dest, llbutil.WithID(id))))
+	return NewValue(ctx, append(retOpts, llbutil.WithSSHSocket(dest, sshOpts...)))
 }
 
 func isClosedNetworkError(err error) bool {

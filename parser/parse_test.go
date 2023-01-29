@@ -8,8 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	def = `
+var def = `
 		fs foo() {
 			image "alpine" with option {
 				resolve
@@ -41,6 +40,11 @@ var (
 					tmpfs
 					source "target"
 					cache "cacheid" shared
+				}
+				forward "tcp://localhost:1234" "/tmp/servicee.sock" with option {
+					uid 1000
+					gid 1000
+					mode 0o666
 				}
 			}
 			env "key" "value"
@@ -105,7 +109,6 @@ var (
 			EOM
 		}
 	`
-)
 
 func TestParse(t *testing.T) {
 	t.Parallel()
