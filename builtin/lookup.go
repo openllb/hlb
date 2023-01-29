@@ -273,6 +273,28 @@ var (
 					},
 				},
 			},
+			"option::forward": {
+				Func: map[string]FuncLookup{
+					"uid": {
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "id", false),
+						},
+						Effects: []*ast.Field{},
+					},
+					"gid": {
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "id", false),
+						},
+						Effects: []*ast.Field{},
+					},
+					"mode": {
+						Params: []*ast.Field{
+							ast.NewField(ast.Int, "filemode", false),
+						},
+						Effects: []*ast.Field{},
+					},
+				},
+			},
 			"option::frontend": {
 				Func: map[string]FuncLookup{
 					"input": {
@@ -882,6 +904,25 @@ option::run ssh()
 # @param dest a mountpoint for a unix domain socket that is forwarded to/from.
 # @return an option to forward traffic from a local source.
 option::run forward(string src, string dest)
+
+# Sets the user ID for the forwarded socket. By default, the UID is 0.
+#
+# @param id the user ID.
+# @return an option to set the user ID of the forwarded socket.
+option::forward uid(int id)
+
+# Sets the group ID for the forwarded socket. By default, the GID is 0.
+#
+# @param id the group ID.
+# @return an option to set the group ID of the forwarded socket.
+option::forward gid(int id)
+
+# Sets the permissions for the forwarded socket. By default, the file mode is
+# 0o600.
+#
+# @param filemode the new permissions of the forwarded socket in int.
+# @return an option to set the permissions of the forwarded socket.
+option::forward mode(int filemode)
 
 # Mounts a secure file for the duration of the run command. Secrets are
 # attached via a tmpfs mount, so all the data stays in volatile memory.
