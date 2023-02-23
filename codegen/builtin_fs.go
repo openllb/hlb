@@ -414,9 +414,13 @@ func (r Run) Call(ctx context.Context, cln *client.Client, val Value, opts Optio
 		bind        string
 		shlex       = false
 		image       *solver.ImageSpec
+		hasUserOpt  = false
 	)
 	for _, opt := range opts {
 		switch o := opt.(type) {
+		case llbutil.UserOption:
+			hasUserOpt = true
+			runOpts = append(runOpts, o)
 		case llb.RunOption:
 			runOpts = append(runOpts, o)
 		case solver.SolveOption:
@@ -450,6 +454,10 @@ func (r Run) Call(ctx context.Context, cln *client.Client, val Value, opts Optio
 	fs, err := val.Filesystem()
 	if err != nil {
 		return nil, err
+	}
+
+	if user := fs.Image.Config.User; user != "" && !hasUserOpt {
+		runOpts = append(runOpts, llbutil.WithUser(user))
 	}
 
 	run := fs.State.Run(runOpts...)
