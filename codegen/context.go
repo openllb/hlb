@@ -27,6 +27,7 @@ type (
 	returnTypeKey      struct{}
 	argKey             struct{ n int }
 	bindingKey         struct{}
+	calleeBindingKey   struct{}
 	multiwriterKey     struct{}
 	imageResolverKey   struct{}
 	backtraceKey       struct{}
@@ -83,6 +84,21 @@ func WithBinding(ctx context.Context, binding *ast.Binding) context.Context {
 
 func Binding(ctx context.Context) *ast.Binding {
 	binding, ok := ctx.Value(bindingKey{}).(*ast.Binding)
+	if !ok {
+		return &ast.Binding{}
+	}
+	return binding
+}
+
+func WithCalleeBinding(ctx context.Context, binding *ast.Binding) context.Context {
+	if binding != nil {
+		return context.WithValue(ctx, calleeBindingKey{}, binding)
+	}
+	return ctx
+}
+
+func CalleeBinding(ctx context.Context) *ast.Binding {
+	binding, ok := ctx.Value(calleeBindingKey{}).(*ast.Binding)
 	if !ok {
 		return &ast.Binding{}
 	}

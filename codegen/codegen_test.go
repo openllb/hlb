@@ -935,6 +935,26 @@ func TestCodeGen(t *testing.T) {
 				llb.AddMount("/foobar", mnt),
 			).Root())
 		},
+	}, {
+		"mount local with bind is copied",
+		[]string{"default"},
+		`
+		fs _default() {
+			image "busybox"
+			run "find" "/foo" with option {
+				mount local(".") "/foo" as default
+			}
+		}
+		`, "",
+		func(ctx context.Context, t *testing.T) solver.Request {
+			return Expect(t, llb.Image("busybox").Run(
+				llb.Args([]string{"find", "/foo"}),
+				llb.AddMount(
+					"/foo",
+					llb.Scratch().File(llb.Copy(LocalState(ctx, t, "."), "/", "/")),
+				),
+			).Root())
+		},
 	}} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
