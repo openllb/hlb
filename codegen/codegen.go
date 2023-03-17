@@ -647,7 +647,7 @@ func (cg *CodeGen) EmitCallStmt(ctx context.Context, scope *ast.Scope, call *ast
 	}
 
 	// Evaluate args second.
-	args := cg.Evaluate(ctx, scope, call, b)
+	args := cg.Evaluate(WithCalleeBinding(ctx, b), scope, call, b)
 	for i, arg := range call.Arguments() {
 		ctx = WithArg(ctx, i, arg)
 	}

@@ -245,8 +245,17 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		llb.LocalUniqueID(id),
 	)
 
+	st := llb.Local(localPath, localOpts...)
+	if CalleeBinding(ctx).Binds() == "target" {
+		// we are mounting this `local` and the `mount` is bound.  We are
+		// currently seeing cache invalidation even if the `local` contents are
+		// unchanged. A hacky-workaround is to Copy the llb.Local first, then
+		// mount the Copy, which allows for better caching for Run calls.
+		st = llb.Scratch().File(llb.Copy(st, "/", "/"))
+	}
+
 	fs := Filesystem{
-		State:    llb.Local(localPath, localOpts...),
+		State:    st,
 		Platform: DefaultPlatform(ctx),
 	}
 	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(localPath, filesync.SyncedDir{

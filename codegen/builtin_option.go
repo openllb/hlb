@@ -708,7 +708,7 @@ func (m Mount) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		}
 		retOpts = append(retOpts, &Mount{Bind: mountpoint, Image: input.Image})
 	} else {
-		opts = append(opts, llb.ForceNoOutput)
+		opts = append(opts, llb.MountOption(llb.ForceNoOutput))
 	}
 
 	retOpts = append(retOpts, &llbutil.MountRunOption{
