@@ -2,13 +2,17 @@ package solver
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/containerd/console"
 	"github.com/docker/buildx/util/progress"
+	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -185,7 +189,7 @@ func (spp *syncProgressPrinter) reset() error {
 	spp.cancel = cancel
 	spp.done = make(chan struct{})
 	var err error
-	spp.p, err = progress.NewPrinter(pctx, spp.w, spp.out, spp.mode)
+	spp.p, err = progress.NewPrinter(pctx, spp.out, progressui.DisplayMode(spp.mode))
 	return err
 }
 
@@ -198,6 +202,9 @@ func (spp *syncProgressPrinter) Write(s *client.SolveStatus) {
 	default:
 		spp.p.Write(s)
 	}
+}
+
+func (spp *syncProgressPrinter) WriteBuildRef(target string, ref string) {
 }
 
 func (spp *syncProgressPrinter) ValidateLogSource(dgst digest.Digest, v interface{}) bool {
@@ -213,4 +220,70 @@ func (spp *syncProgressPrinter) wait() error {
 	defer spp.mu.Unlock()
 	close(spp.done)
 	return spp.p.Wait()
+}
+
+const minTimeDelta = 2 * time.Second
+
+// From buildx util/dockerutil/progress.go - now unexported
+func ProgressFromReader(l progress.SubLogger, rc io.ReadCloser) error {
+	started := map[string]client.VertexStatus{}
+
+	defer func() {
+		for _, st := range started {
+			st := st
+			if st.Completed == nil {
+				now := time.Now()
+				st.Completed = &now
+				l.SetStatus(&st)
+			}
+		}
+	}()
+
+	dec := json.NewDecoder(rc)
+	var parsedErr error
+	var jm jsonmessage.JSONMessage
+	for {
+		if err := dec.Decode(&jm); err != nil {
+			if parsedErr != nil {
+				return parsedErr
+			}
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if jm.Error != nil {
+			parsedErr = jm.Error
+		}
+		if jm.ID == "" || jm.Progress == nil {
+			continue
+		}
+
+		id := "loading layer " + jm.ID
+		st, ok := started[id]
+		if !ok {
+			now := time.Now()
+			st = client.VertexStatus{
+				ID:      id,
+				Started: &now,
+			}
+		}
+		timeDelta := time.Now().Sub(st.Timestamp)
+		if timeDelta < minTimeDelta {
+			continue
+		}
+		st.Timestamp = time.Now()
+		if jm.Status == "Loading layer" {
+			st.Current = jm.Progress.Current
+			st.Total = jm.Progress.Total
+		}
+		if jm.Error != nil {
+			now := time.Now()
+			st.Completed = &now
+		}
+		started[id] = st
+		l.SetStatus(&st)
+	}
+
+	return nil
 }

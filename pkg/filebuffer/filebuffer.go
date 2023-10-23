@@ -106,7 +106,7 @@ func (fb *FileBuffer) SourceMap() *llb.SourceMap {
 		// This caching is important - BuildKit dedups SourceMaps based
 		// on pointer address, so returning a fresh SourceMap each time
 		// would blow up the size of the solve request.
-		fb.sourceMap = llb.NewSourceMap(nil, fb.filename, fb.buf.Bytes())
+		fb.sourceMap = llb.NewSourceMap(nil, fb.filename, "HLB", fb.buf.Bytes())
 	}
 	return fb.sourceMap
 }

@@ -39,7 +39,11 @@ func TestProgress(t *testing.T) {
 		"output sync after write",
 		func(p Progress) error {
 			pw := p.MultiWriter().WithPrefix("", false)
-			progress.FromReader(pw, "test", io.NopCloser(strings.NewReader("")))
+			if err := progress.Wrap("test", pw.Write, func(l progress.SubLogger) error {
+				return ProgressFromReader(l, io.NopCloser(strings.NewReader("")))
+			}); err != nil {
+				return err
+			}
 
 			// Can sync after write.
 			return p.Sync()

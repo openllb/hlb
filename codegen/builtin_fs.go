@@ -23,7 +23,6 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
-	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/solver/pb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/errdefs"
@@ -100,7 +99,7 @@ func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		}
 	)
 	if resolver != nil {
-		dgst, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
+		_, dgst, config, err := resolver.ResolveImageConfig(ctx, ref, resolveOpt)
 		if err != nil {
 			return nil, Arg(ctx, 0).WithError(err)
 		}
@@ -258,14 +257,22 @@ func (l Local) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		State:    st,
 		Platform: DefaultPlatform(ctx),
 	}
-	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(localPath, filesync.SyncedDir{
-		Dir: localDir,
+
+	syncedDirFS, err := fsutil.NewFS(localDir)
+	if err != nil {
+		return nil, err
+	}
+	syncedDirFS, err = fsutil.NewFilterFS(syncedDirFS, &fsutil.FilterOpt{
 		Map: func(_ string, st *fstypes.Stat) fsutil.MapResult {
 			st.Uid = 0
 			st.Gid = 0
 			return fsutil.MapResultKeep
 		},
-	}))
+	})
+	if err != nil {
+		return nil, err
+	}
+	fs.SessionOpts = append(fs.SessionOpts, llbutil.WithSyncedDir(localPath, syncedDirFS))
 
 	return NewValue(ctx, fs)
 }
@@ -1004,8 +1011,9 @@ func (dl DockerLoad) Call(ctx context.Context, cln *client.Client, val Value, op
 		}
 
 		pw := mw.WithPrefix("", false)
-		progress.FromReader(pw, fmt.Sprintf("importing %s to docker", ref), resp.Body)
-		return nil
+		return progress.Wrap(fmt.Sprintf("importing %s to docker", ref), pw.Write, func(l progress.SubLogger) error {
+			return solver.ProgressFromReader(l, resp.Body)
+		})
 	})
 
 	fs, err := val.Filesystem()

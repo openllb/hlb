@@ -65,7 +65,7 @@ func localUniqueID(localPath string, opts ...llb.LocalOption) (string, error) {
 			opt.SetLocalOption(&localInfo)
 		}
 
-		var walkOpts fsutil.WalkOpt
+		var walkOpts fsutil.FilterOpt
 		if localInfo.IncludePatterns != "" {
 			if err := json.Unmarshal([]byte(localInfo.IncludePatterns), &walkOpts.IncludePatterns); err != nil {
 				return "", errors.Wrap(err, "failed to unmarshal IncludePatterns for localUniqueID")

@@ -78,6 +78,9 @@ func (p *prefixed) Write(v *client.SolveStatus) {
 	p.mw.w.Write(filtered)
 }
 
+func (p *prefixed) WriteBuildRef(target string, ref string) {
+}
+
 func (p *prefixed) ValidateLogSource(dgst digest.Digest, v interface{}) bool {
 	return p.mw.w.ValidateLogSource(dgst, v)
 }

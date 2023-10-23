@@ -11,6 +11,7 @@ import (
 	"github.com/moby/buildkit/session/filesync"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/openllb/hlb/pkg/sockproxy"
+	"github.com/tonistiigi/fsutil"
 )
 
 type SessionInfo struct {
@@ -35,7 +36,7 @@ func WithSyncTarget(f func(map[string]string) (io.WriteCloser, error)) SessionOp
 	}
 }
 
-func WithSyncedDir(name string, dir filesync.SyncedDir) SessionOption {
+func WithSyncedDir(name string, dir fsutil.FS) SessionOption {
 	return func(si *SessionInfo) {
 		si.SyncedDirs[name] = dir
 	}
@@ -65,7 +66,7 @@ func NewSession(ctx context.Context, opts ...SessionOption) (*session.Session, e
 
 	// By default, forward docker authentication through the session.
 	dockerConfig := config.LoadDefaultConfigFile(os.Stderr)
-	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(dockerConfig)}
+	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(dockerConfig, nil)}
 
 	// Attach local directory the session can write to.
 	if si.SyncTargetDir != nil {
