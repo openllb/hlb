@@ -38,7 +38,7 @@ pipeline crossBinaries(fs src, string package, string verPackage) {
 fs lint(fs src) {
 	golang
 	run "apk add -U git gcc libc-dev"
-	run "sh /golangci/install.sh -b /usr/bin v1.50.1" with option {
+	run "sh /golangci/install.sh -b /usr/bin v1.55.0" with option {
 		mount http("https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh") "/golangci"
 	}
 	env "GO111MODULE" "on"
