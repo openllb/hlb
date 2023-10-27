@@ -11,7 +11,7 @@ string versionCmd() {
 }
 
 fs golang() {
-	image "golang:1.19-alpine"
+	image "golang:1.21-alpine"
 }
 
 fs build(fs src, string package, string verPackage) {
@@ -28,7 +28,7 @@ fs build(fs src, string package, string verPackage) {
 pipeline crossBinaries(fs src, string package, string verPackage) {
 	go.buildCommonWithOptions src package option::template {
 		stringField "base" "docker.elastic.co/beats-dev/golang-crossbuild"
-		stringField "goVersion" "1.19.3"
+		stringField "goVersion" "1.21.3"
 		stringField "goBuildFlags" "-ldflags \"-X ${verPackage}.Version=$(${versionCmd})\""
 	} option::run {
 		env "CGO_ENABLED" "0"
@@ -38,7 +38,7 @@ pipeline crossBinaries(fs src, string package, string verPackage) {
 fs lint(fs src) {
 	golang
 	run "apk add -U git gcc libc-dev"
-	run "sh /golangci/install.sh -b /usr/bin v1.50.1" with option {
+	run "sh /golangci/install.sh -b /usr/bin v1.55.0" with option {
 		mount http("https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh") "/golangci"
 	}
 	env "GO111MODULE" "on"

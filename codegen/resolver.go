@@ -47,11 +47,12 @@ type cachedImageResolver struct {
 }
 
 type imageConfig struct {
+	ref    string
 	dgst   digest.Digest
 	config []byte
 }
 
-func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt llb.ResolveImageConfigOpt) (dgst digest.Digest, config []byte, err error) {
+func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt llb.ResolveImageConfigOpt) (resolvedRef string, dgst digest.Digest, config []byte, err error) {
 	key := cacheKey{ref: ref}
 	if opt.Platform != nil {
 		key.os = opt.Platform.OS
@@ -61,7 +62,7 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 	cfg, ok := r.cache[key]
 	r.mu.RUnlock()
 	if ok {
-		return cfg.dgst, cfg.config, nil
+		return cfg.ref, cfg.dgst, cfg.config, nil
 	}
 
 	s, err := llbutil.NewSession(ctx)
@@ -85,7 +86,7 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 		}
 
 		return solver.Build(ctx, r.cln, s, pw, func(ctx context.Context, c gateway.Client) (res *gateway.Result, err error) {
-			dgst, config, err = c.ResolveImageConfig(ctx, ref, opt)
+			resolvedRef, dgst, config, err = c.ResolveImageConfig(ctx, ref, opt)
 			return gateway.NewResult(), err
 		})
 	})
@@ -96,7 +97,11 @@ func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string
 	}
 
 	r.mu.Lock()
-	r.cache[key] = &imageConfig{dgst, config}
+	r.cache[key] = &imageConfig{
+		ref:    resolvedRef,
+		dgst:   dgst,
+		config: config,
+	}
 	r.mu.Unlock()
 	return
 }

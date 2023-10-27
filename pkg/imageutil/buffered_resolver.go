@@ -48,7 +48,7 @@ func WithDefaultPlatform(p specs.Platform) ResolverOpt {
 // registry auth settings configured in the local Docker config file.
 func RegistryCreds(host string) (string, string, error) {
 	dockerConfig := config.LoadDefaultConfigFile(os.Stderr)
-	authProvider := authprovider.NewDockerAuthProvider(dockerConfig)
+	authProvider := authprovider.NewDockerAuthProvider(dockerConfig, nil)
 	authServer, ok := authProvider.(auth.AuthServer)
 	if !ok {
 		return "", "", errors.New("NewDockerAuthProvider did not return an AuthServer")

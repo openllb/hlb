@@ -21,7 +21,7 @@ func FilterLocalFiles(localPath string, includePatterns, excludePatterns []strin
 		localPaths = append(localPaths, localPath)
 		return
 	case fi.Mode().IsDir():
-		opt := &fsutil.WalkOpt{
+		opt := &fsutil.FilterOpt{
 			IncludePatterns: includePatterns,
 			ExcludePatterns: excludePatterns,
 		}
