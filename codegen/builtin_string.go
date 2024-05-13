@@ -13,7 +13,7 @@ import (
 	"github.com/containerd/containerd/platforms"
 	"github.com/docker/distribution/reference"
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/client/llb/sourceresolver"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/openllb/hlb/errdefs"
 	"github.com/openllb/hlb/local"
@@ -147,7 +147,7 @@ func (m Manifest) Call(ctx context.Context, cln *client.Client, val Value, opts 
 		}
 	}
 
-	dgst, config, err := resolver.ResolveImageConfig(ctx, ref, llb.ResolveImageConfigOpt{Platform: platform})
+	dgst, config, err := resolver.ResolveImageConfig(ctx, ref, sourceresolver.Opt{Platform: platform})
 	if err != nil {
 		return nil, err
 	}

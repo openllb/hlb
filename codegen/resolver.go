@@ -7,6 +7,7 @@ import (
 	"github.com/docker/buildx/util/progress"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/client/llb/sourceresolver"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/openllb/hlb/parser/ast"
@@ -52,7 +53,7 @@ type imageConfig struct {
 	config []byte
 }
 
-func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt llb.ResolveImageConfigOpt) (resolvedRef string, dgst digest.Digest, config []byte, err error) {
+func (r *cachedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt sourceresolver.Opt) (resolvedRef string, dgst digest.Digest, config []byte, err error) {
 	key := cacheKey{ref: ref}
 	if opt.Platform != nil {
 		key.os = opt.Platform.OS

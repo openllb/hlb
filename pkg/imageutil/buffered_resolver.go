@@ -12,7 +12,7 @@ import (
 	"github.com/containerd/containerd/remotes"
 	"github.com/containerd/containerd/remotes/docker"
 	"github.com/docker/cli/cli/config"
-	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/client/llb/sourceresolver"
 	"github.com/moby/buildkit/session/auth"
 	"github.com/moby/buildkit/session/auth/authprovider"
 	"github.com/moby/buildkit/util/contentutil"
@@ -77,7 +77,7 @@ func NewBufferedImageResolver(with ...ResolverOpt) *BufferedImageResolver {
 // ResolveImageConfig fetches descriptors from ref from the remote registry. It returns the manifest list digest and
 // the image config as raw JSON bytes. After returning successfully, the BufferedImageResolver can be queried for
 // all other descriptors associated with the ref.
-func (bir *BufferedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt llb.ResolveImageConfigOpt) (digest.Digest, []byte, error) {
+func (bir *BufferedImageResolver) ResolveImageConfig(ctx context.Context, ref string, opt sourceresolver.Opt) (digest.Digest, []byte, error) {
 	desc, err := bir.ResolveDescriptor(ctx, ref)
 	if err != nil {
 		return "", nil, err
