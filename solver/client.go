@@ -9,7 +9,7 @@ import (
 
 // BuildkitClient returns a basic buildkit client.
 func BuildkitClient(ctx context.Context, addr string) (*client.Client, error) {
-	opts := []client.ClientOpt{client.WithFailFast()}
+	opts := []client.ClientOpt{}
 	cln, err := client.New(ctx, addr, opts...)
 	if err != nil {
 		return cln, err

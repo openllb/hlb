@@ -69,13 +69,15 @@ func NewSession(ctx context.Context, opts ...SessionOption) (*session.Session, e
 	attachables := []session.Attachable{authprovider.NewDockerAuthProvider(dockerConfig, nil)}
 
 	// Attach local directory the session can write to.
+	syncIndex := 0
 	if si.SyncTargetDir != nil {
-		attachables = append(attachables, filesync.NewFSSyncTargetDir(*si.SyncTargetDir))
+		attachables = append(attachables, filesync.NewFSSyncTarget(filesync.WithFSSyncDir(syncIndex, *si.SyncTargetDir)))
+		syncIndex++
 	}
 
 	// Attach writer the session can write to.
 	if si.SyncTarget != nil {
-		attachables = append(attachables, filesync.NewFSSyncTarget(si.SyncTarget))
+		attachables = append(attachables, filesync.NewFSSyncTarget(filesync.WithFSSync(syncIndex, si.SyncTarget)))
 	}
 
 	// Attach local directory providers to the session.

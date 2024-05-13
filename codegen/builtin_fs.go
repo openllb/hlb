@@ -22,6 +22,7 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/client/llb"
+	"github.com/moby/buildkit/client/llb/sourceresolver"
 	gateway "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/moby/buildkit/solver/pb"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
@@ -90,12 +91,14 @@ func (i Image) Call(ctx context.Context, cln *client.Client, val Value, opts Opt
 		st         = llb.Image(ref, imageOpts...)
 		image      = &solver.ImageSpec{}
 		resolver   = ImageResolver(ctx)
-		resolveOpt = llb.ResolveImageConfigOpt{
+		resolveOpt = sourceresolver.Opt{
 			Platform: &platform,
-			// For some reason, llb.ResolveModeDefault defaults to
-			// llb.ResolveModeForcePull on BuildKit but it defaults to
-			// llb.ResolveModePreferLocal on docker engine, so we just set our own.
-			ResolveMode: llb.ResolveModeForcePull.String(),
+			ImageOpt: &sourceresolver.ResolveImageOpt{
+				// For some reason, llb.ResolveModeDefault defaults to
+				// llb.ResolveModeForcePull on BuildKit but it defaults to
+				// llb.ResolveModePreferLocal on docker engine, so we just set our own.
+				ResolveMode: llb.ResolveModeForcePull.String(),
+			},
 		}
 	)
 	if resolver != nil {
