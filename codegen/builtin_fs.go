@@ -761,6 +761,13 @@ func (dp DockerPush) Call(ctx context.Context, cln *client.Client, val Value, op
 	}
 	exportFS.Image.ContainerConfig.Labels = exportFS.Image.Config.Labels
 
+	if exportFS.Image.OS == "" {
+		exportFS.Image.OS = exportFS.Platform.OS
+	}
+	if exportFS.Image.Architecture == "" {
+		exportFS.Image.Architecture = exportFS.Platform.Architecture
+	}
+
 	var dgst string
 	exportFS.SolveOpts = append(exportFS.SolveOpts,
 		solver.WithImageSpec(exportFS.Image),
