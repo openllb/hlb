@@ -17,7 +17,7 @@ import (
 	"github.com/docker/buildx/util/imagetools"
 	"github.com/docker/buildx/util/progress"
 	"github.com/docker/distribution/reference"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/pkg/jsonmessage"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/moby/buildkit/client"
@@ -881,7 +881,7 @@ func pushWithMoby(ctx context.Context, dockerAPI DockerAPIClient, ref string, l 
 		return err
 	}
 
-	rc, err := dockerAPI.ImagePush(ctx, ref, types.ImagePushOptions{
+	rc, err := dockerAPI.ImagePush(ctx, ref, image.PushOptions{
 		RegistryAuth: creds,
 	})
 	if err != nil {
