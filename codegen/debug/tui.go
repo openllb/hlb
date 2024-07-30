@@ -398,7 +398,7 @@ func handleEnviron(w io.Writer, s *codegen.State) error {
 		return err
 	}
 
-	for _, env := range envs {
+	for _, env := range envs.ToArray() {
 		fmt.Fprintln(w, env)
 	}
 	return nil
